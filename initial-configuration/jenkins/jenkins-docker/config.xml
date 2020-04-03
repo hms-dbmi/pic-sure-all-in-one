@@ -152,7 +152,7 @@
           <int>2</int>
           <string>release_control_branch</string>
           <string>*/master</string>
-          <string>release_control_repository</string>
+          <string>release_control_repo</string>
           <string>https://github.com/hms-dbmi/pic-sure-gic-release-control.git</string>
         </tree-map>
       </envVars>

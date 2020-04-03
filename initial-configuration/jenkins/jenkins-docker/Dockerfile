@@ -1,7 +1,5 @@
 FROM jenkins/jenkins:lts
 
-ARG S3_BUCKET
-
 COPY plugins.txt /usr/share/jenkins/ref/plugins.txt
 
 COPY config.xml /var/jenkins_home/config.xml
@@ -11,10 +9,6 @@ COPY scriptApproval.xml /var/jenkins_home/scriptApproval.xml
 COPY hudson.tasks.Maven.xml /var/jenkins_home/hudson.tasks.Maven.xml
 
 USER root 
-
-RUN echo "s/stack_s3_bucket_var/$S3_BUCKET/"
-
-RUN sed -i "s/stack_s3_bucket_var/$S3_BUCKET/" /var/jenkins_home/config.xml
 
 RUN echo deb http://deb.debian.org/debian stretch-backports main >> /etc/apt/sources.list
 

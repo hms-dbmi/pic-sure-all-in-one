@@ -20,7 +20,7 @@ yum -y install mysql-server
 systemctl start mysqld
 
 echo "Building and installing Jenkins"
-docker build -t jenkins:`git log -n 1 | grep commit | cut -d ' ' -f 2 | cut -c 1-7` jenkins/jenkins-docker
-
+docker build -t pic-sure-jenkins:`git log -n 1 | grep commit | cut -d ' ' -f 2 | cut -c 1-7` jenkins/jenkins-docker
+docker tag pic-sure-jenkins:`git log -n 1 | grep commit | cut -d ' ' -f 2 | cut -c 1-7` pic-sure-jenkins:LATEST
 echo "Creating Jenkins Log Path"
 sudo mkdir -p /var/log/jenkins-docker-logs

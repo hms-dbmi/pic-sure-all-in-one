@@ -3,7 +3,7 @@ services:
   jenkins:
     container_name: jenkins
     restart: always
-    image: avillach-lab-dev-jenkins
+    image: pic-sure-jenkins:LATEST
     environment:
       - stack_s3_bucket
     build: 

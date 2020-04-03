@@ -7,7 +7,7 @@
     <hudson.model.ParametersDefinitionProperty>
       <parameterDefinitions>
         <hudson.model.StringParameterDefinition>
-          <name>pipeline_build_id</name>
+          <name>deployment_git_hash</name>
           <description></description>
           <defaultValue></defaultValue>
           <trim>false</trim>
@@ -15,16 +15,16 @@
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
   </properties>
-  <scm class="hudson.plugins.git.GitSCM" plugin="git@4.0.0">
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@4.1.1">
     <configVersion>2</configVersion>
     <userRemoteConfigs>
       <hudson.plugins.git.UserRemoteConfig>
-        <url>https://github.com/hms-dbmi/pic-sure-wildfly-docker</url>
+        <url>${project_specific_repo}</url>
       </hudson.plugins.git.UserRemoteConfig>
     </userRemoteConfigs>
     <branches>
       <hudson.plugins.git.BranchSpec>
-        <name>*/master</name>
+        <name>${project_specific_branch}</name>
       </hudson.plugins.git.BranchSpec>
     </branches>
     <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
@@ -40,16 +40,18 @@
   <builders>
     <hudson.tasks.Shell>
       <command>
-
-echo $PIC_SURE_API_VERSION
-echo $PIC_SURE_AUTH_VERSION
-
-docker build --build-arg PIC_SURE_API_VERSION=$PIC_SURE_API_VERSION --build-arg PIC_SURE_AUTH_VERSION=$PIC_SURE_AUTH_VERSION -t hms-dbmi/pic-sure-wildfly:${pipeline_build_id} .
-docker tag hms-dbmi/pic-sure-wildfly:${pipeline_build_id} hms-dbmi/pic-sure-wildfly:LATEST
-
+        cd deployment
+        docker-compose up -d
 </command>
     </hudson.tasks.Shell>
   </builders>
   <publishers/>
-  <buildWrappers/>
+  <buildWrappers>
+    <hudson.plugins.ws__cleanup.PreBuildCleanup plugin="ws-cleanup@0.38">
+      <deleteDirs>false</deleteDirs>
+      <cleanupParameter></cleanupParameter>
+      <externalDelete></externalDelete>
+      <disableDeferredWipeout>false</disableDeferredWipeout>
+    </hudson.plugins.ws__cleanup.PreBuildCleanup>
+  </buildWrappers>
 </project>

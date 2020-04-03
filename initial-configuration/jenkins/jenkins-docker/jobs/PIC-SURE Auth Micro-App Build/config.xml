@@ -18,12 +18,6 @@
           <defaultValue>*/master</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
-        <hudson.model.StringParameterDefinition>
-          <name>S3_BUCKET_NAME</name>
-          <description></description>
-          <defaultValue>${stack_s3_bucket}</defaultValue>
-          <trim>false</trim>
-        </hudson.model.StringParameterDefinition>
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
   </properties>
@@ -63,13 +57,11 @@
 GIT_COMMIT_SHORT=`echo ${GIT_COMMIT} | cut -c1-7`
 cd pic-sure-auth-services
 docker build -t hms-dbmi/pic-sure-auth-microapp:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} .
-docker save hms-dbmi/pic-sure-auth-microapp:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} | gzip &gt; pic-sure-auth-microapp.tar.gz
-aws s3 --sse=AES256 cp pic-sure-auth-microapp.tar.gz s3://$S3_BUCKET_NAME/releases/jenkins_pipeline_build_${pipeline_build_id}/pic-sure-auth-microapp.tar.gz
+docker tag hms-dbmi/pic-sure-auth-microapp:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} hms-dbmi/pic-sure-auth-microapp:LATEST
 
 cd ../pic-sure-auth-ui
 docker build -t hms-dbmi/pic-sure-auth-ui:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} .
-docker save hms-dbmi/pic-sure-auth-ui:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} | gzip &gt; pic-sure-auth-ui.tar.gz
-aws s3 --sse=AES256 cp pic-sure-auth-ui.tar.gz s3://$S3_BUCKET_NAME/releases/jenkins_pipeline_build_${pipeline_build_id}/pic-sure-auth-ui.tar.gz
+docker tag hms-dbmi/pic-sure-auth-ui:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} hms-dbmi/pic-sure-auth-ui:LATEST
 </command>
     </hudson.tasks.Shell>
   </builders>

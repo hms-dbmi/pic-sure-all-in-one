@@ -18,20 +18,14 @@
           <defaultValue>*/master</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
-        <hudson.model.StringParameterDefinition>
-          <name>S3_BUCKET_NAME</name>
-          <description></description>
-          <defaultValue>${stack_s3_bucket}</defaultValue>
-          <trim>false</trim>
-        </hudson.model.StringParameterDefinition>
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
   </properties>
-  <scm class="hudson.plugins.git.GitSCM" plugin="git@4.0.0">
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@4.1.1">
     <configVersion>2</configVersion>
     <userRemoteConfigs>
       <hudson.plugins.git.UserRemoteConfig>
-        <url>https://github.com/hms-dbmi/pic-sure-hpds-copdgene.git</url>
+        <url>${project_specific_override_repo}</url>
       </hudson.plugins.git.UserRemoteConfig>
     </userRemoteConfigs>
     <branches>
@@ -51,17 +45,12 @@
   <concurrentBuild>false</concurrentBuild>
   <builders>
     <hudson.tasks.Shell>
-      <command>aws s3 --sse=AES256 cp s3://$S3_BUCKET_NAME/releases/jenkins_pipeline_build_${pipeline_build_id}/pic-sure-hpds-ui.tar.gz .
-docker load -i ./pic-sure-hpds-ui.tar.gz
+      <command>
 GIT_BRANCH_SHORT=`echo ${GIT_BRANCH} | cut -d &quot;/&quot; -f 2` 
 GIT_COMMIT_SHORT=`echo ${GIT_COMMIT} | cut -c1-7`
-cd httpd
-docker build -t hms-dbmi/pic-sure-hpds-copdgene-ui:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} .
-cd ../
-mkdir -p docker_image_output
-cd docker_image_output
-docker save hms-dbmi/pic-sure-hpds-copdgene-ui:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} | gzip &gt; pic-sure-hpds-copdgene-ui.tar.gz
-aws s3 --sse=AES256 cp pic-sure-hpds-copdgene-ui.tar.gz s3://$S3_BUCKET_NAME/releases/jenkins_pipeline_build_${pipeline_build_id}/pic-sure-hpds-copdgene-ui.tar.gz
+cd pic-sure-ui-overrides
+docker build -t hms-dbmi/pic-sure-ui-overrides:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} .
+docker tag hms-dbmi/pic-sure-ui-overrides:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} hms-dbmi/pic-sure-ui-overrides:LATEST
 </command>
     </hudson.tasks.Shell>
   </builders>

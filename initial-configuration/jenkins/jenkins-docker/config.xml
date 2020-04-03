@@ -69,7 +69,6 @@
         <comparator class="hudson.util.CaseInsensitiveComparator"/>
         <string>Check For Updates</string>
         <string>Deployment Pipeline</string>
-        <string>Swap Stacks</string>
       </jobNames>
       <jobFilters/>
       <columns>
@@ -91,12 +90,6 @@
       <properties class="hudson.model.View$PropertyList"/>
       <jobNames>
         <comparator class="hudson.util.CaseInsensitiveComparator"/>
-        <string>Create stack_variables.tf Files</string>
-        <string>Docker-AWSCLI</string>
-        <string>Update Fence Client Credentials</string>
-        <string>Update HTTPD Certs and Key</string>
-        <string>Update PIC-SURE Token Introspection Token</string>
-        <string>Update VPC Settings</string>
       </jobNames>
       <jobFilters/>
       <columns>
@@ -118,13 +111,7 @@
       <properties class="hudson.model.View$PropertyList"/>
       <jobNames>
         <comparator class="hudson.util.CaseInsensitiveComparator"/>
-        <string>Await Initialization</string>
         <string>Backup Jenkins Home</string>
-        <string>biodatacatalyst-ui</string>
-        <string>Create new Jenkins Server</string>
-        <string>Create stack_variables.tf Files</string>
-        <string>Destroy Old Jenkins Server</string>
-        <string>List Instance Profiles</string>
         <string>PIC-SURE Auth Micro-App Build</string>
         <string>PIC-SURE Wildfly Image Build</string>
         <string>PIC-SURE-API Build</string>
@@ -132,10 +119,7 @@
         <string>PIC-SURE-HPDS-UI Docker Build</string>
         <string>PIC-SURE-HPDS-UI-copdgene</string>
         <string>Retrieve Build Spec</string>
-        <string>Retrieve Deployment State</string>
-        <string>Teardown and Rebuild Stage Environment</string>
-        <string>Update Bucket Policy</string>
-        <string>Move Prod DNS Pointer</string>
+        <string>Teardown and Rebuild</string>
       </jobNames>
       <jobFilters/>
       <columns>

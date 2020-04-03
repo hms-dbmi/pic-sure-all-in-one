@@ -2,8 +2,8 @@
 echo "Starting update"
 yum -y update 
 
-echo "Finished update, adding epel, docker-ce, mysql-community-release repositories"
-yum -y install epel-release
+echo "Finished update, adding epel, docker-ce, mysql-community-release repositories and installing wget and yum-utils"
+yum -y install epel-release wget yum-utils
 yum-config-manager  --add-repo https://download.docker.com/linux/centos/docker-ce.repo
 wget http://repo.mysql.com/mysql-community-release-el7-5.noarch.rpm
 sudo rpm -ivh mysql-community-release-el7-5.noarch.rpm
@@ -16,7 +16,7 @@ systemctl enable docker
 service docker start
 
 echo "Installing MySQL"
-yum install mysql-server
+yum -y install mysql-server
 systemctl start mysqld
 
 echo "Building and installing Jenkins"

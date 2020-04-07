@@ -23,6 +23,7 @@ yum -y install mysql-community-server
 systemctl start mysqld
 mysql -u root -e 'create database picsure'
 mysql -u root -e 'create database auth'
+echo "default-time-zone='-00:00'"
 
 echo "Building and installing Jenkins"
 docker build -t pic-sure-jenkins:`git log -n 1 | grep commit | cut -d ' ' -f 2 | cut -c 1-7` jenkins/jenkins-docker

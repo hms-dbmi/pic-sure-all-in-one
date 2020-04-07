@@ -16,7 +16,7 @@ systemctl enable docker
 service docker start
 
 echo "Installing MySQL"
-yum -y install mysql-server
+yum -y install mysql-community-server
 systemctl start mysqld
 
 echo "Building and installing Jenkins"

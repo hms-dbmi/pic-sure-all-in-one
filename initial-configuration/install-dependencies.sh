@@ -6,7 +6,10 @@ echo "Finished update, adding epel, docker-ce, mysql-community-release repositor
 yum -y install epel-release wget yum-utils
 yum-config-manager  --add-repo https://download.docker.com/linux/centos/docker-ce.repo
 wget http://repo.mysql.com/mysql-community-release-el7-5.noarch.rpm
-sudo rpm -ivh mysql-community-release-el7-5.noarch.rpm
+rpm -ivh mysql-community-release-el7-5.noarch.rpm
+yum-config-manager --disable mysql56-community
+yum-config-manager --enable mysql57-community-dmr
+yum -y update
 
 echo "Added docker-ce repo, starting docker install"
 yum -y install docker-ce docker-ce-cli containerd.io
@@ -18,6 +21,8 @@ service docker start
 echo "Installing MySQL"
 yum -y install mysql-community-server
 systemctl start mysqld
+mysql -u root -e 'create database picsure'
+mysql -u root -e 'create database auth'
 
 echo "Building and installing Jenkins"
 docker build -t pic-sure-jenkins:`git log -n 1 | grep commit | cut -d ' ' -f 2 | cut -c 1-7` jenkins/jenkins-docker

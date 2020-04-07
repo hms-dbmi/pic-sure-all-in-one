@@ -142,18 +142,19 @@
   </crumbIssuer>
   <nodeProperties/>
   <globalNodeProperties>
-    <hudson.slaves.EnvironmentVariablesNodeProperty>
-      <envVars serialization="custom">
+    <hudson.slaves.EnvironmentVariablesNodeProperty>      <envVars serialization="custom">
         <unserializable-parents/>
         <tree-map>
           <default>
             <comparator class="hudson.util.CaseInsensitiveComparator" reference="../../../../../../views/listView/jobNames/comparator"/>
           </default>
-          <int>2</int>
+          <int>3</int>
+          <string>project_specific_override_repo</string>
+          <string>SET_THIS_TO_YOUR_PROJECT_SPECIFIC_PIC_SURE_OVERRIDES_REPO</string>
           <string>release_control_branch</string>
           <string>*/master</string>
           <string>release_control_repo</string>
-          <string>https://github.com/hms-dbmi/pic-sure-gic-release-control.git</string>
+          <string>SET_THIS_TO_YOUR_PROJECT_RELEASE_CONTROL_REPOSITORY</string>
         </tree-map>
       </envVars>
     </hudson.slaves.EnvironmentVariablesNodeProperty>

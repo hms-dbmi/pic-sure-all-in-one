@@ -31,7 +31,7 @@ echo "user = root" >> ~/.my.cnf
 echo "password = `grep "temporary password" /var/log/mysqld.log | cut -d ' ' -f 11`" >> ~/.my.cnf
 
  < /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c${1:-16} > pass.tmp
-mysql -u root -e "flush privileges;alter user 'root'@'localhost' identified by '`cat pass.tmp`;flush privileges;'"
+mysql -u root -e "alter user 'root'@'localhost' identified by '`cat pass.tmp`;flush privileges;'"
 sed -i s/password = .*/password = `cat pass.tmp`/ ~/.my.cnf
 rm -f pass.tmp
 

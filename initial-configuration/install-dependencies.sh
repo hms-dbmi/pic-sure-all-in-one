@@ -30,30 +30,30 @@ echo "[mysql]" > ~/.my.cnf
 echo "user = root" >> ~/.my.cnf
 echo "password = `grep "temporary password" /var/log/mysqld.log | cut -d ' ' -f 11`" >> ~/.my.cnf
 
- < /dev/urandom tr -dc A-Z-a-z-0-9 | head -c${1:-16} > pass.tmp
-mysql -u root -e "alter user 'root'@'localhost' identified by '`cat pass.tmp`'"
+ < /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c${1:-16} > pass.tmp
+mysql -u root -e "flush privileges;alter user 'root'@'localhost' identified by '`cat pass.tmp`;flush privileges;'"
 sed -i s/password = .*/password = `cat pass.tmp`/ ~/.my.cnf
 rm -f pass.tmp
 
 mysql -u root -e "create database picsure"
 mysql -u root -e "create database auth"
 
- < /dev/urandom tr -dc A-Z-a-z-0-9 | head -c${1:-16} > airflow.tmp
-mysql -u root -e "grant all privileges on auth.* to 'airflow'@'%' identified by '`cat airflow.tmp`'";
-mysql -u root -e "grant all privileges on picsure.* to 'airflow'@'%' identified by '`cat airflow.tmp`'";
+ < /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c${1:-16} > airflow.tmp
+mysql -u root -e "grant all privileges on auth.* to 'airflow'@'%' identified by '`cat airflow.tmp`';flush privileges;";
+mysql -u root -e "grant all privileges on picsure.* to 'airflow'@'%' identified by '`cat airflow.tmp`';flush privileges;";
 sed -i s/__AIRFLOW_MYSQL_PASSWORD__/`cat airflow.tmp`/g /usr/local/docker-config/flyway/auth/flyway-auth.conf
 sed -i s/__AIRFLOW_MYSQL_PASSWORD__/`cat airflow.tmp`/g /usr/local/docker-config/flyway/auth/sql.properties
 sed -i s/__AIRFLOW_MYSQL_PASSWORD__/`cat airflow.tmp`/g /usr/local/docker-config/flyway/picsure/flyway-picsure.conf
 sed -i s/__AIRFLOW_MYSQL_PASSWORD__/`cat airflow.tmp`/g /usr/local/docker-config/flyway/picsure/sql.properties
 rm -f airflow.tmp
 
- < /dev/urandom tr -dc A-Z-a-z-0-9 | head -c${1:-16} > picsure.tmp
-mysql -u root -e "grant all privileges on picsure.* to 'picsure'@'%' identified by '`cat picsure.tmp`'";
+ < /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c${1:-16} > picsure.tmp
+mysql -u root -e "grant all privileges on picsure.* to 'picsure'@'%' identified by '`cat picsure.tmp`';flush privileges;";
 sed -i s/__PIC_SURE_MYSQL_PASSWORD__/`cat picsure.tmp`/g /usr/local/docker-config/wildfly/standalone.xml
 rm -f picsure.tmp
 
- < /dev/urandom tr -dc A-Z-a-z-0-9 | head -c${1:-16} > auth.tmp
-mysql -u root -e "grant all privileges on auth.* to 'auth'@'%' identified by '`cat auth.tmp`'";
+ < /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c${1:-16} > auth.tmp
+mysql -u root -e "grant all privileges on auth.* to 'auth'@'%' identified by '`cat auth.tmp`';flush privileges;";
 sed -i s/__AUTH_MYSQL_PASSWORD__/`cat auth.tmp`/g /usr/local/docker-config/wildfly/standalone.xml
 rm -f auth.tmp
 

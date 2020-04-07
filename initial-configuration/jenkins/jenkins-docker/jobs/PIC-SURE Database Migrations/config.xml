@@ -16,7 +16,7 @@
     <script>node {   
     stage(&apos;Auth Schema Migration&apos;) {  
         git url: &apos;https://github.com/hms-dbmi/pic-sure-auth-microapp&apos;
-        docker.image(&apos;dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0&apos;).inside(&apos;--network=pic-sure-airflow -v /usr/local/docker-config/flyway/auth:/opt/flyway-migrations/auth &quot;--entrypoint=&quot; &apos;) { 
+        docker.image(&apos;dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0&apos;).inside(&apos;--network=host -v /usr/local/docker-config/flyway/auth:/opt/flyway-migrations/auth &quot;--entrypoint=&quot; &apos;) { 
             sh &quot;rm -rf /opt/flyway-migrations/auth/sql&quot;
             sh &quot;cp -R ./pic-sure-auth-db/db/sql /opt/flyway-migrations/auth/sql&quot;
             sh &quot;/opt/flyway/flyway -X -configFiles=/opt/flyway-migrations/auth/flyway-auth.conf migrate&quot;
@@ -25,7 +25,7 @@
     }
     stage(&apos;Picsure Schema Migration&apos;) {    
         git url: &apos;https://github.com/hms-dbmi/pic-sure&apos;
-        docker.image(&apos;dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0&apos;).inside(&apos;--network=pic-sure-airflow -v /usr/local/docker-config/flyway/picsure:/opt/flyway-migrations/picsure &quot;--entrypoint=&quot; &apos;) { 
+        docker.image(&apos;dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0&apos;).inside(&apos;--network=host -v /usr/local/docker-config/flyway/picsure:/opt/flyway-migrations/picsure &quot;--entrypoint=&quot; &apos;) { 
             sh &quot;rm -rf /opt/flyway-migrations/picsure/sql&quot;
             sh &quot;cp -R ./pic-sure-api-data/src/main/resources/db/sql /opt/flyway-migrations/picsure/sql&quot;
             sh &quot;/opt/flyway/flyway -X -configFiles=/opt/flyway-migrations/picsure/flyway-picsure.conf migrate&quot;

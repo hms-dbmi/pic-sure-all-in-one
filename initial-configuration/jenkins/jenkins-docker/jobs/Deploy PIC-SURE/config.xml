@@ -1,5 +1,6 @@
 <?xml version='1.1' encoding='UTF-8'?>
 <project>
+  <actions/>
   <description></description>
   <keepDependencies>false</keepDependencies>
   <properties/>
@@ -12,11 +13,13 @@
   <concurrentBuild>false</concurrentBuild>
   <builders>
     <hudson.tasks.Shell>
-      <command>docker run --name=hpds \
+      <command>docker stop hpds &amp;&amp; docker rm hpds
+docker run --name=hpds \
 -v /opt/local/hpds:/opt/local/hpds \
 --entrypoint=java \
 -d hms-dbmi/pic-sure-hpds:LATEST -XX:+UseParallelGC -XX:SurvivorRatio=250 -Xms1g -Xmx26g -server -jar hpds.jar -httpPort 8080 -DCACHE_SIZE=15000 -DSMALL_TASK_THREADS=1 -DLARGE_TASK_THREADS=1 -DSMALL_JOB_LIMIT=100 -DID_BATCH_SIZE=2000 &quot;-DALL_IDS_CONCEPT=NONE&quot;  &quot;-DID_CUBE_NAME=NONE&quot;
 
+docker stop httpd &amp;&amp; docker rm httpd
 docker run --name=httpd \
 -v /var/log/httpd-docker-logs/:/usr/local/apache2/logs/ \
 -v /usr/local/docker-config/httpd/picsureui_settings.json:/usr/local/apache2/htdocs/picsureui/settings/settings.json \
@@ -27,6 +30,7 @@ docker run --name=httpd \
 -p 443:443 \
 -d hms-dbmi/pic-sure-ui-overrides:LATEST
 
+docker stop wildfly &amp;&amp; docker rm wildfly
 WILDFLY_JAVA_OPTS=&quot;-Xms2g -Xmx12g -XX:MetaspaceSize=96M -XX:MaxMetaspaceSize=256m -Djava.net.preferIPv4Stack=true&quot;
 docker run --name=wildfly \
 -v /var/log/wildfly-docker-logs/:/opt/jboss/wildfly/standalone/log/ \

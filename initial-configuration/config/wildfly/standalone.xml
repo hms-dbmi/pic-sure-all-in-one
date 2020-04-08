@@ -469,7 +469,7 @@
                 <simple name="java:global/client_secret" value="__PIC_SURE_CLIENT_SECRET__"/>
                 <simple name="java:global/client_id" value="__PIC_SURE_CLIENT_ID__"/>
 
-                <simple name="java:global/defaultApplicationUUID" value="__DEFAULT_APPLICATION_UUID__" />
+                <simple name="java:global/defaultApplicationUUID" value="__STACK_SPECIFIC_APPLICATION_ID__" />
 
                 <simple name="java:global/systemName" value="PIC-SURE All-in-one"/>
                 <simple name="java:global/clientSecretIsBase64" value="False"/>
@@ -477,7 +477,7 @@
                 <simple name="java:global/userActivationReplyTo" value="__USER_ACTIVATION_REPLY_TO__"/>
                 <simple name="java:global/templatePath" value="/usr/local/docker-config/templates" />
                 <simple name="java:global/tosEnabled" value="False" />
-                <simple name="java:global/auth0host" value="__AUTH0_HOST__" />
+                <simple name="java:global/auth0host" value="https://__AUTH0_HOST__.auth0.com/" />
                 <simple name="java:global/emailTemplatePath" value="/usr/local/docker-config/templates" />
                 <simple name="java:global/accessGrantEmailSubject" value="__ACCESS_GRANTED_EMAIL_SUBJECT__" />
                 <simple name="java:global/deniedEmailEnabled" value="false" />

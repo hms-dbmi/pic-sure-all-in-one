@@ -15,7 +15,7 @@
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
   </properties>
-  <scm class="hudson.plugins.git.GitSCM" plugin="git@4.0.0">
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@4.2.2">
     <configVersion>2</configVersion>
     <userRemoteConfigs>
       <hudson.plugins.git.UserRemoteConfig>
@@ -44,7 +44,7 @@
 echo $PIC_SURE_API_VERSION
 echo $PIC_SURE_AUTH_VERSION
 
-docker build --build-arg PIC_SURE_API_VERSION=$PIC_SURE_API_VERSION --build-arg PIC_SURE_AUTH_VERSION=$PIC_SURE_AUTH_VERSION -t hms-dbmi/pic-sure-wildfly:${pipeline_build_id} .
+docker build --build-arg PIC_SURE_API_VERSION=LATEST --build-arg PIC_SURE_AUTH_VERSION=LATEST -t hms-dbmi/pic-sure-wildfly:${pipeline_build_id} .
 docker tag hms-dbmi/pic-sure-wildfly:${pipeline_build_id} hms-dbmi/pic-sure-wildfly:LATEST
 
 </command>

@@ -4,16 +4,16 @@
   <description></description>
   <keepDependencies>false</keepDependencies>
   <properties/>
-  <scm class="hudson.plugins.git.GitSCM" plugin="git@4.1.1">
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@4.2.2">
     <configVersion>2</configVersion>
     <userRemoteConfigs>
       <hudson.plugins.git.UserRemoteConfig>
-        <url>$release_control_repository</url>
+        <url>https://github.com/hms-dbmi/pic-sure-gic-release-control</url>
       </hudson.plugins.git.UserRemoteConfig>
     </userRemoteConfigs>
     <branches>
       <hudson.plugins.git.BranchSpec>
-        <name>$release_control_branch</name>
+        <name>*/master</name>
       </hudson.plugins.git.BranchSpec>
     </branches>
     <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
@@ -34,7 +34,7 @@
   <builders>
     <hudson.plugins.groovy.SystemGroovy plugin="groovy@2.2">
       <source class="hudson.plugins.groovy.StringSystemScriptSource">
-        <script plugin="script-security@1.69">
+        <script plugin="script-security@1.71">
           <script>import jenkins.*
 import jenkins.model.*
 import hudson.*
@@ -50,10 +50,9 @@ Jenkins.instance.getItemByFullName(&quot;PIC-SURE Pipeline&quot;)
         </script>
       </source>
     </hudson.plugins.groovy.SystemGroovy>
-
     <hudson.plugins.groovy.SystemGroovy plugin="groovy@2.2">
       <source class="hudson.plugins.groovy.StringSystemScriptSource">
-        <script plugin="script-security@1.69">
+        <script plugin="script-security@1.71">
           <script>import jenkins.*
 import jenkins.model.*
 import hudson.*

@@ -96,6 +96,7 @@
       <properties class="hudson.model.View$PropertyList"/>
       <jobNames>
         <comparator class="hudson.util.CaseInsensitiveComparator" reference="../../../listView/jobNames/comparator"/>
+        <string>Configure SSL Certificates</string>
       </jobNames>
       <jobFilters/>
       <columns>

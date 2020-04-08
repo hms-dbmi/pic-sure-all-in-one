@@ -1,0 +1,21 @@
+{
+  "resources": [
+    {
+            "id" : "datastage",
+            "name" : "datastage",
+            "basePath" : "/picsure",
+            "findPath" : "/PIC-SURE/search"
+        }
+  ],
+  "queryExportType":"EXPORT_ASYNC",
+  "picSureResourceId":"STACK_SPECIFIC_RESOURCE_UUID",
+  "applicationIdForBaseQuery":"STACK_SPECIFIC_APPLICATION_ID",
+  "helpLink": "mailto:nobody@nowhere.com",
+  "pdfLink": "https://tinyurl.com/PIC-SURE-User-Guide\" target=\"_blank\""
+  "logoPath":"/static/images/logo.png",
+  "categoryAliases": {
+	},
+  "categorySearchResultList" : [
+    "ACT" 
+  ]
+}

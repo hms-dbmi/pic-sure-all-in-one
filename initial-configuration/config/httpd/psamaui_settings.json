@@ -1,0 +1,10 @@
+{
+  "servicesPath" : "/psama",
+  "logoPath":"/images/logo.png",
+  "helpLink": "mailto:nobody@nowhere.com",
+  "pdfLink": "https://tinyurl.com/PIC-SURE-User-Guide\" target=\"_blank\"",
+  "basePath" : "/psama",
+  "uiPath": "",
+  "customizeAuth0Login": true,
+  "idp_provider_uri":"https://gen3.biodatacatalyst.nhlbi.nih.gov"
+}

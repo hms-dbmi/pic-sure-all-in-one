@@ -64,6 +64,7 @@ echo "Creating Jenkins Log Path"
 mkdir -p /var/log/jenkins-docker-logs
 mkdir -p /var/jenkins_home
 cp -r jenkins/jenkins-docker/jobs /var/jenkins_home/jobs
+mkdir -p /var/log/httpd-docker-logs/ssl_mutex
 
 
 

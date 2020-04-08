@@ -44,8 +44,13 @@
       <properties class="hudson.model.View$PropertyList"/>
       <jobNames>
         <comparator class="hudson.util.CaseInsensitiveComparator"/>
-        <string>Import_and_Rekey_HPDS_Data</string>
+        <string>PIC-SURE Auth Micro-App Build</string>
         <string>PIC-SURE Pipeline</string>
+        <string>PIC-SURE Wildfly Image Build</string>
+        <string>PIC-SURE-API Build</string>
+        <string>PIC-SURE-HPDS Build</string>
+        <string>PIC-SURE-HPDS-UI Docker Build</string>
+        <string>Project Specific PIC-SURE Overrides</string>
       </jobNames>
       <jobFilters/>
       <columns>
@@ -68,7 +73,8 @@
       <jobNames>
         <comparator class="hudson.util.CaseInsensitiveComparator" reference="../../../listView/jobNames/comparator"/>
         <string>Check For Updates</string>
-        <string>Deployment Pipeline</string>
+        <string>Deploy PIC-SURE</string>
+        <string>PIC-SURE Database Migrations</string>
       </jobNames>
       <jobFilters/>
       <columns>
@@ -112,14 +118,7 @@
       <jobNames>
         <comparator class="hudson.util.CaseInsensitiveComparator" reference="../../../listView/jobNames/comparator"/>
         <string>Backup Jenkins Home</string>
-        <string>PIC-SURE Auth Micro-App Build</string>
-        <string>PIC-SURE Wildfly Image Build</string>
-        <string>PIC-SURE-API Build</string>
-        <string>PIC-SURE-HPDS Build</string>
-        <string>PIC-SURE-HPDS-UI Docker Build</string>
-        <string>PIC-SURE-HPDS-UI-copdgene</string>
         <string>Retrieve Build Spec</string>
-        <string>Teardown and Rebuild</string>
       </jobNames>
       <jobFilters/>
       <columns>
@@ -142,7 +141,8 @@
   </crumbIssuer>
   <nodeProperties/>
   <globalNodeProperties>
-    <hudson.slaves.EnvironmentVariablesNodeProperty>      <envVars serialization="custom">
+    <hudson.slaves.EnvironmentVariablesNodeProperty>
+      <envVars serialization="custom">
         <unserializable-parents/>
         <tree-map>
           <default>
@@ -150,11 +150,11 @@
           </default>
           <int>3</int>
           <string>project_specific_override_repo</string>
-          <string>SET_THIS_TO_YOUR_PROJECT_SPECIFIC_PIC_SURE_OVERRIDES_REPO</string>
+          <string>https://github.com/hms-dbmi/gic-pic-sure</string>
           <string>release_control_branch</string>
           <string>*/master</string>
           <string>release_control_repo</string>
-          <string>SET_THIS_TO_YOUR_PROJECT_RELEASE_CONTROL_REPOSITORY</string>
+          <string>https://github.com/hms-dbmi/pic-sure-gic-release-control</string>
         </tree-map>
       </envVars>
     </hudson.slaves.EnvironmentVariablesNodeProperty>

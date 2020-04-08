@@ -61,7 +61,7 @@ import groovy.json.JsonSlurper;
 
 def envVars= Hudson.instance.getItem(&quot;Check For Updates&quot;).lastBuild.properties.get(&quot;envVars&quot;); 
 
-Jenkins.instance.getItemByFullName(&quot;Deployment Pipeline&quot;)
+Jenkins.instance.getItemByFullName(&quot;Deploy PIC-SURE&quot;)
     .scheduleBuild2(0, new ParametersAction([
         new StringParameterValue(&quot;deployment_git_hash&quot;, envVars[&quot;GIT_COMMIT&quot;].trim()),
 ])).get()

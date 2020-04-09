@@ -35,6 +35,11 @@ mysql -u root --connect-expired-password -e "alter user 'root'@'localhost' ident
 sed -i "s/password = .*/password = `cat pass.tmp`/g" ~/.my.cnf
 rm -f pass.tmp
 
+for addr in $(ifconfig | grep netmask | sed 's/  */ /g'| cut -d ' ' -f 3)
+do
+	mysql -u root -e "grant all privileges on *.* to 'root'@'$addr' identified by '`cat airflow.tmp`';flush privileges;";
+done
+
 mysql -u root -e "create database picsure"
 mysql -u root -e "create database auth"
 
@@ -69,7 +74,6 @@ export APP_ID=`uuidgen -r`
 export APP_ID_HEX=`echo $APP_ID | awk '{ print toupper($0) }'|sed 's/-//g'`
 
 sed -i "s/__STACK_SPECIFIC_APPLICATION_ID__/$APP_ID/g" /usr/local/docker-config/httpd/picsureui_settings.json
-
 
 
 

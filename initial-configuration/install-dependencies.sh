@@ -70,7 +70,6 @@ export APP_ID_HEX=`echo $APP_ID | awk '{ print toupper($0) }'|sed 's/-//g'`
 
 sed -i "s/__STACK_SPECIFIC_APPLICATION_ID__/$APP_ID/g" /usr/local/docker-config/httpd/picsureui_settings.json
 
-mysql -u root -e "INSERT INTO application VALUES (0x${APP_ID_HEX},'PIC-SURE multiple data access API',0x01,'PICSURE','','/picsureui');" auth
 
 
 

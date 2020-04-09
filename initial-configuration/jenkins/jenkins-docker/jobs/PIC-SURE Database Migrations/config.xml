@@ -32,6 +32,12 @@
             sleep(time:10,unit:&quot;SECONDS&quot;) 
         }
     }
+    stage(&apos;PIC-SURE Application Intialization&apos;){
+        sh &quot;&quot;&quot;
+            export appplication_uuid=`cat /usr/local/docker-config/httpd/picsureui_settings.json | grep applicationIdForBaseQuery | cut -d &apos;:&apos; -f 2| sed &apos;s/[&quot;,]*//g&apos;`
+            docker run --network=host -i -v /root/.my.cnf:/root/.my.cnf mysql mysql -h 172.17.0.1 -u root -e &quot;INSERT INTO application VALUES (0x\${appplication_uuid},&apos;PIC-SURE multiple data access API&apos;,0x01,&apos;PICSURE&apos;,&apos;&apos;,&apos;/picsureui&apos;);&quot; auth
+        &quot;&quot;&quot;
+    }
     stage(&apos;Clean Workspace&apos;){ 
         cleanWs() 
     }

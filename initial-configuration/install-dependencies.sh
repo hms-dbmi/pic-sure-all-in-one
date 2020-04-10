@@ -77,7 +77,7 @@ export APP_ID_HEX=`echo $APP_ID | awk '{ print toupper($0) }'|sed 's/-//g'`
 sed -i "s/__STACK_SPECIFIC_APPLICATION_ID__/$APP_ID/g" /usr/local/docker-config/httpd/picsureui_settings.json
 
 export RESOURCE_ID=`uuidgen -r`
-export RESOURCE_ID_HEX=`echo $APP_ID | awk '{ print toupper($0) }'|sed 's/-//g'`
+export RESOURCE_ID_HEX=`echo $RESOURCE_ID | awk '{ print toupper($0) }'|sed 's/-//g'`
 sed -i "s/__STACK_SPECIFIC_RESOURCE_UUID__/$RESOURCE_ID/g" /usr/local/docker-config/httpd/picsureui_settings.json
 
 echo $APP_ID_HEX > /usr/local/docker-config/APP_ID_HEX

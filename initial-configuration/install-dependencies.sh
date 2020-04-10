@@ -33,10 +33,12 @@ echo "password = `grep "temporary password" /var/log/mysqld.log | cut -d ' ' -f 
  < /dev/urandom tr -dc @^=+$*%_A-Z-a-z-0-9 | head -c${1:-24} > pass.tmp
 mysql -u root --connect-expired-password -e "alter user 'root'@'localhost' identified by '`cat pass.tmp`';flush privileges;"
 sed -i "s/password = .*/password = `cat pass.tmp`/g" ~/.my.cnf
+
 for addr in $(ifconfig | grep netmask | sed 's/  */ /g'| cut -d ' ' -f 3)
 do
 	mysql -u root -e "grant all privileges on *.* to 'root'@'$addr' identified by '`cat pass.tmp`';flush privileges;";
 done
+
 rm -f pass.tmp
 
 mysql -u root -e "create database picsure"
@@ -69,10 +71,14 @@ mkdir -p /var/log/jenkins-docker-logs
 mkdir -p /var/jenkins_home
 cp -r jenkins/jenkins-docker/jobs /var/jenkins_home/jobs
 mkdir -p /var/log/httpd-docker-logs/ssl_mutex
+
 export APP_ID=`uuidgen -r`
 export APP_ID_HEX=`echo $APP_ID | awk '{ print toupper($0) }'|sed 's/-//g'`
-
 sed -i "s/__STACK_SPECIFIC_APPLICATION_ID__/$APP_ID/g" /usr/local/docker-config/httpd/picsureui_settings.json
 
+export RESOURCE_ID=`uuidgen -r`
+export RESOURCE_ID_HEX=`echo $APP_ID | awk '{ print toupper($0) }'|sed 's/-//g'`
+sed -i "s/__STACK_SPECIFIC_RESOURCE_UUID__/$RESOURCE_ID/g" /usr/local/docker-config/httpd/picsureui_settings.json
 
-
+echo $APP_ID_HEX > /usr/local/docker-config/APP_ID_HEX
+echo $RESOURCE_ID_HEX > /usr/local/docker-config/RESOURCE_ID_HEX

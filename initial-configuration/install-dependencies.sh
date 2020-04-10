@@ -44,7 +44,7 @@ rm -f pass.tmp
 mysql -u root -e "create database picsure"
 mysql -u root -e "create database auth"
 
- < /dev/urandom tr -dc @^=+$*%_A-Z-a-z-0-9 | head -c${1:-24} > airflow.tmp
+echo ` < /dev/urandom tr -dc @^=+$*%_A-Z-a-z-0-9 | head -c${1:-24}`!aA1 > airflow.tmp
 mysql -u root -e "grant all privileges on auth.* to 'airflow'@'%' identified by '`cat airflow.tmp`';flush privileges;";
 mysql -u root -e "grant all privileges on picsure.* to 'airflow'@'%' identified by '`cat airflow.tmp`';flush privileges;";
 sed -i s/__AIRFLOW_MYSQL_PASSWORD__/`cat airflow.tmp`/g /usr/local/docker-config/flyway/auth/flyway-auth.conf
@@ -53,12 +53,12 @@ sed -i s/__AIRFLOW_MYSQL_PASSWORD__/`cat airflow.tmp`/g /usr/local/docker-config
 sed -i s/__AIRFLOW_MYSQL_PASSWORD__/`cat airflow.tmp`/g /usr/local/docker-config/flyway/picsure/sql.properties
 rm -f airflow.tmp
 
- < /dev/urandom tr -dc @^=+$*%_A-Z-a-z-0-9 | head -c${1:-24} > picsure.tmp
+echo ` < /dev/urandom tr -dc @^=+$*%_A-Z-a-z-0-9 | head -c${1:-24}`!aA1 > picsure.tmp
 mysql -u root -e "grant all privileges on picsure.* to 'picsure'@'%' identified by '`cat picsure.tmp`';flush privileges;";
 sed -i s/__PIC_SURE_MYSQL_PASSWORD__/`cat picsure.tmp`/g /usr/local/docker-config/wildfly/standalone.xml
 rm -f picsure.tmp
 
- < /dev/urandom tr -dc @^=+$*%_A-Z-a-z-0-9 | head -c${1:-24} > auth.tmp
+echo ` < /dev/urandom tr -dc @^=+$*%_A-Z-a-z-0-9 | head -c${1:-24}`!aA1 > auth.tmp
 mysql -u root -e "grant all privileges on auth.* to 'auth'@'%' identified by '`cat auth.tmp`';flush privileges;";
 sed -i s/__AUTH_MYSQL_PASSWORD__/`cat auth.tmp`/g /usr/local/docker-config/wildfly/standalone.xml
 rm -f auth.tmp

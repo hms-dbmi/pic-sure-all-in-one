@@ -30,7 +30,7 @@ echo "[mysql]" > ~/.my.cnf
 echo "user = root" >> ~/.my.cnf
 echo "password = `grep "temporary password" /var/log/mysqld.log | cut -d ' ' -f 11`" >> ~/.my.cnf
 
- < /dev/urandom tr -dc @^=+$*%_A-Z-a-z-0-9 | head -c${1:-24} > pass.tmp
+echo "` < /dev/urandom tr -dc @^=+$*%_A-Z-a-z-0-9 | head -c${1:-24}`%4cA" > pass.tmp
 mysql -u root --connect-expired-password -e "alter user 'root'@'localhost' identified by '`cat pass.tmp`';flush privileges;"
 sed -i "s/password = .*/password = `cat pass.tmp`/g" ~/.my.cnf
 

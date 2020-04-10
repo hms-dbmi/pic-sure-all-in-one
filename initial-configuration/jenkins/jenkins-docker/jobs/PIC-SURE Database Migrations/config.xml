@@ -32,11 +32,24 @@
             sleep(time:10,unit:&quot;SECONDS&quot;) 
         }
     }
-    stage(&apos;PIC-SURE Application Intialization&apos;){
+    stage(&apos;Project Specific Migrations&apos;) { 
+        git url: &apos;${env.project_specific_override_repo}&apos;
         sh &quot;&quot;&quot;
-            export appplication_uuid=`cat /usr/local/docker-config/httpd/picsureui_settings.json | grep applicationIdForBaseQuery | cut -d &apos;:&apos; -f 2| sed &apos;s/[&quot;,]*//g&apos;`
-            docker run --network=host -i -v /root/.my.cnf:/root/.my.cnf mysql mysql -h 172.17.0.1 -u root -e &quot;INSERT INTO application VALUES (0x\${appplication_uuid},&apos;PIC-SURE multiple data access API&apos;,0x01,&apos;PICSURE&apos;,&apos;&apos;,&apos;/picsureui&apos;);&quot; auth
+             sed -i &quot;s/__APPLICATION_UUID__/`cat /usr/local/docker-config/APP_ID_HEX`/g&quot; ./custom-migrations/auth/V1_ConfigurePicSureApplication.sql
+            sed -i &quot;s/__RESOURCE_UUID__/`cat /usr/local/docker-config/RESOURCE_ID_HEX`/g&quot; ./custom-migrations/picsure/V1_CreateHPDSResource.sql
         &quot;&quot;&quot;
+        docker.image(&apos;dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0&apos;).inside(&apos;--network=host -v /usr/local/docker-config/flyway-custom/picsure:/opt/flyway-migrations/picsure &quot;--entrypoint=&quot; &apos;) {
+            sh &quot;rm -rf /opt/flyway-migrations/picsure/sql&quot;
+            sh &quot;cp -R ./custom-migrations/picsure /opt/flyway-migrations/picsure/sql&quot;
+            sh &quot;/opt/flyway/flyway -X -baselineOnMigrate=true  -configFiles=/opt/flyway-migrations/picsure/flyway-picsure.conf -table=flyway_custom_schema_history migrate&quot;
+            sleep(time:10,unit:&quot;SECONDS&quot;) 
+        }
+        docker.image(&apos;dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0&apos;).inside(&apos;--network=host -v /usr/local/docker-config/flyway-custom/auth:/opt/flyway-migrations/auth &quot;--entrypoint=&quot; &apos;) {
+            sh &quot;rm -rf /opt/flyway-migrations/auth/sql&quot;
+            sh &quot;cp -R ./custom-migrations/auth /opt/flyway-migrations/auth/sql&quot;
+            sh &quot;/opt/flyway/flyway -X -baselineOnMigrate=true  -configFiles=/opt/flyway-migrations/auth/flyway-auth.conf -table=flyway_custom_schema_history migrate&quot;
+            sleep(time:10,unit:&quot;SECONDS&quot;) 
+        }
     }
     stage(&apos;Clean Workspace&apos;){ 
         cleanWs() 

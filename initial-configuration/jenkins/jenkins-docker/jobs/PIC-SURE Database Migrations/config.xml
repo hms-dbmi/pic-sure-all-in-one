@@ -50,6 +50,10 @@
             sh &quot;/opt/flyway/flyway -X -baselineOnMigrate=true -configFiles=/opt/flyway-migrations/auth/flyway-auth.conf -table=flyway_custom_schema_history migrate&quot;
             sleep(time:10,unit:&quot;SECONDS&quot;) 
         }
+        sh &quot;&quot;&quot;
+            sed -i s%&lt;a class=&quot;string-array&quot;&gt;&lt;/a&gt;%`grep &quot;INSERT INTO .connection&quot; ../../workspace/Configure\\ Admin\\ User/custom-migrations/auth/V2__CONFIGURE_PIC_SURE_APPLICATION.sql | cut -d &apos; &apos; -f 6 | sed &quot;s/[&apos;,]//g&quot; | sed &quot;s/\$/&lt;\\/string&gt;/g&quot; | sed &quot;s/^/&lt;string&gt;/g&quot; | tr &apos;\n&apos; &apos; &apos; | sed &quot;s/^/&lt;a class=&quot;string-array&quot;&gt;/g&quot; | sed &quot;s/\$/&lt;\\/a&gt;/g&quot;`%g /var/jenkins_home/jobs/Configure\\ Admin\\ User/config.xml
+            
+        &quot;&quot;&quot;
     }
     stage(&apos;Clean Workspace&apos;){ 
         cleanWs() 

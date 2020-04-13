@@ -11,7 +11,7 @@
   "picSureResourceId":"__STACK_SPECIFIC_RESOURCE_UUID__",
   "applicationIdForBaseQuery":"__STACK_SPECIFIC_APPLICATION_ID__",
   "helpLink": "mailto:nobody@nowhere.com",
-  "pdfLink": "https://tinyurl.com/PIC-SURE-User-Guide\" target=\"_blank\""
+  "pdfLink": "https://tinyurl.com/PIC-SURE-User-Guide\" target=\"_blank\"",
   "logoPath":"/static/images/logo.png",
   "categoryAliases": {
 	},

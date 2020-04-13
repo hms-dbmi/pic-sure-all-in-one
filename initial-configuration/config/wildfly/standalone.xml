@@ -477,7 +477,7 @@
                 <simple name="java:global/userActivationReplyTo" value="__USER_ACTIVATION_REPLY_TO__"/>
                 <simple name="java:global/templatePath" value="/usr/local/docker-config/templates" />
                 <simple name="java:global/tosEnabled" value="False" />
-                <simple name="java:global/auth0host" value="https://__AUTH0_HOST__.auth0.com/" />
+                <simple name="java:global/auth0host" value="https://__AUTH0_DOMAIN__.auth0.com/" />
                 <simple name="java:global/emailTemplatePath" value="/usr/local/docker-config/templates" />
                 <simple name="java:global/accessGrantEmailSubject" value="__ACCESS_GRANTED_EMAIL_SUBJECT__" />
                 <simple name="java:global/deniedEmailEnabled" value="false" />

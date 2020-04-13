@@ -38,14 +38,14 @@
     <hudson.tasks.Shell>
       <command>cd target
 
-cat ../wildfly/standalone.xml | grep client_secret | cut -d &apos;=&apos; -f 3 | sed &apos;s/[\&quot;/\&gt;]//g&apos; &gt; secret.txt
+cat /usr/local/docker-config/wildfly/standalone.xml | grep client_secret | cut -d &apos;=&apos; -f 3 | sed &apos;s/[\&quot;/\&gt;]//g&apos; &gt; secret.txt
 
 export appplication_uuid=`cat /usr/local/docker-config/httpd/picsureui_settings.json | grep applicationIdForBaseQuery | cut -d &apos;:&apos; -f 2| sed &apos;s/[&quot;,]*//g&apos;`
 
 # This UUID is currently a magic number of sorts, this will need to be parameterized to make this job portable
 export new_token_introspection_token=`java -jar generateJwt.jar secret.txt sub &quot;PSAMA_APPLICATION|${appplication_uuid}&quot; 365 day | grep -v &quot;Generating&quot;`
 
-export old_token_introspection_token=`cat ../wildfly/standalone.xml | grep token_introspection_token | cut -d &apos;=&apos; -f 3 | sed &apos;s/[\&quot;/\&gt;]//&apos;g`
+export old_token_introspection_token=`cat /usr/local/docker-config/wildfly/standalone.xml | grep token_introspection_token | cut -d &apos;=&apos; -f 3 | sed &apos;s/[\&quot;/\&gt;]//&apos;g`
 
 sed -i &quot;s/$old_token_introspection_token/$new_token_introspection_token/g&quot; /usr/local/docker-config/wildfly/standalone.xml
 

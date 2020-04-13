@@ -1,0 +1,38 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description></description>
+  <keepDependencies>false</keepDependencies>
+  <properties/>
+  <scm class="hudson.scm.NullSCM"/>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>rm -rf /usr/local/docker-config/hpds_temp
+mkdir -p /usr/local/docker-config/hpds_temp
+cp /usr/local/docker-config/hpds/encryption_key /usr/local/docker-config/hpds_temp/encryption_key 
+docker run \
+-v /usr/local/docker-config/hpds_temp:/opt/local/hpds \
+-v /usr/local/docker-config/hpds_csv/allConcepts.csv:/opt/local/hpds/allConcepts.csv \
+-e HEAPSIZE=4096 -e LOADER_NAME=CSVLoader hms-dbmi/pic-sure-hpds-etl:LATEST &amp;&amp; \
+mv /usr/local/docker-config/hpds /usr/local/docker-config/hpds_bak &amp;&amp; \
+mv /usr/local/docker-config/hpds_temp /usr/local/docker-config/hpds
+
+docker stop hpds &amp;&amp; docker rm hpds
+docker run --name=hpds --network=picsure \
+-v /usr/local/docker-config/hpds:/opt/local/hpds \
+--entrypoint=java \
+-d hms-dbmi/pic-sure-hpds:LATEST -XX:+UseParallelGC -XX:SurvivorRatio=250 -Xms1g -Xmx16g -server -jar hpds.jar -httpPort 8080 -DCACHE_SIZE=15000 -DSMALL_TASK_THREADS=1 -DLARGE_TASK_THREADS=1 -DSMALL_JOB_LIMIT=100 -DID_BATCH_SIZE=2000 &quot;-DALL_IDS_CONCEPT=NONE&quot;  &quot;-DID_CUBE_NAME=NONE&quot;
+
+
+</command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

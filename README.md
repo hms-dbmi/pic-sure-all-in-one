@@ -5,6 +5,18 @@ Assumptions:
 - This system will be maintained by someone with either a basic understanding of Docker or the will to learn and develop that understanding over time.
 - You already have installed Git on the server and have internet access from the server.
 
+Preparing to deploy:
+
+You will be creating an initial admin user tied to a Google account. Decide which one you want to use.
+
+You will need an Auth0 Client Secret and Client ID. If these have not been provided for you, create a free Auth0 account and use it to create them. If you are using your own Auth0 account or anything other than the avillachlab Auth0 account, you will have to also provide an AUTH0_TENANT value. Configuring your Auth0 account is outside the scope of this project. When you create an Auth0 client for PIC-SURE, select "Regular Web Application" and in the Advanced Settings under the OAuth tab turn the OIDC Conformant switch off.
+
+You will need an SSL certificate, chain and key that is compatible with Apache HTTPD. If you are unable to obtain secure SSL certs and key, and are taking steps to keep your system from being accessible to the public internet you can accept the risk that someone may steal your data or hijack your server by using these development certs and key:
+
+https://github.com/hms-dbmi/biodatacatalyst-pic-sure/tree/master/biodatacatalyst-ui/dev-cert
+
+
+
 Minimum System Requirements:
 
 - 32 GB of RAM
@@ -39,7 +51,7 @@ You will need to run jobs on the Configuration and Deployment tabs in the follow
 
 1) Deployment/PIC-SURE Database Migrations - This will create the necessary database schemas.
 
-2) Configuration/Configure Auth0 Integration - When you run this Jenkins will ask you to provide the AUTH0_CLIENT_ID and AUTH0_CLIENT_SECRET. If you have been provided with an AUTH0_CLIENT_ID and AUTH0_CLIENT_SECRET value, please copy and paste them into the text fields. If you are using your own Auth0 account you will have to also provide an AUTH0_TENANT value. Configuring your Auth0 account is outside the scope of this project.  If you create an Auth0 client for PIC-SURE, select "Regular Web Application" and in the Advanced Settings under the OAuth tab turn the OIDC Conformant switch off.
+2) Configuration/Configure Auth0 Integration - When you run this Jenkins will ask you to provide the AUTH0_CLIENT_ID and AUTH0_CLIENT_SECRET. Copy and paste the AUTH0_CLIENT_ID and AUTH0_CLIENT_SECRET into the text fields. If you are using an Auth0 account other than the avillachlab one then you will also need to change the AUTH0_TENANT value.
 
 3) Configuration/Configure SSL Certificates - You will need to provide an Apache HTTPD compatible set of SSL certificate, chain and key. Reach out to your local IT department if you do not know how to obtain these. Even if you are running the application internally you still need SSL enabled to host the system responsibly. If you are only using this for testing the system out and decide to accept the risk, you can download these files which are public and provide no actual security as a result: 
 

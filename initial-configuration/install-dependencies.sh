@@ -92,6 +92,7 @@ echo $APP_ID_HEX > /usr/local/docker-config/APP_ID_HEX
 echo $RESOURCE_ID_HEX > /usr/local/docker-config/RESOURCE_ID_HEX
 
 mkdir -P /usr/local/docker-config/hpds_csv
+mkdir -P /usr/local/docker-config/hpds/all
 cp allConcepts.csv.tgz /usr/local/docker-config/hpds_csv/
 cd /usr/local/docker-config/hpds_csv/
 tar -xvzf allConcepts.csv.tgz

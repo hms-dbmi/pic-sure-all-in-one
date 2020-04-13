@@ -159,7 +159,7 @@
                     </security>
                 </datasource>
                 <datasource jndi-name="java:jboss/datasources/AuthDS" pool-name="AuthDS" use-java-context="true">
-                    <connection-url>jdbc:mysql://172.17.0.1:3306/auth?useUnicode=true&amp;characterEncoding=UTF-8&amp;autoReconnect=true&amp;autoReconnectForPools=true&amp;serverTimezone=UTC</connection-url>
+                    <connection-url>jdbc:mysql://172.18.0.1:3306/auth?useUnicode=true&amp;characterEncoding=UTF-8&amp;autoReconnect=true&amp;autoReconnectForPools=true&amp;serverTimezone=UTC</connection-url>
                     <driver>mysql</driver>
                     <pool>
                         <min-pool-size>2</min-pool-size>
@@ -167,7 +167,7 @@
                         <prefill>true</prefill>
                     </pool>
                     <security>
-                        <user-name>root</user-name>
+                        <user-name>auth</user-name>
                         <password>__AUTH_MYSQL_PASSWORD__</password>
                     </security>
                     <validation>
@@ -179,7 +179,7 @@
                     </validation>
                 </datasource>
                 <datasource jndi-name="java:jboss/datasources/PicsureDS" pool-name="PicsureDS" use-java-context="true">
-                    <connection-url>jdbc:mysql://172.17.0.1:3306/picsure?useUnicode=true&amp;characterEncoding=UTF-8&amp;autoReconnect=true&amp;autoReconnectForPools=true&amp;serverTimezone=UTC</connection-url>
+                    <connection-url>jdbc:mysql://172.18.0.1:3306/picsure?useUnicode=true&amp;characterEncoding=UTF-8&amp;autoReconnect=true&amp;autoReconnectForPools=true&amp;serverTimezone=UTC</connection-url>
                     <driver>mysql</driver>
                     <pool>
                         <min-pool-size>3</min-pool-size>
@@ -187,7 +187,7 @@
                         <prefill>true</prefill>
                     </pool>
                     <security>
-                        <user-name>root</user-name>
+                        <user-name>picsure</user-name>
                         <password>__PIC_SURE_MYSQL_PASSWORD__</password>
                     </security>
                     <validation>

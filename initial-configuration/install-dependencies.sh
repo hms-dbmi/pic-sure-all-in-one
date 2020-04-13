@@ -85,7 +85,7 @@ echo $APP_ID_HEX > /usr/local/docker-config/APP_ID_HEX
 echo $RESOURCE_ID_HEX > /usr/local/docker-config/RESOURCE_ID_HEX
 
 export DOCKER_NETWORK_IF=br-`docker network create picsure | cut -c1-12`
-echo "bind-address=127.0.0.1" >> /etc/my.cnf
+echo "bind-address=172.18.0.1" >> /etc/my.cnf
 systemctl restart mysqld
 sysctl -w net.ipv4.conf.docker0.route_localnet=1
 iptables -t nat -I PREROUTING -i $DOCKER_NETWORK_IF -d 172.18.0.1 -p tcp --dport 3306 -j DNAT --to 127.0.0.1:3306

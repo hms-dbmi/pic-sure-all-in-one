@@ -9,7 +9,7 @@ Preparing to deploy:
 
 You will be creating an initial admin user tied to a Google account. Decide which one you want to use.
 
-You will need an Auth0 Client Secret and Client ID. If these have not been provided for you, create a free Auth0 account and use it to create them. If you are using your own Auth0 account or anything other than the avillachlab Auth0 account, you will have to also provide an AUTH0_TENANT value. Configuring your Auth0 account is outside the scope of this project. When you create an Auth0 client for PIC-SURE, select "Regular Web Application" and in the Advanced Settings under the OAuth tab turn the OIDC Conformant switch off.
+You will need an Auth0 Client Secret and Client ID. If these have not been provided for you, create a free Auth0 account and use it to create an Application. When you create an Auth0 Application for PIC-SURE, select "Regular Web Application" and in the Advanced Settings under the OAuth tab turn the OIDC Conformant switch off. If you are using your own Auth0 account or anything other than the avillachlab Auth0 account, you will have to also provide an AUTH0_TENANT value to the Configure Auth0 Integration Jenkins job. Configuring your Auth0 account is outside the scope of this project. 
 
 You will need an SSL certificate, chain and key that is compatible with Apache HTTPD. If you are unable to obtain secure SSL certs and key, and are taking steps to keep your system from being accessible to the public internet you can accept the risk that someone may steal your data or hijack your server by using these development certs and key:
 

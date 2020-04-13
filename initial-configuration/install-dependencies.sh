@@ -24,8 +24,15 @@ service docker start
 
 echo "Installing MySQL"
 yum -y install mysql-community-server
-systemctl start mysqld
+echo  "Creating picsure docker network"
+export DOCKER_NETWORK_IF=br-`docker network create picsure | cut -c1-12`
+sysctl -w net.ipv4.conf.$DOCKER_NETWORK_IF.route_localnet=1
+iptables -t nat -I PREROUTING -i $DOCKER_NETWORK_IF -d 172.18.0.1 -p tcp --dport 3306 -j DNAT --to 127.0.0.1:3306
+iptables -t filter -I INPUT -i $DOCKER_NETWORK_IF -d 127.0.0.1 -p tcp --dport 3306 -j ACCEPT
+echo "Starting mysql server"
+echo "bind-address=172.18.0.1" >> /etc/my.cnf
 echo "default-time-zone='-00:00'" >> /etc/my.cnf
+systemctl start mysqld
 echo "[mysql]" > ~/.my.cnf
 echo "user = root" >> ~/.my.cnf
 echo "password = `grep "temporary password" /var/log/mysqld.log | cut -d ' ' -f 11`" >> ~/.my.cnf
@@ -83,11 +90,4 @@ sed -i "s/__STACK_SPECIFIC_RESOURCE_UUID__/$RESOURCE_ID/g" /usr/local/docker-con
 
 echo $APP_ID_HEX > /usr/local/docker-config/APP_ID_HEX
 echo $RESOURCE_ID_HEX > /usr/local/docker-config/RESOURCE_ID_HEX
-
-export DOCKER_NETWORK_IF=br-`docker network create picsure | cut -c1-12`
-echo "bind-address=172.18.0.1" >> /etc/my.cnf
-systemctl restart mysqld
-sysctl -w net.ipv4.conf.$DOCKER_NETWORK_IF.route_localnet=1
-iptables -t nat -I PREROUTING -i $DOCKER_NETWORK_IF -d 172.18.0.1 -p tcp --dport 3306 -j DNAT --to 127.0.0.1:3306
-iptables -t filter -I INPUT -i $DOCKER_NETWORK_IF -d 127.0.0.1 -p tcp --dport 3306 -j ACCEPT
 

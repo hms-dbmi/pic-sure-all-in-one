@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+export WORKING_DIR=$(pwd)
+
 mkdir -p /usr/local/docker-config
 cp -r config/* /usr/local/docker-config/
 
@@ -91,10 +93,14 @@ sed -i "s/__STACK_SPECIFIC_RESOURCE_UUID__/$RESOURCE_ID/g" /usr/local/docker-con
 echo $APP_ID_HEX > /usr/local/docker-config/APP_ID_HEX
 echo $RESOURCE_ID_HEX > /usr/local/docker-config/RESOURCE_ID_HEX
 
-mkdir -P /usr/local/docker-config/hpds_csv
-mkdir -P /usr/local/docker-config/hpds/all
+mkdir -p /usr/local/docker-config/hpds_csv
+mkdir -p /usr/local/docker-config/hpds/all
 cp allConcepts.csv.tgz /usr/local/docker-config/hpds_csv/
 cd /usr/local/docker-config/hpds_csv/
 tar -xvzf allConcepts.csv.tgz
+
+cd $WORKING_DIR
+cd ../
+./start_jenkins.sh
 
 

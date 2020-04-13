@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-export WORKING_DIR=$(pwd)
+export WORKING_DIR=`pwd`
 
 mkdir -p /usr/local/docker-config
 cp -r config/* /usr/local/docker-config/

@@ -75,6 +75,7 @@ mkdir -p /var/log/httpd-docker-logs/ssl_mutex
 export APP_ID=`uuidgen -r`
 export APP_ID_HEX=`echo $APP_ID | awk '{ print toupper($0) }'|sed 's/-//g'`
 sed -i "s/__STACK_SPECIFIC_APPLICATION_ID__/$APP_ID/g" /usr/local/docker-config/httpd/picsureui_settings.json
+sed -i "s/__STACK_SPECIFIC_APPLICATION_ID__/$APP_ID/g" /usr/local/docker-config/wildfly/standalone.xml
 
 export RESOURCE_ID=`uuidgen -r`
 export RESOURCE_ID_HEX=`echo $RESOURCE_ID | awk '{ print toupper($0) }'|sed 's/-//g'`
@@ -82,3 +83,12 @@ sed -i "s/__STACK_SPECIFIC_RESOURCE_UUID__/$RESOURCE_ID/g" /usr/local/docker-con
 
 echo $APP_ID_HEX > /usr/local/docker-config/APP_ID_HEX
 echo $RESOURCE_ID_HEX > /usr/local/docker-config/RESOURCE_ID_HEX
+
+docker network create picsure
+echo "bind-address=127.0.0.1" > /etc/my.cnf
+systemctl restart mysqld
+sysctl -w net.ipv4.conf.docker0.route_localnet=1
+export DOCKER_NETWORK_IF=`docker network create picsure | cut -c1-12`
+iptables -t nat -I PREROUTING -i $DOCKER_NETWORK_IF -d 172.18.0.1 -p tcp --dport 3306 -j DNAT --to 127.0.0.1:3306
+iptables -t filter -I INPUT -i $DOCKER_NETWORK_IF -d 127.0.0.1 -p tcp --dport 3306 -j ACCEPT
+

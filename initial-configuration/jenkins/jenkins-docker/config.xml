@@ -99,6 +99,7 @@
         <string>Configure Auth0 Integration</string>
         <string>Configure PIC-SURE Token Introspection Token</string>
         <string>Configure SSL Certificates</string>
+        <string>Create Admin User</string>
       </jobNames>
       <jobFilters/>
       <columns>

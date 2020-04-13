@@ -53,9 +53,9 @@ By this point all the PIC-SURE Builds jobs should have completed. Check the All 
 
 If all jobs have blue dots except the Backup Jenkins Home job and the Deploy PIC-SURE job then you are ready to Deploy PIC-SURE. Run Deploy PIC-SURE.
 
-After about a minute you should be able to log into the PIC-SURE application. To do this, browse to this URL after replacing YOUR_SERVER_IP or domain name with your actual server IP or domain name:
+After about a minute you should be able to log into the PIC-SURE application. To do this, browse to this URL after replacing example.com with your actual server IP or domain name:
 
-https://YOUR_SERVER_IP/psamaui/?redirection_url=/psamaui
+https://example.com/psamaui/?redirection_url=/psamaui
 
 Log in using your Google account that you configured in step 5 above.
 

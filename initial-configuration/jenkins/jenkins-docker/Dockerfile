@@ -30,6 +30,6 @@ RUN rm /opt/apache-maven-3.6.3-bin.tar.gz
 
 RUN apt-get install jq -y
 
-RUN apt-get install uuid-ru
+RUN apt-get -y install uuid-runtime
 
 RUN `/usr/local/bin/install-plugins.sh < /usr/share/jenkins/ref/plugins.txt` || echo "Some errors occurred during plugin installation."

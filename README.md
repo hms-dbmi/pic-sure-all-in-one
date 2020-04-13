@@ -63,7 +63,9 @@ https://github.com/hms-dbmi/biodatacatalyst-pic-sure/tree/master/biodatacatalyst
 
 By this point all the PIC-SURE Builds jobs should have completed. Check the All tab to make sure nothing shows with a red dot next to it. If you see any red dots(instead of blue or grey), and you are sure you followed the instructions perfectly, try starting from scratch with a fresh Centos7 install. If you consistently have the same job(s) fail(red dots) then you should reach out to avillach_lab_developers@googlegroups.com for help.
 
-If all jobs have blue dots except the Backup Jenkins Home job and the Deploy PIC-SURE job then you are ready to Deploy PIC-SURE. Run Deploy PIC-SURE.
+If all jobs have blue dots except the Backup Jenkins Home job, the Load HPDS Data job, and the Deploy PIC-SURE job then you are ready to load the NHANES demo data. Run the Load HPDS Data job.
+
+Once the Load HPDS Data Job succeeds, run the Deploy PIC-SURE job.
 
 After about a minute you should be able to log into the PIC-SURE application. To do this, browse to this URL after replacing example.com with your actual server IP or domain name:
 

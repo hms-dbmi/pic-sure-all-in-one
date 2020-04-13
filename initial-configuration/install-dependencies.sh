@@ -30,7 +30,7 @@ sysctl -w net.ipv4.conf.$DOCKER_NETWORK_IF.route_localnet=1
 iptables -t nat -I PREROUTING -i $DOCKER_NETWORK_IF -d 172.18.0.1 -p tcp --dport 3306 -j DNAT --to 127.0.0.1:3306
 iptables -t filter -I INPUT -i $DOCKER_NETWORK_IF -d 127.0.0.1 -p tcp --dport 3306 -j ACCEPT
 echo "Starting mysql server"
-echo "bind-address=172.18.0.1" >> /etc/my.cnf
+echo "bind-address=127.0.0.1" >> /etc/my.cnf
 echo "default-time-zone='-00:00'" >> /etc/my.cnf
 systemctl start mysqld
 echo "[mysql]" > ~/.my.cnf

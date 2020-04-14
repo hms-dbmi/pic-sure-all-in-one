@@ -28,7 +28,7 @@ Minimum System Requirements:
 
 - Install Git
 
-yum -y install git
+sudo yum -y install git
 
 - Clone the PIC-SURE All-in-one repository
 
@@ -37,11 +37,13 @@ git clone https://github.com/hms-dbmi/pic-sure-all-in-one
 - Install the dependencies and build the Jenkins container
 
 cd pic-sure-all-in-one/initial-configuration
+
 sudo ./install-dependencies
 
 - Start Jenkins server
 
 cd ../
+
 sudo ./start-jenkins.sh
 
 - Browse to Jenkins server

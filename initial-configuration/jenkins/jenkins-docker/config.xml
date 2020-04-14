@@ -74,6 +74,7 @@
         <comparator class="hudson.util.CaseInsensitiveComparator" reference="../../../listView/jobNames/comparator"/>
         <string>Check For Updates</string>
         <string>Deploy PIC-SURE</string>
+        <string>Initial Configuration Pipeline</string>
         <string>PIC-SURE Database Migrations</string>
       </jobNames>
       <jobFilters/>

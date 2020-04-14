@@ -16,6 +16,7 @@
       <command>docker stop hpds &amp;&amp; docker rm hpds
 docker run --name=hpds --network=picsure \
 -v /usr/local/docker-config/hpds:/opt/local/hpds \
+-v /usr/local/docker-config/hpds/all:/opt/local/hpds/all \
 --entrypoint=java \
 -d hms-dbmi/pic-sure-hpds:LATEST -XX:+UseParallelGC -XX:SurvivorRatio=250 -Xms1g -Xmx16g -server -jar hpds.jar -httpPort 8080 -DCACHE_SIZE=15000 -DSMALL_TASK_THREADS=1 -DLARGE_TASK_THREADS=1 -DSMALL_JOB_LIMIT=100 -DID_BATCH_SIZE=2000 &quot;-DALL_IDS_CONCEPT=NONE&quot;  &quot;-DID_CUBE_NAME=NONE&quot;
 

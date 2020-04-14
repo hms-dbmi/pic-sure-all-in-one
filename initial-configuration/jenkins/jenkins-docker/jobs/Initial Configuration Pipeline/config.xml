@@ -1,0 +1,92 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<flow-definition plugin="workflow-job@2.38">
+  <actions/>
+  <description></description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>AUTH0_CLIENT_ID</name>
+          <description></description>
+          <defaultValue>__PIC_SURE_CLIENT_ID__</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>AUTH0_CLIENT_SECRET</name>
+          <description></description>
+          <defaultValue>__PIC_SURE_CLIENT_SECRET__</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>AUTH0_TENANT</name>
+          <description></description>
+          <defaultValue>avillachlab</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>EMAIL</name>
+          <description></description>
+          <defaultValue></defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@2.80">
+    <script>import groovy.json.JsonSlurper;
+
+def retrieveBuildSpecId;
+def pipelineBuildId;
+def build_hashes = {};
+pipeline {
+    agent any 
+    stages {
+        stage(&apos;Initial Config and Build&apos;) { 
+            steps {
+                parallel (
+                    dbMigrate: {
+                        script {
+                            def result = build job: &apos;PIC-SURE Database Migrations&apos;
+                        }
+                    },
+                    picsureBuild: {
+                        script {
+                            def result = build job: &apos;PIC-SURE Pipeline&apos;
+                        }
+                    },
+                    auth0Config: {
+                        script {
+                            def result = build job: &apos;Configure Auth0 Integration&apos;, parameters: [
+                                [$class: &apos;StringParameterValue&apos;, name: &apos;AUTH0_CLIENT_ID&apos;, value:env.AUTH0_CLIENT_ID],
+                                [$class: &apos;StringParameterValue&apos;, name: &apos;AUTH0_CLIENT_SECRET&apos;, value: env.AUTH0_CLIENT_SECRET]]
+                        }
+                    }
+                )
+            }
+        }
+        stage(&apos;Post Migration Configs&apos;) { 
+            steps {
+                parallel (
+                    adminConfig: {
+                        script {
+                            def result = build job: &apos;Create Admin User&apos;, parameters: [
+                                [$class: &apos;StringParameterValue&apos;, name: &apos;EMAIL&apos;, value:env.EMAIL],
+                                [$class: &apos;StringParameterValue&apos;, name: &apos;CONNECTION_LABEL&apos;, value: &quot;Google&quot;]]
+                        }
+                    },
+                    tokenIntroToken: {
+                        script {
+                            def result = build job: &apos;Configure PIC-SURE Token Introspection Token&apos;
+                        }
+                    }
+                )
+            }
+        }
+    }
+}</script>
+    <sandbox>true</sandbox>
+  </definition>
+  <triggers/>
+  <disabled>false</disabled>
+</flow-definition>

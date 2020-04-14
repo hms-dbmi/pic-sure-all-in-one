@@ -90,18 +90,12 @@ pipeline {
         }
         stage(&apos;Load Demo Data and Deploy&apos;) { 
             steps {
-                parallel (
-                    tokenIntroToken: {
-                        script {
-                            def result = build job: &apos;Load HPDS Data&apos;
-                        }
-                    },
-                    encryptionKey: {
-                        script {
-                            def result = build job: &apos;Deploy PIC-SURE&apos;
-                        }
-                    }
-                )
+                script {
+                    def result = build job: &apos;Load HPDS Data&apos;
+                }
+                script {
+                    def result = build job: &apos;Deploy PIC-SURE&apos;
+                }
             }
         }
     }

@@ -36,6 +36,7 @@ echo "iptables -t nat -I PREROUTING -i $DOCKER_NETWORK_IF -d 172.18.0.1 -p tcp -
 echo "iptables -t filter -I INPUT -i $DOCKER_NETWORK_IF -d 127.0.0.1 -p tcp --dport 3306 -j ACCEPT" >> /root/configure_docker_networking.sh 
 chmod +x /root/configure_docker_networking.sh 
 echo "@reboot root bash /root/configure_docker_networking.sh" >> /etc/crontab
+echo "" >> /etc/crontab
 
 echo "Starting mysql server"
 echo "bind-address=127.0.0.1" >> /etc/my.cnf

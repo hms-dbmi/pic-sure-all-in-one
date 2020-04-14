@@ -79,6 +79,27 @@ pipeline {
                         script {
                             def result = build job: &apos;Configure PIC-SURE Token Introspection Token&apos;
                         }
+                    },
+                    encryptionKey: {
+                        script {
+                            def result = build job: &apos;Create HPDS Encryption Key&apos;
+                        }
+                    }
+                )
+            }
+        }
+        stage(&apos;Load Demo Data and Deploy&apos;) { 
+            steps {
+                parallel (
+                    tokenIntroToken: {
+                        script {
+                            def result = build job: &apos;Load HPDS Data&apos;
+                        }
+                    },
+                    encryptionKey: {
+                        script {
+                            def result = build job: &apos;Deploy PIC-SURE&apos;
+                        }
                     }
                 )
             }

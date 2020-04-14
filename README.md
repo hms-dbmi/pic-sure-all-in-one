@@ -24,20 +24,25 @@ Minimum System Requirements:
 # Steps to install on a fresh Centos 7 installation:
 
 - Install Git
+
 yum -y install git
 
 - Clone the PIC-SURE All-in-one repository
+
 git clone https://github.com/hms-dbmi/pic-sure-all-in-one
 
 - Install the dependencies and build the Jenkins container
+
 cd pic-sure-all-in-one/initial-configuration
 ./install-dependencies
 
 - Start Jenkins server
+
 cd ../
 ./start-jenkins.sh
 
 - Browse to Jenkins server
+
 Point your browser at your server's IP on port 8080. Work with your local IT department to make sure that this port is not available to the public internet, but is accessible to you when on your intranet or VPN. Anyone with access to this port can launch any application they wish on your server.
 
 If your server has IP 10.109.190.146, you would browse to http://10.109.190.146:8080

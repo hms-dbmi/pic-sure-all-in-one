@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-export WORKING_DIR=`pwd`
+cd ~
 
 mkdir -p /usr/local/docker-config
 cp -r config/* /usr/local/docker-config/
@@ -106,8 +106,7 @@ cp allConcepts.csv.tgz /usr/local/docker-config/hpds_csv/
 cd /usr/local/docker-config/hpds_csv/
 tar -xvzf allConcepts.csv.tgz
 
-cd $WORKING_DIR
-cd ../
+cd ~/pic-sure-all-in-one/
 ./start_jenkins.sh
 
 

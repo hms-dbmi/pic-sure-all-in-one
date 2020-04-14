@@ -155,11 +155,11 @@
           </default>
           <int>3</int>
           <string>project_specific_override_repo</string>
-          <string>https://github.com/hms-dbmi/gic-pic-sure</string>
+          <string>__PROJECT_SPECIFIC_OVERRIDE_REPO__</string>
           <string>release_control_branch</string>
           <string>*/master</string>
           <string>release_control_repo</string>
-          <string>https://github.com/hms-dbmi/pic-sure-gic-release-control</string>
+          <string>__RELEASE_CONTROL_REPO__</string>
         </tree-map>
       </envVars>
     </hudson.slaves.EnvironmentVariablesNodeProperty>

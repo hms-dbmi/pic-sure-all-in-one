@@ -1,6 +1,14 @@
 <?xml version='1.1' encoding='UTF-8'?>
 <flow-definition plugin="workflow-job@2.38">
-  <actions/>
+  <actions>
+    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobAction plugin="pipeline-model-definition@1.6.0"/>
+    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction plugin="pipeline-model-definition@1.6.0">
+      <jobProperties/>
+      <triggers/>
+      <parameters/>
+      <options/>
+    </org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction>
+  </actions>
   <description></description>
   <keepDependencies>false</keepDependencies>
   <properties>
@@ -30,6 +38,19 @@
           <defaultValue></defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>PROJECT_SPECIFIC_OVERRIDE_REPOSITORY</name>
+          <description>This must be the project specific git repository that contains the project specific database migrations and UI overrides in the standard PIC-SURE Override Repository Structure.
+</description>
+          <defaultValue></defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>RELEASE_CONTROL_REPOSITORY</name>
+          <description>This must be the project specific release control git repository that contains the git commit hashes that will be built and deployed.</description>
+          <defaultValue></defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
   </properties>
@@ -42,6 +63,17 @@ def build_hashes = {};
 pipeline {
     agent any 
     stages {
+        stage(&apos;Set Project Specific Repositories&apos;) {
+            steps {
+                script {
+                    sh &quot;&quot;&quot;
+                        sed -i &quot;s|__PROJECT_SPECIFIC_OVERRIDE_REPO__|$env.PROJECT_SPECIFIC_OVERRIDE_REPOSITORY|g&quot; /var/jenkins_home/config.xml
+                        sed -i &quot;s|__RELEASE_CONTROL_REPO__|$env.RELEASE_CONTROL_REPOSITORY|g&quot; /var/jenkins_home/config.xml
+                    &quot;&quot;&quot;
+                    Jenkins.instance.doReload()
+                }
+            }
+        }
         stage(&apos;Initial Config and Build&apos;) { 
             steps {
                 parallel (

@@ -3,18 +3,15 @@
 Assumptions:
 
 - This system will be maintained by someone with either a basic understanding of Docker or the will to learn and develop that understanding over time.
-- You already have installed Git on the server and have internet access from the server.
+- You have internet access from the server as well as network connectivity to the server from your browser on ports 80, 443 and 8443
 
 Preparing to deploy:
 
-You will be creating an initial admin user tied to a Google account. Decide which one you want to use.
+You will be creating an initial admin user tied to a Google account. Decide which google account you want to use.
 
-You will need an Auth0 Client Secret and Client ID. If these have not been provided for you, create a free Auth0 account and use it to create an Application. When you create an Auth0 Application for PIC-SURE, select "Regular Web Application" and in the Advanced Settings under the OAuth tab turn the OIDC Conformant switch off. If you are using your own Auth0 account or anything other than the avillachlab Auth0 account, you will have to also provide an AUTH0_TENANT value to the Configure Auth0 Integration Jenkins job. Configuring your Auth0 account is outside the scope of this project. 
+You will need an Auth0 Client Secret(AUTH0_CLIENT_SECRET) and Client ID(AUTH0_CLIENT_ID). If these have not been provided for you, create a free Auth0 account and use it to create an Application. When you create an Auth0 Application for PIC-SURE, select "Regular Web Application" and in the Advanced Settings under the OAuth tab turn the OIDC Conformant switch off. If you are using your own Auth0 account or anything other than the avillachlab Auth0 account, you will have to also provide an AUTH0_TENANT value to the Configure Auth0 Integration Jenkins job. Configuring your Auth0 account is outside the scope of this project. 
 
-You will need an SSL certificate, chain and key that is compatible with Apache HTTPD. If you are unable to obtain secure SSL certs and key, and are taking steps to keep your system from being accessible to the public internet you can accept the risk that someone may steal your data or hijack your server by using these development certs and key:
-
-https://github.com/hms-dbmi/biodatacatalyst-pic-sure/tree/master/biodatacatalyst-ui/dev-cert
-
+Before you can safely run the system in production you will need an SSL certificate, chain and key that is compatible with Apache HTTPD. If you are unable to obtain secure SSL certs and key, and are taking steps to keep your system from being accessible to the public internet you can choose to accept the risk that someone may steal your data or hijack your server by using the development certs and key that come installed by default. -- USE THE DEFAULT CERTS AND KEY AT YOUR OWN RISK --
 
 
 Minimum System Requirements:
@@ -41,44 +38,31 @@ cd ../
 ./start-jenkins.sh
 
 - Browse to Jenkins server
-Point your browser at your server on port 8080. Work with your local IT department to make sure that this port is not available to the public internet, but is accessible to you when on your intranet or VPN.
+Point your browser at your server's IP on port 8080. Work with your local IT department to make sure that this port is not available to the public internet, but is accessible to you when on your intranet or VPN. Anyone with access to this port can launch any application they wish on your server.
 
 If your server has IP 10.109.190.146, you would browse to http://10.109.190.146:8080
 
 In Jenkins you will see 5 tabs: All, Configuration, Deployment, PIC-SURE Builds, Supporting Jobs
 
-You will need to run jobs on the Configuration and Deployment tabs in the following order to result in a working system. If you do not follow the instructions, start over with a fresh Centos 7 installation. The Jenkins server will automatically run the PIC-SURE Builds jobs, don't panic if you see them running, this is normal. Just please focus and go through the following steps in order waiting for each job to finish before going on to the next:
+On the Deployment tab click the button to the right of the Initial Configuration Pipeline job. It looks something like a sundial with a green triangle on it. You will then be asked for the following information:
 
-1) Deployment/PIC-SURE Database Migrations - This will create the necessary database schemas.
+AUTH0_CLIENT_ID
+AUTH0_CLIENT_SECRET - This is the client_secret of your 
+AUTH0_TENANT - This is the first part of your Auth0 domain, for example if your domain is avillachlab.auth0.com you would enter avillachlab in this field.
+EMAIL - This is the Google account that will be the initial admin user.
+PROJECT_SPECIFIC_OVERRIDE_REPOSITORY - This is the repo that contains the project specific overrides for your project.
+RELEASE_CONTROL_REPOSITORY - This is the repo that contains the build-spec.json file for your project. This file controls what code is built and deployed.
 
-2) Configuration/Configure Auth0 Integration - When you run this Jenkins will ask you to provide the AUTH0_CLIENT_ID and AUTH0_CLIENT_SECRET. Copy and paste the AUTH0_CLIENT_ID and AUTH0_CLIENT_SECRET into the text fields. If you are using an Auth0 account other than the avillachlab one then you will also need to change the AUTH0_TENANT value.
+Once you have entered the information, click the "Build" button.
 
-3) Configuration/Configure SSL Certificates - You will need to provide an Apache HTTPD compatible set of SSL certificate, chain and key. Reach out to your local IT department if you do not know how to obtain these. Even if you are running the application internally you still need SSL enabled to host the system responsibly. If you are only using this for testing the system out and decide to accept the risk, you can download these files which are public and provide no actual security as a result: 
+Wait until all jobs complete, it will take at least several minutes. When there is nothing showing in the Build Queue or Build Executor Status to the left of the page, all jobs will have completed.
 
-https://github.com/hms-dbmi/biodatacatalyst-pic-sure/tree/master/biodatacatalyst-ui/dev-cert
+Check the All tab to make sure nothing shows with a red dot next to it. If you see any red dots try starting from scratch with a fresh Centos7 install. If you consistently have the same job(s) fail(red dots) then you should reach out to avillach_lab_developers@googlegroups.com for help.
 
-4) Configuration/Configure PIC-SURE Token Introspection Token - This will create internal credentials used by PIC-SURE to communicate securely.
-
-5) Configuration/Create Admin User - This will create an initial admin user in PIC-SURE using your Google account. Put your gmail in the EMAIL field, once the system is deployed you can use the Admin UI to create a new Admin user and deactivate your Google user. If you choose to deactivate your Google user, please test that the other admin user you have created actually has the necessary access to manage your users.
-
-By this point all the PIC-SURE Builds jobs should have completed. Check the All tab to make sure nothing shows with a red dot next to it. If you see any red dots(instead of blue or grey), and you are sure you followed the instructions perfectly, try starting from scratch with a fresh Centos7 install. If you consistently have the same job(s) fail(red dots) then you should reach out to avillach_lab_developers@googlegroups.com for help.
-
-If all jobs have blue dots except the Backup Jenkins Home job, the Load HPDS Data job, and the Deploy PIC-SURE job then you are ready to load the NHANES demo data. Run the Load HPDS Data job.
-
-Once the Load HPDS Data Job succeeds, run the Deploy PIC-SURE job.
-
-After about a minute you should be able to log into the PIC-SURE application. To do this, browse to this URL after replacing example.com with your actual server IP or domain name:
-
-https://example.com/psamaui/?redirection_url=/psamaui
+If all jobs have blue dots except the Check For Updates and Configure SSL Certificates job, which should be gray, you should be able to log into the UI for the first time. Browse to the same domain or IP address as your Jenkins server, but without the 8080 port.
 
 Log in using your Google account that you configured in step 5 above.
 
-This will bring you to the User management page. From here you can create additional users or manage the roles of existing users. Click on the user that you added.
+Once you have confirmed that you can access the PIC-SURE UI using your admin user, stop the jenkins server by runnning the stop-jenkins.sh script:
 
-You will see a variety of technical details related to this user and the roles they are assigned. Click the Edit button and add the PIC-SURE User role to your user using the checkbox and hit save so you can browse the PIC-SURE UI.
-
-Click Applications, then PIC-SURE to be sent to the PIC-SURE UI.
-
-
-
-
+./stop-jenkins.sh

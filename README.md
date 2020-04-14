@@ -6,6 +6,8 @@ Assumptions:
 
 - The server can access the internet and your browser can access the server on ports 80, 443, 8080
 
+- You have sudo privileges or root account access on the server.
+
 Preparing to deploy:
 
 You will be creating an initial admin user tied to a Google account. Decide which google account you want to use.
@@ -35,12 +37,12 @@ git clone https://github.com/hms-dbmi/pic-sure-all-in-one
 - Install the dependencies and build the Jenkins container
 
 cd pic-sure-all-in-one/initial-configuration
-./install-dependencies
+sudo ./install-dependencies
 
 - Start Jenkins server
 
 cd ../
-./start-jenkins.sh
+sudo ./start-jenkins.sh
 
 - Browse to Jenkins server
 
@@ -78,7 +80,7 @@ Log in using your Google account that you configured in step 5 above.
 
 Once you have confirmed that you can access the PIC-SURE UI using your admin user, stop the jenkins server by runnning the stop-jenkins.sh script:
 
-./stop-jenkins.sh
+sudo ./stop-jenkins.sh
 
 Any time you wish to update the system in any way you will need to run the start-jenkins.sh script. You should always stop Jenkins using the stop-jenkins.sh script when you are done to prevent unauthorized access as Jenkins effectively has root privileges on your server.
 

@@ -46,8 +46,8 @@ In Jenkins you will see 5 tabs: All, Configuration, Deployment, PIC-SURE Builds,
 
 On the Deployment tab click the button to the right of the Initial Configuration Pipeline job. It looks something like a sundial with a green triangle on it. You will then be asked for the following information:
 
-AUTH0_CLIENT_ID
-AUTH0_CLIENT_SECRET - This is the client_secret of your 
+AUTH0_CLIENT_ID - This is the client_id of your Auth0 Application
+AUTH0_CLIENT_SECRET - This is the client_secret of your Auth0 Application
 AUTH0_TENANT - This is the first part of your Auth0 domain, for example if your domain is avillachlab.auth0.com you would enter avillachlab in this field.
 EMAIL - This is the Google account that will be the initial admin user.
 PROJECT_SPECIFIC_OVERRIDE_REPOSITORY - This is the repo that contains the project specific overrides for your project.

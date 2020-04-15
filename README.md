@@ -14,6 +14,8 @@ You will be creating an initial admin user tied to a Google account. Decide whic
 
 You will need an Auth0 Client Secret(AUTH0_CLIENT_SECRET) and Client ID(AUTH0_CLIENT_ID). If these have not been provided for you, create a free Auth0 account and use it to create an Application. When you create an Auth0 Application for PIC-SURE, select "Regular Web Application" and in the Advanced Settings under the OAuth tab turn the OIDC Conformant switch off. If you are using your own Auth0 account or anything other than the avillachlab Auth0 account, you will have to also provide an AUTH0_TENANT value to the Configure Auth0 Integration Jenkins job. Configuring your Auth0 account is outside the scope of this project. 
 
+No matter how you get your Auth0 Client Credentials, the callback_url used by your installation will have to be configured in the Auth0 Application settings. Once you have the system deployed, you will need to coordinate with the person who configured Auth0 to add your system specific callback_url.
+
 Before you can safely run the system in production you will need an SSL certificate, chain and key that is compatible with Apache HTTPD. If you are unable to obtain secure SSL certs and key, and are taking steps to keep your system from being accessible to the public internet you can choose to accept the risk that someone may steal your data or hijack your server by using the development certs and key that come installed by default. -- *USE THE DEFAULT CERTS AND KEY AT YOUR OWN RISK* --
 
 

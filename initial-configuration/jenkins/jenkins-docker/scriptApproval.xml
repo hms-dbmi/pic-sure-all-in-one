@@ -1,5 +1,5 @@
 <?xml version='1.1' encoding='UTF-8'?>
-<scriptApproval plugin="script-security@1.69">
+<scriptApproval plugin="script-security@1.71">
   <approvedScriptHashes>
     <string>017d0db438428731cd600b6ebda805065433520f</string>
     <string>06a421bb34e0e8aa45d8402eab04e6e54e46f913</string>
@@ -22,6 +22,7 @@
     <string>90be77cc74f11f2305ec7704d3c7955b7c1655a2</string>
     <string>adb6d9d969156a0e0d503c00f76271c44e185346</string>
     <string>adce500d4a52fb0b5edb0f93c5c0e26ccca0b4d9</string>
+    <string>b7d8b6cfb4fcbb64af95d1b2e0ea901feb23137b</string>
     <string>bf65c48f68235f3efd5c76b56406453d8655fdd9</string>
     <string>c21d14044b16f41290e92dcf26e9fd31b278b442</string>
     <string>d2e279e72f439f7d7e6f65aeeddbf8d6b167b659</string>
@@ -31,11 +32,13 @@
     <string>method groovy.json.JsonSlurper parse java.io.File</string>
     <string>method groovy.json.JsonSlurperClassic parseText java.lang.String</string>
     <string>method java.lang.Process waitFor</string>
+    <string>method jenkins.model.Jenkins doReload</string>
     <string>new groovy.json.JsonOutput</string>
     <string>new groovy.json.JsonSlurperClassic</string>
     <string>new java.io.File java.lang.String</string>
     <string>new java.lang.StringBuffer</string>
     <string>staticField java.lang.System out</string>
+    <string>staticMethod jenkins.model.Jenkins getInstance</string>
     <string>staticMethod org.codehaus.groovy.runtime.DefaultGroovyMethods execute java.lang.String</string>
     <string>staticMethod org.codehaus.groovy.runtime.DefaultGroovyMethods getAt java.lang.Object java.lang.String</string>
     <string>staticMethod org.codehaus.groovy.runtime.DefaultGroovyMethods getText java.io.File</string>

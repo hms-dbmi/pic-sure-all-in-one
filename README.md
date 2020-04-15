@@ -6,11 +6,15 @@ Assumptions:
 
 - The server can access the internet and your browser can access the server on ports 80, 443, 8080
 
+- You have sudo privileges or root account access on the server.
+
 Preparing to deploy:
 
 You will be creating an initial admin user tied to a Google account. Decide which google account you want to use.
 
 You will need an Auth0 Client Secret(AUTH0_CLIENT_SECRET) and Client ID(AUTH0_CLIENT_ID). If these have not been provided for you, create a free Auth0 account and use it to create an Application. When you create an Auth0 Application for PIC-SURE, select "Regular Web Application" and in the Advanced Settings under the OAuth tab turn the OIDC Conformant switch off. If you are using your own Auth0 account or anything other than the avillachlab Auth0 account, you will have to also provide an AUTH0_TENANT value to the Configure Auth0 Integration Jenkins job. Configuring your Auth0 account is outside the scope of this project. 
+
+No matter how you get your Auth0 Client Credentials, the callback_url used by your installation will have to be configured in the Auth0 Application settings. Once you have the system deployed, you will need to coordinate with the person who configured Auth0 to add your system specific callback_url.
 
 Before you can safely run the system in production you will need an SSL certificate, chain and key that is compatible with Apache HTTPD. If you are unable to obtain secure SSL certs and key, and are taking steps to keep your system from being accessible to the public internet you can choose to accept the risk that someone may steal your data or hijack your server by using the development certs and key that come installed by default. -- *USE THE DEFAULT CERTS AND KEY AT YOUR OWN RISK* --
 
@@ -26,7 +30,7 @@ Minimum System Requirements:
 
 - Install Git
 
-yum -y install git
+sudo yum -y install git
 
 - Clone the PIC-SURE All-in-one repository
 
@@ -35,12 +39,14 @@ git clone https://github.com/hms-dbmi/pic-sure-all-in-one
 - Install the dependencies and build the Jenkins container
 
 cd pic-sure-all-in-one/initial-configuration
-./install-dependencies
+
+sudo ./install-dependencies.sh
 
 - Start Jenkins server
 
 cd ../
-./start-jenkins.sh
+
+sudo ./start-jenkins.sh
 
 - Browse to Jenkins server
 
@@ -78,7 +84,7 @@ Log in using your Google account that you configured in step 5 above.
 
 Once you have confirmed that you can access the PIC-SURE UI using your admin user, stop the jenkins server by runnning the stop-jenkins.sh script:
 
-./stop-jenkins.sh
+sudo ./stop-jenkins.sh
 
 Any time you wish to update the system in any way you will need to run the start-jenkins.sh script. You should always stop Jenkins using the stop-jenkins.sh script when you are done to prevent unauthorized access as Jenkins effectively has root privileges on your server.
 

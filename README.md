@@ -38,7 +38,7 @@ git clone https://github.com/hms-dbmi/pic-sure-all-in-one
 
 cd pic-sure-all-in-one/initial-configuration
 
-sudo ./install-dependencies
+sudo ./install-dependencies.sh
 
 - Start Jenkins server
 

@@ -69,3 +69,6 @@ c.Authenticator.whitelist = whitelist = set()
 c.Authenticator.admin_users = admin = set()
 c.JupyterHub.admin_access = True
 c.DummyAuthenticator.password = "__JUPYTER_PASSWORD__"
+
+c.JupyterHub.hub_ip = '0.0.0.0'
+c.DockerSpawner.hub_ip_connect = '127.0.0.1'

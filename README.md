@@ -46,7 +46,7 @@ sudo ./install-dependencies.sh
 
 cd ../
 
-sudo ./start-jenkins.sh
+sudo ./update-jenkins.sh
 
 - Browse to Jenkins server
 
@@ -86,7 +86,7 @@ Once you have confirmed that you can access the PIC-SURE UI using your admin use
 
 sudo ./stop-jenkins.sh
 
-Any time you wish to update the system in any way you will need to run the start-jenkins.sh script. You should always stop Jenkins using the stop-jenkins.sh script when you are done to prevent unauthorized access as Jenkins effectively has root privileges on your server.
+Any time you wish to update the system in any way you will need to run the update-jenkins.sh script. You should always stop Jenkins using the stop-jenkins.sh script when you are done to prevent unauthorized access as Jenkins effectively has root privileges on your server.
 
 To start or stop PIC-SURE use the "Start PIC-SURE" and "Stop PIC-SURE" jobs.
 

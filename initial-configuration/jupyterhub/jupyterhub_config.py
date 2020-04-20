@@ -9,7 +9,6 @@ import errno
 
 c = get_config()
 
-
 # Spawn single-user servers as Docker containers
 c.JupyterHub.spawner_class = 'dockerspawner.DockerSpawner'
 # Spawn containers from this image

@@ -84,6 +84,8 @@ echo "Creating Jenkins Log Path"
 mkdir -p /var/log/jenkins-docker-logs
 mkdir -p /var/jenkins_home
 cp -r jenkins/jenkins-docker/jobs /var/jenkins_home/jobs
+cp -r jenkins/jenkins-docker/config.xml /var/jenkins_home/config.xml
+cp -r jenkins/jenkins-docker/scriptApproval.xml /var/jenkins_home/scriptApproval.xml
 mkdir -p /var/log/httpd-docker-logs/ssl_mutex
 
 export APP_ID=`uuidgen -r`

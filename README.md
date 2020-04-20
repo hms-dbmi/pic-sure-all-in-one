@@ -70,7 +70,7 @@ PROJECT_SPECIFIC_OVERRIDE_REPOSITORY - This is the repo that contains the projec
 
 RELEASE_CONTROL_REPOSITORY - This is the repo that contains the build-spec.json file for your project. This file controls what code is built and deployed.
 
-Once you have entered the information, click the "Build" button.
+Make sure none of these fields have any leading or trailing whitespace, the values must be exact. Once you have entered the information, click the "Build" button.
 
 Wait until all jobs complete, it will take at least several minutes. When there is nothing showing in the Build Queue or Build Executor Status to the left of the page, all jobs will have completed.
 
@@ -86,11 +86,11 @@ Once you have confirmed that you can access the PIC-SURE UI using your admin use
 
 sudo ./stop-jenkins.sh
 
-Any time you wish to update the system in any way you will need to run the update-jenkins.sh script. You should always stop Jenkins using the stop-jenkins.sh script when you are done to prevent unauthorized access as Jenkins effectively has root privileges on your server.
+Any time you wish to update the system in any way you will need to run the update-jenkins.sh script, this will make sure the jenkins jobs and configurations are up to date and then start the Jenkins server. You should always stop Jenkins using the stop-jenkins.sh script when you are done to prevent unauthorized access as Jenkins effectively has root privileges on your server.
 
 To start or stop PIC-SURE use the "Start PIC-SURE" and "Stop PIC-SURE" jobs.
 
-To start or stop JupyterHub use the "Start JupyterHub" and "Stop JupyterHub" jobs.
+To start or stop JupyterHub use the "Start JupyterHub" and "Stop JupyterHub" jobs. The Start JupyterHub job will ask you to set a password. Currently this password is shared by all JupyterHub users, we are working to integrate JupyterHub with the PIC-SURE Auth Micro-App so that users can log in using the same credentials they use to access PIC-SURE UI.
 
 If you have Apache HTTPD compatible certificate, chain and key files for SSL configuration, go to the Configuration tab and run the Configure SSL Certificates job uploading your server.crt, server.chain and server.key files using the Choose File buttons, then hit the Build button. Once this completes, go to the Deployment tab and run the Deploy PIC-SURE job to restart your containers so the updated SSL configuration is used.
 

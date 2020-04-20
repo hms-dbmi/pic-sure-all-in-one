@@ -88,7 +88,11 @@ sudo ./stop-jenkins.sh
 
 Any time you wish to update the system in any way you will need to run the start-jenkins.sh script. You should always stop Jenkins using the stop-jenkins.sh script when you are done to prevent unauthorized access as Jenkins effectively has root privileges on your server.
 
-As your project progresses you will run the Check For Updates job to pull, build and deploy the latest code.
+To start or stop PIC-SURE use the "Start PIC-SURE" and "Stop PIC-SURE" jobs.
+
+To start or stop JupyterHub use the "Start JupyterHub" and "Stop JupyterHub" jobs.
 
 If you have Apache HTTPD compatible certificate, chain and key files for SSL configuration, go to the Configuration tab and run the Configure SSL Certificates job uploading your server.crt, server.chain and server.key files using the Choose File buttons, then hit the Build button. Once this completes, go to the Deployment tab and run the Deploy PIC-SURE job to restart your containers so the updated SSL configuration is used.
+
+As your project progresses you will run the Check For Updates job to pull and build the latest release of each component as the release control repository is updated. To deploy the latest updates after Check For Updates is run, execute the Start PIC-SURE job.
 

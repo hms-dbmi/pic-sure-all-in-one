@@ -73,9 +73,11 @@
       <jobNames>
         <comparator class="hudson.util.CaseInsensitiveComparator" reference="../../../listView/jobNames/comparator"/>
         <string>Check For Updates</string>
-        <string>Deploy PIC-SURE</string>
         <string>Initial Configuration Pipeline</string>
-        <string>PIC-SURE Database Migrations</string>
+        <string>Start JupyterHub</string>
+        <string>Start PIC-SURE</string>
+        <string>Stop JupyterHub</string>
+        <string>Stop PIC-SURE</string>
       </jobNames>
       <jobFilters/>
       <columns>

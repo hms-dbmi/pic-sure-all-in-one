@@ -126,7 +126,10 @@ pipeline {
                     def result = build job: &apos;Load HPDS Data&apos;
                 }
                 script {
-                    def result = build job: &apos;Deploy PIC-SURE&apos;
+                    def result = build job: &apos;Start PIC-SURE&apos;
+                }
+                script {
+                    def result = build job: &apos;Start JupyterHub&apos;
                 }
             }
         }

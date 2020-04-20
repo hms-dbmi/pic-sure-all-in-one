@@ -43,11 +43,6 @@ c.DockerSpawner.debug = True
 c.JupyterHub.hub_ip = 'jupyterhub'
 c.JupyterHub.hub_port = 8080
 
-# TLS config
-c.JupyterHub.port = 443
-c.JupyterHub.ssl_key = '/ssl/server.key'
-c.JupyterHub.ssl_cert = '/ssl/server.crt'
-
 c.JupyterHub.authenticator_class = 'jupyterhub.auth.DummyAuthenticator'
 
 # Persist hub data on volume mounted inside container

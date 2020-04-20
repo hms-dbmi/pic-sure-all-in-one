@@ -128,9 +128,6 @@ pipeline {
                 script {
                     def result = build job: &apos;Start PIC-SURE&apos;
                 }
-                script {
-                    def result = build job: &apos;Start JupyterHub&apos;
-                }
             }
         }
     }

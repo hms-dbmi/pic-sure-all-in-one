@@ -105,7 +105,7 @@ cd /usr/local/docker-config/hpds_csv/
 tar -xvzf allConcepts.csv.tgz
 
 docker run -d \
--v /var/jenkins_home/jobs:/var/jenkins_home/jobs \
+-v /var/jenkins_home:/var/jenkins_home \
 -v /usr/local/docker-config:/usr/local/docker-config \
 -v /var/run/docker.sock:/var/run/docker.sock \
 -v /root/.my.cnf:/root/.my.cnf \

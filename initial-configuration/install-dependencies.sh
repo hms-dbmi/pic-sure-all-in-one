@@ -85,6 +85,7 @@ mkdir -p /var/log/jenkins-docker-logs
 mkdir -p /var/jenkins_home
 cp -r jenkins/jenkins-docker/jobs /var/jenkins_home/jobs
 cp -r jenkins/jenkins-docker/config.xml /var/jenkins_home/config.xml
+cp -r jenkins/jenkins-docker/hudson.tasks.Maven.xml /var/jenkins_home/hudson.tasks.Maven.xml
 cp -r jenkins/jenkins-docker/scriptApproval.xml /var/jenkins_home/scriptApproval.xml
 mkdir -p /var/log/httpd-docker-logs/ssl_mutex
 

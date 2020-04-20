@@ -56,7 +56,7 @@ If your server has IP 10.109.190.146, you would browse to http://10.109.190.146:
 
 In Jenkins you will see 5 tabs: All, Configuration, Deployment, PIC-SURE Builds, Supporting Jobs
 
-On the Deployment tab click the button to the right of the Initial Configuration Pipeline job. It looks something like a clock with a green triangle on it. You will then be asked for the following information:
+On the Configuration tab click the button to the right of the Initial Configuration Pipeline job. It looks something like a clock with a green triangle on it. You will then be asked for the following information:
 
 AUTH0_CLIENT_ID - This is the client_id of your Auth0 Application
 

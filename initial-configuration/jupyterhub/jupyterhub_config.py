@@ -41,6 +41,8 @@ c.DockerSpawner.debug = True
 # User containers will access hub by container name on the Docker network
 c.JupyterHub.hub_ip = 'jupyterhub'
 c.JupyterHub.hub_port = 8080
+c.JupyterHub.base_url = '/jupyterhub'
+
 
 c.JupyterHub.authenticator_class = 'jupyterhub.auth.DummyAuthenticator'
 

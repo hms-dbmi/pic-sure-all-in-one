@@ -30,6 +30,8 @@ docker run --name=httpd --network=picsure \
 -p 80:80 \
 -p 443:443 \
 -d hms-dbmi/pic-sure-ui-overrides:LATEST
+docker exec httpd sed -i &apos;/^#LoadModule proxy_wstunnel_module/s/^#//&apos; ${HTTPD_PREFIX}/conf/httpd.conf
+docker restart httpd
 
 docker stop wildfly &amp;&amp; docker rm wildfly
 WILDFLY_JAVA_OPTS=&quot;-Xms2g -Xmx4g -XX:MetaspaceSize=96M -XX:MaxMetaspaceSize=256m -Djava.net.preferIPv4Stack=true&quot;

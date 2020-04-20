@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-sudo docker run -d \
+docker run -d \
 -v /var/jenkins_home/jobs:/var/jenkins_home/jobs \
 -v /usr/local/docker-config:/usr/local/docker-config \
 -v /var/run/docker.sock:/var/run/docker.sock \

@@ -30,7 +30,7 @@ docker run --name=httpd --network=picsure \
 -p 80:80 \
 -p 443:443 \
 -d hms-dbmi/pic-sure-ui-overrides:LATEST
-docker exec httpd sed -i &apos;/^#LoadModule proxy_wstunnel_module/s/^#//&apos; ${HTTPD_PREFIX}/conf/httpd.conf
+docker exec httpd sed -i &apos;/^#LoadModule proxy_wstunnel_module/s/^#//&apos; conf/httpd.conf
 docker restart httpd
 
 docker stop wildfly &amp;&amp; docker rm wildfly

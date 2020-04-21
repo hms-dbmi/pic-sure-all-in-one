@@ -112,4 +112,4 @@ docker run -d \
 -v /usr/local/docker-config:/usr/local/docker-config \
 -v /var/run/docker.sock:/var/run/docker.sock \
 -v /root/.my.cnf:/root/.my.cnf \
--p 8080:8080 --name jenkins --restart always pic-sure-jenkins:LATEST
+-p 8080:8080 --name jenkins pic-sure-jenkins:LATEST

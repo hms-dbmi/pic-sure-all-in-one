@@ -51,7 +51,7 @@ docker pull `grep DockerSpawner.image jupyterhub_config.py | cut -d &apos; &apos
 docker stop jupyterhub | echo
 docker rm jupyterhub | echo
 
-docker run --network=picsure --expose=49152-65535 --name jupyterhub -v &quot;/var/run/docker.sock:/var/run/docker.sock&quot; -v &quot;/usr/local/docker-config/jupyterhub/:/data/&quot; -d hms-dbmi/pic-sure-all-in-one-jupyterhub:LATEST jupyterhub -f /srv/jupyterhub/jupyterhub_config.py
+docker run --network=picsure --expose=49152-65535 --restart always --name jupyterhub -v &quot;/var/run/docker.sock:/var/run/docker.sock&quot; -v &quot;/usr/local/docker-config/jupyterhub/:/data/&quot; -d hms-dbmi/pic-sure-all-in-one-jupyterhub:LATEST jupyterhub -f /srv/jupyterhub/jupyterhub_config.py
 
 </command>
     </hudson.tasks.Shell>

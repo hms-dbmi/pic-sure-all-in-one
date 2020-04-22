@@ -66,9 +66,9 @@ AUTH0_TENANT - This is the first part of your Auth0 domain, for example if your 
 
 EMAIL - This is the Google account that will be the initial admin user.
 
-PROJECT_SPECIFIC_OVERRIDE_REPOSITORY - This is the repo that contains the project specific overrides for your project.
+PROJECT_SPECIFIC_OVERRIDE_REPOSITORY - This is the repo that contains the project specific overrides for your project. If you just want the default PIC-SURE behavior use this repo : https://github.com/hms-dbmi/baseline-pic-sure
 
-RELEASE_CONTROL_REPOSITORY - This is the repo that contains the build-spec.json file for your project. This file controls what code is built and deployed.
+RELEASE_CONTROL_REPOSITORY - This is the repo that contains the build-spec.json file for your project. This file controls what code is built and deployed. If you just want the default PIC-SURE behavior use this repo : https://github.com/hms-dbmi/baseline-pic-sure-release-control
 
 Make sure none of these fields have any leading or trailing whitespace, the values must be exact. Once you have entered the information, click the "Build" button.
 

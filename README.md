@@ -42,12 +42,6 @@ cd pic-sure-all-in-one/initial-configuration
 
 sudo ./install-dependencies.sh
 
-- Start Jenkins server
-
-cd ../
-
-sudo ./update-jenkins.sh
-
 - Browse to Jenkins server
 
 Point your browser at your server's IP on port 8080. Work with your local IT department to make sure that this port is not available to the public internet, but is accessible to you when on your intranet or VPN. Anyone with access to this port can launch any application they wish on your server.

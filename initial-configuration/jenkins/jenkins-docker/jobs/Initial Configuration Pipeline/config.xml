@@ -123,7 +123,7 @@ pipeline {
         stage(&apos;Load Demo Data and Deploy&apos;) { 
             steps {
                 script {
-                    def result = build job: &apos;Load HPDS Data&apos;
+                    def result = build job: &apos;Load HPDS Data From CSV&apos;
                 }
                 script {
                     def result = build job: &apos;Start PIC-SURE&apos;

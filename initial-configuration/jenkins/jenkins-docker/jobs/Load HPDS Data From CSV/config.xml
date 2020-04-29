@@ -1,0 +1,48 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description>This job loads HPDS data from /usr/local/docker-config/hpds_csv/allConcepts.csv&#xd;
+&#xd;
+We expect that file to start with this header:&#xd;
+&#xd;
+&quot;PATIENT_NUM&quot;,&quot;CONCEPT_PATH&quot;,&quot;NVAL_NUM&quot;,&quot;TVAL_CHAR&quot;,&quot;TIMESTAMP&quot;&#xd;
+&#xd;
+The corresponding columns are:&#xd;
+&#xd;
+PATIENT_NUM - This is an integer value identifying the subject of the recorded observation fact.&#xd;
+&#xd;
+CONCEPT_PATH - This is an identifier for the concept of the observation fact. For compatibility with the PIC-SURE UI this path should represent a location in a hierarchy where each level is separated by a backslash and with a leading and trailing backslash. For example &quot;\demographics\AGE\&quot; would be the age in the default NHANES dataset. In general this can be any string value, HPDS doesn&apos;t care what you put there, but the UI does. If this HPDS instance is part of a PIC-SURE networked environment the same concept paths should be used in all sites involved in the network so that queries can be federated across the network.&#xd;
+&#xd;
+NVAL_NUM - A numeric value if this is a numeric concept, otherwise blank.&#xd;
+&#xd;
+TVAL_CHAR - A text value if this is a categorical concept, otherwise blank.&#xd;
+&#xd;
+TIMESTAMP - A timestamp for the observation fact, this should be expressed as the number of milliseconds since January 1, 1970 GMT. This is equivalent to the Unix Epoch time value for the time of the observation multiplied by 1000.&#xd;
+&#xd;
+</description>
+  <keepDependencies>false</keepDependencies>
+  <properties/>
+  <scm class="hudson.scm.NullSCM"/>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>rm -rf /usr/local/docker-config/hpds_temp
+mkdir -p /usr/local/docker-config/hpds_temp
+cp /usr/local/docker-config/hpds/encryption_key /usr/local/docker-config/hpds_temp/encryption_key 
+docker run \
+-v /usr/local/docker-config/hpds_temp:/opt/local/hpds \
+-v /usr/local/docker-config/hpds_csv/allConcepts.csv:/opt/local/hpds/allConcepts.csv \
+-e HEAPSIZE=4096 -e LOADER_NAME=CSVLoader hms-dbmi/pic-sure-hpds-etl:LATEST &amp;&amp; \
+mv /usr/local/docker-config/hpds /usr/local/docker-config/hpds_bak &amp;&amp; \
+mv /usr/local/docker-config/hpds_temp /usr/local/docker-config/hpds
+</command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

@@ -73,6 +73,8 @@
       <jobNames>
         <comparator class="hudson.util.CaseInsensitiveComparator" reference="../../../listView/jobNames/comparator"/>
         <string>Check For Updates</string>
+        <string>Load HPDS Data From CSV</string>
+        <string>Load HPDS Data From RDBMS</string>
         <string>Start JupyterHub</string>
         <string>Start PIC-SURE</string>
         <string>Stop JupyterHub</string>
@@ -157,11 +159,11 @@
           </default>
           <int>3</int>
           <string>project_specific_override_repo</string>
-          <string>__PROJECT_SPECIFIC_OVERRIDE_REPO__</string>
+          <string>https://github.com/hms-dbmi/baseline-pic-sure</string>
           <string>release_control_branch</string>
           <string>*/master</string>
           <string>release_control_repo</string>
-          <string>__RELEASE_CONTROL_REPO__</string>
+          <string>https://github.com/hms-dbmi/baseline-pic-sure-release-control</string>
         </tree-map>
       </envVars>
     </hudson.slaves.EnvironmentVariablesNodeProperty>

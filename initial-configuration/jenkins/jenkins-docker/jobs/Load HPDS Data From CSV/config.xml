@@ -32,6 +32,7 @@ TIMESTAMP - A timestamp for the observation fact, this should be expressed as th
   <builders>
     <hudson.tasks.Shell>
       <command>rm -rf /usr/local/docker-config/hpds_temp
+rm -rf /usr/local/docker-config/hpds_bak
 mkdir -p /usr/local/docker-config/hpds_temp
 cp /usr/local/docker-config/hpds/encryption_key /usr/local/docker-config/hpds_temp/encryption_key 
 docker run \

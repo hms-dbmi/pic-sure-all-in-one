@@ -451,7 +451,7 @@
         <subsystem xmlns="urn:jboss:domain:jsf:1.1"/>
         <subsystem xmlns="urn:jboss:domain:mail:3.0">
             <mail-session name="java:jboss/mail/gmail" from="__EMAIL_FROM_ADDR__" jndi-name="java:jboss/mail/gmail" debug="false">
-                <smtp-server outbound-socket-binding-ref="mail-smtp-gmail" tls="true" username="__EMAIL_USER__" cdcdpassword="__EMAIL_PASSWORD__" />
+                <smtp-server outbound-socket-binding-ref="mail-smtp-gmail" tls="true" username="__EMAIL_USER__" password="__EMAIL_PASSWORD__" />
             </mail-session>
         </subsystem>
         <subsystem xmlns="urn:jboss:domain:naming:2.0">

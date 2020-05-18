@@ -34,7 +34,7 @@
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>EMAIL</name>
-          <description></description>
+          <description>The email address for the initial admin user</description>
           <defaultValue></defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>

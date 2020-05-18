@@ -51,6 +51,18 @@
           <defaultValue></defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>GMAIL_USER</name>
+          <description>The gmail account name that should be used to send outbound email.  This field is optional</description>
+          <defaultValue>user@email.com</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>GMAIL_PASSWORD</name>
+          <description>The password for the gmail user.  This field is optional</description>
+          <defaultValue>changeit</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
   </properties>
@@ -92,6 +104,15 @@ pipeline {
                             def result = build job: &apos;Configure Auth0 Integration&apos;, parameters: [
                                 [$class: &apos;StringParameterValue&apos;, name: &apos;AUTH0_CLIENT_ID&apos;, value:env.AUTH0_CLIENT_ID],
                                 [$class: &apos;StringParameterValue&apos;, name: &apos;AUTH0_CLIENT_SECRET&apos;, value: env.AUTH0_CLIENT_SECRET]]
+                        }
+                    }
+		    emailConfig: {
+                        script {
+                            def result = build job: &apos;Configure Outbound Email Settings&apos;, parameters: [
+                                [$class: &apos;StringParameterValue&apos;, name: &apos;GMAIL_USER&apos;, value:env.GMAIL_USER],
+                                [$class: &apos;StringParameterValue&apos;, name: &apos;GMAIL_FROM&apos;, value: env.GMAIL_USER],
+                                [$class: &apos;StringParameterValue&apos;, name: &apos;GMAIL_PASSWORD&apos;, value: env.GMAIL_PASSWORD]]
+
                         }
                     }
                 )

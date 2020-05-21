@@ -38,6 +38,7 @@ WILDFLY_JAVA_OPTS=&quot;-Xms2g -Xmx4g -XX:MetaspaceSize=96M -XX:MaxMetaspaceSize
 docker run --name=wildfly --restart always --network=picsure -u root \
 -v /var/log/wildfly-docker-logs/:/opt/jboss/wildfly/standalone/log/ \
 -v /usr/local/docker-config/wildfly/standalone.xml:/opt/jboss/wildfly/standalone/configuration/standalone.xml \
+-v /usr/local/docker-config/wildfly/emailTemplates:/opt/jboss/wildfly/standalone/configuration/emailTemplates \
 -v /usr/local/docker-config/wildfly/wildfly_mysql_module.xml:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/module.xml  \
 -v /usr/local/docker-config/wildfly/mysql-connector-java-5.1.38.jar:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/mysql-connector-java-5.1.38.jar \
 -v /var/log/wildfly-docker-os-logs/:/var/log/ \

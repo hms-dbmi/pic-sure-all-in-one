@@ -49,7 +49,7 @@
 GIT_BRANCH_SHORT=`echo ${GIT_BRANCH} | cut -d &quot;/&quot; -f 2` 
 GIT_COMMIT_SHORT=`echo ${GIT_COMMIT} | cut -c1-7`
 
-export APP_ID=`cat /usr/local/docker-config/APP_ID_HEX`
+export APP_ID=`cat /usr/local/docker-config/APP_ID_RAW`
 export RESOURCE_ID=`cat  /usr/local/docker-config/RESOURCE_ID_HEX`
 export AUTH0_CLIENT_ID=`cat /usr/local/docker-config/httpd/psamaui_settings.json | grep client_id | cut -d ":" -f 2 | sed 's/\",*//g'`
 

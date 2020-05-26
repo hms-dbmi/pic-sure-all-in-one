@@ -111,6 +111,7 @@ sed -i "s/__STACK_SPECIFIC_RESOURCE_UUID__/$RESOURCE_ID/g" /usr/local/docker-con
 echo $APP_ID > /usr/local/docker-config/APP_ID_RAW
 echo $APP_ID_HEX > /usr/local/docker-config/APP_ID_HEX
 echo $RESOURCE_ID_HEX > /usr/local/docker-config/RESOURCE_ID_HEX
+echo $RESOURCE_ID > /usr/local/docker-config/RESOURCE_ID_RAW
 
 mkdir -p /usr/local/docker-config/hpds_csv
 mkdir -p /usr/local/docker-config/hpds/all

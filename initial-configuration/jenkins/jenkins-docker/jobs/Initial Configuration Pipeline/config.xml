@@ -143,6 +143,10 @@ pipeline {
         }
         stage(&apos;Load Demo Data and Deploy&apos;) { 
             steps {
+ 		script {
+                    def result = build job: &apos;Retrieve Build Spec&apos;
+                    retrieveBuildSpecId = result.number
+                }
 		script {
                     copyArtifacts filter: &apos;*&apos;, projectName: &apos;Retrieve Build Spec&apos;, selector: specific(&quot;&quot;+retrieveBuildSpecId)
                     sh &apos;cat build-spec.json&apos;

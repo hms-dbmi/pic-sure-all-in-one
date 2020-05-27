@@ -32,4 +32,4 @@ RUN apt-get install jq -y
 
 RUN apt-get -y install uuid-runtime
 
-RUN `/usr/local/bin/install-plugins.sh < /usr/share/jenkins/ref/plugins.txt` || echo "Some errors occurred during plugin installation."
+RUN /usr/local/bin/install-plugins.sh < /usr/share/jenkins/ref/plugins.txt || echo "Some errors occurred during plugin installation."

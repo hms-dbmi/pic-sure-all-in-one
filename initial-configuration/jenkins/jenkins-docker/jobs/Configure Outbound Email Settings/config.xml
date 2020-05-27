@@ -1,0 +1,50 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description></description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>GMAIL_USER</name>
+          <description>The user account of an smtp service (default gmail) to use for sending mail</description>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+	<hudson.model.StringParameterDefinition>
+          <name>GMAIL_FROM</name>
+          <description>The name that should be displayed as the outbound account</description>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>GMAIL_PASSWORD</name>
+          <description>Password for the gmail account used to send mail</description>
+          <defaultValue>changeme</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.scm.NullSCM"/>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>export oldpassword=`cat /usr/local/docker-config/wildfly/standalone.xml | grep smtp-server | grep mail-smtp-gmail | grep -oP &apos;password(\S)*&apos; | cut -d \&quot; -f 2`
+		export olduser=`cat /usr/local/docker-config/wildfly/standalone.xml | grep smtp-server | grep mail-smtp-gmail | grep -oP &apos;username(\S)*&apos; | cut -d \&quot; -f 2`
+		export oldfrom=`cat /usr/local/docker-config/wildfly/standalone.xml | grep mail-session | grep &apos;jboss/mail/gmail&apos; | grep -oP &apos;from(\S)*&apos; | cut -d \&quot; -f 2`
+
+sed -i &quot;s/$oldpassword/$GMAIL_PASSWORD/g&quot; /usr/local/docker-config/wildfly/standalone.xml
+sed -i &quot;s/$olduser/$GMAIL_USER/g&quot; /usr/local/docker-config/wildfly/standalone.xml
+sed -i &quot;s/$oldfrom/$GMAIL_FROM/g&quot; /usr/local/docker-config/wildfly/standalone.xml
+
+</command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

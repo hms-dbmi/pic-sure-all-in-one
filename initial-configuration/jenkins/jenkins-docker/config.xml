@@ -101,6 +101,7 @@
       <jobNames>
         <comparator class="hudson.util.CaseInsensitiveComparator" reference="../../../listView/jobNames/comparator"/>
         <string>Configure Auth0 Integration</string>
+	<string>Configure Outbound Email Settings</string>
         <string>Configure PIC-SURE Token Introspection Token</string>
         <string>Configure SSL Certificates</string>
         <string>Create Admin User</string>

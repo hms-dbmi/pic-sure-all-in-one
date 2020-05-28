@@ -9,7 +9,7 @@
         <hudson.model.StringParameterDefinition>
           <name>MYSQL_HOST_NAME</name>
           <description>The server name on which MySQL is running</description>
-          <defaultValue>172.18.0.1</defaultValue>
+          <defaultValue>192.168.1.244</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
@@ -21,12 +21,12 @@
         <hudson.model.PasswordParameterDefinition>
           <name>MYSQL_PASSWORD</name>
           <description>The root user password for the MySQL Database</description>
-          <defaultValue>{AQAAABAAAAAg19x0G0WLRNo/QyT5K6t1JB9BxtdxDnfLvkbNEHoI4g3Y3VS05A7Op+w2bE+1ZSyL}</defaultValue>
+          <defaultValue>{AQAAABAAAABQvhgzF/Q8Z3MidGwiu8CtrWvo6pRUxiluR4nfvjD93MJKnFZ9VEQkhENV+tcLzuDYvbNSYtGN3ia4ESSN/nwPa6ibhJhhOIt3siOXMmit6VG8smC33I/fLsqLxmylBjMx}</defaultValue>
         </hudson.model.PasswordParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>MYSQL_PORT</name>
           <description>MySQL server is listening on,  used by MySQL client, MySQL Connectors</description>
-          <defaultValue>3306</defaultValue>
+          <defaultValue>4000</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
       </parameterDefinitions>
@@ -43,9 +43,6 @@
     <hudson.tasks.Shell>
       <command>#!/usr/bin/env bash
 echo &quot;Configure Remote MySql Instance&quot;
-
-apt-get -y install mysql-client
-
 FILE=&quot;/root/.my.cnf&quot;
 cat &lt;&lt;EOM &gt;$FILE
 [mysql]
@@ -90,18 +87,20 @@ AIRFLOW_PASSWORD=`grep &quot;password&quot; /usr/local/docker-config/flyway/auth
 PICSURE_PASSWORD=`sed -n &apos;s/&lt;password&gt;\(.*\)&lt;\/password&gt;/\1/p&apos; picsure.tmp`
 AUTH_PASSWORD=`sed -n &apos;s/&lt;password&gt;\(.*\)&lt;\/password&gt;/\1/p&apos; auth.tmp`
 
-mysql -u root -p$MYSQL_PASSWORD  -h $MYSQL_HOST_NAME -P $MYSQL_PORT -e   &quot;drop database IF EXISTS auth; create database auth;&quot;
-mysql -u root -p$MYSQL_PASSWORD  -h $MYSQL_HOST_NAME -P $MYSQL_PORT -e   &quot;drop database IF EXISTS picsure; create database picsure;&quot;
 
-mysql -u root -p$MYSQL_PASSWORD  -h $MYSQL_HOST_NAME -P $MYSQL_PORT -e &quot;grant all privileges on auth.* to &apos;airflow&apos;@&apos;%&apos; identified by &apos;`cat airflow.tmp`&apos;;flush privileges;&quot;;
-mysql -u root -p$MYSQL_PASSWORD  -h $MYSQL_HOST_NAME -P $MYSQL_PORT -e &quot;grant all privileges on picsure.* to &apos;airflow&apos;@&apos;%&apos; identified by &apos;`cat airflow.tmp`&apos;;flush privileges;&quot;;
+docker run -i -v /root/.my.cnf:/root/.my.cnf mysql mysql -e  &quot;grant all privileges on auth.* to &apos;airflow&apos;@&apos;%&apos; identified by &apos;$AIRFLOW_PASSWORD&apos;;flush privileges;&quot; mysql
+docker run -i -v /root/.my.cnf:/root/.my.cnf mysql mysql -e  &quot;grant all privileges on picsure.* to &apos;airflow&apos;@&apos;%&apos; identified by &apos;$AIRFLOW_PASSWORD&apos;;flush privileges;&quot; mysql
+docker run -i -v /root/.my.cnf:/root/.my.cnf mysql mysql -e  &quot;grant all privileges on picsure.* to &apos;picsure&apos;@&apos;%&apos; identified by &apos;$PICSURE_PASSWORD&apos;;flush privileges;&quot; mysql
+docker run -i -v /root/.my.cnf:/root/.my.cnf mysql mysql -e  &quot;grant all privileges on auth.* to &apos;auth&apos;@&apos;%&apos; identified by &apos;$AUTH_PASSWORD&apos;;flush privileges;&quot; mysql
 
- </command>
+docker run -i -v /root/.my.cnf:/root/.my.cnf mysql mysql -e  &quot;drop database IF EXISTS auth; create database auth;&quot; mysql
+docker run -i -v /root/.my.cnf:/root/.my.cnf mysql mysql -e  &quot;drop database IF EXISTS picsure; create database picsure;&quot; mysql
+</command>
     </hudson.tasks.Shell>
   </builders>
   <publishers>
     <hudson.tasks.BuildTrigger>
-      <childProjects>PIC-SURE Database Migrations,Start PIC-SURE</childProjects>
+      <childProjects>PIC-SURE Database Migrations, Start PIC-SURE</childProjects>
       <threshold>
         <name>SUCCESS</name>
         <ordinal>0</ordinal>

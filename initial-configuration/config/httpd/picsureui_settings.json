@@ -1,8 +1,8 @@
 {
   "resources": [
     {
-            "id" : "datastage",
-            "name" : "datastage",
+            "id" : "default",
+            "name" : "Default_Resource",
             "basePath" : "/picsure",
             "findPath" : "/PIC-SURE/search"
         }

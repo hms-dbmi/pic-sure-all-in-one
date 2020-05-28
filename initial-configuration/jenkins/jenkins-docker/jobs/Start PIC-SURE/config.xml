@@ -4,40 +4,7 @@
   <description></description>
   <keepDependencies>false</keepDependencies>
   <properties>
-    <hudson.model.ParametersDefinitionProperty>
-      <parameterDefinitions>
-        <hudson.model.StringParameterDefinition>
-          <name>pipeline_build_id</name>
-          <description></description>
-          <defaultValue>MANUAL_RUN</defaultValue>
-          <trim>false</trim>
-        </hudson.model.StringParameterDefinition>
-        <hudson.model.StringParameterDefinition>
-          <name>git_hash</name>
-          <description></description>
-          <defaultValue>*/master</defaultValue>
-          <trim>false</trim>
-        </hudson.model.StringParameterDefinition>
-      </parameterDefinitions>
-    </hudson.model.ParametersDefinitionProperty>
   </properties>
-
-  <scm class="hudson.plugins.git.GitSCM" plugin="git@4.2.2">
-    <configVersion>2</configVersion>
-    <userRemoteConfigs>
-      <hudson.plugins.git.UserRemoteConfig>
-        <url>${project_specific_override_repo}</url>
-      </hudson.plugins.git.UserRemoteConfig>
-    </userRemoteConfigs>
-    <branches>
-      <hudson.plugins.git.BranchSpec>
-        <name>${git_hash}</name>
-      </hudson.plugins.git.BranchSpec>
-    </branches>
-    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
-    <submoduleCfg class="list"/>
-    <extensions/>
-  </scm>
   <canRoam>true</canRoam>
   <disabled>false</disabled>
   <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
@@ -52,10 +19,6 @@ export HPDS_OPTS=&quot;-XX:+UseParallelGC -XX:SurvivorRatio=250 -Xms1g -Xmx16g -
 export PICSURE_SETTINGS_VOLUME=&quot;-v /usr/local/docker-config/httpd/picsureui_settings.json:/usr/local/apache2/htdocs/picsureui/settings/settings.json&quot;
 export PSAMA_SETTINGS_VOLUME=&quot;-v /usr/local/docker-config/httpd/psamaui_settings.json:/usr/local/apache2/htdocs/psamaui/settings/settings.json&quot;
 export EMAIL_TEMPLATE_VOUME=&quot;-v /usr/local/docker-config/wildfly/emailTemplates:/opt/jboss/wildfly/standalone/configuration/emailTemplates &quot;
-
-if [ -f "./setEnv.sh" ]; then
-   . ./setEnv.sh
-fi
 
 
 docker stop hpds &amp;&amp; docker rm hpds

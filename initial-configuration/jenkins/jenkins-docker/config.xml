@@ -106,6 +106,7 @@
         <string>Configure SSL Certificates</string>
         <string>Create Admin User</string>
         <string>Initial Configuration Pipeline</string>
+        <string>Configure Remote MySQL Instance</string>
       </jobNames>
       <jobFilters/>
       <columns>

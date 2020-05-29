@@ -21,7 +21,7 @@
         <hudson.model.PasswordParameterDefinition>
           <name>MYSQL_PASSWORD</name>
           <description>The root user password for the MySQL Database</description>
-          <defaultValue>{AQAAABAAAABQvhgzF/Q8Z3MidGwiu8CtrWvo6pRUxiluR4nfvjD93MJKnFZ9VEQkhENV+tcLzuDYvbNSYtGN3ia4ESSN/nwPa6ibhJhhOIt3siOXMmit6VG8smC33I/fLsqLxmylBjMx}</defaultValue>
+          <defaultValue>{AQAAABAAAAAQtW1PTxdQgNch+qkrCMeg8ruar/gFNM3eSa8tB935tQI=}</defaultValue>
         </hudson.model.PasswordParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>MYSQL_PORT</name>

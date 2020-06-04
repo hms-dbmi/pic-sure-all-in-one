@@ -4,9 +4,9 @@ Assumptions:
 
 - This system will be maintained by someone with either a basic understanding of Docker or the will to learn and develop that understanding over time.
 
-- The server can access the internet and your browser can access the server on ports 80, 443, 8080
+- The server can access the internet and your browser can access the server on ports `80`, `443`, `8080`
 
-- You have sudo privileges or root account access on the server.
+- You have `sudo` privileges or root account access on the server.
 
 Preparing to deploy:
 
@@ -29,24 +29,24 @@ Minimum System Requirements:
 # Steps to install on a fresh Centos 7 installation:
 
 1. Install Git
-
+```
 sudo yum -y install git
-
+```
 2. Clone the PIC-SURE All-in-one repository
-
+```
 git clone https://github.com/hms-dbmi/pic-sure-all-in-one
-
+```
 3. Install the dependencies and build the Jenkins container
-
+```
 cd pic-sure-all-in-one/initial-configuration
 
 sudo ./install-dependencies.sh
-
+```
 4. Browse to Jenkins server
 
-5. Point your browser at your server's IP on port 8080. 
+5. Point your browser at your server's IP on port `8080`. 
 
-For example, if your server has IP 10.109.190.146, please browse to http://10.109.190.146:8080
+For example, if your server has IP `10.109.190.146`, please browse to http://10.109.190.146:8080
 
 Note: Work with your local IT department to ensure that this port is not available to the public internet, but is accessible to you on your intranet or VPN. Anyone with access to this port can launch any application they wish on your server.
 
@@ -78,16 +78,16 @@ Wait until all jobs complete. This may take several minutes. When nothing displa
 
 If all jobs have blue dots except the Check For Updates and Configure SSL Certificates job, which should be gray, you can log into the UI for the first time. 
 
-10. Browse to the same domain or IP address as your Jenkins server without the 8080 port.
+10. Browse to the same domain or IP address as your Jenkins server without the `8080` port.
 
-For example, if your server has IP 10.109.190.146, you would browse to https://10.109.190.146
+For example, if your server has IP `10.109.190.146`, you would browse to https://10.109.190.146
 
 11. Log in using your Google account that you previously configured.
 
 12. Once you have confirmed that you can access the PIC-SURE UI using your admin user, stop the jenkins server by runnning the following stop-jenkins.sh script:
-
+```
 sudo ./stop-jenkins.sh
-
+```
 
 # Additional Information:
 
@@ -99,7 +99,7 @@ sudo ./stop-jenkins.sh
 
 - To start or stop JupyterHub use the "Start JupyterHub" and "Stop JupyterHub" jobs. The Start JupyterHub job will ask you to set a password. Currently this password is shared by all JupyterHub users, we are working to integrate JupyterHub with the PIC-SURE Auth Micro-App so that users can log in using the same credentials they use to access PIC-SURE UI. To access JupyterHub browse to your server ip address on the path /jupyterhub
 
-For example, if your server has IP 10.109.190.146, you would browse to https://10.109.190.146/jupyterhub
+For example, if your server has IP `10.109.190.146`, you would browse to https://10.109.190.146/jupyterhub
 
 - If you have a Apache HTTPD compatible certificate, chain and key files for SSL configuration, navigate to the Configuration tab and run the Configure SSL Certificates job uploading your server.crt, server.chain and server.key files using the Choose File buttons, then hit the Build button. Once this completes, go to the Deployment tab and run the Deploy PIC-SURE job to restart your containers so the updated SSL configuration is used.
 

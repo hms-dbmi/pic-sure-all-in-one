@@ -12,9 +12,7 @@ Preparing to deploy:
 
 - You will create an initial admin user tied to a Google account. Decide which google account you want to use.
 
-- You need an Auth0 Client Secret(AUTH0_CLIENT_SECRET) and Client ID(AUTH0_CLIENT_ID). If these have not been provided for you, create a free Auth0 account and use it to create an Application. When you create an Auth0 Application for PIC-SURE, select "Regular Web Application" and in the Advanced Settings under the OAuth tab turn the OIDC Conformant switch off. If you are using your own Auth0 account or anything other than the avillachlab Auth0 account, you will have to also provide an AUTH0_TENANT value to the Configure Auth0 Integration Jenkins job. Configuring your Auth0 account is outside the scope of this project. 
-
-No matter how you get your Auth0 Client Credentials, the callback_url used by your installation will have to be configured in the Auth0 Application settings. Once you have the system deployed, you will need to coordinate with the person who configured Auth0 to add your system specific callback_url.
+- You need an Auth0 Client Secret(AUTH0_CLIENT_SECRET), Client ID(AUTH0_CLIENT_ID), and an AUTH0_TENANT value for the Configure Auth0 Integration Jenkins job .Please contact us at avillach_lab_developers@googlegroups.com and these will be sent to you.
 
 - Before you can safely run the system in production you will need an SSL certificate, chain and key that is compatible with Apache HTTPD. If you are unable to obtain secure SSL certs and key, and are taking steps to keep your system from being accessible to the public internet you can choose to accept the risk that someone may steal your data or hijack your server by using the development certs and key that come installed by default. -- *USE THE DEFAULT CERTS AND KEY AT YOUR OWN RISK* --
 
@@ -97,11 +95,11 @@ sudo ./stop-jenkins.sh
 
 - To start or stop PIC-SURE use the "Start PIC-SURE" and "Stop PIC-SURE" jobs.
 
-- To start or stop JupyterHub use the "Start JupyterHub" and "Stop JupyterHub" jobs. The Start JupyterHub job will ask you to set a password. Currently this password is shared by all JupyterHub users, we are working to integrate JupyterHub with the PIC-SURE Auth Micro-App so that users can log in using the same credentials they use to access PIC-SURE UI. To access JupyterHub browse to your server ip address on the path /jupyterhub
+- To start or stop JupyterHub use the "Start JupyterHub" and "Stop JupyterHub" jobs. The Start JupyterHub job asks you to set a password. Currently this password is shared by all JupyterHub users, we are working to integrate JupyterHub with the PIC-SURE Auth Micro-App so that users can log in using the same credentials they use to access PIC-SURE UI. To access JupyterHub browse to your server ip address on the path /jupyterhub
 
-For example, if your server has IP 10.109.190.146, you would browse to https://10.109.190.146/jupyterhub
+For example, if your server has IP 10.109.190.146, browse to https://10.109.190.146/jupyterhub
 
-- If you have a Apache HTTPD compatible certificate, chain and key files for SSL configuration, navigate to the Configuration tab and run the Configure SSL Certificates job uploading your server.crt, server.chain and server.key files using the Choose File buttons, then hit the Build button. Once this completes, go to the Deployment tab and run the Deploy PIC-SURE job to restart your containers so the updated SSL configuration is used.
+- If you have an Apache HTTPD compatible certificate, chain, and key files for SSL configuration, navigate to the Configuration tab and run the Configure SSL Certificates job uploading your server.crt, server.chain, and server.key files using the Choose File buttons, then press the Build button. Once this completes, go to the Deployment tab and run the Deploy PIC-SURE job to restart your containers so the updated SSL configuration is used.
 
 - As your project progresses you will run the Check For Updates job to pull and build the latest release of each component as the release control repository is updated. To deploy the latest updates after Check For Updates is run, execute the Start PIC-SURE job.
 

@@ -4,7 +4,7 @@ Assumptions:
 
 - This system will be maintained by someone with either a basic understanding of Docker or the will to learn and develop that understanding over time.
 
-- The server can access the internet and your browser can access the server on ports 80, 443, 8080
+- The server can access the internet and your browser can access the server on ports 80, 443, 8080.
 
 - You have sudo privileges or root account access on the server.
 
@@ -12,9 +12,9 @@ Preparing to deploy:
 
 - You will create an initial admin user tied to a Google account. Decide which google account you want to use.
 
-- You need an Auth0 Client Secret(AUTH0_CLIENT_SECRET), Client ID(AUTH0_CLIENT_ID), and an AUTH0_TENANT value for the Configure Auth0 Integration Jenkins job .Please contact us at avillach_lab_developers@googlegroups.com and these will be sent to you.
+- You need an Auth0 Client Secret(AUTH0_CLIENT_SECRET), Client ID(AUTH0_CLIENT_ID), and an AUTH0_TENANT value for the Configure Auth0 Integration Jenkins job. Please contact us at avillach_lab_developers@googlegroups.com and these will be sent to you.
 
-- Before you can safely run the system in production you will need an SSL certificate, chain and key that is compatible with Apache HTTPD. If you are unable to obtain secure SSL certs and key, and are taking steps to keep your system from being accessible to the public internet you can choose to accept the risk that someone may steal your data or hijack your server by using the development certs and key that come installed by default. -- *USE THE DEFAULT CERTS AND KEY AT YOUR OWN RISK* --
+- Before you can safely run the system in production you will need a SSL certificate, chain, and key that is compatible with Apache HTTPD. If you are unable to obtain secure SSL certs and key, and are taking steps to keep your system from being accessible to the public internet you can choose to accept the risk that someone may steal your data or hijack your server by using the development certs and key that come installed by default. -- *USE THE DEFAULT CERTS AND KEY AT YOUR OWN RISK* --
 
 
 Minimum System Requirements:

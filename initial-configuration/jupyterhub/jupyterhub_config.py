@@ -43,8 +43,12 @@ c.JupyterHub.hub_ip = 'jupyterhub'
 c.JupyterHub.hub_port = 8080
 c.JupyterHub.base_url = '/jupyterhub'
 
+from psamaauthenticator.psamaauthenticator import PsamaAuthenticator
+c.JupyterHub.authenticator_class = PsamaAuthenticator
 
-c.JupyterHub.authenticator_class = 'jupyterhub.auth.DummyAuthenticator'
+# from application info in PSAMA for the "Jupyterhub" application
+c.PsamaAuthenticator.psama_token_introspection_token= "<<<---COPY_FROM_PSAMA_FOR_THE_JUPYTERHUB_APPLICATION--->>>"
+c.PsamaAuthenticator.psama_token_introspection_url = "http://wildfly:8080/pic-sure-auth-services/auth/token/inspect"
 
 # Persist hub data on volume mounted inside container
 data_dir = '/data'
@@ -64,7 +68,6 @@ c.DockerSpawner.format_volume_name = dockerspawner.volumenamingstrategy.escaped_
 c.Authenticator.whitelist = whitelist = set()
 c.Authenticator.admin_users = admin = set()
 c.JupyterHub.admin_access = True
-c.DummyAuthenticator.password = "__JUPYTER_PASSWORD__"
 
 c.JupyterHub.hub_ip = '0.0.0.0'
 c.DockerSpawner.hub_ip_connect = '127.0.0.1'

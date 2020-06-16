@@ -47,7 +47,7 @@ from psamaauthenticator.psamaauthenticator import PsamaAuthenticator
 c.JupyterHub.authenticator_class = PsamaAuthenticator
 
 # from application info in PSAMA for the "Jupyterhub" application
-c.PsamaAuthenticator.psama_token_introspection_token= "<<<---COPY_FROM_PSAMA_FOR_THE_JUPYTERHUB_APPLICATION--->>>"
+c.PsamaAuthenticator.psama_token_introspection_token="COPY_FROM_PSAMA_FOR_THE_JUPYTERHUB_APPLICATION"
 c.PsamaAuthenticator.psama_token_introspection_url = "http://wildfly:8080/pic-sure-auth-services/auth/token/inspect"
 
 # Persist hub data on volume mounted inside container

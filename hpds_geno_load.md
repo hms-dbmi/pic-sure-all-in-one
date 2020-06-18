@@ -10,6 +10,6 @@ In the /usr/local/docker-config/vcfLoad  directory, please include the following
 
 ### Upload Data into HPDS 
 
-Load Genomic Data from CSV using the Jenkins job - "Load Genomic Data" in [https://github.com/hms-dbmi/pic-sure-all-in-one](https://github.com/hms-dbmi/pic-sure-all-in-one) 
+Load Genomic Data from CSV using the Jenkins job - "Load Genomic Data". To do this, access jenkins on port 8080.
 
 This job loads HPDS data from /usr/local/docker-config/vcfLoad and may take several minutes.

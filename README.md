@@ -103,3 +103,6 @@ For example, if your server has IP 10.109.190.146, browse to https://10.109.190.
 
 - As your project progresses you will run the Check For Updates job to pull and build the latest release of each component as the release control repository is updated. To deploy the latest updates after Check For Updates is run, execute the Start PIC-SURE job.
 
+# Data Loading into HPDS
+- Genotype Data Load: [https://github.com/hms-dbmi/pic-sure-all-in-one/blob/master/hpds_geno_load.md](https://github.com/hms-dbmi/pic-sure-all-in-one/blob/master/hpds_geno_load.md)
+

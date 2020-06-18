@@ -1,27 +1,16 @@
 <?xml version='1.1' encoding='UTF-8'?>
 <project>
   <actions/>
-  <description>This job loads genomic (VCF) data into the HPDS format.  it expects a directoy containing two elements:&#xd;
+  <description>This job loads genomic (VCF) data into the HPDS format.  it expects the following two elements to be loaded into the /usr/local/docker-config/vcfLoad directory on this machine:&#xd;
 &#xd;
 vcfIndex.tsv - a file describing the VCF file(s) to be loaded&#xd;
 &#xd;
 vcfLoad/ - a directory containing the vcf file(s) that will be read and converted to the hpds format&#xd;
 &#xd;
 When this job is complete, restart the PIC-SURE services for access to the data.
-
 </description>
   <keepDependencies>false</keepDependencies>
-  <properties>
-    <hudson.model.ParametersDefinitionProperty>
-      <parameterDefinitions>
-        <hudson.model.StringParameterDefinition>
-          <name>LOAD_DIRECTORY</name>
-          <description>The path to the directory containing a vcfIndex.tsv describing the vcf files to load</description>
-          <trim>true</trim>
-        </hudson.model.StringParameterDefinition>
-      </parameterDefinitions>
-    </hudson.model.ParametersDefinitionProperty>
-  </properties>
+  <properties/>
   <scm class="hudson.scm.NullSCM"/>
   <canRoam>true</canRoam>
   <disabled>false</disabled>
@@ -32,12 +21,11 @@ When this job is complete, restart the PIC-SURE services for access to the data.
   <builders>
     <hudson.tasks.Shell>
       <command>
-
-cp $LOAD_DIRECTORY/vcfIndex.tsv /usr/local/docker-config/hpds/
+cp /usr/local/docker-config/vcfLoad/vcfIndex.tsv /usr/local/docker-config/hpds/
 
 docker run \
 -v /usr/local/docker-config/hpds:/opt/local/hpds \
--v $LOAD_DIRECTORY/vcfLoad:/opt/local/hpds/vcfInput \
+-v /usr/local/docker-config/vcfLoad/vcfLoad:/opt/local/hpds/vcfInput \
 -v /usr/local/docker-config/hpds/all:/opt/local/hpds/vcfOutput \
 -e HEAPSIZE=4096 -e LOADER_NAME=VCFLocalLoader hms-dbmi/pic-sure-hpds-etl:LATEST 
 

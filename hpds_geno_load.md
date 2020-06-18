@@ -1,4 +1,4 @@
-Below are the general steps to populate genomic data in HPDS in ACT format.
+Below are the steps to populate genomic data in HPDS in ACT format.
 
 Note: Before you begin, please update the PIC-SURE All-in-one Jenkins Server by running `git pull` then `./update-jenkins.sh` in the pic-sure-all-in-one directory on your server. This will build a new Jenkins server image and restart Jenkins with the latest jobs and plugins.
 

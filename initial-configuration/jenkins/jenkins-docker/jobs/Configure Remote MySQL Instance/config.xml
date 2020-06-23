@@ -84,8 +84,8 @@ sed -n -e &apos;/&lt;user-name&gt;auth/{n;p}&apos; ./standalone.xml &gt; auth.tm
 sed -n -e &apos;/&lt;user-name&gt;picsure/{n;p}&apos; ./standalone.xml &gt; picsure.tmp
 
 AIRFLOW_PASSWORD=`grep &quot;password&quot; /usr/local/docker-config/flyway/auth/sql.properties | cut -d &quot;=&quot; -f2-`
-PICSURE_PASSWORD=`sed -n &apos;s/&lt;password&gt;\(.*\)&lt;\/password&gt;/\1/p&apos; picsure.tmp`
-AUTH_PASSWORD=`sed -n &apos;s/&lt;password&gt;\(.*\)&lt;\/password&gt;/\1/p&apos; auth.tmp`
+PICSURE_PASSWORD=`sed -n &apos;s/&lt;password&gt;\(.*\)&lt;\/password&gt;/\1/p&apos; picsure.tmp | xargs` 
+AUTH_PASSWORD=`sed -n &apos;s/&lt;password&gt;\(.*\)&lt;\/password&gt;/\1/p&apos; auth.tmp | xargs` 
 
 
 docker run -i -v /root/.my.cnf:/root/.my.cnf mysql mysql -e  &quot;grant all privileges on auth.* to &apos;airflow&apos;@&apos;%&apos; identified by &apos;$AIRFLOW_PASSWORD&apos;;flush privileges;&quot; mysql
@@ -100,7 +100,7 @@ docker run -i -v /root/.my.cnf:/root/.my.cnf mysql mysql -e  &quot;drop database
   </builders>
   <publishers>
     <hudson.tasks.BuildTrigger>
-      <childProjects>PIC-SURE Database Migrations, Start PIC-SURE</childProjects>
+      <childProjects>PIC-SURE Database Migrations</childProjects>
       <threshold>
         <name>SUCCESS</name>
         <ordinal>0</ordinal>

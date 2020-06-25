@@ -111,7 +111,7 @@ For example, if your server has IP 10.109.190.146, browse to https://10.109.190.
 To add a user:
 1. Click **Admin**.
 2. Click **Add User**. A window appears.
-3. **Adding User For** - If not Google, select the user's email service. 
+3. **Adding User For** - If not Google, select the user's authentication service. 
 4. **Email (required)** - Enter the new user's email address.
 5. **Roles** - Select one or more roles for the user.
 6. Click **Save user**.
@@ -127,5 +127,6 @@ To deactivate a user:
 1. Click **Admin**.
 2. Click the user you want to remove.
 3. Click **Deactivate**.
+
 **Note:** When you deactivate a user, the user is gone forever and their email address cannot be used for a new user. To keep a user in the system without giving them access to PIC-SURE, follow the "To remove a user" procedure.
 

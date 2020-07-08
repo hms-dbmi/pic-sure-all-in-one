@@ -1,9 +1,22 @@
-#JupyterHub Instructions
+##JupyterHub Instructions
+
+To start JupyterHub in Jenkins:
+1. Log into your Jenkins server.
+2. Click **Start JupyterHub**.
+
+To stop JupyterHub in Jenkins:
+1. Log into your Jenkins server.
+2. Click **Stop JupyterHub**.
+Note: Stopping JupyterHub stops all user Jupyter Notebook servers as well as JupyterHub itself.
+
 
 To log into JupyterHub:
 1. Log into PIC-SURE.
-2. Click **Applications**. A dropdown appears.
-3. Click **JupyterHub**.
+2. Do one of the following:
+  - If you are an admin user, click **Admin**.
+  - If you are a non-admin user, click **User Roles**.
+3. Click **Applications**. A dropdown appears.
+4. Click **JupyterHub**.
 
 To add a Jupyterhub user:
 1. Click **Admin**.
@@ -12,3 +25,5 @@ To add a Jupyterhub user:
 4. **Email (required)** - Enter the new user's email address.
 5. **Roles** - Select **JupyterHub User**. Add more roles if necessary.
 6. Click **Save user**.
+
+

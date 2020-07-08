@@ -18,7 +18,7 @@ To log into JupyterHub:
 3. Click **Applications**. A dropdown appears.
 4. Click **JupyterHub**.
 
-To add a Jupyterhub user:
+To add a JupyterHub user:
 1. Click **Admin**.
 2. Click **Add User**. A window appears.
 3. **Adding User For** - If not Google, select the user's authentication service. 

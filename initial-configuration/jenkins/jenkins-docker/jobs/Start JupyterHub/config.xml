@@ -3,18 +3,7 @@
   <actions/>
   <description></description>
   <keepDependencies>false</keepDependencies>
-  <properties>
-    <hudson.model.ParametersDefinitionProperty>
-      <parameterDefinitions>
-        <hudson.model.StringParameterDefinition>
-          <name>PASSWORD</name>
-          <description>The password all users can log into the JupyterHub instance using. Please choose wisely.</description>
-          <defaultValue></defaultValue>
-          <trim>false</trim>
-        </hudson.model.StringParameterDefinition>
-      </parameterDefinitions>
-    </hudson.model.ParametersDefinitionProperty>
-  </properties>
+  <properties/>
   <scm class="hudson.plugins.git.GitSCM" plugin="git@4.2.2">
     <configVersion>2</configVersion>
     <userRemoteConfigs>
@@ -41,17 +30,14 @@
     <hudson.tasks.Shell>
       <command>cd initial-configuration/jupyterhub
 
-sed -i &quot;s/__JUPYTER_PASSWORD__/$PASSWORD/g&quot; jupyterhub_config.py
-echo &quot;c.JupyterHub.base_url = &apos;/jupyterhub&apos;&quot; &gt;&gt; jupyterhub_config.py
-
 docker build -t hms-dbmi/pic-sure-all-in-one-jupyterhub:LATEST .
 
-docker pull `grep DockerSpawner.image jupyterhub_config.py | cut -d &apos; &apos; -f 3 | sed &quot;s/&apos;//g&quot; `
+docker pull `grep DockerSpawner.image /usr/local/docker-config/jupyterhub_config.py | cut -d &apos; &apos; -f 3 | sed &quot;s/&apos;//g&quot; `
 
 docker stop jupyterhub | echo
 docker rm jupyterhub | echo
 
-docker run --network=picsure --expose=49152-65535 --restart always --name jupyterhub -v &quot;/var/run/docker.sock:/var/run/docker.sock&quot; -v &quot;/usr/local/docker-config/jupyterhub/:/data/&quot; -d hms-dbmi/pic-sure-all-in-one-jupyterhub:LATEST jupyterhub -f /srv/jupyterhub/jupyterhub_config.py
+docker run --network=picsure --expose=49152-65535 --restart always --name jupyterhub -v &quot;/usr/local/docker-config/jupyterhub_config.py:/srv/jupyterhub/jupyterhub_config.py&quot; -v &quot;/var/run/docker.sock:/var/run/docker.sock&quot; -v &quot;/usr/local/docker-config/jupyterhub/:/data/&quot; -d hms-dbmi/pic-sure-all-in-one-jupyterhub:LATEST jupyterhub -f /srv/jupyterhub/jupyterhub_config.py
 
 </command>
     </hudson.tasks.Shell>

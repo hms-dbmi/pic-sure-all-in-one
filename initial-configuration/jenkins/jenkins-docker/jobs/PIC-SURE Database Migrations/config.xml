@@ -15,7 +15,7 @@
   <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@2.80">
     <script>node {   
     stage(&apos;Auth Schema Migration&apos;) {  
-        git url: &apos;https://github.com/hms-dbmi/pic-sure-auth-microapp&apos;
+        git url: &apos;https://github.com/nixj14/pic-sure-auth-microapp&apos;
         docker.image(&apos;dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0&apos;).inside(&apos;--network=picsure -v /usr/local/docker-config/flyway/auth:/opt/flyway-migrations/auth &quot;--entrypoint=&quot; &apos;) { 
             sh &quot;rm -rf /opt/flyway-migrations/auth/sql&quot;
             sh &quot;cp -R ./pic-sure-auth-db/db/sql /opt/flyway-migrations/auth/sql&quot;
@@ -24,7 +24,7 @@
         }
     }
     stage(&apos;Picsure Schema Migration&apos;) {    
-        git url: &apos;https://github.com/hms-dbmi/pic-sure&apos;
+        git url: &apos;https://github.com/nixj14/pic-sure&apos;
         docker.image(&apos;dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0&apos;).inside(&apos;--network=picsure -v /usr/local/docker-config/flyway/picsure:/opt/flyway-migrations/picsure &quot;--entrypoint=&quot; &apos;) { 
             sh &quot;rm -rf /opt/flyway-migrations/picsure/sql&quot;
             sh &quot;cp -R ./pic-sure-api-data/src/main/resources/db/sql /opt/flyway-migrations/picsure/sql&quot;

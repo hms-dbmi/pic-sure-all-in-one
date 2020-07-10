@@ -113,7 +113,11 @@ To add a user:
 2. Click **Add User**. A window appears.
 3. **Adding User For** - If not Google, select the user's authentication service. 
 4. **Email (required)** - Enter the new user's email address.
-5. **Roles** - Select one or more roles for the user.
+5. **Roles** - Select one or more of the following roles for the user:
+- **PIC-SURE Top Admin**: A super user who can create admins and manage user roles and privileges directly.
+- **Admin**: A user who can assign roles and other privileges to users.
+- **PIC-SURE User**: A normal user who can run any query including data export.
+- **JupyterHub User**: A normal user who can access JupyterHub.
 6. Click **Save user**.
 
 To remove a user:

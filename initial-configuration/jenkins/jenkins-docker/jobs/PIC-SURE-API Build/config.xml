@@ -25,7 +25,7 @@
     <configVersion>2</configVersion>
     <userRemoteConfigs>
       <hudson.plugins.git.UserRemoteConfig>
-        <url>https://github.com/hms-dbmi/pic-sure.git</url>
+        <url>https://github.com/nixj14/pic-sure.git</url>
       </hudson.plugins.git.UserRemoteConfig>
     </userRemoteConfigs>
     <branches>
@@ -53,10 +53,18 @@
       <injectBuildVariables>false</injectBuildVariables>
     </hudson.tasks.Maven>
     <hudson.tasks.Shell>
-      <command>GIT_BRANCH_SHORT=`echo ${GIT_BRANCH} | cut -d &quot;/&quot; -f 2` 
+      <command>
+if [ -f "~/setProxy.sh" ]; then
+   . ~/setProxy.sh
+fi
+
+GIT_BRANCH_SHORT=`echo ${GIT_BRANCH} | cut -d &quot;/&quot; -f 2` 
 GIT_COMMIT_SHORT=`echo ${GIT_COMMIT} | cut -c1-7`
+
 cd pic-sure-api-war
-docker build -t hms-dbmi/pic-sure-api:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} .
+docker build --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_proxy --build-arg no_proxy=&quot;$no_proxy&quot; \
+--build-arg HTTP_PROXY=$http_proxy --build-arg HTTPS_PROXY=$http_proxy --build-arg NO_PROXY=&quot;$no_proxy&quot; \
+-t hms-dbmi/pic-sure-api:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} .
 docker tag hms-dbmi/pic-sure-api:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} hms-dbmi/pic-sure-api:LATEST
 </command>
     </hudson.tasks.Shell>

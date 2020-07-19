@@ -23,6 +23,8 @@ rm -rf /usr/local/docker-config
 
 yum -y remove docker-ce docker-ce-cli containerd.io
 
+rm -rf /var/lib/docker
+
 systemctl disable configure_docker_networks
 rm -f /etc/systemd/system/configure_docker_networks.service
 rm -f /root/configure_docker_networking.sh 

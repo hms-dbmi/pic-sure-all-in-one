@@ -4,6 +4,8 @@ if [ -f "~/setProxy.sh" ]; then
    . ~/setProxy.sh
 fi
 
+CWD=`pwd`
+
 mkdir -p /usr/local/docker-config
 cp -r config/* /usr/local/docker-config/
 
@@ -126,4 +128,5 @@ cp allConcepts.csv.tgz /usr/local/docker-config/hpds_csv/
 cd /usr/local/docker-config/hpds_csv/
 tar -xvzf allConcepts.csv.tgz
 
+cd $CWD
 ../start-jenkins.sh

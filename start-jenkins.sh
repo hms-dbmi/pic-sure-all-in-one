@@ -5,9 +5,9 @@ if [ -f "~/setProxy.sh" ]; then
 fi
 
 docker run -d \
--e http_proxy=$http_proxy
--e https_proxy=$https_proxy
--e no_proxy=$no_proxy
+-e http_proxy=$http_proxy \
+-e https_proxy=$https_proxy \
+-e no_proxy=$no_proxy \
 -v /var/jenkins_home:/var/jenkins_home \
 -v /usr/local/docker-config:/usr/local/docker-config \
 -v /var/run/docker.sock:/var/run/docker.sock \

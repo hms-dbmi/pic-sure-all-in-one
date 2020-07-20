@@ -14,7 +14,7 @@
   <builders>
     <hudson.tasks.Shell>
       <command>
-if [ -f "~/setProxy.sh" ]; then
+if [ -f ~/setProxy.sh ]; then
    . ~/setProxy.sh
 fi
 
@@ -53,7 +53,7 @@ $EMAIL_TEMPLATE_VOUME \
 -v /usr/local/docker-config/wildfly/wildfly_mysql_module.xml:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/module.xml  \
 -v /usr/local/docker-config/wildfly/mysql-connector-java-5.1.38.jar:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/mysql-connector-java-5.1.38.jar \
 -v /var/log/wildfly-docker-os-logs/:/var/log/ \
--e JAVA_OPTS=&quot;$WILDFLY_JAVA_OPTS WILDFLY_PROXY_OPTS&quot; -d hms-dbmi/pic-sure-wildfly:LATEST
+-e JAVA_OPTS=&quot;$WILDFLY_JAVA_OPTS $WILDFLY_PROXY_OPTS&quot; -d hms-dbmi/pic-sure-wildfly:LATEST
 </command>
     </hudson.tasks.Shell>
   </builders>

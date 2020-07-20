@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-if [ -f "~/setProxy.sh" ]; then
+if [ -f ~/setProxy.sh ]; then
    . ~/setProxy.sh
 fi
 
@@ -13,5 +13,6 @@ docker run -d \
 -v /var/run/docker.sock:/var/run/docker.sock \
 -v /root/.my.cnf:/root/.my.cnf \
 -v /root/.m2:/root/.m2 \
+-v /root/setProxy.sh:/root/setProxy.sh \
 -p 8080:8080 --name jenkins pic-sure-jenkins:LATEST
 docker restart jenkins

@@ -46,7 +46,7 @@
   <builders>
     <hudson.tasks.Shell>
       <command>
-if [ -f "~/setProxy.sh" ]; then
+if [ -f ~/setProxy.sh ]; then
    . ~/setProxy.sh
 fi
 

@@ -46,9 +46,9 @@ echo &quot;Configure Remote MySql Instance&quot;
 FILE=&quot;/root/.my.cnf&quot;
 cat &lt;&lt;EOM &gt;$FILE
 [mysql]
-host=$MYSQL_HOST_NAME
 user=$MYSQL_USER_NAME
 password=&quot;$MYSQL_PASSWORD&quot;
+host=$MYSQL_HOST_NAME
 port=$MYSQL_PORT
 EOM
 echo &quot;&quot;

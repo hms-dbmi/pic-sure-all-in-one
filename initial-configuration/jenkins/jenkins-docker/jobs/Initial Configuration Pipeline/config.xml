@@ -52,15 +52,15 @@
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
-          <name>GMAIL_USER</name>
-          <description>The gmail account name that should be used to send outbound email.  This field is optional</description>
-          <defaultValue>user@email.com</defaultValue>
+          <name>OUTBOUND_EMAIL_USER</name>
+          <description>The email account name that should be used to send outbound email.  The default server is Google's SMTP, so this should be a GMail account.  This field is optional</description>
+          <defaultValue>__user@email.com__</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
-          <name>GMAIL_PASSWORD</name>
-          <description>The password for the gmail user.  This field is optional</description>
-          <defaultValue>changeit</defaultValue>
+          <name>OUTBOUND_EMAIL_USER_PASSWORD</name>
+          <description>The password for the account used to send outbound.  This field is optional</description>
+          <defaultValue>__YOUR_EMAIL_PASSWORD__</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
       </parameterDefinitions>
@@ -109,9 +109,9 @@ pipeline {
 		    emailConfig: {
                         script {
                             def result = build job: &apos;Configure Outbound Email Settings&apos;, parameters: [
-                                [$class: &apos;StringParameterValue&apos;, name: &apos;GMAIL_USER&apos;, value:env.GMAIL_USER],
-                                [$class: &apos;StringParameterValue&apos;, name: &apos;GMAIL_FROM&apos;, value: env.GMAIL_USER],
-                                [$class: &apos;StringParameterValue&apos;, name: &apos;GMAIL_PASSWORD&apos;, value: env.GMAIL_PASSWORD]]
+                                [$class: &apos;StringParameterValue&apos;, name: &apos;OUTBOUND_EMAIL_USER&apos;, value:env.OUTBOUND_EMAIL_USER],
+                                [$class: &apos;StringParameterValue&apos;, name: &apos;EMAIL_FROM&apos;, value: env.OUTBOUND_EMAIL_USER],
+                                [$class: &apos;StringParameterValue&apos;, name: &apos;OUTBOUND_EMAIL_USER_PASSWORD&apos;, value: env.OUTBOUND_EMAIL_USER_PASSWORD]]
 
                         }
                     }

@@ -73,7 +73,9 @@
       <jobNames>
         <comparator class="hudson.util.CaseInsensitiveComparator" reference="../../../listView/jobNames/comparator"/>
         <string>Check For Updates</string>
-	<string>Load Genomic Data</string>
+        <string>Clinical data pull from s3</string>
+        <string>Clinical Data s3 Pipeline</string>
+	    <string>Load Genomic Data</string>
         <string>Load HPDS Data From CSV</string>
         <string>Load HPDS Data From RDBMS</string>
         <string>Start JupyterHub</string>
@@ -161,6 +163,8 @@
             <comparator class="hudson.util.CaseInsensitiveComparator" reference="../../../../../../views/listView/jobNames/comparator"/>
           </default>
           <int>3</int>
+          <string>clinical_data_s3_location</string>
+          <string>__PROJECT_S3_LOCATION__</string>
           <string>project_specific_override_repo</string>
           <string>__PROJECT_SPECIFIC_OVERRIDE_REPO__</string>
           <string>release_control_branch</string>

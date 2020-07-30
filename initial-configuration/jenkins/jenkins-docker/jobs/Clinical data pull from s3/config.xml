@@ -1,0 +1,132 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description></description>
+  <keepDependencies>false</keepDependencies>
+  <properties/>
+  <scm class="hudson.scm.NullSCM"/>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash
+
+### globacl parameter settings
+printf &quot;clinical_data_s3_location = ${clinical_data_s3_location}\n&quot;
+
+readarray -d / -t strarr &lt;&lt;&lt; &quot;${clinical_data_s3_location}&quot;
+clinical_data_filename=${strarr[-1]} # get file name from s3 location
+
+bucket_name=${strarr[0]}
+
+printf &quot;bucket name = ${bucket_name}\n&quot;
+
+printf &quot;clinical_data_filename = ${clinical_data_filename}\n&quot;
+
+printf &quot;make hpds and backup directories if they don&apos;t exist\n&quot;
+
+if [[ ! -d &quot;/usr/local/docker-config/hpds_bk/&quot; ]]
+then
+     mkdir /usr/local/docker-config/hpds_bk/
+fi
+
+if [[ ! -d &quot;/usr/local/docker-config/hpds/&quot; ]]
+then
+     mkdir /usr/local/docker-config/hpds/
+fi
+
+### error out if data file is not a tar.gz file
+if [[ ! ${clinical_data_s3_location} == *&quot;tar.gz&quot;* ]]
+then
+  printf &quot;data file must be in tar.gz format!\n&quot;
+  exit 1
+fi
+
+
+###### have to omit this part as currently we cannot run head object permissions
+###### but this should be implemented!!! - TD
+
+### check if file exists on s3
+#/usr/bin/aws s3api head-object --bucket ${bucket_name} --key ${clinical_data_filename} || not_exist=true
+#if [[ $not_exist ]]; then
+#
+#  printf &quot;${clinical_data_s3_location}${clinical_data_filename} does not exist!!!&quot;
+#  printf &quot;Please check that file exists and has proper permissions.&quot;
+#  exit 1
+#else
+###############################################
+
+  printf &quot;build new hpds files in the staging directory .../hpds_stg\n&quot;
+  if [[ -d &quot;/usr/local/docker-config/hpds_stg/&quot; ]]
+  then
+    rm -rf /usr/local/docker-config/hpds_stg/*
+
+    printf &quot;running aws s3 cp s3://${clinical_data_s3_location} /usr/local/docker-config/hpds_stg/ --quiet\n&quot;
+    aws s3 cp s3://${clinical_data_s3_location} /usr/local/docker-config/hpds_stg/ --quiet
+
+    printf &quot;extracting data files from tar...\n&quot;
+    tar zxvf /usr/local/docker-config/hpds_stg/${clinical_data_filename} --directory /usr/local/docker-config/hpds_stg/ --overwrite
+  else
+    mkdir /usr/local/docker-config/hpds_stg/
+
+    printf &quot;running aws s3 cp s3://${clinical_data_s3_location} /usr/local/docker-config/hpds_stg/ --quiet\n&quot;
+    aws s3 cp s3://${clinical_data_s3_location} /usr/local/docker-config/hpds_stg/ --quiet
+
+    printf &quot;extracting data files from tar...\n&quot;
+    tar zxvf /usr/local/docker-config/hpds_stg/${clinical_data_filename} --directory /usr/local/docker-config/hpds_stg/ --overwrite
+
+  fi
+
+  printf &quot;validate staged data exists and contains some data\n&quot;
+  if [[ ! -s /usr/local/docker-config/hpds_stg/allObservationStore.javabin ]] &amp;&amp; [[ ! -s /usr/local/docker-config/hpds_stg/columnMetaData.javabin ]] &amp;&amp; [[ ! -s /usr/local/docker-config/hpds_stg/encryption_key ]]
+  then
+    printf &quot;Missing required file(s) or file(s) is empty in ${clinical_data_filename}\n&quot;
+    exit 1
+  fi
+  printf &quot;validation passed!\n&quot;
+
+  # check if allObservationStore exists already in hpds live dir if so backup current javabins locally
+  if [[ -f &quot;/usr/local/docker-config/hpds/allObservationsStore.javabin&quot; ]]
+  then
+
+    printf &quot;backing up current hpds load to /usr/local/docker-config/hpds_bk/\n&quot;
+    if [[ -d &quot;/usr/local/docker-config/hpds_bk/&quot; ]]
+    then
+    # clean up previous backup.
+    # no need to archive more than one backup on disk as all data sets will be stored on s3 as well
+      rm -rf /usr/local/docker-config/hpds_bk/*
+      mv -v /usr/local/docker-config/hpds/* /usr/local/docker-config/hpds_bk/
+    else
+    # make the backup dir and archive current load
+      mkdir /usr/local/docker-config/hpds_bk/
+      mv -v /usr/local/docker-config/hpds/* /usr/local/docker-config/hpds_bk/
+    fi
+  fi
+
+  printf &quot;mv stage into live hpds folder\n&quot;
+  mv -v /usr/local/docker-config/hpds_stg/* /usr/local/docker-config/hpds/
+
+  printf &quot;tidying up...\n&quot;
+  rm -rf /usr/local/docker-config/hpds_stg/
+
+  printf &quot;The clinical data javabins are ready to go live. Please reboot the HPDS container.\n&quot;
+
+#fi
+
+</command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers>
+    <hudson.plugins.ws__cleanup.PreBuildCleanup plugin="ws-cleanup@0.38">
+      <deleteDirs>false</deleteDirs>
+      <cleanupParameter></cleanupParameter>
+      <externalDelete></externalDelete>
+      <disableDeferredWipeout>false</disableDeferredWipeout>
+    </hudson.plugins.ws__cleanup.PreBuildCleanup>
+  </buildWrappers>
+</project>

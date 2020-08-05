@@ -20,7 +20,6 @@
  * If data exists it will reboot hpds after pulling data.
  **/
 
-def s3_phenotype_location = &apos;&apos;
 /* in the pipeline we are expected to be using build spec to control builds and data deployment in the application stack
 Should fail if not set running .  Use the s3 data pull directly for troubleshooting and injecting a custom s3 location. */
 

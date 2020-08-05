@@ -92,7 +92,7 @@ fi
     rm -rf /usr/local/docker-config/hpds_stg/*
 
     printf &quot;running aws s3 cp s3://${clinical_data_s3_location} /usr/local/docker-config/hpds_stg/\n&quot;
-    aws s3 cp s3://${clinical_data_s3_location} /usr/local/docker-config/hpds_stg/
+    aws s3 cp s3://${clinical_data_s3_location} /usr/local/docker-config/hpds_stg/ --quiet
 
     printf &quot;extracting data files from tar...\n&quot;
     tar zxvf /usr/local/docker-config/hpds_stg/${clinical_data_filename} --directory /usr/local/docker-config/hpds_stg/ --overwrite
@@ -100,7 +100,7 @@ fi
     mkdir /usr/local/docker-config/hpds_stg/
 
     printf &quot;running aws s3 cp s3://${clinical_data_s3_location} /usr/local/docker-config/hpds_stg/\n&quot;
-    aws s3 cp s3://${clinical_data_s3_location} /usr/local/docker-config/hpds_stg/
+    aws s3 cp s3://${clinical_data_s3_location} /usr/local/docker-config/hpds_stg/ --quiet
 
     printf &quot;extracting data files from tar...\n&quot;
     tar zxvf /usr/local/docker-config/hpds_stg/${clinical_data_filename} --directory /usr/local/docker-config/hpds_stg/ --overwrite

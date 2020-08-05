@@ -81,6 +81,7 @@
         <string>Start PIC-SURE</string>
         <string>Stop JupyterHub</string>
         <string>Stop PIC-SURE</string>
+        <string>Swap Data Sets</string>
       </jobNames>
       <jobFilters/>
       <columns>

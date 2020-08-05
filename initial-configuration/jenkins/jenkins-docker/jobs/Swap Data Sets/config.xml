@@ -1,0 +1,71 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description>Simple utility job that swaps between javabins stored in hpds_bk and hpds.&#xd;
+&#xd;
+</description>
+  <keepDependencies>false</keepDependencies>
+  <properties/>
+  <scm class="hudson.scm.NullSCM"/>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash
+
+printf &quot;Check if there is a current backup dir and required files exist\n&quot;
+if [[ -d &quot;/usr/local/docker-config/hpds_bk/&quot; ]]
+then
+  if [[ ! -s /usr/local/docker-config/hpds_bk/allObservationStore.javabin ]] &amp;&amp; [[ ! -s /usr/local/docker-config/hpds_bk/columnMetaData.javabin ]] &amp;&amp; [[ ! -s /usr/local/docker-config/hpds_bk/encryption_key ]]
+  then
+    printf &quot;Missing required file(s) or file(s) is empty in usr/local/docker-config/hpds_bk/\n&quot;
+    exit 1
+  fi
+else
+   printf &apos;backup directory does not exist nothing to swap with\n&apos;
+   exit 1
+fi
+
+printf &quot;Back up exists swapping data sets\n&quot;
+
+if [[ -d &quot;/usr/local/docker-config/hpds_stg/&quot; ]]
+## in case stg dir exists already clean it then move bk into this dir
+then
+   rm -rf /usr/local/docker-config/hpds_stg/*
+   mv /usr/local/docker-config/hpds_bk/* /usr/local/docker-config/hpds_stg/
+# if stg dir does not exist create then mv current bk to stg
+else
+   mkdir /usr/local/docker-config/hpds_stg/
+   mv /usr/local/docker-config/hpds_bk/* /usr/local/docker-config/hpds_stg/
+fi
+
+# Make sure move to staging folder was successful
+if [[ ! -s /usr/local/docker-config/hpds_stg/allObservationStore.javabin ]] &amp;&amp; [[ ! -s /usr/local/docker-config/hpds_stg/columnMetaData.javabin ]] &amp;&amp; [[ ! -s /usr/local/docker-config/hpds_stg/encryption_key ]]
+then
+   printf &apos;Something went wrong moving files to /usr/local/docker-config/hpds_stg/\n&apos;
+   exit 1
+fi
+
+# Swap live data to back up dir and stg data to live 
+mv /usr/local/docker-config/hpds/* /usr/local/docker-config/hpds_bk/
+mv /usr/local/docker-config/hpds_stg/* /usr/local/docker-config/hpds/
+
+# validate live data
+if [[ ! -s /usr/local/docker-config/hpds/allObservationStore.javabin ]] &amp;&amp; [[ ! -s /usr/local/docker-config/hpds/columnMetaData.javabin ]] &amp;&amp; [[ ! -s /usr/local/docker-config/hpds/encryption_key ]]
+then
+   printf &apos;Something went wrong while moving files into /usr/local/docker-config/hpds/\n&apos;
+   printf &apos;ABORTING!!!!\n&apos;
+   exit 1
+fi
+
+printf &apos;Data is ready.  Restart HPDS to see changes!\n&apos;
+</command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

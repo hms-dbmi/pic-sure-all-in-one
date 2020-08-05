@@ -3,8 +3,34 @@
   <actions/>
   <description></description>
   <keepDependencies>false</keepDependencies>
-  <properties/>
-  <scm class="hudson.scm.NullSCM"/>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>clinical_data_s3_location</name>
+          <description>S3 location for the tar.gz file that contains necessary files for hpds.</description>
+          <defaultValue></defaultValue>
+          <trim>true</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@4.3.0">
+    <configVersion>2</configVersion>
+    <userRemoteConfigs>
+      <hudson.plugins.git.UserRemoteConfig>
+        <url>${release_control_repo}</url>
+      </hudson.plugins.git.UserRemoteConfig>
+    </userRemoteConfigs>
+    <branches>
+      <hudson.plugins.git.BranchSpec>
+        <name>${release_control_branch}</name>
+      </hudson.plugins.git.BranchSpec>
+    </branches>
+    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+    <submoduleCfg class="list"/>
+    <extensions/>
+  </scm>
   <canRoam>true</canRoam>
   <disabled>false</disabled>
   <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
@@ -65,16 +91,16 @@ fi
   then
     rm -rf /usr/local/docker-config/hpds_stg/*
 
-    printf &quot;running aws s3 cp s3://${clinical_data_s3_location} /usr/local/docker-config/hpds_stg/ --quiet\n&quot;
-    aws s3 cp s3://${clinical_data_s3_location} /usr/local/docker-config/hpds_stg/ --quiet
+    printf &quot;running aws s3 cp s3://${clinical_data_s3_location} /usr/local/docker-config/hpds_stg/\n&quot;
+    aws s3 cp s3://${clinical_data_s3_location} /usr/local/docker-config/hpds_stg/
 
     printf &quot;extracting data files from tar...\n&quot;
     tar zxvf /usr/local/docker-config/hpds_stg/${clinical_data_filename} --directory /usr/local/docker-config/hpds_stg/ --overwrite
   else
     mkdir /usr/local/docker-config/hpds_stg/
 
-    printf &quot;running aws s3 cp s3://${clinical_data_s3_location} /usr/local/docker-config/hpds_stg/ --quiet\n&quot;
-    aws s3 cp s3://${clinical_data_s3_location} /usr/local/docker-config/hpds_stg/ --quiet
+    printf &quot;running aws s3 cp s3://${clinical_data_s3_location} /usr/local/docker-config/hpds_stg/\n&quot;
+    aws s3 cp s3://${clinical_data_s3_location} /usr/local/docker-config/hpds_stg/
 
     printf &quot;extracting data files from tar...\n&quot;
     tar zxvf /usr/local/docker-config/hpds_stg/${clinical_data_filename} --directory /usr/local/docker-config/hpds_stg/ --overwrite

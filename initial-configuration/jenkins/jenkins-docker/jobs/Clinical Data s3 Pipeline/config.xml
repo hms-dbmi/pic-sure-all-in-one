@@ -18,13 +18,14 @@
 /**
  * This pipeline will attempt to pull a tar.gz file that contains the clinical data files and stage them as live data. 
  * If data exists it will reboot hpds after pulling data.
- ** /
+ **/
 
-def s3_phenotype_location = &apos;&apos;
 /* in the pipeline we are expected to be using build spec to control builds and data deployment in the application stack
 Should fail if not set running .  Use the s3 data pull directly for troubleshooting and injecting a custom s3 location. */
-boolean missings3Location = true // only set to false if s3 location is specified in build spec
 
+def missings3Location = true // only set to false if s3 location is specified in build spec
+def clinical_data_s3_location = ''
+      
 pipeline {
    agent any
 

@@ -30,6 +30,8 @@
     <hudson.tasks.Shell>
       <command>cd initial-configuration/jupyterhub
 
+docker build -t hms-dbmi/notebook-single-user:LATEST ./Dockerfile.single-user-notebook
+
 docker build -t hms-dbmi/pic-sure-all-in-one-jupyterhub:LATEST .
 
 docker pull `grep DockerSpawner.image /usr/local/docker-config/jupyterhub_config.py | cut -d &apos; &apos; -f 3 | sed &quot;s/&apos;//g&quot; `

@@ -30,8 +30,8 @@
     <hudson.tasks.Shell>
       <command>cd initial-configuration/jupyterhub
 
-docker build -t hms-dbmi/pic-sure-all-in-one-jupyterhub:LATEST ./Dockerfile.hub
 docker build -t hms-dbmi/notebook-single-user:LATEST ./Dockerfile.notebook
+docker build -t hms-dbmi/pic-sure-all-in-one-jupyterhub:LATEST ./Dockerfile.hub
 
 docker stop jupyterhub | echo
 docker rm jupyterhub | echo

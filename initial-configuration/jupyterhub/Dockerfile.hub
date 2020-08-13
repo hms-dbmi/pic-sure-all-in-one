@@ -1,6 +1,6 @@
 FROM jupyterhub/jupyterhub:1.2
 
-COPY ./page-template.hub /user/local/share/jupyterhub/templates/page.html
+COPY ./page-template.hub /usr/local/share/jupyterhub/templates/page.html
 
 RUN pip3 install dockerspawner
 RUN apt-get update && apt-get install -y git

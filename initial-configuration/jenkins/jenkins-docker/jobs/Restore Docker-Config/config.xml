@@ -19,7 +19,7 @@ not really required as the restoration will use absolute path stored in the arch
         <hudson.model.StringParameterDefinition>
           <name>s3_location</name>
           <description>s3 location of the tar or tar.gz file that contains the backup</description>
-          <defaultValue>s3://avillach-64-udn-etl/backups/docker-config_08-29-20.tar</defaultValue>
+          <defaultValue>s3://<__S3_LOCATION_INCLUDING_FILENAME__</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>

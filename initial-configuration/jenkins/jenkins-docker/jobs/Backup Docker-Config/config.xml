@@ -27,7 +27,7 @@ Backup file naming convention is:
         <hudson.model.StringParameterDefinition>
           <name>s3_location</name>
           <description>s3 location to store the backup at.</description>
-          <defaultValue>s3://avillach-64-udn-etl/backups/</defaultValue>
+          <defaultValue>s3://__S3_LOCATION_WITHOUT_FILENAME__</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>

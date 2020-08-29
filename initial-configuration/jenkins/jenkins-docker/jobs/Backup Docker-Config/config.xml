@@ -1,0 +1,79 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description>This job is intended to backup the /usr/local/docker-config folder.&#xd;
+</description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>backup_prefix</name>
+          <description>prefix to the backup file.
+
+Backup file naming convention is:
+&lt;backup_prefix&gt;_MM_DD_YY.tar or &lt;backup_prefix&gt;_MM_DD_YY.tar.gz</description>
+          <defaultValue>docker-config</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>backup_location</name>
+          <description>local directory to backup.
+
+</description>
+          <defaultValue>/usr/local/docker-config</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>s3_location</name>
+          <description>s3 location to store the backup at.</description>
+          <defaultValue>s3://avillach-64-udn-etl/backups/</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>compress_tar</name>
+          <description></description>
+          <defaultValue>false</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.scm.NullSCM"/>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash
+
+backupname=&quot;${backup_prefix}_$(date +&quot;%m-%d-%y&quot;)&quot;
+
+### check if attached storage is volume mounted
+if [ -d &quot;${backup_location}&quot; ]
+then
+
+  echo &quot;${backup_location} exists!&quot;
+  echo &quot;${backupname}&quot;
+  echo &quot;Creating Tarball for contents of ${backup_location}&quot;
+  if [ ! ${compress_tar,,} = &quot;true&quot; ]
+  then
+     tar -cvf ${backupname}.tar -P ${backup_location}
+     aws s3 cp ${backupname}.tar ${s3_location}
+  else
+     tar -czvf ${backupname}.tar.gz -P ${backup_location}
+     aws s3 cp ${backupname}.tar.gz ${s3_location}
+  fi
+else
+
+  echo &quot;${backup_location} does not exist.&quot;
+
+fi</command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

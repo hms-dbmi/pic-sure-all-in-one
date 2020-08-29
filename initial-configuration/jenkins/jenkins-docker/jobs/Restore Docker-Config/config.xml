@@ -1,0 +1,90 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description>This job by default is intended to restore docker-config from a backup.&#xd;
+&#xd;
+Though can be used to restore any directory that is backed up on s3.</description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>backup_destination</name>
+          <description>destination of the directory to restore.
+
+not really required as the restoration will use absolute path stored in the archive using the &quot;tar -P&quot; command.</description>
+          <defaultValue>/usr/local/docker-config</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>s3_location</name>
+          <description>s3 location of the tar or tar.gz file that contains the backup</description>
+          <defaultValue>s3://avillach-64-udn-etl/backups/docker-config_08-29-20.tar</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>compress_tar</name>
+          <description>whether or not the tarball is zipped</description>
+          <defaultValue>false</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.scm.NullSCM"/>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash
+
+bucketname=
+
+IFS=&apos;/&apos; read -r -a array &lt;&lt;&lt; &quot;${s3_location}&quot;
+
+key=$(sed &quot;s/s3.*${array[2]}\///g&quot; &lt;&lt;&lt; ${s3_location})
+
+exists=true
+
+echo &quot;aws s3api head-object --bucket \&quot;${array[2]}\&quot; --key \&quot;${key}\&quot;&quot;
+### check if file exists on s3
+AWS_PAGER=&quot;&quot; aws s3api head-object --bucket &quot;${array[2]}&quot; --key &quot;${key}&quot; || exists=false
+
+
+if [[ ! ${exists} ]]; then
+
+  echo &quot;${s3_location} does not exist!!!&quot;
+  echo &quot;Please check that the file exists and has proper permissions.&quot;
+
+  exit 1
+
+else
+  # Cannot move this dir as it is used by jenkins.
+  #if [ -d &quot;${backup_destination}&quot; ]; then
+  #  echo &quot;${backup_destination} exists! moving current config to ${backup_destination}_bk&quot;
+  #  rm -rf &quot;${backup_destination}_bk/*&quot;
+  #  mv &quot;${backup_destination}/&quot; &quot;${backup_destination}_bk/&quot;
+  #fi
+  
+  aws s3 cp &quot;${s3_location}&quot; &quot;${backup_destination}&quot;
+  cd &quot;${backup_destination}&quot;
+  
+  echo &quot;restoring from s3_location&quot;
+
+  if [ ${compress_tar,,} = &quot;false&quot; ]
+  then
+    tar -xvf ${array[-1]} -P
+  else
+    tar -zxvf ${array[-1]} -P
+  fi
+fi
+</command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

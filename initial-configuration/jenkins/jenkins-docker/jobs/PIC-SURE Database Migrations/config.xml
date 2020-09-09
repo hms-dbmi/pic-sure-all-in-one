@@ -1,8 +1,8 @@
 <?xml version='1.1' encoding='UTF-8'?>
-<flow-definition plugin="workflow-job@2.38">
+<flow-definition plugin="workflow-job@2.39">
   <actions>
-    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobAction plugin="pipeline-model-definition@1.6.0"/>
-    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction plugin="pipeline-model-definition@1.6.0">
+    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobAction plugin="pipeline-model-definition@1.7.0"/>
+    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction plugin="pipeline-model-definition@1.7.0">
       <jobProperties/>
       <triggers/>
       <parameters/>
@@ -13,9 +13,56 @@
   <keepDependencies>false</keepDependencies>
   <properties/>
   <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@2.80">
-    <script>node {   
+    <script>import groovy.json.JsonSlurper;
+// variables for scm hashes
+def micro_app_ref = &apos;&apos;
+def pic_sure_ref = &apos;&apos;
+def psu_ref = &apos;&apos;
+
+node {   
+    stage(&apos;Retrieve Build Spec&apos;) { 
+        script {
+            def result = build job: &apos;Retrieve Build Spec&apos;
+            retrieveBuildSpecId = result.number
+        }
+        script {
+            copyArtifacts filter: &apos;*&apos;, projectName: &apos;Retrieve Build Spec&apos;, selector: specific(&quot;&quot;+retrieveBuildSpecId)
+            sh &apos;cat build-spec.json&apos;
+            sh &apos;cat pipeline_git_commit.txt&apos;
+            sh &apos;pwd&apos;
+            sh &apos;ls&apos;
+            def path = pwd()
+            def filePath = path + &apos;/build-spec.json&apos;
+            echo filePath
+            def buildSpec = new JsonSlurper().parse(new File(filePath))
+    
+            for(def build : buildSpec.application){
+                if(build.project_name.equalsIgnoreCase(&quot;PIC-SURE Auth Micro-App Build&quot;)) {
+                   micro_app_ref = build.git_hash
+                   echo &apos;micro_app_ref &apos; + micro_app_ref
+                }
+                if(build.project_name.equalsIgnoreCase(&quot;project-specific-ui&quot;)) {
+                   psu_ref = build.git_hash
+                   echo &apos;psu_ref &apos; + psu_ref
+                }
+                if(build.project_name.equalsIgnoreCase(&quot;PIC-SURE-API Build&quot;)) {
+                   pic_sure_ref = build.git_hash
+                   echo &apos;pic_sure_ref &apos; + pic_sure_ref
+                }
+            }
+            if(micro_app_ref.isEmpty() || pic_sure_ref.isEmpty() || psu_ref.isEmpty()) {
+                currentBuild.result = &apos;ABORTED&apos;
+                echo &apos;micro_app_ref = &apos; + micro_app_ref
+                echo &apos;psu_ref = &apos; + psu_ref
+                echo &apos;pic_sure_ref = &apos; + pic_sure_ref
+                error(&apos;Build Spec Not configured correctly!&apos;)
+            }
+        }
+    }
     stage(&apos;Auth Schema Migration&apos;) {  
-        git url: &apos;https://github.com/hms-dbmi/pic-sure-auth-microapp&apos;
+        checkout([$class: &apos;GitSCM&apos;, branches: [[name: micro_app_ref ]],
+            userRemoteConfigs: [[url: &apos;https://github.com/hms-dbmi/pic-sure-auth-microapp&apos;]]])
+        //git url: &apos;https://github.com/hms-dbmi/pic-sure-auth-microapp&apos;
         docker.image(&apos;dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0&apos;).inside(&apos;--network=picsure -v /usr/local/docker-config/flyway/auth:/opt/flyway-migrations/auth &quot;--entrypoint=&quot; &apos;) { 
             sh &quot;rm -rf /opt/flyway-migrations/auth/sql&quot;
             sh &quot;cp -R ./pic-sure-auth-db/db/sql /opt/flyway-migrations/auth/sql&quot;
@@ -23,8 +70,10 @@
             sleep(time:10,unit:&quot;SECONDS&quot;) 
         }
     }
-    stage(&apos;Picsure Schema Migration&apos;) {    
-        git url: &apos;https://github.com/hms-dbmi/pic-sure&apos;
+    stage(&apos;Picsure Schema Migration&apos;) {
+        checkout([$class: &apos;GitSCM&apos;, branches: [[name: pic_sure_ref ]],
+            userRemoteConfigs: [[url: &apos;https://github.com/hms-dbmi/pic-sure&apos;]]])
+        //git url: &apos;https://github.com/hms-dbmi/pic-sure&apos;
         docker.image(&apos;dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0&apos;).inside(&apos;--network=picsure -v /usr/local/docker-config/flyway/picsure:/opt/flyway-migrations/picsure &quot;--entrypoint=&quot; &apos;) { 
             sh &quot;rm -rf /opt/flyway-migrations/picsure/sql&quot;
             sh &quot;cp -R ./pic-sure-api-data/src/main/resources/db/sql /opt/flyway-migrations/picsure/sql&quot;
@@ -32,8 +81,10 @@
             sleep(time:10,unit:&quot;SECONDS&quot;) 
         }
     }
-    stage(&apos;Project Specific Migrations&apos;) { 
-        git url: env.project_specific_override_repo
+    stage(&apos;Project Specific Migrations&apos;) {
+        checkout([$class: &apos;GitSCM&apos;, branches: [[name: psu_ref ]],
+            userRemoteConfigs: [[url: env.project_specific_override_repo]]])
+        //git url: env.project_specific_override_repo
         sh &quot;&quot;&quot;
              sed -i &quot;s/__APPLICATION_UUID__/`cat /usr/local/docker-config/APP_ID_HEX`/g&quot; ./custom-migrations/auth/V2__CONFIGURE_PIC_SURE_APPLICATION.sql
             sed -i &quot;s/__RESOURCE_UUID__/`cat /usr/local/docker-config/RESOURCE_ID_HEX`/g&quot; ./custom-migrations/picsure/V2__CREATE_HPDS_RESOURCE.sql

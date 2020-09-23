@@ -117,10 +117,15 @@ export RESOURCE_ID=`uuidgen -r`
 export RESOURCE_ID_HEX=`echo $RESOURCE_ID | awk '{ print toupper($0) }'|sed 's/-//g'`
 sed -i "s/__STACK_SPECIFIC_RESOURCE_UUID__/$RESOURCE_ID/g" /usr/local/docker-config/httpd/picsureui_settings.json
 
+export PASSTHROUGH_RESOURCE_ID=`uuidgen -r`
+export PASSTHROUGH_RESOURCE_ID_HEX=`echo $PASSTHROUGH_RESOURCE_ID | awk '{ print toupper($0) }'|sed 's/-//g'`
+
 echo $APP_ID > /usr/local/docker-config/APP_ID_RAW
 echo $APP_ID_HEX > /usr/local/docker-config/APP_ID_HEX
-echo $RESOURCE_ID_HEX > /usr/local/docker-config/RESOURCE_ID_HEX
 echo $RESOURCE_ID > /usr/local/docker-config/RESOURCE_ID_RAW
+echo $RESOURCE_ID_HEX > /usr/local/docker-config/RESOURCE_ID_HEX
+echo $PASSTHROUGH_RESOURCE_ID > /usr/local/docker-config/PASSTHROUGH_RESOURCE_ID_RAW
+echo $PASSTHROUGH_RESOURCE_ID_HEX > /usr/local/docker-config/PASSTHROUGH_RESOURCE_ID_HEX
 
 mkdir -p /usr/local/docker-config/hpds_csv
 mkdir -p /usr/local/docker-config/hpds/all

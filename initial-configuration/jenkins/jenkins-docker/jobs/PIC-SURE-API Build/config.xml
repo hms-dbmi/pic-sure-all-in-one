@@ -66,6 +66,12 @@ docker build --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_pr
 --build-arg HTTP_PROXY=$http_proxy --build-arg HTTPS_PROXY=$http_proxy --build-arg NO_PROXY=&quot;$no_proxy&quot; \
 -t hms-dbmi/pic-sure-api:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} .
 docker tag hms-dbmi/pic-sure-api:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} hms-dbmi/pic-sure-api:LATEST
+
+cd ../pic-sure-resources/pic-sure-passthrough-resource
+docker build --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_proxy --build-arg no_proxy=&quot;$no_proxy&quot; \
+--build-arg HTTP_PROXY=$http_proxy --build-arg HTTPS_PROXY=$http_proxy --build-arg NO_PROXY=&quot;$no_proxy&quot; \
+-t hms-dbmi/pic-sure-passthru:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} .
+docker tag hms-dbmi/pic-sure-passthru:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} hms-dbmi/pic-sure-passthru:LATEST
 </command>
     </hudson.tasks.Shell>
   </builders>

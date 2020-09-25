@@ -44,12 +44,10 @@ if [ -f ~/setProxy.sh ]; then
    . ~/setProxy.sh
 fi
 
-echo $PIC_SURE_API_VERSION
-echo $PIC_SURE_AUTH_VERSION
-
 docker build --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_proxy --build-arg no_proxy=&quot;$no_proxy&quot; \
 --build-arg HTTP_PROXY=$http_proxy --build-arg HTTPS_PROXY=$http_proxy --build-arg NO_PROXY=&quot;$no_proxy&quot; \
---build-arg PIC_SURE_API_VERSION=LATEST --build-arg PIC_SURE_AUTH_VERSION=LATEST -t hms-dbmi/pic-sure-wildfly:${pipeline_build_id} .
+--build-arg PIC_SURE_API_VERSION=LATEST --build-arg PIC_SURE_AUTH_VERSION=LATEST --build-arg PIC_SURE_PASSTHRU_RESOURCE_VERSION=LATEST \
+-t hms-dbmi/pic-sure-wildfly:${pipeline_build_id} .
 docker tag hms-dbmi/pic-sure-wildfly:${pipeline_build_id} hms-dbmi/pic-sure-wildfly:LATEST
 
 </command>

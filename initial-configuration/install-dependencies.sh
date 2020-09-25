@@ -127,6 +127,10 @@ echo $RESOURCE_ID_HEX > /usr/local/docker-config/RESOURCE_ID_HEX
 echo $PASSTHROUGH_RESOURCE_ID > /usr/local/docker-config/PASSTHROUGH_RESOURCE_ID_RAW
 echo $PASSTHROUGH_RESOURCE_ID_HEX > /usr/local/docker-config/PASSTHROUGH_RESOURCE_ID_HEX
 
+echo "target.picsure.url=http://hpds:8080/PIC-SURE/
+target.resource.id=$RESOURCE_ID
+target.picsure.token=" >> /usr/local/docker-config/wildfly/pic-sure-passthru/resource.properties
+
 mkdir -p /usr/local/docker-config/hpds_csv
 mkdir -p /usr/local/docker-config/hpds/all
 cp allConcepts.csv.tgz /usr/local/docker-config/hpds_csv/

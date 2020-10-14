@@ -104,7 +104,9 @@
         <string>Configure Auth0 Integration</string>
         <string>Configure Outbound Email Settings</string>
         <string>Configure PIC-SURE Token Introspection Token</string>
+        <string>Configure Proxy</string>
         <string>Configure SSL Certificates</string>
+        <string>Configure SSLOffload</string>
         <string>Create Admin User</string>
         <string>Initial Configuration Pipeline</string>
         <string>Configure Remote MySQL Instance</string>

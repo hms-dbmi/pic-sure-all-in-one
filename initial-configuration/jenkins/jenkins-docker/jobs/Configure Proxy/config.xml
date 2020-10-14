@@ -1,0 +1,70 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description></description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>PROXY_SERVER</name>
+          <description>Proxy Server (Ex: proxy.internal.com).  Leave empty to disable proxy</description>
+          <defaultValue></defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>PROXY_PORT</name>
+          <description>Proxy Port (Ex: 80)</description>
+          <defaultValue>80</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>PROXY_PROTO</name>
+          <description>Proxy Protocol (http or https)</description>
+          <defaultValue>http</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>PROXY_USER</name>
+          <description>Authenticated Proxy Username (if not authenticated, leave blank)</description>
+          <defaultValue></defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>PROXY_PASS</name>
+          <description>Authenticated Proxy Password (if not authenticated, leave blank)</description>
+          <defaultValue></defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>NO_PROXY</name>
+          <description>Comma delimited list of DNS names where proxy server should not be used</description>
+          <defaultValue>localhost,127.0.0.1,wildfly,httpd,hpds</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>  
+  <scm class="hudson.scm.NullSCM"/>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>
+cp /usr/local/docker-config/setProxy.sh /usr/local/docker-config/setProxy.sh.BAK
+sed -i -e &quot;s/^proxyServer=.*$/proxyServer=\&quot;$PROXY_SERVER\&quot;/&quot; /usr/local/docker-config/setProxy.sh
+sed -i -e &quot;s/^proxyPort=.*$/proxyPort=\&quot;$PROXY_PORT\&quot;/&quot; /usr/local/docker-config/setProxy.sh
+sed -i -e &quot;s/^proxyProto=.*$/proxyProto=\&quot;$PROXY_PROTO\&quot;/&quot; /usr/local/docker-config/setProxy.sh
+sed -i -e &quot;s/^proxyUser=.*$/proxyUser=\&quot;$PROXY_USER\&quot;/&quot; /usr/local/docker-config/setProxy.sh
+sed -i -e &quot;s/^proxyPass=.*$/proxyPass=\&quot;$PROXY_PASS\&quot;/&quot; /usr/local/docker-config/setProxy.sh
+sed -i -e &quot;s/^noProxy=.*$/noProxy=\&quot;$NO_PROXY\&quot;/&quot; /usr/local/docker-config/setProxy.sh
+</command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

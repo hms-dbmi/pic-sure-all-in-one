@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
-if [ -f ~/setProxy.sh ]; then
-   . ~/setProxy.sh
+if [ -f /usr/local/docker-config/setProxy.sh ]; then
+   . /usr/local/docker-config/setProxy.sh
 fi
 
 docker run -d \

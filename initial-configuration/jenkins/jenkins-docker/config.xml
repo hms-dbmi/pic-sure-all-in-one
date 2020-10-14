@@ -4,7 +4,7 @@
     <string>jenkins.diagnostics.RootUrlNotSetMonitor</string>
     <string>jenkins.diagnostics.SecurityIsOffMonitor</string>
   </disabledAdministrativeMonitors>
-  <version>2.222.1</version>
+  <version>2.235.2</version>
   <installStateName>RUNNING</installStateName>
   <numExecutors>5</numExecutors>
   <mode>NORMAL</mode>
@@ -73,7 +73,7 @@
       <jobNames>
         <comparator class="hudson.util.CaseInsensitiveComparator" reference="../../../listView/jobNames/comparator"/>
         <string>Check For Updates</string>
-	<string>Load Genomic Data</string>
+        <string>Load Genomic Data</string>
         <string>Load HPDS Data From CSV</string>
         <string>Load HPDS Data From RDBMS</string>
         <string>Start JupyterHub</string>
@@ -102,7 +102,7 @@
       <jobNames>
         <comparator class="hudson.util.CaseInsensitiveComparator" reference="../../../listView/jobNames/comparator"/>
         <string>Configure Auth0 Integration</string>
-	<string>Configure Outbound Email Settings</string>
+        <string>Configure Outbound Email Settings</string>
         <string>Configure PIC-SURE Token Introspection Token</string>
         <string>Configure SSL Certificates</string>
         <string>Create Admin User</string>
@@ -130,6 +130,7 @@
       <jobNames>
         <comparator class="hudson.util.CaseInsensitiveComparator" reference="../../../listView/jobNames/comparator"/>
         <string>Backup Jenkins Home</string>
+        <string>Create PIC-SURE PassThrough Resource</string>
         <string>Retrieve Build Spec</string>
       </jobNames>
       <jobFilters/>

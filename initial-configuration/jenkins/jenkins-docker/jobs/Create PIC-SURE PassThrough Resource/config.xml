@@ -1,0 +1,107 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description></description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>RESOURCE_NAME</name>
+          <description>Resource Name</description>
+          <defaultValue></defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>RESOURCE_DESC</name>
+          <description>Resource Description</description>
+          <defaultValue></defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>RESOURCE_PATH</name>
+          <description>Resource Path (Ex: /foo-bar). Do not include leading/trailing slash</description>
+          <defaultValue></defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>TARGET_PICSURE_URL</name>
+          <description>Target PIC-SURE URL</description>
+          <defaultValue>http://hpds:8080/PIC-SURE/</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>TARGET_RESOURCE_ID</name>
+          <description>Target Resource UUID (Ex: XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX)</description>
+          <defaultValue></defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>TARGET_RESOURCE_TOKEN</name>
+          <description>Authentication Token</description>
+          <defaultValue></defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>git_hash</name>
+          <description></description>
+          <defaultValue>*/GIC_aggregate_resource</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@4.3.0">
+    <configVersion>2</configVersion>
+    <userRemoteConfigs>
+      <hudson.plugins.git.UserRemoteConfig>
+        <url>https://github.com/nixj14/pic-sure.git</url>
+      </hudson.plugins.git.UserRemoteConfig>
+    </userRemoteConfigs>
+    <branches>
+      <hudson.plugins.git.BranchSpec>
+        <name>${git_hash}</name>
+      </hudson.plugins.git.BranchSpec>
+    </branches>
+    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+    <submoduleCfg class="list"/>
+    <extensions/>
+  </scm>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Maven>
+      <targets>clean package -DskipTests -Dwildfly.skip=true</targets>
+      <mavenName>Maven 3.6.3</mavenName>
+      <usePrivateRepository>false</usePrivateRepository>
+      <settings class="jenkins.mvn.DefaultSettingsProvider"/>
+      <globalSettings class="jenkins.mvn.DefaultGlobalSettingsProvider"/>
+      <injectBuildVariables>false</injectBuildVariables>
+    </hudson.tasks.Maven>
+    <hudson.tasks.Shell>
+      <command>cd pic-sure-resources/pic-sure-passthrough-resource
+cp target/pic-sure-passthrough-resource.war /usr/local/docker-config/wildfly/deployments/$RESOURCE_PATH.war
+
+mkdir /usr/local/docker-config/wildfly/passthru/$RESOURCE_PATH
+PROP_FILE=&quot;/usr/local/docker-config/wildfly/passthru/$RESOURCE_PATH/resource.properties&quot;
+cat &gt; $PROP_FILE &lt;&lt;-END
+target.picsure.url=$TARGET_PICSURE_URL
+target.resource.id=$TARGET_RESOURCE_ID
+target.picsure.token=$TARGET_RESOURCE_TOKEN
+END
+
+RESOURCE_ID=`uuidgen -r`
+RESOURCE_ID_HEX=`echo $RESOURCE_ID | awk &apos;{ print toupper($0) }&apos;|sed &apos;s/-//g&apos;;`
+export SQL=&quot;INSERT INTO resource (uuid, targetURL, resourceRSPath, description, name, token) \
+ VALUES (unhex(&apos;$RESOURCE_ID_HEX&apos;), NULL, &apos;http://wildfly:8080/$RESOURCE_PATH/pic-sure/passthru/&apos;, &apos;$RESOURCE_DESC&apos;, &apos;$RESOURCE_NAME&apos;, NULL);&quot;
+
+docker run -i -v /root/.my.cnf:/root/.my.cnf --network=host mysql mysql -h 127.0.0.1 -e &quot;$SQL&quot; picsure</command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

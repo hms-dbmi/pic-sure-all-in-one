@@ -37,7 +37,6 @@
         sh &quot;&quot;&quot;
             sed -i &quot;s/__APPLICATION_UUID__/`cat /usr/local/docker-config/APP_ID_HEX`/g&quot; ./custom-migrations/auth/V2__CONFIGURE_PIC_SURE_APPLICATION.sql
             sed -i &quot;s/__RESOURCE_UUID__/`cat /usr/local/docker-config/RESOURCE_ID_HEX`/g&quot; ./custom-migrations/picsure/V2__CREATE_HPDS_RESOURCE.sql
-            sed -i &quot;s/__PASSTHROUGH_RESOURCE_UUID__/`cat /usr/local/docker-config/PASSTHROUGH_RESOURCE_ID_HEX`/g&quot; ./custom-migrations/picsure/V4__CREATE_PASSTHROUGH_RESOURCE.sql
         &quot;&quot;&quot;
         docker.image(&apos;dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0&apos;).inside(&apos;--network=picsure -v /usr/local/docker-config/flyway/picsure:/opt/flyway-migrations/picsure &quot;--entrypoint=&quot; &apos;) {
             sh &quot;rm -rf /opt/flyway-migrations/picsure/sql&quot;

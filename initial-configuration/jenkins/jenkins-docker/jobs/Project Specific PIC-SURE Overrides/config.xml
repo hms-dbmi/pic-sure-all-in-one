@@ -46,8 +46,8 @@
   <builders>
     <hudson.tasks.Shell>
       <command>
-if [ -f ~/setProxy.sh ]; then
-   . ~/setProxy.sh
+if [ -f &quot;/usr/local/docker-config/setProxy.sh&quot; ]; then
+   . /usr/local/docker-config/setProxy.sh
 fi
 
 sed -i s/TARGET_BUILD_VERSION/LATEST/g ui/Dockerfile

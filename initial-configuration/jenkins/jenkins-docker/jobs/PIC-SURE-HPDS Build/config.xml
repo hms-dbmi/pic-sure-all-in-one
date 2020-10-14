@@ -25,8 +25,7 @@
     <configVersion>2</configVersion>
     <userRemoteConfigs>
       <hudson.plugins.git.UserRemoteConfig>
-<!--         <url>https://github.com/nixj14/pic-sure-hpds.git</url> -->
-        <url>https://github.com/hms-dbmi/pic-sure-hpds</url>
+        <url>https://github.com/nixj14/pic-sure-hpds.git</url>
       </hudson.plugins.git.UserRemoteConfig>
     </userRemoteConfigs>
     <branches>
@@ -55,8 +54,8 @@
     </hudson.tasks.Maven>
     <hudson.tasks.Shell>
       <command>
-if [ -f ~/setProxy.sh ]; then
-   . ~/setProxy.sh
+if [ -f &quot;/usr/local/docker-config/setProxy.sh&quot; ]; then
+   . /usr/local/docker-config/setProxy.sh
 fi
 
 GIT_BRANCH_SHORT=`echo ${GIT_BRANCH} | cut -d &quot;/&quot; -f 2` 

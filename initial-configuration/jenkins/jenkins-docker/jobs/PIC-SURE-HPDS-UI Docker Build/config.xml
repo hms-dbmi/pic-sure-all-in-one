@@ -54,8 +54,8 @@
     </hudson.tasks.Maven>
     <hudson.tasks.Shell>
       <command>
-if [ -f ~/setProxy.sh ]; then
-   . ~/setProxy.sh
+if [ -f &quot;/usr/local/docker-config/setProxy.sh&quot; ]; then
+   . /usr/local/docker-config/setProxy.sh
 fi
 
 GIT_BRANCH_SHORT=`echo ${GIT_BRANCH} | cut -d &quot;/&quot; -f 2` 

@@ -15,11 +15,11 @@
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
   </properties>
-  <scm class="hudson.plugins.git.GitSCM" plugin="git@4.2.2">
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@4.3.0">
     <configVersion>2</configVersion>
     <userRemoteConfigs>
       <hudson.plugins.git.UserRemoteConfig>
-        <url>https://github.com/hms-dbmi/pic-sure-wildfly-docker</url>
+        <url>https://github.com/nixj14/pic-sure-wildfly-docker</url>
       </hudson.plugins.git.UserRemoteConfig>
     </userRemoteConfigs>
     <branches>
@@ -40,8 +40,8 @@
   <builders>
     <hudson.tasks.Shell>
       <command>
-if [ -f ~/setProxy.sh ]; then
-   . ~/setProxy.sh
+if [ -f &quot;/usr/local/docker-config/setProxy.sh&quot; ]; then
+   . /usr/local/docker-config/setProxy.sh
 fi
 
 docker build --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_proxy --build-arg no_proxy=&quot;$no_proxy&quot; \

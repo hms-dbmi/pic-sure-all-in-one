@@ -1,9 +1,5 @@
 #!/usr/bin/env bash
 
-if [ -f "~/setProxy.sh" ]; then
-   . ~/setProxy.sh
-fi
-
 CWD=`pwd`
 
 mkdir -p /usr/local/docker-config
@@ -95,8 +91,8 @@ rm -f auth.tmp
 
 echo "Building and installing Jenkins"
 docker build --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_proxy --build-arg no_proxy="$no_proxy" \
---build-arg HTTP_PROXY=$http_proxy --build-arg HTTPS_PROXY=$http_proxy --build-arg NO_PROXY="$no_proxy" \
--t pic-sure-jenkins:`git log -n 1 | grep commit | cut -d ' ' -f 2 | cut -c 1-7` jenkins/jenkins-docker
+  --build-arg HTTP_PROXY=$http_proxy --build-arg HTTPS_PROXY=$http_proxy --build-arg NO_PROXY="$no_proxy" \
+  -t pic-sure-jenkins:`git log -n 1 | grep commit | cut -d ' ' -f 2 | cut -c 1-7` jenkins/jenkins-docker
 docker tag pic-sure-jenkins:`git log -n 1 | grep commit | cut -d ' ' -f 2 | cut -c 1-7` pic-sure-jenkins:LATEST
 
 echo "Creating Jenkins Log Path"
@@ -117,19 +113,10 @@ export RESOURCE_ID=`uuidgen -r`
 export RESOURCE_ID_HEX=`echo $RESOURCE_ID | awk '{ print toupper($0) }'|sed 's/-//g'`
 sed -i "s/__STACK_SPECIFIC_RESOURCE_UUID__/$RESOURCE_ID/g" /usr/local/docker-config/httpd/picsureui_settings.json
 
-export PASSTHROUGH_RESOURCE_ID=`uuidgen -r`
-export PASSTHROUGH_RESOURCE_ID_HEX=`echo $PASSTHROUGH_RESOURCE_ID | awk '{ print toupper($0) }'|sed 's/-//g'`
-
 echo $APP_ID > /usr/local/docker-config/APP_ID_RAW
 echo $APP_ID_HEX > /usr/local/docker-config/APP_ID_HEX
 echo $RESOURCE_ID > /usr/local/docker-config/RESOURCE_ID_RAW
 echo $RESOURCE_ID_HEX > /usr/local/docker-config/RESOURCE_ID_HEX
-echo $PASSTHROUGH_RESOURCE_ID > /usr/local/docker-config/PASSTHROUGH_RESOURCE_ID_RAW
-echo $PASSTHROUGH_RESOURCE_ID_HEX > /usr/local/docker-config/PASSTHROUGH_RESOURCE_ID_HEX
-
-echo "target.picsure.url=http://hpds:8080/PIC-SURE/
-target.resource.id=$RESOURCE_ID
-target.picsure.token=" >> /usr/local/docker-config/wildfly/pic-sure-passthru/resource.properties
 
 mkdir -p /usr/local/docker-config/hpds_csv
 mkdir -p /usr/local/docker-config/hpds/all
@@ -137,5 +124,10 @@ cp allConcepts.csv.tgz /usr/local/docker-config/hpds_csv/
 cd /usr/local/docker-config/hpds_csv/
 tar -xvzf allConcepts.csv.tgz
 
+echo
+echo "Is this server utilizing a proxy?  If so, see and update this file: /usr/local/docker-config/setProxy.sh"
+echo
+
+echo "Installation script complete.  Staring Jenkins."
 cd $CWD
 ../start-jenkins.sh

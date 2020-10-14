@@ -53,10 +53,11 @@ mkdir -p /usr/local/docker-config/hpds_temp
 cp loadQuery.sql /usr/local/docker-config/hpds_temp/loadQuery.sql
 cp sql.properties /usr/local/docker-config/hpds_temp/sql.properties
 cp /usr/local/docker-config/hpds/encryption_key /usr/local/docker-config/hpds_temp/encryption_key 
+
 docker run \
--v /usr/local/docker-config/hpds_temp:/opt/local/hpds \
--v /usr/local/docker-config/hpds_csv/allConcepts.csv:/opt/local/hpds/allConcepts.csv \
--e HEAPSIZE=4096 -e LOADER_NAME=SQLLoader hms-dbmi/pic-sure-hpds-etl:LATEST &amp;&amp; \
+  -v /usr/local/docker-config/hpds_temp:/opt/local/hpds \
+  -v /usr/local/docker-config/hpds_csv/allConcepts.csv:/opt/local/hpds/allConcepts.csv \
+  -e HEAPSIZE=20480 -e LOADER_NAME=SQLLoader hms-dbmi/pic-sure-hpds-etl:LATEST &amp;&amp; \
 mv /usr/local/docker-config/hpds /usr/local/docker-config/hpds_bak &amp;&amp; \
 mv /usr/local/docker-config/hpds_temp /usr/local/docker-config/hpds
 </command>

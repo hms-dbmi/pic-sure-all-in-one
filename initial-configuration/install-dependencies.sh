@@ -126,10 +126,6 @@ cp allConcepts.csv.tgz /usr/local/docker-config/hpds_csv/
 cd /usr/local/docker-config/hpds_csv/
 tar -xvzf allConcepts.csv.tgz
 
-echo
-echo "Is this server utilizing a proxy?  If so, see and update this file: /usr/local/docker-config/setProxy.sh"
-echo
-
 echo "Installation script complete.  Staring Jenkins."
 cd $CWD
 ../start-jenkins.sh

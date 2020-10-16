@@ -28,9 +28,16 @@
   <concurrentBuild>false</concurrentBuild>
   <builders>
     <hudson.tasks.Shell>
-      <command>cd initial-configuration/jupyterhub
+      <command>
+if [ -f &quot;/usr/local/docker-config/setProxy.sh&quot; ]; then
+   . /usr/local/docker-config/setProxy.sh
+fi
 
-docker build -t hms-dbmi/pic-sure-all-in-one-jupyterhub:LATEST .
+cd initial-configuration/jupyterhub
+
+docker build --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_proxy --build-arg no_proxy=&quot;$no_proxy&quot; \
+--build-arg HTTP_PROXY=$http_proxy --build-arg HTTPS_PROXY=$http_proxy --build-arg NO_PROXY=&quot;$no_proxy&quot; \
+-t hms-dbmi/pic-sure-all-in-one-jupyterhub:LATEST .
 
 docker pull `grep DockerSpawner.image /usr/local/docker-config/jupyterhub_config.py | cut -d &apos; &apos; -f 3 | sed &quot;s/&apos;//g&quot; `
 

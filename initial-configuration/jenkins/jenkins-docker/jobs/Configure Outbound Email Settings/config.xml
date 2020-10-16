@@ -9,10 +9,10 @@
         <hudson.model.StringParameterDefinition>
           <name>OUTBOUND_EMAIL_USER</name>
           <description>The user account of an smtp service (default gmail) to use for sending mail</description>
-	  <defaultValue>__YOUR_EMAIL@DOMAIN.ORG__</defaultValue>
+          <defaultValue>__YOUR_EMAIL@DOMAIN.ORG__</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
-	<hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
           <name>EMAIL_FROM</name>
           <description>The name that should be displayed as the outbound account.  If not supplied, this is the same as the email address provided.</description>
           <trim>false</trim>

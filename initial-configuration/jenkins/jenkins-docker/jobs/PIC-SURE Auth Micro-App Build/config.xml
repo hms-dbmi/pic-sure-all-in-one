@@ -66,6 +66,7 @@ docker build --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_pr
   --build-arg HTTP_PROXY=$http_proxy --build-arg HTTPS_PROXY=$http_proxy --build-arg NO_PROXY=&quot;$no_proxy&quot; \
   -t hms-dbmi/pic-sure-auth-microapp:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} .
 docker tag hms-dbmi/pic-sure-auth-microapp:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} hms-dbmi/pic-sure-auth-microapp:LATEST
+mkdir -p /usr/local/docker-config/wildfly/deployments/
 cp target/pic-sure-auth-services.war /usr/local/docker-config/wildfly/deployments/
 
 cd ../pic-sure-auth-ui

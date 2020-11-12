@@ -35,15 +35,15 @@
   <concurrentBuild>false</concurrentBuild>
   <builders>
     <hudson.tasks.Shell>
-      <command>export oldpassword=`cat /usr/local/docker-config/wildfly/standalone.xml | grep smtp-server | grep mail-smtp-gmail | grep -oP &apos;password(\S)*&apos; | cut -d \&quot; -f 2`
-		export olduser=`cat /usr/local/docker-config/wildfly/standalone.xml | grep smtp-server | grep mail-smtp-gmail | grep -oP &apos;username(\S)*&apos; | cut -d \&quot; -f 2`
-		export oldfrom=`cat /usr/local/docker-config/wildfly/standalone.xml | grep mail-session | grep &apos;jboss/mail/gmail&apos; | grep -oP &apos;from(\S)*&apos; | cut -d \&quot; -f 2`
-
-sed -i &quot;s/$oldpassword/$OUTBOUND_EMAIL_USER_PASSWORD/g&quot; /usr/local/docker-config/wildfly/standalone.xml
-sed -i &quot;s/$olduser/$OUTBOUND_EMAIL_USER/g&quot; /usr/local/docker-config/wildfly/standalone.xml
-sed -i &quot;s/$oldfrom/$EMAIL_FROM/g&quot; /usr/local/docker-config/wildfly/standalone.xml
-
-</command>
+      <command>
+        export oldpassword=`cat /usr/local/docker-config/wildfly/standalone.xml | grep smtp-server | grep mail-smtp-gmail | grep -oP &apos;password(\S)*&apos; | cut -d \&quot; -f 2`
+        export olduser=`cat /usr/local/docker-config/wildfly/standalone.xml | grep smtp-server | grep mail-smtp-gmail | grep -oP &apos;username(\S)*&apos; | cut -d \&quot; -f 2`
+        export oldfrom=`cat /usr/local/docker-config/wildfly/standalone.xml | grep mail-session | grep &apos;jboss/mail/gmail&apos; | grep -oP &apos;from(\S)*&apos; | cut -d \&quot; -f 2`
+        
+        sed -i &quot;s/$oldpassword/$OUTBOUND_EMAIL_USER_PASSWORD/g&quot; /usr/local/docker-config/wildfly/standalone.xml
+        sed -i &quot;s/$olduser/$OUTBOUND_EMAIL_USER/g&quot; /usr/local/docker-config/wildfly/standalone.xml
+        sed -i &quot;s/$oldfrom/$EMAIL_FROM/g&quot; /usr/local/docker-config/wildfly/standalone.xml
+      </command>
     </hudson.tasks.Shell>
   </builders>
   <publishers/>

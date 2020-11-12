@@ -46,25 +46,29 @@
   <builders>
     <hudson.tasks.Shell>
       <command>
-if [ -f &quot;/usr/local/docker-config/setProxy.sh&quot; ]; then
-   . /usr/local/docker-config/setProxy.sh
-fi
+        if [ -f &quot;/usr/local/docker-config/setProxy.sh&quot; ]; then
+          . /usr/local/docker-config/setProxy.sh
+        fi
 
-sed -i s/TARGET_BUILD_VERSION/LATEST/g ui/Dockerfile
-GIT_BRANCH_SHORT=`echo ${GIT_BRANCH} | cut -d &quot;/&quot; -f 2` 
-GIT_COMMIT_SHORT=`echo ${GIT_COMMIT} | cut -c1-7`
+        sed -i s/TARGET_BUILD_VERSION/LATEST/g ui/Dockerfile
+        GIT_BRANCH_SHORT=`echo ${GIT_BRANCH} | cut -d &quot;/&quot; -f 2` 
+        GIT_COMMIT_SHORT=`echo ${GIT_COMMIT} | cut -c1-7`
 
-if [ -f "./setEnv.sh" ]; then
-   . ./setEnv.sh
-fi
+        if [ -f "./setEnv.sh" ]; then
+          . ./setEnv.sh
+        fi
 
-cd ui
-docker build --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_proxy --build-arg no_proxy=&quot;$no_proxy&quot; \
---build-arg HTTP_PROXY=$http_proxy --build-arg HTTPS_PROXY=$http_proxy --build-arg NO_PROXY=&quot;$no_proxy&quot; \
--t hms-dbmi/pic-sure-ui-overrides:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} .
-docker tag hms-dbmi/pic-sure-ui-overrides:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} hms-dbmi/pic-sure-ui-overrides:LATEST
-
-</command>
+        cd ui
+        docker build \
+          --build-arg http_proxy=$http_proxy \
+          --build-arg https_proxy=$http_proxy \
+          --build-arg no_proxy=&quot;$no_proxy&quot; \
+          --build-arg HTTP_PROXY=$http_proxy \
+          --build-arg HTTPS_PROXY=$http_proxy \
+          --build-arg NO_PROXY=&quot;$no_proxy&quot; \
+          -t hms-dbmi/pic-sure-ui-overrides:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} .
+        docker tag hms-dbmi/pic-sure-ui-overrides:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} hms-dbmi/pic-sure-ui-overrides:LATEST
+      </command>
     </hudson.tasks.Shell>
   </builders>
   <publishers/>

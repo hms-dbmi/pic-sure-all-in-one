@@ -133,6 +133,7 @@
         <comparator class="hudson.util.CaseInsensitiveComparator" reference="../../../listView/jobNames/comparator"/>
         <string>Backup Jenkins Home</string>
         <string>Create PIC-SURE PassThrough Resource</string>
+        <string>Create PIC-SURE Aggregate Data Sharing Resource</string>
         <string>Retrieve Build Spec</string>
       </jobNames>
       <jobFilters/>

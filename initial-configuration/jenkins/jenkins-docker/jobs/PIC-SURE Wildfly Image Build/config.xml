@@ -40,17 +40,23 @@
   <builders>
     <hudson.tasks.Shell>
       <command>
-if [ -f &quot;/usr/local/docker-config/setProxy.sh&quot; ]; then
-   . /usr/local/docker-config/setProxy.sh
-fi
+        if [ -f &quot;/usr/local/docker-config/setProxy.sh&quot; ]; then
+          . /usr/local/docker-config/setProxy.sh
+        fi
 
-docker build --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_proxy --build-arg no_proxy=&quot;$no_proxy&quot; \
---build-arg HTTP_PROXY=$http_proxy --build-arg HTTPS_PROXY=$http_proxy --build-arg NO_PROXY=&quot;$no_proxy&quot; \
---build-arg PIC_SURE_API_VERSION=LATEST --build-arg PIC_SURE_AUTH_VERSION=LATEST --build-arg PIC_SURE_PASSTHRU_RESOURCE_VERSION=LATEST \
--t hms-dbmi/pic-sure-wildfly:${pipeline_build_id} .
-docker tag hms-dbmi/pic-sure-wildfly:${pipeline_build_id} hms-dbmi/pic-sure-wildfly:LATEST
-
-</command>
+        docker build \
+          --build-arg http_proxy=$http_proxy \
+          --build-arg https_proxy=$http_proxy \
+          --build-arg no_proxy=&quot;$no_proxy&quot; \
+          --build-arg HTTP_PROXY=$http_proxy \
+          --build-arg HTTPS_PROXY=$http_proxy \
+          --build-arg NO_PROXY=&quot;$no_proxy&quot; \
+          --build-arg PIC_SURE_API_VERSION=LATEST \
+          --build-arg PIC_SURE_AUTH_VERSION=LATEST \
+          --build-arg PIC_SURE_PASSTHRU_RESOURCE_VERSION=LATEST \
+          -t hms-dbmi/pic-sure-wildfly:${pipeline_build_id} .
+        docker tag hms-dbmi/pic-sure-wildfly:${pipeline_build_id} hms-dbmi/pic-sure-wildfly:LATEST
+      </command>
     </hudson.tasks.Shell>
   </builders>
   <publishers/>

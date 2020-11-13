@@ -29,24 +29,37 @@
   <builders>
     <hudson.tasks.Shell>
       <command>
-if [ -f &quot;/usr/local/docker-config/setProxy.sh&quot; ]; then
-   . /usr/local/docker-config/setProxy.sh
-fi
+        if [ -f &quot;/usr/local/docker-config/setProxy.sh&quot; ]; then
+          . /usr/local/docker-config/setProxy.sh
+        fi
 
-cd initial-configuration/jupyterhub
+        cd initial-configuration/jupyterhub
 
-docker build --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_proxy --build-arg no_proxy=&quot;$no_proxy&quot; \
---build-arg HTTP_PROXY=$http_proxy --build-arg HTTPS_PROXY=$http_proxy --build-arg NO_PROXY=&quot;$no_proxy&quot; \
--t hms-dbmi/pic-sure-all-in-one-jupyterhub:LATEST .
+        docker build \
+          --build-arg http_proxy=$http_proxy \
+          --build-arg https_proxy=$http_proxy \
+          --build-arg no_proxy=&quot;$no_proxy&quot; \
+          --build-arg HTTP_PROXY=$http_proxy \
+          --build-arg HTTPS_PROXY=$http_proxy \
+          --build-arg NO_PROXY=&quot;$no_proxy&quot; \
+          -t hms-dbmi/pic-sure-all-in-one-jupyterhub:LATEST .
 
-docker pull `grep DockerSpawner.image /usr/local/docker-config/jupyterhub_config.py | cut -d &apos; &apos; -f 3 | sed &quot;s/&apos;//g&quot; `
+        docker pull `grep DockerSpawner.image /usr/local/docker-config/jupyterhub_config.py | cut -d &apos; &apos; -f 3 | sed &quot;s/&apos;//g&quot; `
 
-docker stop jupyterhub | echo
-docker rm jupyterhub | echo
+        docker stop jupyterhub | echo
+        docker rm jupyterhub | echo
 
-docker run --network=picsure --expose=49152-65535 --restart always --name jupyterhub -v &quot;/usr/local/docker-config/jupyterhub_config.py:/srv/jupyterhub/jupyterhub_config.py&quot; -v &quot;/var/run/docker.sock:/var/run/docker.sock&quot; -v &quot;/usr/local/docker-config/jupyterhub/:/data/&quot; -d hms-dbmi/pic-sure-all-in-one-jupyterhub:LATEST jupyterhub -f /srv/jupyterhub/jupyterhub_config.py
-
-</command>
+        docker run \
+          --network=picsure \
+          --expose=49152-65535 \
+          --restart always \
+          --name jupyterhub \
+          -v &quot;/usr/local/docker-config/jupyterhub_config.py:/srv/jupyterhub/jupyterhub_config.py&quot; \
+          -v &quot;/var/run/docker.sock:/var/run/docker.sock&quot; \
+          -v &quot;/usr/local/docker-config/jupyterhub/:/data/&quot; \
+          -d hms-dbmi/pic-sure-all-in-one-jupyterhub:LATEST jupyterhub \
+          -f /srv/jupyterhub/jupyterhub_config.py
+      </command>
     </hudson.tasks.Shell>
   </builders>
   <publishers/>

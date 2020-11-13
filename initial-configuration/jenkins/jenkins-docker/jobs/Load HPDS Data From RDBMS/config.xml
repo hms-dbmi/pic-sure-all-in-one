@@ -1,29 +1,30 @@
 <?xml version='1.1' encoding='UTF-8'?>
 <project>
   <actions/>
-  <description>This job loads HPDS data from Oracle, SQL Server or Postgres&#xd;
-&#xd;
-There is some configuration required to execute this job:&#xd;
-&#xd;
-sql.properties - A properties file with your database connection string, username and password to the database with your source data. Note that the datasource.url value in the sql.properties file will be specific to your RDBMS configuration and environment. Work with your local IT department or reach out to help from avillach_lab_developers@googlegroups.com if the loader cannot connect to your database. See this link for the correct format to use : https://github.com/hms-dbmi/pic-sure-hpds/blob/master/docker/pic-sure-hpds-etl/hpds/sql.properties&#xd;
-&#xd;
-loadQuery.sql - A single query SQL script that results in the following 4 columns being returned:&#xd;
-&#xd;
-&quot;PATIENT_NUM&quot;,&quot;CONCEPT_PATH&quot;,&quot;NVAL_NUM&quot;,&quot;TVAL_CHAR&quot;,&quot;DATE&quot;&#xd;
-&#xd;
-The corresponding columns are:&#xd;
-&#xd;
-PATIENT_NUM - This is an integer value identifying the subject of the recorded observation fact.&#xd;
-&#xd;
-CONCEPT_PATH - This is an identifier for the concept of the observation fact. For compatibility with the PIC-SURE UI this path should represent a location in a hierarchy where each level is separated by a backslash and with a leading and trailing backslash. For example &quot;\demographics\AGE\&quot; would be the age in the default NHANES dataset. In general this can be any string value, HPDS doesn&apos;t care what you put there, but the UI does. If this HPDS instance is part of a PIC-SURE networked environment the same concept paths should be used in all sites involved in the network so that queries can be federated across the network.&#xd;
-&#xd;
-NVAL_NUM - A numeric value if this is a numeric concept, otherwise blank.&#xd;
-&#xd;
-TVAL_CHAR - A text value if this is a categorical concept, otherwise blank.&#xd;
-&#xd;
-DATE - A date for the observation fact. If this HPDS instance is part of a PIC-SURE networked environment the same timezone should be used to express all dates. It is advisable for networks to use GMT for all dates as there is no ambiguity around daylight savings time rules observed in different sites.&#xd;
-&#xd;
-</description>
+  <description>
+    This job loads HPDS data from Oracle, SQL Server or Postgres&#xd;
+    &#xd;
+    There is some configuration required to execute this job:&#xd;
+    &#xd;
+    sql.properties - A properties file with your database connection string, username and password to the database with your source data. Note that the datasource.url value in the sql.properties file will be specific to your RDBMS configuration and environment. Work with your local IT department or reach out to help from avillach_lab_developers@googlegroups.com if the loader cannot connect to your database. See this link for the correct format to use : https://github.com/hms-dbmi/pic-sure-hpds/blob/master/docker/pic-sure-hpds-etl/hpds/sql.properties&#xd;
+    &#xd;
+    loadQuery.sql - A single query SQL script that results in the following 4 columns being returned:&#xd;
+    &#xd;
+    &quot;PATIENT_NUM&quot;,&quot;CONCEPT_PATH&quot;,&quot;NVAL_NUM&quot;,&quot;TVAL_CHAR&quot;,&quot;DATE&quot;&#xd;
+    &#xd;
+    The corresponding columns are:&#xd;
+    &#xd;
+    PATIENT_NUM - This is an integer value identifying the subject of the recorded observation fact.&#xd;
+    &#xd;
+    CONCEPT_PATH - This is an identifier for the concept of the observation fact. For compatibility with the PIC-SURE UI this path should represent a location in a hierarchy where each level is separated by a backslash and with a leading and trailing backslash. For example &quot;\demographics\AGE\&quot; would be the age in the default NHANES dataset. In general this can be any string value, HPDS doesn&apos;t care what you put there, but the UI does. If this HPDS instance is part of a PIC-SURE networked environment the same concept paths should be used in all sites involved in the network so that queries can be federated across the network.&#xd;
+    &#xd;
+    NVAL_NUM - A numeric value if this is a numeric concept, otherwise blank.&#xd;
+    &#xd;
+    TVAL_CHAR - A text value if this is a categorical concept, otherwise blank.&#xd;
+    &#xd;
+    DATE - A date for the observation fact. If this HPDS instance is part of a PIC-SURE networked environment the same timezone should be used to express all dates. It is advisable for networks to use GMT for all dates as there is no ambiguity around daylight savings time rules observed in different sites.&#xd;
+    &#xd;
+  </description>
   <keepDependencies>false</keepDependencies>
   <properties>
     <hudson.model.ParametersDefinitionProperty>
@@ -48,19 +49,22 @@ DATE - A date for the observation fact. If this HPDS instance is part of a PIC-S
   <concurrentBuild>false</concurrentBuild>
   <builders>
     <hudson.tasks.Shell>
-      <command>rm -rf /usr/local/docker-config/hpds_temp
-mkdir -p /usr/local/docker-config/hpds_temp
-cp loadQuery.sql /usr/local/docker-config/hpds_temp/loadQuery.sql
-cp sql.properties /usr/local/docker-config/hpds_temp/sql.properties
-cp /usr/local/docker-config/hpds/encryption_key /usr/local/docker-config/hpds_temp/encryption_key 
+      <command>
+        rm -rf /usr/local/docker-config/hpds_temp
+        mkdir -p /usr/local/docker-config/hpds_temp
+        cp loadQuery.sql /usr/local/docker-config/hpds_temp/loadQuery.sql
+        cp sql.properties /usr/local/docker-config/hpds_temp/sql.properties
+        cp /usr/local/docker-config/hpds/encryption_key /usr/local/docker-config/hpds_temp/encryption_key 
 
-docker run \
-  -v /usr/local/docker-config/hpds_temp:/opt/local/hpds \
-  -v /usr/local/docker-config/hpds_csv/allConcepts.csv:/opt/local/hpds/allConcepts.csv \
-  -e HEAPSIZE=20480 -e LOADER_NAME=SQLLoader hms-dbmi/pic-sure-hpds-etl:LATEST &amp;&amp; \
-mv /usr/local/docker-config/hpds /usr/local/docker-config/hpds_bak &amp;&amp; \
-mv /usr/local/docker-config/hpds_temp /usr/local/docker-config/hpds
-</command>
+        docker run \
+          -v /usr/local/docker-config/hpds_temp:/opt/local/hpds \
+          -v /usr/local/docker-config/hpds_csv/allConcepts.csv:/opt/local/hpds/allConcepts.csv \
+          -e HEAPSIZE=20480 \
+          -e LOADER_NAME=SQLLoader \
+          hms-dbmi/pic-sure-hpds-etl:LATEST &amp;&amp;
+        mv /usr/local/docker-config/hpds /usr/local/docker-config/hpds_bak &amp;&amp;
+        mv /usr/local/docker-config/hpds_temp /usr/local/docker-config/hpds
+      </command>
     </hudson.tasks.Shell>
   </builders>
   <publishers/>

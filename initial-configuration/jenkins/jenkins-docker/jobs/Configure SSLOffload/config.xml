@@ -24,15 +24,15 @@
   <builders>
     <hudson.tasks.Shell>
       <command>
-if [ &quot;$ENABLE_SSLOFFLOAD&quot; = &quot;true&quot; ]; then
-	cp /usr/local/docker-config/httpd/httpd-vhosts.conf /usr/local/docker-config/httpd/httpd-vhosts-withssl.conf
-	cp /usr/local/docker-config/httpd/httpd-vhosts-ssloffload.conf /usr/local/docker-config/httpd/httpd-vhosts.conf
-else
-	if [ -f &quot;/usr/local/docker-config/httpd/httpd-vhosts-withssl.conf&quot; ]; then
-		cp /usr/local/docker-config/httpd/httpd-vhosts-withssl.conf /usr/local/docker-config/httpd/httpd-vhosts.conf
-	fi
-fi
-</command>
+        if [ &quot;$ENABLE_SSLOFFLOAD&quot; = &quot;true&quot; ]; then
+          cp /usr/local/docker-config/httpd/httpd-vhosts.conf /usr/local/docker-config/httpd/httpd-vhosts-withssl.conf
+          cp /usr/local/docker-config/httpd/httpd-vhosts-ssloffload.conf /usr/local/docker-config/httpd/httpd-vhosts.conf
+        else
+          if [ -f &quot;/usr/local/docker-config/httpd/httpd-vhosts-withssl.conf&quot; ]; then
+            cp /usr/local/docker-config/httpd/httpd-vhosts-withssl.conf /usr/local/docker-config/httpd/httpd-vhosts.conf
+          fi
+        fi
+      </command>
     </hudson.tasks.Shell>
   </builders>
   <publishers/>

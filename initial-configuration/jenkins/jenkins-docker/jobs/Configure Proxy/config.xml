@@ -55,14 +55,15 @@
   <builders>
     <hudson.tasks.Shell>
       <command>
-cp /usr/local/docker-config/setProxy.sh /usr/local/docker-config/setProxy.sh.BAK
-sed -i -e &quot;s/^proxyServer=.*$/proxyServer=\&quot;$PROXY_SERVER\&quot;/&quot; /usr/local/docker-config/setProxy.sh
-sed -i -e &quot;s/^proxyPort=.*$/proxyPort=\&quot;$PROXY_PORT\&quot;/&quot; /usr/local/docker-config/setProxy.sh
-sed -i -e &quot;s/^proxyProto=.*$/proxyProto=\&quot;$PROXY_PROTO\&quot;/&quot; /usr/local/docker-config/setProxy.sh
-sed -i -e &quot;s/^proxyUser=.*$/proxyUser=\&quot;$PROXY_USER\&quot;/&quot; /usr/local/docker-config/setProxy.sh
-sed -i -e &quot;s/^proxyPass=.*$/proxyPass=\&quot;$PROXY_PASS\&quot;/&quot; /usr/local/docker-config/setProxy.sh
-sed -i -e &quot;s/^noProxy=.*$/noProxy=\&quot;$NO_PROXY\&quot;/&quot; /usr/local/docker-config/setProxy.sh
-</command>
+        cp /usr/local/docker-config/setProxy.sh /usr/local/docker-config/setProxy.sh.BAK
+        
+        sed -i -e &quot;s/^proxyServer=.*$/proxyServer=\&quot;$PROXY_SERVER\&quot;/&quot; /usr/local/docker-config/setProxy.sh
+        sed -i -e &quot;s/^proxyPort=.*$/proxyPort=\&quot;$PROXY_PORT\&quot;/&quot; /usr/local/docker-config/setProxy.sh
+        sed -i -e &quot;s/^proxyProto=.*$/proxyProto=\&quot;$PROXY_PROTO\&quot;/&quot; /usr/local/docker-config/setProxy.sh
+        sed -i -e &quot;s/^proxyUser=.*$/proxyUser=\&quot;$PROXY_USER\&quot;/&quot; /usr/local/docker-config/setProxy.sh
+        sed -i -e &quot;s/^proxyPass=.*$/proxyPass=\&quot;$PROXY_PASS\&quot;/&quot; /usr/local/docker-config/setProxy.sh
+        sed -i -e &quot;s/^noProxy=.*$/noProxy=\&quot;$NO_PROXY\&quot;/&quot; /usr/local/docker-config/setProxy.sh
+      </command>
     </hudson.tasks.Shell>
   </builders>
   <publishers/>

@@ -40,10 +40,7 @@ echo "" >> /etc/systemd/system/configure_docker_networks.service
 echo "[Install]" >> /etc/systemd/system/configure_docker_networks.service
 echo "WantedBy=default.target" >> /etc/systemd/system/configure_docker_networks.service
 
-echo "#!/bin/bash" > /root/configure_docker_networking.sh 
-echo "sysctl -w net.ipv4.conf.$DOCKER_NETWORK_IF.route_localnet=1" >> /root/configure_docker_networking.sh 
-echo "iptables -t nat -I PREROUTING -i $DOCKER_NETWORK_IF -d 172.18.0.1 -p tcp --dport 3306 -j DNAT --to 127.0.0.1:3306" >> /root/configure_docker_networking.sh 
-echo "iptables -t filter -I INPUT -i $DOCKER_NETWORK_IF -d 127.0.0.1 -p tcp --dport 3306 -j ACCEPT" >> /root/configure_docker_networking.sh 
+mv configure_docker_networking.sh /root/configure_docker_networking.sh 
 chmod +x /root/configure_docker_networking.sh 
 systemctl daemon-reload
 systemctl enable configure_docker_networks

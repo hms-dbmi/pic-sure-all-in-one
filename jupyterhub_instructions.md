@@ -1,5 +1,10 @@
 ##JupyterHub Instructions
 
+To configure JupyterHub in Jenkins:
+1. Run the **Initial Configuration Pipeline** if you have not done so.
+2. Click **Configure JupyterHub Token Introspection Token** under the **All** listing.
+
+
 To start JupyterHub in Jenkins:
 1. Log into your Jenkins server.
 2. Click **Start JupyterHub**.

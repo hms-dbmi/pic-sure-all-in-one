@@ -12,7 +12,7 @@ Preparing to deploy:
 
 - You will create an initial admin user tied to a Google account. Decide which google account you want to use.
 
-- You need an Auth0 Client Secret(AUTH0_CLIENT_SECRET), Client ID(AUTH0_CLIENT_ID), and an AUTH0_TENANT value for the Configure Auth0 Integration Jenkins job. Please contact us at avillach_lab_developers@googlegroups.com and these will be sent to you.
+- You need an Auth0 Client Secret(AUTH0_CLIENT_SECRET), Client ID(AUTH0_CLIENT_ID), and an AUTH0_TENANT value for the Configure Auth0 Integration Jenkins job. Please contact us at avillach_lab_developers@googlegroups.com for evaluation Client Credentials. If you are just evaluating PIC-SURE in a demo environment with the demo data that is included, you should use our demo creadentials. You will want to use production creadentials for environments that have controlled access data. Please specify which of these use-cases applies  in your email. 
 
 - Before you can safely run the system in production you will need a SSL certificate, chain, and key that is compatible with Apache HTTPD. If you are unable to obtain secure SSL certs and key, and are taking steps to keep your system from being accessible to the public internet you can choose to accept the risk that someone may steal your data or hijack your server by using the development certs and key that come installed by default. -- *USE THE DEFAULT CERTS AND KEY AT YOUR OWN RISK* --
 

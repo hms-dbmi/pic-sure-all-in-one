@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+CWD=`pwd`
+
 mkdir -p /usr/local/docker-config
 cp -r config/* /usr/local/docker-config/
 
@@ -38,10 +40,7 @@ echo "" >> /etc/systemd/system/configure_docker_networks.service
 echo "[Install]" >> /etc/systemd/system/configure_docker_networks.service
 echo "WantedBy=default.target" >> /etc/systemd/system/configure_docker_networks.service
 
-echo "#!/bin/bash" > /root/configure_docker_networking.sh 
-echo "sysctl -w net.ipv4.conf.$DOCKER_NETWORK_IF.route_localnet=1" >> /root/configure_docker_networking.sh 
-echo "iptables -t nat -I PREROUTING -i $DOCKER_NETWORK_IF -d 172.18.0.1 -p tcp --dport 3306 -j DNAT --to 127.0.0.1:3306" >> /root/configure_docker_networking.sh 
-echo "iptables -t filter -I INPUT -i $DOCKER_NETWORK_IF -d 127.0.0.1 -p tcp --dport 3306 -j ACCEPT" >> /root/configure_docker_networking.sh 
+mv configure_docker_networking.sh /root/configure_docker_networking.sh 
 chmod +x /root/configure_docker_networking.sh 
 systemctl daemon-reload
 systemctl enable configure_docker_networks
@@ -53,6 +52,8 @@ systemctl start mysqld
 echo "[mysql]" > ~/.my.cnf
 echo "user = root" >> ~/.my.cnf
 echo "password = `grep "temporary password" /var/log/mysqld.log | cut -d ' ' -f 11`" >> ~/.my.cnf
+echo "port = 3306" >> ~/.my.cnf
+echo "host = 127.0.0.1" >> ~/.my.cnf
 
 echo "` < /dev/urandom tr -dc @^=+$*%_A-Z-a-z-0-9 | head -c${1:-24}`%4cA" > pass.tmp
 mysql -u root --connect-expired-password -e "alter user 'root'@'localhost' identified by '`cat pass.tmp`';flush privileges;"
@@ -88,8 +89,11 @@ sed -i s/__AUTH_MYSQL_PASSWORD__/`cat auth.tmp`/g /usr/local/docker-config/wildf
 rm -f auth.tmp
 
 echo "Building and installing Jenkins"
-docker build -t pic-sure-jenkins:`git log -n 1 | grep commit | cut -d ' ' -f 2 | cut -c 1-7` jenkins/jenkins-docker
+docker build --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_proxy --build-arg no_proxy="$no_proxy" \
+  --build-arg HTTP_PROXY=$http_proxy --build-arg HTTPS_PROXY=$http_proxy --build-arg NO_PROXY="$no_proxy" \
+  -t pic-sure-jenkins:`git log -n 1 | grep commit | cut -d ' ' -f 2 | cut -c 1-7` jenkins/jenkins-docker
 docker tag pic-sure-jenkins:`git log -n 1 | grep commit | cut -d ' ' -f 2 | cut -c 1-7` pic-sure-jenkins:LATEST
+
 echo "Creating Jenkins Log Path"
 mkdir -p /var/log/jenkins-docker-logs
 mkdir -p /var/jenkins_home
@@ -110,8 +114,8 @@ sed -i "s/__STACK_SPECIFIC_RESOURCE_UUID__/$RESOURCE_ID/g" /usr/local/docker-con
 
 echo $APP_ID > /usr/local/docker-config/APP_ID_RAW
 echo $APP_ID_HEX > /usr/local/docker-config/APP_ID_HEX
-echo $RESOURCE_ID_HEX > /usr/local/docker-config/RESOURCE_ID_HEX
 echo $RESOURCE_ID > /usr/local/docker-config/RESOURCE_ID_RAW
+echo $RESOURCE_ID_HEX > /usr/local/docker-config/RESOURCE_ID_HEX
 
 mkdir -p /usr/local/docker-config/hpds_csv
 mkdir -p /usr/local/docker-config/hpds/all
@@ -119,9 +123,6 @@ cp allConcepts.csv.tgz /usr/local/docker-config/hpds_csv/
 cd /usr/local/docker-config/hpds_csv/
 tar -xvzf allConcepts.csv.tgz
 
-docker run -d \
--v /var/jenkins_home:/var/jenkins_home \
--v /usr/local/docker-config:/usr/local/docker-config \
--v /var/run/docker.sock:/var/run/docker.sock \
--v /root/.my.cnf:/root/.my.cnf \
--p 8080:8080 --name jenkins pic-sure-jenkins:LATEST
+echo "Installation script complete.  Staring Jenkins."
+cd $CWD
+../start-jenkins.sh

@@ -12,7 +12,7 @@ Preparing to deploy:
 
 - You will create an initial admin user tied to a Google account. Decide which google account you want to use.
 
-- You need an Auth0 Client Secret(AUTH0_CLIENT_SECRET), Client ID(AUTH0_CLIENT_ID), and an AUTH0_TENANT value for the Configure Auth0 Integration Jenkins job. Please contact us at avillach_lab_developers@googlegroups.com for evaluation Client Credentials. If you are just evaluating PIC-SURE in a demo environment with the demo data that is included, you should use our demo creadentials. You will want to use production creadentials for environments that have controlled access data. Please specify which of these use-cases applies  in your email. 
+- You need an Auth0 Client Secret(AUTH0_CLIENT_SECRET), Client ID(AUTH0_CLIENT_ID), and an AUTH0_TENANT value for the Configure Auth0 Integration Jenkins job. Please contact us at http://avillachlabsupport.hms.harvard.edu and select "PIC-SURE All-in-one evaluation client credentials" for evaluation Client Credentials. If you are just evaluating PIC-SURE in a demo environment with the demo data that is included, you should use our demo credentials. You will want to use production credentials for environments that have controlled access data. Please specify which of these use-cases applies in your request. 
 
 - Before you can safely run the system in production you will need a SSL certificate, chain, and key that is compatible with Apache HTTPD. If you are unable to obtain secure SSL certs and key, and are taking steps to keep your system from being accessible to the public internet you can choose to accept the risk that someone may steal your data or hijack your server by using the development certs and key that come installed by default. -- *USE THE DEFAULT CERTS AND KEY AT YOUR OWN RISK* --
 
@@ -72,7 +72,7 @@ Note: Ensure none of these fields contain leading or trailing whitespace, the va
 
 Wait until all jobs complete. This may take several minutes. When nothing displays in the Build Queue or Build Executor Status to the left of the page, all jobs will have completed.
 
-9. Click the All tab to ensure nothing displays with a red dot next to it. If you see any red dots, please try restarting with a fresh Centos7 install. If you consistently have one or more jobs fail and display red dots, please reach out to avillach_lab_developers@googlegroups.com for help.
+9. Click the All tab to ensure nothing displays with a red dot next to it. If you see any red dots, please try restarting with a fresh Centos7 install. If you consistently have one or more jobs fail and display red dots, please reach out to http://avillachlabsupport.hms.harvard.edu for help.
 
 If all jobs have blue dots except the Check For Updates and Configure SSL Certificates job, which should be gray, you can log into the UI for the first time. 
 

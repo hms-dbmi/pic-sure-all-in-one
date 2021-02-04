@@ -1,24 +1,40 @@
 <?xml version='1.1' encoding='UTF-8'?>
 <project>
   <actions/>
-  <description>This job loads HPDS data from /usr/local/docker-config/hpds_csv/allConcepts.csv&#xd;
+  <description>Load HPDS Data from CSV using the Jenkins job - &quot;Load HPDS Data From CSV&quot; &#xd;
 &#xd;
-We expect that file to start with this header:&#xd;
+This job requires datafile in csv format in location - /usr/local/docker-config/hpds_csv/allConcepts.csv&#xd;
+&#xd;
+Expects listed data format and header :&#xd;
 &#xd;
 &quot;PATIENT_NUM&quot;,&quot;CONCEPT_PATH&quot;,&quot;NVAL_NUM&quot;,&quot;TVAL_CHAR&quot;,&quot;TIMESTAMP&quot;&#xd;
 &#xd;
-The corresponding columns are:&#xd;
+PLEASE Note : The data in CSV has to be sorted by CONCEPT_PATH,PATIENT_NUM,TIMESTAMP.&#xd;
 &#xd;
-PATIENT_NUM - This is an integer value identifying the subject of the recorded observation fact.&#xd;
+The corresponding columns from the CSV file are:&#xd;
 &#xd;
-CONCEPT_PATH - This is an identifier for the concept of the observation fact. For compatibility with the PIC-SURE UI this path should represent a location in a hierarchy where each level is separated by a backslash and with a leading and trailing backslash. For example &quot;\demographics\AGE\&quot; would be the age in the default NHANES dataset. In general this can be any string value, HPDS doesn&apos;t care what you put there, but the UI does. If this HPDS instance is part of a PIC-SURE networked environment the same concept paths should be used in all sites involved in the network so that queries can be federated across the network.&#xd;
+PATIENT_NUM: This is an integer value identifying the subject of the recorded observation fact.&#xd;
 &#xd;
-NVAL_NUM - A numeric value if this is a numeric concept, otherwise blank.&#xd;
+CONCEPT_PATH: This is an identifier for the concept of the observation fact. For compatibility with the PIC-SURE UI this path should represent a location in a hierarchy where each level is separated by a backslash and with a leading and trailing backslash. For example &quot;\demographics\AGE&quot; would be the age in the default NHANES dataset. In general this can be any string value, so the UI will display whatever is inside HPDS. If this HPDS instance is part of a PIC-SURE networked environment the same concept paths should be used in all sites involved in the network so that queries can be federated across the network.&#xd;
 &#xd;
-TVAL_CHAR - A text value if this is a categorical concept, otherwise blank.&#xd;
+NVAL_NUM: A numeric value if this is a numeric concept, otherwise blank.&#xd;
 &#xd;
-TIMESTAMP - A timestamp for the observation fact, this should be expressed as the number of milliseconds since January 1, 1970 GMT. This is equivalent to the Unix Epoch time value for the time of the observation multiplied by 1000.&#xd;
+TVAL_CHAR: A text value if this is a categorical concept, otherwise blank.&#xd;
 &#xd;
+TIMESTAMP: A timestamp for the observation fact, this should be expressed as the number of milliseconds since January 1, 1970 GMT. &#xd;
+This is equivalent to the Unix Epoch time value for the time of the observation multiplied by 1000.&#xd;
+&#xd;
+&#xd;
+1. Run Jenkins job - Load HPDS Data From CSV&#xd;
+&#xd;
+Check the console output of the run make sure it completed successfully.&#xd;
+&#xd;
+2. Run Jenkins job - Start PIC-SURE&#xd;
+&#xd;
+Check the console output of the run make sure it completed successfully.&#xd;
+&#xd;
+This Job extracts the new .bin files, deploys the new data into the live folder.&#xd;
+It also backs-up the previous data in backup folder, only one previous backup is kept.&#xd;
 </description>
   <keepDependencies>false</keepDependencies>
   <properties/>

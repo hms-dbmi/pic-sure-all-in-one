@@ -13,33 +13,15 @@
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
-          <name>RESOURCE_DESC</name>
-          <description>Resource to access external PIC-SURE installations</description>
-          <defaultValue></defaultValue>
-          <trim>false</trim>
-        </hudson.model.StringParameterDefinition>
-        <hudson.model.StringParameterDefinition>
-          <name>RESOURCE_PATH</name>
-          <description>Resource Path (Ex: /foo-bar). Do not include leading/trailing slash</description>
-          <defaultValue></defaultValue>
-          <trim>false</trim>
+          <name>TARGET_OBFUSCATION_THRESHOLD</name>
+          <description>Configure the aggregate resource to obfuscate results fewer than this threshold</description>
+          <defaultValue>10</defaultValue>
+          <trim>true</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>TARGET_PICSURE_URL</name>
           <description>Target PIC-SURE URL</description>
           <defaultValue>http://hpds:8080/PIC-SURE/</defaultValue>
-          <trim>false</trim>
-        </hudson.model.StringParameterDefinition>
-        <hudson.model.StringParameterDefinition>
-          <name>TARGET_RESOURCE_ID</name>
-          <description>Target Resource UUID (Ex: XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX)</description>
-          <defaultValue></defaultValue>
-          <trim>false</trim>
-        </hudson.model.StringParameterDefinition>
-        <hudson.model.StringParameterDefinition>
-          <name>TARGET_RESOURCE_TOKEN</name>
-          <description>Authentication Token</description>
-          <defaultValue></defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
@@ -83,21 +65,26 @@
       <injectBuildVariables>false</injectBuildVariables>
     </hudson.tasks.Maven>
     <hudson.tasks.Shell>
-      <command>cd pic-sure-resources/pic-sure-passthrough-resource
-cp target/pic-sure-passthrough-resource.war /usr/local/docker-config/wildfly/deployments/$RESOURCE_PATH.war
+      <command>
+      
+cd pic-sure-resources/pic-sure-aggregate-data-sharing-resource
+cp target/pic-sure-aggregate-data-sharing-resource.war /usr/local/docker-config/wildfly/deployments/$RESOURCE_PATH.war
 
-mkdir /usr/local/docker-config/wildfly/passthru/$RESOURCE_PATH
-PROP_FILE=&quot;/usr/local/docker-config/wildfly/passthru/$RESOURCE_PATH/resource.properties&quot;
+mkdir /usr/local/docker-config/wildfly/aggregate-data-sharing/$RESOURCE_PATH
+PROP_FILE=&quot;/usr/local/docker-config/wildfly/aggregate-data-sharing/$RESOURCE_PATH/resource.properties&quot;
+
+
+
 cat &gt; $PROP_FILE &lt;&lt;-END
 target.picsure.url=$TARGET_PICSURE_URL
-target.resource.id=$TARGET_RESOURCE_ID
-target.picsure.token=$TARGET_RESOURCE_TOKEN
+target.picsure.token=
+target.picsure.obfuscation_threshold=$TARGET_OBFUSCATION_THRESHOLD
 END
 
 RESOURCE_ID=`uuidgen -r`
 RESOURCE_ID_HEX=`echo $RESOURCE_ID | awk &apos;{ print toupper($0) }&apos;|sed &apos;s/-//g&apos;;`
 export SQL=&quot;INSERT INTO resource (uuid, targetURL, resourceRSPath, description, name, token) \
- VALUES (unhex(&apos;$RESOURCE_ID_HEX&apos;), NULL, &apos;http://wildfly:8080/$RESOURCE_PATH/pic-sure/passthru/&apos;, &apos;$RESOURCE_DESC&apos;, &apos;$RESOURCE_NAME&apos;, NULL);&quot;
+ VALUES (unhex(&apos;$RESOURCE_ID_HEX&apos;), NULL, &apos;http://wildfly:8080/$RESOURCE_PATH/pic-sure/aggregate-data-sharing/&apos;, &apos;$RESOURCE_DESC&apos;, &apos;$RESOURCE_NAME&apos;, NULL);&quot;
 
 docker run -i -v /root/.my.cnf:/root/.my.cnf --network=host mysql mysql -h 127.0.0.1 -e &quot;$SQL&quot; picsure</command>
     </hudson.tasks.Shell>

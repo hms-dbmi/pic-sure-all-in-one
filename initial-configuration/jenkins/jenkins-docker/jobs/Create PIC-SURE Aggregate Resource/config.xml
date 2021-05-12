@@ -12,6 +12,12 @@
           <defaultValue></defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
+         <hudson.model.StringParameterDefinition>
+          <name>RESOURCE_PATH</name>
+          <description>The path to be used in wildfly deployments</description>
+          <defaultValue>pic-sure-aggregate-resource</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>TARGET_OBFUSCATION_THRESHOLD</name>
           <description>Configure the aggregate resource to obfuscate results fewer than this threshold</description>
@@ -68,9 +74,10 @@
       <command>
       
 cd pic-sure-resources/pic-sure-aggregate-data-sharing-resource
+mkdir -p /usr/local/docker-config/wildfly/deployments
 cp target/pic-sure-aggregate-data-sharing-resource.war /usr/local/docker-config/wildfly/deployments/$RESOURCE_PATH.war
 
-mkdir /usr/local/docker-config/wildfly/aggregate-data-sharing/$RESOURCE_PATH
+mkdir -p /usr/local/docker-config/wildfly/aggregate-data-sharing/$RESOURCE_PATH
 PROP_FILE=&quot;/usr/local/docker-config/wildfly/aggregate-data-sharing/$RESOURCE_PATH/resource.properties&quot;
 
 

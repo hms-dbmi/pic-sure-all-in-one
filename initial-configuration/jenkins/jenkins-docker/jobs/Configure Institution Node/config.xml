@@ -117,15 +117,6 @@ pipeline {
                                 [$class: &apos;StringParameterValue&apos;, name: &apos;OUTBOUND_EMAIL_USER_PASSWORD&apos;, value: env.OUTBOUND_EMAIL_USER_PASSWORD]]
 
                         }
-                    },
-		    		aggregateResourceConfig: {
-                        script {
-                            def result = build job: &apos;Create PIC-SURE Aggregate Resource&apos;, parameters: [
-                                [$class: &apos;StringParameterValue&apos;, name: &apos;RESOURCE_NAME&apos;, value:&quot;PIC-SURE Aggregate Resource&quot;],
-                                [$class: &apos;StringParameterValue&apos;, name: &apos;TARGET_OBFUSCATION_THRESHOLD&apos;, value: env.TARGET_OBFUSCATION_THRESHOLD],
-                                [$class: &apos;StringParameterValue&apos;, name: &apos;OUTBOUND_EMAIL_USER_PASSWORD&apos;, value: env.OUTBOUND_EMAIL_USER_PASSWORD]]
-
-                        }
                     }
                 )
             }

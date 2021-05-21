@@ -37,15 +37,15 @@ node {
             def buildSpec = new JsonSlurper().parse(new File(filePath))
     
             for(def build : buildSpec.application){
-                if(build.project_name.equalsIgnoreCase(&quot;PIC-SURE Auth Micro-App Build&quot;)) {
+                if(build.project_job_git_key.equalsIgnoreCase(&quot;PSAMA&quot;)) {
                    micro_app_ref = build.git_hash
                    echo &apos;micro_app_ref &apos; + micro_app_ref
                 }
-                if(build.project_name.equalsIgnoreCase(&quot;project-specific-ui&quot;)) {
+                if(build.project_job_git_key.equalsIgnoreCase(&quot;PSU&quot;)) {
                    psu_ref = build.git_hash
                    echo &apos;psu_ref &apos; + psu_ref
                 }
-                if(build.project_name.equalsIgnoreCase(&quot;PIC-SURE-API Build&quot;)) {
+                if(build.project_job_git_key.equalsIgnoreCase(&quot;PSA&quot;)) {
                    pic_sure_ref = build.git_hash
                    echo &apos;pic_sure_ref &apos; + pic_sure_ref
                 }

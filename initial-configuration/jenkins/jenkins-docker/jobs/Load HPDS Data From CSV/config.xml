@@ -53,9 +53,6 @@ rm -rf /usr/local/docker-config/hpds_temp
 rm -rf /usr/local/docker-config/hpds_bak
 mkdir -p /usr/local/docker-config/hpds_temp
 
-#back up old key if exists
-[ -f /usr/local/docker-config/hpds_temp/encryption_key ] &amp;&amp;
-	 cp /usr/local/docker-config/hpds_temp/encryption_key /usr/local/docker-config/hpds_temp/encryption_key.`date +&quot;%Y%m%d-%H%M&quot;`
 #generate a new encryption key 
 openssl enc -aes-128-cbc -k secret -P -pbkdf2 | grep key | cut -d '=' -f2 >  /usr/local/docker-config/hpds_temp/encryption_key
 

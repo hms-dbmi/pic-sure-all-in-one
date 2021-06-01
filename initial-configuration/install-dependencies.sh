@@ -40,10 +40,7 @@ echo "" >> /etc/systemd/system/configure_docker_networks.service
 echo "[Install]" >> /etc/systemd/system/configure_docker_networks.service
 echo "WantedBy=default.target" >> /etc/systemd/system/configure_docker_networks.service
 
-echo "#!/bin/bash" > /root/configure_docker_networking.sh 
-echo "sysctl -w net.ipv4.conf.$DOCKER_NETWORK_IF.route_localnet=1" >> /root/configure_docker_networking.sh 
-echo "iptables -t nat -I PREROUTING -i $DOCKER_NETWORK_IF -d 172.18.0.1 -p tcp --dport 3306 -j DNAT --to 127.0.0.1:3306" >> /root/configure_docker_networking.sh 
-echo "iptables -t filter -I INPUT -i $DOCKER_NETWORK_IF -d 127.0.0.1 -p tcp --dport 3306 -j ACCEPT" >> /root/configure_docker_networking.sh 
+mv configure_docker_networking.sh /root/configure_docker_networking.sh 
 chmod +x /root/configure_docker_networking.sh 
 systemctl daemon-reload
 systemctl enable configure_docker_networks
@@ -55,6 +52,8 @@ systemctl start mysqld
 echo "[mysql]" > ~/.my.cnf
 echo "user = root" >> ~/.my.cnf
 echo "password = `grep "temporary password" /var/log/mysqld.log | cut -d ' ' -f 11`" >> ~/.my.cnf
+echo "port = 3306" >> ~/.my.cnf
+echo "host = 127.0.0.1" >> ~/.my.cnf
 
 echo "` < /dev/urandom tr -dc @^=+$*%_A-Z-a-z-0-9 | head -c${1:-24}`%4cA" > pass.tmp
 mysql -u root --connect-expired-password -e "alter user 'root'@'localhost' identified by '`cat pass.tmp`';flush privileges;"
@@ -123,10 +122,6 @@ mkdir -p /usr/local/docker-config/hpds/all
 cp allConcepts.csv.tgz /usr/local/docker-config/hpds_csv/
 cd /usr/local/docker-config/hpds_csv/
 tar -xvzf allConcepts.csv.tgz
-
-echo
-echo "Is this server utilizing a proxy?  If so, see and update this file: /usr/local/docker-config/setProxy.sh"
-echo
 
 echo "Installation script complete.  Staring Jenkins."
 cd $CWD

@@ -37,7 +37,7 @@ if [ -n "$proxyServer" ]; then
 	export https_proxy="$proxyProto://$proxyAuthPrefix$proxyServer:$proxyPort"
 	export no_proxy="$noProxy"
 
-	noProxyPipes=${noProxy//,/|};
+	noProxyPipes=$(echo $noProxy | sed "s/,/|/g")
 
 	## Custom Variable for Java
 	proxyOpts="-Dhttp.proxyHost=$proxyServer -Dhttp.proxyPort=$proxyPort -Dhttp.proxyUser=$proxyUser -Dhttp.proxyPassword=$proxyPass"

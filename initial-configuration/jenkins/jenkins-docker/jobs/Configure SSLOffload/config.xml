@@ -1,0 +1,40 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description></description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.BooleanParameterDefinition>
+          <name>ENABLE_SSLOFFLOAD</name>
+          <description>When true, Apache will be configured with the expectation that it is sitting behind an SSL Offload appliance.</description>
+          <defaultValue>false</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.scm.NullSCM"/>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>
+if [ &quot;$ENABLE_SSLOFFLOAD&quot; = &quot;true&quot; ]; then
+	cp /usr/local/docker-config/httpd/httpd-vhosts.conf /usr/local/docker-config/httpd/httpd-vhosts-withssl.conf
+	cp /usr/local/docker-config/httpd/httpd-vhosts-ssloffload.conf /usr/local/docker-config/httpd/httpd-vhosts.conf
+else
+	if [ -f &quot;/usr/local/docker-config/httpd/httpd-vhosts-withssl.conf&quot; ]; then
+		cp /usr/local/docker-config/httpd/httpd-vhosts-withssl.conf /usr/local/docker-config/httpd/httpd-vhosts.conf
+	fi
+fi
+</command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

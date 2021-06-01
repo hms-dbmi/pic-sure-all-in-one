@@ -12,7 +12,8 @@ c = get_config()
 # Spawn single-user servers as Docker containers
 c.JupyterHub.spawner_class = 'dockerspawner.DockerSpawner'
 # Spawn containers from this image
-c.DockerSpawner.image = 'jupyter/datascience-notebook:hub-1.1.0'
+#c.DockerSpawner.image = 'jupyter/datascience-notebook:hub-1.1.0'
+c.DockerSpawner.image = 'hms-dbmi/notebook-single-user:LATEST'
 
 # JupyterHub requires a single-user instance of the Notebook server, so we
 # default to using the `start-singleuser.sh` script included in the

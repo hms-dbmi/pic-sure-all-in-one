@@ -24,10 +24,11 @@ export PICSURE_SETTINGS_VOLUME=&quot;-v /usr/local/docker-config/httpd/picsureui
 export PSAMA_SETTINGS_VOLUME=&quot;-v /usr/local/docker-config/httpd/psamaui_settings.json:/usr/local/apache2/htdocs/picsureui/psamaui/settings/settings.json&quot;
 export EMAIL_TEMPLATE_VOUME=&quot;-v /usr/local/docker-config/wildfly/emailTemplates:/opt/jboss/wildfly/standalone/configuration/emailTemplates &quot;
 
-if [-f /usr/local/docker-config/wildfly/application.truststore]; then
-	export TRUSTSTORE_VOLUME = &quot;-v /usr/local/docker-config/wildfly/application.truststore:/opt/jboss/wildfly/standalone/configuration/application.truststore&quot;
+if [ -f /usr/local/docker-config/wildfly/application.truststore ]; then
+	export TRUSTSTORE_VOLUME=&quot;-v /usr/local/docker-config/wildfly/application.truststore:/opt/jboss/wildfly/standalone/configuration/application.truststore&quot;
    	export TRUSTSTORE_JAVA_OPTS=&quot;-Djavax.net.ssl.trustStore=/opt/jboss/wildfly/standalone/configuration/application.truststore -Djavax.net.ssl.trustStorePassword=password&quot;
 fi
+
 
 
 docker stop hpds &amp;&amp; docker rm hpds
@@ -38,12 +39,18 @@ docker run --name=hpds --restart always --network=picsure \
   --entrypoint=java \
   -d hms-dbmi/pic-sure-hpds:LATEST $HPDS_OPTS
 
+
+if [ -f /usr/local/docker-config/httpd/custom_httpd_volumes]; then
+	export CUSTOM_HTTPD_VOLUMES=`cat /usr/local/docker-config/httpd/custom_httpd_volumes`
+fi
+
 docker stop httpd &amp;&amp; docker rm httpd
 docker run --name=httpd --restart always --network=picsure \
   -v /var/log/httpd-docker-logs/:/usr/local/apache2/logs/ \
   $PICSURE_SETTINGS_VOLUME \
   $PSAMA_SETTINGS_VOLUME \
   -v /usr/local/docker-config/httpd/cert:/usr/local/apache2/cert/ \
+  $CUSTOM_HTTPD_VOLUMES \
   -p 80:80 \
   -p 443:443 \
   -d hms-dbmi/pic-sure-ui-overrides:LATEST

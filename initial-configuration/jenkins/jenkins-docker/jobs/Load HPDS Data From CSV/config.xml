@@ -47,10 +47,15 @@ It also backs-up the previous data in backup folder, only one previous backup is
   <concurrentBuild>false</concurrentBuild>
   <builders>
     <hudson.tasks.Shell>
-      <command>rm -rf /usr/local/docker-config/hpds_temp
+      <command>
+
+rm -rf /usr/local/docker-config/hpds_temp
 rm -rf /usr/local/docker-config/hpds_bak
 mkdir -p /usr/local/docker-config/hpds_temp
-cp /usr/local/docker-config/hpds/encryption_key /usr/local/docker-config/hpds_temp/encryption_key 
+
+#generate a new encryption key 
+openssl enc -aes-128-cbc -k secret -P -pbkdf2 | grep key | cut -d '=' -f2 >  /usr/local/docker-config/hpds_temp/encryption_key
+
 docker run \
 -v /usr/local/docker-config/hpds_temp:/opt/local/hpds \
 -v /usr/local/docker-config/hpds_csv/allConcepts.csv:/opt/local/hpds/allConcepts.csv \

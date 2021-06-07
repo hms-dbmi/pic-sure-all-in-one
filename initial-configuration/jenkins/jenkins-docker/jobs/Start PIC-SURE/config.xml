@@ -24,6 +24,12 @@ export PICSURE_SETTINGS_VOLUME=&quot;-v /usr/local/docker-config/httpd/picsureui
 export PSAMA_SETTINGS_VOLUME=&quot;-v /usr/local/docker-config/httpd/psamaui_settings.json:/usr/local/apache2/htdocs/picsureui/psamaui/settings/settings.json&quot;
 export EMAIL_TEMPLATE_VOUME=&quot;-v /usr/local/docker-config/wildfly/emailTemplates:/opt/jboss/wildfly/standalone/configuration/emailTemplates &quot;
 
+if [-f /usr/local/docker-config/wildfly/application.truststore]; then
+	export TRUSTSTORE_VOLUME = &quot;-v /usr/local/docker-config/wildfly/application.truststore:/opt/jboss/wildfly/standalone/configuration/application.truststore&quot;
+   	export TRUSTSTORE_JAVA_OPTS=&quot;-Djavax.net.ssl.trustStore=/opt/jboss/wildfly/standalone/configuration/application.truststore -Djavax.net.ssl.trustStorePassword=password&quot;
+fi
+
+
 docker stop hpds &amp;&amp; docker rm hpds
 docker run --name=hpds --restart always --network=picsure \
   -v /usr/local/docker-config/hpds:/opt/local/hpds \
@@ -47,14 +53,17 @@ docker restart httpd
 docker stop wildfly &amp;&amp; docker rm wildfly
 docker run --name=wildfly --restart always --network=picsure -u root \
   -v /var/log/wildfly-docker-logs/:/opt/jboss/wildfly/standalone/log/ \
+  -v /etc/hosts:/etc/hosts \
   -v /var/log/wildfly-docker-os-logs/:/var/log/ \
   -v /usr/local/docker-config/wildfly/passthru/:/opt/jboss/wildfly/standalone/configuration/passthru/ \
+  -v /usr/local/docker-config/wildfly/aggregate-data-sharing/:/opt/jboss/wildfly/standalone/configuration/aggregate-data-sharing/ \
   -v /usr/local/docker-config/wildfly/deployments/:/opt/jboss/wildfly/standalone/deployments/ \
   -v /usr/local/docker-config/wildfly/standalone.xml:/opt/jboss/wildfly/standalone/configuration/standalone.xml \
+  $TRUSTSTORE_VOLUME \
   $EMAIL_TEMPLATE_VOUME \
   -v /usr/local/docker-config/wildfly/wildfly_mysql_module.xml:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/module.xml  \
   -v /usr/local/docker-config/wildfly/mysql-connector-java-5.1.38.jar:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/mysql-connector-java-5.1.38.jar \
-  -e JAVA_OPTS=&quot;$WILDFLY_JAVA_OPTS&quot; \
+  -e JAVA_OPTS=&quot;$WILDFLY_JAVA_OPTS $TRUSTSTORE_JAVA_OPTS&quot; \
   -d hms-dbmi/pic-sure-wildfly:LATEST
 </command>
     </hudson.tasks.Shell>

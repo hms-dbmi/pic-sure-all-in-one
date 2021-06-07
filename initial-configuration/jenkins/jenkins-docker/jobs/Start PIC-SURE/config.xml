@@ -19,10 +19,10 @@ if [ -f &quot;/usr/local/docker-config/setProxy.sh&quot; ]; then
 fi
 
 
-if [[ $(grep queryExportType /usr/local/docker-config/httpd/picsureui_settings.json | grep DISABLED) ]]; then
-	export EXPORT_SIZE="0";
-else
+if [ -z "$(grep queryExportType /usr/local/docker-config/httpd/picsureui_settings.json | grep DISABLED)" ]; then
 	export EXPORT_SIZE="2000";
+else
+	export EXPORT_SIZE="0";
 fi
 
 export WILDFLY_JAVA_OPTS=&quot;-Xms2g -Xmx4g -XX:MetaspaceSize=96M -XX:MaxMetaspaceSize=256m -Djava.net.preferIPv4Stack=true $PROXY_OPTS&quot;

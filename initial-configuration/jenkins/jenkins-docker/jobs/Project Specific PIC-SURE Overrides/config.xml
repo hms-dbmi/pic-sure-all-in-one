@@ -58,6 +58,11 @@ if [ -f "./setEnv.sh" ]; then
    . ./setEnv.sh
 fi
 
+if [ -f "./custom_httpd_volumes" ]; then
+   cp ./custom_httpd_volumes /usr/local/docker-config/httpd/
+fi
+
+
 cd ui
 docker build --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_proxy --build-arg no_proxy=&quot;$no_proxy&quot; \
 --build-arg HTTP_PROXY=$http_proxy --build-arg HTTPS_PROXY=$http_proxy --build-arg NO_PROXY=&quot;$no_proxy&quot; \

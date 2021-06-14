@@ -122,35 +122,104 @@ pipeline {
             }
         }
         
-       stage(&apos;Resource Configuration and Database Migration&apos;) { 
+            stage(&apos;Retrieve Build Spec&apos;) { 
+        script {
+            def result = build job: &apos;Retrieve Build Spec&apos;
+            retrieveBuildSpecId = result.number
+        }
+        script {
+            copyArtifacts filter: &apos;*&apos;, projectName: &apos;Retrieve Build Spec&apos;, selector: specific(&quot;&quot;+retrieveBuildSpecId)
+            sh &apos;cat build-spec.json&apos;
+            sh &apos;cat pipeline_git_commit.txt&apos;
+            sh &apos;pwd&apos;
+            sh &apos;ls&apos;
+            def path = pwd()
+            def filePath = path + &apos;/build-spec.json&apos;
+            echo filePath
+            def buildSpec = new JsonSlurper().parse(new File(filePath))
+    
+            for(def build : buildSpec.application){
+                if(build.project_job_git_key.equalsIgnoreCase(&quot;PSAMA&quot;)) {
+                   micro_app_ref = build.git_hash
+                   echo &apos;micro_app_ref &apos; + micro_app_ref
+                }
+                if(build.project_job_git_key.equalsIgnoreCase(&quot;PSU&quot;)) {
+                   psu_ref = build.git_hash
+                   echo &apos;psu_ref &apos; + psu_ref
+                }
+                if(build.project_job_git_key.equalsIgnoreCase(&quot;PSA&quot;)) {
+                   pic_sure_ref = build.git_hash
+                   echo &apos;pic_sure_ref &apos; + pic_sure_ref
+                }
+            }
+            if(micro_app_ref.isEmpty() || pic_sure_ref.isEmpty() || psu_ref.isEmpty()) {
+                currentBuild.result = &apos;ABORTED&apos;
+                echo &apos;micro_app_ref = &apos; + micro_app_ref
+                echo &apos;psu_ref = &apos; + psu_ref
+                echo &apos;pic_sure_ref = &apos; + pic_sure_ref
+                error(&apos;Build Spec Not configured correctly!&apos;)
+            }
+        }
+    }
+    
+    stage(&apos;Auth Schema Migration&apos;) {  
+        checkout([$class: &apos;GitSCM&apos;, branches: [[name: micro_app_ref ]],
+            userRemoteConfigs: [[url: &apos;https://github.com/hms-dbmi/pic-sure-auth-microapp&apos;]]])
+        //git url: &apos;https://github.com/hms-dbmi/pic-sure-auth-microapp&apos;
+        docker.image(&apos;dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0&apos;).inside(&apos;--network=picsure -v /usr/local/docker-config/flyway/auth:/opt/flyway-migrations/auth &quot;--entrypoint=&quot; &apos;) { 
+            sh &quot;rm -rf /opt/flyway-migrations/auth/sql&quot;
+            sh &quot;cp -R ./pic-sure-auth-db/db/sql /opt/flyway-migrations/auth/sql&quot;
+            sh &quot;/opt/flyway/flyway -X -configFiles=/opt/flyway-migrations/auth/flyway-auth.conf migrate&quot;
+            sleep(time:10,unit:&quot;SECONDS&quot;) 
+        }
+    }
+    stage(&apos;Picsure Schema Migration&apos;) {
+        checkout([$class: &apos;GitSCM&apos;, branches: [[name: pic_sure_ref ]],
+            userRemoteConfigs: [[url: &apos;https://github.com/hms-dbmi/pic-sure&apos;]]])
+        //git url: &apos;https://github.com/hms-dbmi/pic-sure&apos;
+        docker.image(&apos;dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0&apos;).inside(&apos;--network=picsure -v /usr/local/docker-config/flyway/picsure:/opt/flyway-migrations/picsure &quot;--entrypoint=&quot; &apos;) { 
+            sh &quot;rm -rf /opt/flyway-migrations/picsure/sql&quot;
+            sh &quot;cp -R ./pic-sure-api-data/src/main/resources/db/sql /opt/flyway-migrations/picsure/sql&quot;
+            sh &quot;/opt/flyway/flyway -X -configFiles=/opt/flyway-migrations/picsure/flyway-picsure.conf migrate&quot;
+            sleep(time:10,unit:&quot;SECONDS&quot;) 
+        }
+    }
+    
+     stage(&apos;Resource Configuration and Database Migration&apos;) { 
             steps {
-             	script {
-	                    def result = build job: &apos;Retrieve Build Spec&apos;
-	                    retrieveBuildSpecId = result.number
-	                }
-				script {
-	                    copyArtifacts filter: &apos;*&apos;, projectName: &apos;Retrieve Build Spec&apos;, selector: specific(&quot;&quot;+retrieveBuildSpecId)
-	                    sh &apos;cat build-spec.json&apos;
-	                    sh &apos;cat pipeline_git_commit.txt&apos;
-	                    sh &apos;pwd&apos;
-	                    def buildSpec = new JsonSlurper().parse(new File(&apos;/var/jenkins_home/workspace/PIC-SURE Pipeline/build-spec.json&apos;))
-	                    pipelineBuildId = new File(&apos;/var/jenkins_home/workspace/PIC-SURE Pipeline/pipeline_git_commit.txt&apos;).text.trim()
-	                    for(def build : buildSpec.application){
-	                        build_hashes[build.project_job_git_key] = build.git_hash
-	                    }
-	                }
                 script {
                           def result = build job: &apos;Create PIC-SURE Aggregate Resource&apos;, parameters: [
                               [$class: &apos;StringParameterValue&apos;, name: &apos;RESOURCE_NAME&apos;, value:&quot;PIC-SURE Aggregate Resource&quot;],
                               [$class: &apos;StringParameterValue&apos;, name: &apos;TARGET_OBFUSCATION_THRESHOLD&apos;, value: env.TARGET_OBFUSCATION_THRESHOLD],
-                              [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSA&apos;]]]
+                              [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: pic_sure_ref]]
 
                       }
-                 script {
-                       def result = build job: &apos;PIC-SURE Database Migrations&apos;
-                }
             }
        }
+    
+    
+    stage(&apos;Project Specific Migrations&apos;) {
+        checkout([$class: &apos;GitSCM&apos;, branches: [[name: psu_ref ]],
+            userRemoteConfigs: [[url: env.project_specific_override_repo]]])
+        //git url: env.project_specific_override_repo
+        sh &quot;&quot;&quot;
+            sed -i &quot;s/__APPLICATION_UUID__/`cat /usr/local/docker-config/APP_ID_HEX`/g&quot; ./custom-migrations/auth/V2__CONFIGURE_PIC_SURE_APPLICATION.sql
+            sed -i &quot;s/__RESOURCE_UUID__/`cat /usr/local/docker-config/RESOURCE_ID_HEX`/g&quot; ./custom-migrations/picsure/V2__CREATE_HPDS_RESOURCE.sql
+        &quot;&quot;&quot;
+        docker.image(&apos;dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0&apos;).inside(&apos;--network=picsure -v /usr/local/docker-config/flyway/picsure:/opt/flyway-migrations/picsure &quot;--entrypoint=&quot; &apos;) {
+            sh &quot;rm -rf /opt/flyway-migrations/picsure/sql&quot;
+            sh &quot;cp -R ./custom-migrations/picsure /opt/flyway-migrations/picsure/sql&quot;
+            sh &quot;/opt/flyway/flyway -X -baselineOnMigrate=true -configFiles=/opt/flyway-migrations/picsure/flyway-picsure.conf -table=flyway_custom_schema_history migrate&quot;
+            sleep(time:10,unit:&quot;SECONDS&quot;) 
+        }
+        docker.image(&apos;dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0&apos;).inside(&apos;--network=picsure -v /usr/local/docker-config/flyway/auth:/opt/flyway-migrations/auth &quot;--entrypoint=&quot; &apos;) {
+            sh &quot;rm -rf /opt/flyway-migrations/auth/sql&quot;
+            sh &quot;cp -R ./custom-migrations/auth /opt/flyway-migrations/auth/sql&quot;
+            sh &quot;/opt/flyway/flyway -X -baselineOnMigrate=true -configFiles=/opt/flyway-migrations/auth/flyway-auth.conf -table=flyway_custom_schema_history migrate&quot;
+            sleep(time:10,unit:&quot;SECONDS&quot;) 
+        }
+    }
+        
         
         stage(&apos;Post Migration Configs&apos;) { 
             steps {
@@ -177,26 +246,8 @@ pipeline {
         }
         stage(&apos;Load Demo Data and Deploy&apos;) { 
             steps {
- 		script {
-                    def result = build job: &apos;Retrieve Build Spec&apos;
-                    retrieveBuildSpecId = result.number
-                }
-		script {
-                    copyArtifacts filter: &apos;*&apos;, projectName: &apos;Retrieve Build Spec&apos;, selector: specific(&quot;&quot;+retrieveBuildSpecId)
-                    sh &apos;cat build-spec.json&apos;
-                    sh &apos;cat pipeline_git_commit.txt&apos;
-                    sh &apos;pwd&apos;
-                    def buildSpec = new JsonSlurper().parse(new File(&apos;/var/jenkins_home/workspace/PIC-SURE Pipeline/build-spec.json&apos;))
-                    pipelineBuildId = new File(&apos;/var/jenkins_home/workspace/PIC-SURE Pipeline/pipeline_git_commit.txt&apos;).text.trim()
-                    for(def build : buildSpec.application){
-                        build_hashes[build.project_job_git_key] = build.git_hash
-                    }
-                }
                 script {
-                    def result = build job: &apos;Load HPDS Data From CSV&apos;
-                }
-                script {
-                    def result = build job: &apos;Start PIC-SURE&apos;, parameters: [[$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],[$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSU&apos;]]]
+                    def result = build job: &apos;Start PIC-SURE&apos;
                 }
             }
         }

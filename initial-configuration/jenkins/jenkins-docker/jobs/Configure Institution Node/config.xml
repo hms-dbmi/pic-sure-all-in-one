@@ -172,7 +172,7 @@ pipeline {
     
     stage(&apos;Auth Schema Migration&apos;) { 
  		steps {
-	 		node {   
+	 		node("master") {   
 	 			script {
 			        checkout([$class: &apos;GitSCM&apos;, branches: [[name: micro_app_ref ]],
 			            userRemoteConfigs: [[url: &apos;https://github.com/hms-dbmi/pic-sure-auth-microapp&apos;]]])
@@ -189,7 +189,7 @@ pipeline {
     }
     stage(&apos;Picsure Schema Migration&apos;) {
 	     steps {
-	     	node {   
+	     	node("master") {   
 	 			script {
 			        checkout([$class: &apos;GitSCM&apos;, branches: [[name: pic_sure_ref ]],
 			            userRemoteConfigs: [[url: &apos;https://github.com/hms-dbmi/pic-sure&apos;]]])
@@ -220,7 +220,7 @@ pipeline {
     
     stage(&apos;Project Specific Migrations&apos;) {
 	    steps {
-	    	node {   
+	    	node("master") {   
 	 			script {
 			        checkout([$class: &apos;GitSCM&apos;, branches: [[name: psu_ref ]],
 			            userRemoteConfigs: [[url: env.project_specific_override_repo]]])

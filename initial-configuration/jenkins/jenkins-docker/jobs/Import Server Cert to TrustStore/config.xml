@@ -29,7 +29,7 @@
   <builders>
     <hudson.tasks.Shell>
       <command>
-      keytool -import -trustcacerts -keystore /usr/local/docker-config/wildfly/application.truststore -storepass changeit -alis $CERTALIAS -file server.crt
+      keytool -import -noprompt -trustcacerts -keystore /usr/local/docker-config/wildfly/application.truststore -storepass changeit -alias $CERTALIAS -file server.crt
 </command>
     </hudson.tasks.Shell>
   </builders>

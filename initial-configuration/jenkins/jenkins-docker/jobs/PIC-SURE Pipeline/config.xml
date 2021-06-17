@@ -56,7 +56,7 @@ pipeline {
                 )
             }
         }
-        stage(&apos;PSAMA, DataSTAGE UI and PIC-SURE HPDS&apos;){
+        stage(&apos;PSAMA, Project UI Overrides and PIC-SURE HPDS&apos;){
             steps {
                 parallel (
                     picsurehpds:{

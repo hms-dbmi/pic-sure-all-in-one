@@ -7,15 +7,17 @@
     <hudson.model.ParametersDefinitionProperty>
       <parameterDefinitions>
       <hudson.model.StringParameterDefinition>
+            <name>SERVERNAME</name>
+          <description>the server name to query for a certificate</description>
+          <defaultValue></defaultValue>
+          <trim>true</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
             <name>CERTALIAS</name>
           <description>Alias for this certificate in the trustStore</description>
           <defaultValue></defaultValue>
           <trim>true</trim>
         </hudson.model.StringParameterDefinition>
-        <hudson.model.FileParameterDefinition>
-          <name>server.crt</name>
-          <description></description>
-        </hudson.model.FileParameterDefinition>
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
   </properties>
@@ -29,7 +31,13 @@
   <builders>
     <hudson.tasks.Shell>
       <command>
+      
+      
+      echo | openssl s_client -showcerts -servername $SERVERNAME -connect $SERVERNAME:443  2>&1 | openssl x509 -text | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' > server.crt
+      
       keytool -import -noprompt -trustcacerts -keystore /usr/local/docker-config/wildfly/application.truststore -storepass password -alias $CERTALIAS -file server.crt
+      
+      rm server.crt
 </command>
     </hudson.tasks.Shell>
   </builders>

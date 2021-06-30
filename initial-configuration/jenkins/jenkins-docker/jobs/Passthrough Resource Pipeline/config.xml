@@ -87,14 +87,14 @@ pipeline {
         stage(&apos;Create Resource&apos;) { 
             steps {
                 script {
-                    def result = build job: &apos;Create PIC-SURE PassThrough Resource&apos;, parameters: [[$class: &apos;StringParameterValue&apos;, name: &apos;RESOURCE_NAME&apos;, value: $RESOURCE_NAME],[$class: &apos;StringParameterValue&apos;, name: &apos;RESOURCE_DESC&apos;, value: $RESOURCE_DESC],[$class: &apos;StringParameterValue&apos;, name: &apos;RESOURCE_PATH&apos;, value: $RESOURCE_PATH],[$class: &apos;StringParameterValue&apos;, name: &apos;TARGET_PICSURE_URL&apos;, value: $resourceURL],[$class: &apos;StringParameterValue&apos;, name: &apos;TARGET_RESOURCE_ID&apos;, value: $TARGET_RESOURCE_ID],[$class: &apos;StringParameterValue&apos;, name: &apos;TARGET_RESOURCE_TOKEN&apos;, value: $TARGET_RESOURCE_TOKEN],[$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSA&apos;]]]
+                    def result = build job: &apos;Create PIC-SURE PassThrough Resource&apos;, parameters: [[$class: &apos;StringParameterValue&apos;, name: &apos;RESOURCE_NAME&apos;, value: env.RESOURCE_NAME],[$class: &apos;StringParameterValue&apos;, name: &apos;RESOURCE_DESC&apos;, value: env.RESOURCE_DESC],[$class: &apos;StringParameterValue&apos;, name: &apos;RESOURCE_PATH&apos;, value: env.RESOURCE_PATH],[$class: &apos;StringParameterValue&apos;, name: &apos;TARGET_PICSURE_URL&apos;, value: resourceURL],[$class: &apos;StringParameterValue&apos;, name: &apos;TARGET_RESOURCE_ID&apos;, value: env.TARGET_RESOURCE_ID],[$class: &apos;StringParameterValue&apos;, name: &apos;TARGET_RESOURCE_TOKEN&apos;, value: env.TARGET_RESOURCE_TOKEN],[$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSA&apos;]]]
                 }
             }
         }
         stage(&apos;Update Truststore&apos;){
             steps {
                script {
-                   def result = build job: &apos;Import Server Cert to TrustStore&apos;, parameters: [[$class: &apos;StringParameterValue&apos;, name: &apos;SERVERNAME&apos;, value: pipelineBuildId], [$class: &apos;StringParameterValue&apos;, name: &apos;CERTALIAS&apos;, value: $RESOURCE_NAME]]
+                   def result = build job: &apos;Import Server Cert to TrustStore&apos;, parameters: [[$class: &apos;StringParameterValue&apos;, name: &apos;SERVERNAME&apos;, value: env.SERVERNAME], [$class: &apos;StringParameterValue&apos;, name: &apos;CERTALIAS&apos;, value: env.RESOURCE_NAME]]
                }
             }
         }

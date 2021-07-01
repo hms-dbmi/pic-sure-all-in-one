@@ -16,7 +16,7 @@ When this job is complete, restart the PIC-SURE services for access to the data.
       <hudson.model.StringParameterDefinition>
             <name>HEAPSIZE</name>
           <description>the amount of memory to allocate for this operation</description>
-          <defaultValue>40960</defaultValue>
+          <defaultValue>20480</defaultValue>
           <trim>true</trim>
         </hudson.model.StringParameterDefinition>
       </parameterDefinitions>

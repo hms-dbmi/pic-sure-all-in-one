@@ -44,3 +44,4 @@ rm -rf /var/log/httpd-docker-logs
 rm -rf /var/log/jenkins-docker-logs
 rm -rf /var/log/wildfly-docker-logs
 rm -rf /var/log/wildfly-docker-os-logs
+rm -rf /var/log/mysqld.log

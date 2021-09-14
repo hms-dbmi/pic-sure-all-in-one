@@ -14,7 +14,7 @@ RUN echo deb http://deb.debian.org/debian stretch-backports main >> /etc/apt/sou
 
 RUN apt-get update
 
-RUN apt-get -y install apt-transport-https
+RUN apt-get -y install apt-transport-https wget
 
 RUN curl -fsSL https://get.docker.com | sh
 

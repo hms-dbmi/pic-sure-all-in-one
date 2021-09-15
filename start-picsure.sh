@@ -17,6 +17,11 @@ export PICSURE_SETTINGS_VOLUME="-v /usr/local/docker-config/httpd/picsureui_sett
 export PSAMA_SETTINGS_VOLUME="-v /usr/local/docker-config/httpd/psamaui_settings.json:/usr/local/apache2/htdocs/picsureui/psamaui/settings/settings.json"
 export EMAIL_TEMPLATE_VOUME="-v /usr/local/docker-config/wildfly/emailTemplates:/opt/jboss/wildfly/standalone/configuration/emailTemplates "
 
+# these debug options can be added to wildfly or hpds container startup to enable remote debugging or profiling.
+# Don't forget to add a port mapping too!
+export DEBUG_OPTS="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=0.0.0.0:8000"
+export PROFILING_OPTS="-Dcom.sun.management.jmxremote.port=9000 -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Djava.rmi.server.hostname=localhost"
+
 if [ -f /usr/local/docker-config/wildfly/application.truststore ]; then
 	export TRUSTSTORE_VOLUME="-v /usr/local/docker-config/wildfly/application.truststore:/opt/jboss/wildfly/standalone/configuration/application.truststore"
    	export TRUSTSTORE_JAVA_OPTS="-Djavax.net.ssl.trustStore=/opt/jboss/wildfly/standalone/configuration/application.truststore -Djavax.net.ssl.trustStorePassword=password"

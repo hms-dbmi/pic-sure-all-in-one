@@ -65,7 +65,6 @@ docker run \
 mv /usr/local/docker-config/hpds /usr/local/docker-config/hpds_bak &amp;&amp; \
 mv /usr/local/docker-config/hpds_temp /usr/local/docker-config/hpds
 </command>
-      <configuredLocalRules/>
     </hudson.tasks.Shell>
   </builders>
   <publishers/>

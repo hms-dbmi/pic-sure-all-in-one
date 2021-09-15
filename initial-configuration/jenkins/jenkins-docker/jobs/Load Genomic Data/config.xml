@@ -7,7 +7,7 @@ vcfIndex.tsv - a file describing the VCF file(s) to be loaded&#xd;
 &#xd;
 All vcf file(s) described by the vcfIndex.tsv that will be read and converted to the hpds format&#xd;
 &#xd;
-When this job is complete, restart the PIC-SURE services for access to the data.
+When this job is complete, restart the PIC-SURE services for access to the data.&#xd;
 </description>
   <keepDependencies>false</keepDependencies>
   <properties/>
@@ -23,11 +23,13 @@ When this job is complete, restart the PIC-SURE services for access to the data.
       <command>
 cp /usr/local/docker-config/vcfLoad/vcfIndex.tsv /usr/local/docker-config/hpds/
 
+docker stop hpds_data_load_vcf &amp;&amp; docker rm hpds_data_load_vcf
 docker run \
   -v /usr/local/docker-config/hpds:/opt/local/hpds \
   -v /usr/local/docker-config/vcfLoad:/opt/local/hpds/vcfInput \
   -v /usr/local/docker-config/hpds/all:/opt/local/hpds/vcfOutput \
-  -e HEAPSIZE=20480 -e LOADER_NAME=VCFLocalLoader hms-dbmi/pic-sure-hpds-etl:LATEST 
+  -e HEAPSIZE=28000 -e LOADER_NAME=VCFLocalLoader \
+  --name hpds_data_load_vcf hms-dbmi/pic-sure-hpds-etl:LATEST
 </command>
     </hudson.tasks.Shell>
   </builders>

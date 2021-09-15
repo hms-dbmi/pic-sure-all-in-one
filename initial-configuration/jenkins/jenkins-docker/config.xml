@@ -110,6 +110,9 @@
         <string>Create Admin User</string>
         <string>Initial Configuration Pipeline</string>
         <string>Configure Remote MySQL Instance</string>
+        <string>Create Self-Signed SSL Certificate</string>
+        <string>Import Server Cert to TrustStore</string>
+        <string>Configure Institution Node</string>
       </jobNames>
       <jobFilters/>
       <columns>
@@ -133,6 +136,7 @@
         <comparator class="hudson.util.CaseInsensitiveComparator" reference="../../../listView/jobNames/comparator"/>
         <string>Backup Jenkins Home</string>
         <string>Create PIC-SURE PassThrough Resource</string>
+        <string>Create PIC-SURE Aggregate Resource</string>
         <string>Retrieve Build Spec</string>
       </jobNames>
       <jobFilters/>

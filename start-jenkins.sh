@@ -13,6 +13,6 @@ docker run -d \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v /root/.my.cnf:/root/.my.cnf \
   -v /root/.m2:/root/.m2 \
-  -v /etc/hosts:/setc/hosts \
+  -v /etc/hosts:/etc/hosts \
   -p 8080:8080 --name jenkins pic-sure-jenkins:LATEST
 docker restart jenkins

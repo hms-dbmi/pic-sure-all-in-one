@@ -50,7 +50,7 @@ It also backs-up the previous data in backup folder, only one previous backup is
       <command>
 
 rm -rf /usr/local/docker-config/hpds_temp
-rm -rf /usr/local/docker-config/hpds_bak
+rm -rf /usr/local/docker-config/hpds_pheno_bak
 mkdir -p /usr/local/docker-config/hpds_temp
 
 #generate a new encryption key 
@@ -60,8 +60,8 @@ docker run \
 -v /usr/local/docker-config/hpds_temp:/opt/local/hpds \
 -v /usr/local/docker-config/hpds_csv/allConcepts.csv:/opt/local/hpds/allConcepts.csv \
 -e HEAPSIZE=4096 -e LOADER_NAME=CSVLoader hms-dbmi/pic-sure-hpds-etl:LATEST &amp;&amp; \
-mv /usr/local/docker-config/hpds /usr/local/docker-config/hpds_bak &amp;&amp; \
-mv /usr/local/docker-config/hpds_temp /usr/local/docker-config/hpds
+find -E /usr/local/docker-config/hpds/ -not -type d -exec echo mv {} /usr/local/docker-config/hpds_pheno_bak \;    &amp;&amp; \
+mv /usr/local/docker-config/hpds_temp/* /usr/local/docker-config/hpds
 </command>
     </hudson.tasks.Shell>
   </builders>

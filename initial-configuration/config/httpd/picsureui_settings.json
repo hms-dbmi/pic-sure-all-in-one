@@ -17,5 +17,8 @@
 	},
   "categorySearchResultList" : [
     "ACT" 
-  ]
+  ],
+  "customizeAuth0Login": true,
+  "auth0domain":"__AUTH0_DOMAIN__",
+  "client_id":"__PIC_SURE_CLIENT_ID__"
 }

@@ -30,7 +30,14 @@
   <concurrentBuild>false</concurrentBuild>
   <builders>
     <hudson.tasks.Shell>
-      <command>echo | openssl s_client -showcerts -servername $SERVERNAME -connect $SERVERNAME:443  2>&amp;1 | openssl x509 -text | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' > server.crt
+      <command>
+      if [-f /usr/local/docker-config/wildfly/application.truststore ] ; then
+        set +e
+      	keytool -v -delete -alias $CERTALIAS -keystore /usr/local/docker-config/wildfly/application.truststore -storepass password 
+      	set -e
+      fi
+      
+      echo | openssl s_client -showcerts -servername $SERVERNAME -connect $SERVERNAME:443  2>&amp;1 | openssl x509 -text | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' > server.crt
       
       keytool -import -noprompt -trustcacerts -keystore /usr/local/docker-config/wildfly/application.truststore -storepass password -alias $CERTALIAS -file server.crt
       

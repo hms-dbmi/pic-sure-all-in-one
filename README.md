@@ -111,8 +111,8 @@ For example, if your server has IP 10.109.190.146, browse to https://10.109.190.
 To add a user:
 1. Click **Admin**.
 2. Click **Add User**. A window appears.
-3. **Adding User For** - If not Google, select the user's authentication service. 
-4. **Email (required)** - Enter the new user's email address.
+3. **Adding User For** - If not Google, select the user's authentication service, also known as connection type. 
+4. **Email (required)** - Enter the new user's email address. Note: Duplicate email addresses can not be added to the same connection type. 
 5. **Roles** - Select one or more of the following roles for the user:
 - **PIC-SURE Top Admin**: A super user who can create admins and manage user roles and privileges directly.
 - **Admin**: A user who can assign roles and other privileges to users.

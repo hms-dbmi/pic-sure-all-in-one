@@ -48,23 +48,28 @@ DATE - A date for the observation fact. If this HPDS instance is part of a PIC-S
   <concurrentBuild>false</concurrentBuild>
   <builders>
     <hudson.tasks.Shell>
-      <command>rm -rf /usr/local/docker-config/hpds_temp
+      <command>
+
+rm -rf /usr/local/docker-config/hpds_temp
+rm -rf /usr/local/docker-config/hpds_pheno_bak
 mkdir -p /usr/local/docker-config/hpds_temp
+
 cp loadQuery.sql /usr/local/docker-config/hpds_temp/loadQuery.sql
 cp sql.properties /usr/local/docker-config/hpds_temp/sql.properties
-cp /usr/local/docker-config/hpds/encryption_key /usr/local/docker-config/hpds_temp/encryption_key
+
+#generate a new encryption key
+openssl enc -aes-128-cbc -k secret -P | grep key | cut -d '=' -f2 >  /usr/local/docker-config/hpds_temp/encryption_key
 
 docker stop hpds_data_load_rdbms &amp;&amp; docker rm hpds_data_load_rdbms
 docker run \
   -v /usr/local/docker-config/hpds_temp:/opt/local/hpds \
   -v /usr/local/docker-config/hpds_csv/allConcepts.csv:/opt/local/hpds/allConcepts.csv \
-  -e HEAPSIZE=28000 -e LOADER_NAME=SQLLoader \
+  -e HEAPSIZE=20480 -e LOADER_NAME=SQLLoader \
   --name hpds_data_load_rdbms hms-dbmi/pic-sure-hpds-etl:LATEST &amp;&amp; \
-mv /usr/local/docker-config/hpds /usr/local/docker-config/hpds_bak &amp;&amp; \
-mv /usr/local/docker-config/hpds_temp /usr/local/docker-config/hpds
+find -E /usr/local/docker-config/hpds/ -not -type d -exec echo mv {} /usr/local/docker-config/hpds_pheno_bak \;    &amp;&amp; \
+mv /usr/local/docker-config/hpds_temp/* /usr/local/docker-config/hpds
 </command>
     </hudson.tasks.Shell>
-  </builders>
   <publishers/>
   <buildWrappers/>
 </project>

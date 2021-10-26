@@ -19,10 +19,10 @@ if [ -f &quot;/usr/local/docker-config/setProxy.sh&quot; ]; then
 fi
 
 
-if [ -z "$(grep queryExportType /usr/local/docker-config/httpd/picsureui_settings.json | grep DISABLED)" ]; then
-	export EXPORT_SIZE="2000";
+if [ -z &quot;$(grep queryExportType /usr/local/docker-config/httpd/picsureui_settings.json | grep DISABLED)&quot; ]; then
+	export EXPORT_SIZE=&quot;2000&quot;;
 else
-	export EXPORT_SIZE="0";
+	export EXPORT_SIZE=&quot;0&quot;;
 fi
 
 export WILDFLY_JAVA_OPTS=&quot;-Xms2g -Xmx4g -XX:MetaspaceSize=96M -XX:MaxMetaspaceSize=256m -Djava.net.preferIPv4Stack=true $PROXY_OPTS&quot;
@@ -30,7 +30,7 @@ export HPDS_OPTS=&quot;-XX:+UseParallelGC -XX:SurvivorRatio=250 -Xms1g -Xmx16g -
 export PICSURE_SETTINGS_VOLUME=&quot;-v /usr/local/docker-config/httpd/picsureui_settings.json:/usr/local/apache2/htdocs/picsureui/settings/settings.json&quot;
 export EMAIL_TEMPLATE_VOUME=&quot;-v /usr/local/docker-config/wildfly/emailTemplates:/opt/jboss/wildfly/standalone/configuration/emailTemplates &quot;
 
-# these debug options can be added to wildfly or hpds container startup to enable remote debugging or profiling.  
+# these debug options can be added to wildfly or hpds container startup to enable remote debugging or profiling.
 # Don't forget to add a port mapping too!
 export DEBUG_OPTS=&quot;-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=0.0.0.0:8000&quot;
 export PROFILING_OPTS=&quot;-Dcom.sun.management.jmxremote.port=9000 -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Djava.rmi.server.hostname=localhost&quot;
@@ -39,8 +39,6 @@ if [ -f /usr/local/docker-config/wildfly/application.truststore ]; then
 	export TRUSTSTORE_VOLUME=&quot;-v /usr/local/docker-config/wildfly/application.truststore:/opt/jboss/wildfly/standalone/configuration/application.truststore&quot;
    	export TRUSTSTORE_JAVA_OPTS=&quot;-Djavax.net.ssl.trustStore=/opt/jboss/wildfly/standalone/configuration/application.truststore -Djavax.net.ssl.trustStorePassword=password&quot;
 fi
-
-
 
 docker stop hpds &amp;&amp; docker rm hpds
 docker run --name=hpds --restart always --network=picsure \
@@ -51,7 +49,7 @@ docker run --name=hpds --restart always --network=picsure \
   -d hms-dbmi/pic-sure-hpds:LATEST $HPDS_OPTS
 
 
-if [ -f /usr/local/docker-config/httpd/custom_httpd_volumes]; then
+if [ -f /usr/local/docker-config/httpd/custom_httpd_volumes ]; then
 	export CUSTOM_HTTPD_VOLUMES=`cat /usr/local/docker-config/httpd/custom_httpd_volumes`
 fi
 

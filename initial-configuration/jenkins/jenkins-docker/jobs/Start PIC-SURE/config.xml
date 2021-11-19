@@ -52,7 +52,7 @@ docker run --name=hpds --restart always --network=picsure \
 
 
 if [ -f /usr/local/docker-config/httpd/custom_httpd_volumes]; then
-	export CUSTOM_HTTPD_VOLUMES=`cat /usr/local/docker-config/httpd/custom_httpd_volumes`
+	export CUSTOM_HTTPD_VOLUMES=&quot;`cat /usr/local/docker-config/httpd/custom_httpd_volumes`&quot;
 fi
 
 docker stop httpd &amp;&amp; docker rm httpd

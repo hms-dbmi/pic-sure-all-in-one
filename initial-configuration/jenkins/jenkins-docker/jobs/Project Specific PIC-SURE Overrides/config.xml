@@ -15,7 +15,7 @@
         <hudson.model.StringParameterDefinition>
           <name>git_hash</name>
           <description></description>
-          <defaultValue>*/master</defaultValue>
+          <defaultValue>*/main</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
       </parameterDefinitions>
@@ -51,14 +51,14 @@ if [ -f &quot;/usr/local/docker-config/setProxy.sh&quot; ]; then
 fi
 
 sed -i s/TARGET_BUILD_VERSION/LATEST/g ui/Dockerfile
-GIT_BRANCH_SHORT=`echo ${GIT_BRANCH} | cut -d &quot;/&quot; -f 2` 
+GIT_BRANCH_SHORT=`echo ${GIT_BRANCH} | cut -d &quot;/&quot; -f 2`
 GIT_COMMIT_SHORT=`echo ${GIT_COMMIT} | cut -c1-7`
 
-if [ -f "./setEnv.sh" ]; then
+if [ -f &quot;./setEnv.sh&quot; ]; then
    . ./setEnv.sh
 fi
 
-if [ -f "./custom_httpd_volumes" ]; then
+if [ -f &quot;./custom_httpd_volumes&quot; ]; then
    cp ./custom_httpd_volumes /usr/local/docker-config/httpd/
 fi
 

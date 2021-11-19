@@ -1,6 +1,6 @@
 <?xml version='1.1' encoding='UTF-8'?>
 <project>
-  <actions/>
+  <actions />
   <description></description>
   <keepDependencies>false</keepDependencies>
   <properties>
@@ -26,12 +26,12 @@
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
   </properties>
-  <scm class="hudson.scm.NullSCM"/>
+  <scm class="hudson.scm.NullSCM" />
   <canRoam>true</canRoam>
   <disabled>false</disabled>
   <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
   <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
-  <triggers/>
+  <triggers />
   <concurrentBuild>false</concurrentBuild>
   <builders>
     <hudson.tasks.Shell>
@@ -46,6 +46,6 @@ sed -i &quot;s/$oldfrom/$EMAIL_FROM/g&quot; /usr/local/docker-config/wildfly/sta
 </command>
     </hudson.tasks.Shell>
   </builders>
-  <publishers/>
-  <buildWrappers/>
+  <publishers />
+  <buildWrappers />
 </project>

@@ -66,7 +66,7 @@ docker run \
   -v /usr/local/docker-config/hpds_csv/allConcepts.csv:/opt/local/hpds/allConcepts.csv \
   -e HEAPSIZE=20480 -e LOADER_NAME=SQLLoader \
   --name hpds_data_load_rdbms hms-dbmi/pic-sure-hpds-etl:LATEST &amp;&amp; \
-find -E /usr/local/docker-config/hpds/ -not -type d -exec echo mv {} /usr/local/docker-config/hpds_pheno_bak \;    &amp;&amp; \
+find /usr/local/docker-config/hpds/ -not -type d -maxdepth 1 -exec echo mv {} /usr/local/docker-config/hpds_pheno_bak \;    &amp;&amp; \
 mv /usr/local/docker-config/hpds_temp/* /usr/local/docker-config/hpds
 </command>
     </hudson.tasks.Shell>

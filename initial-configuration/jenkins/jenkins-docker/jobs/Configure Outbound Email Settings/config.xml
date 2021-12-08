@@ -39,10 +39,15 @@
 		export olduser=`cat /usr/local/docker-config/wildfly/standalone.xml | grep smtp-server | grep mail-smtp-gmail | grep -oP &apos;username(\S)*&apos; | cut -d \&quot; -f 2`
 		export oldfrom=`cat /usr/local/docker-config/wildfly/standalone.xml | grep mail-session | grep &apos;jboss/mail/gmail&apos; | grep -oP &apos;from(\S)*&apos; | cut -d \&quot; -f 2`
 
-sed -i &quot;s/$oldpassword/$OUTBOUND_EMAIL_USER_PASSWORD/g&quot; /usr/local/docker-config/wildfly/standalone.xml
-sed -i &quot;s/$olduser/$OUTBOUND_EMAIL_USER/g&quot; /usr/local/docker-config/wildfly/standalone.xml
-sed -i &quot;s/$oldfrom/$EMAIL_FROM/g&quot; /usr/local/docker-config/wildfly/standalone.xml
-
+if [ -n &quot;$OUTBOUND_EMAIL_USER_PASSWORD&quot; ] &amp;&amp; [ -n &quot;$oldpassword&quot; ] ; then
+	sed -i &quot;s/$oldpassword/$OUTBOUND_EMAIL_USER_PASSWORD/g&quot; /usr/local/docker-config/wildfly/standalone.xml
+fi
+if [ -n &quot;$OUTBOUND_EMAIL_USER&quot; ] &amp;&amp; [ -n &quot;$olduser&quot; ] ; then
+	sed -i &quot;s/$olduser/$OUTBOUND_EMAIL_USER/g&quot; /usr/local/docker-config/wildfly/standalone.xml
+fi
+if [ -n &quot;$EMAIL_FROM&quot; ] &amp;&amp; [ -n &quot;$oldfrom&quot; ] ; then
+	sed -i &quot;s/$oldfrom/$EMAIL_FROM/g&quot; /usr/local/docker-config/wildfly/standalone.xml
+fi
 </command>
     </hudson.tasks.Shell>
   </builders>

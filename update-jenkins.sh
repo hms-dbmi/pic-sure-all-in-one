@@ -11,6 +11,7 @@ cp -r initial-configuration/jenkins/jenkins-docker/hudson.tasks.Maven.xml /var/j
 
 if [ ! -f /usr/local/docker-config/wildfly/mysql-connector-java-5.1.49.jar ]; then
 	cp initial-configuration/config/wildfly/mysql-connector-java-5.1.49.jar /usr/local/docker-config/wildfly/
+	cp initial-configuration/config/wildfly/wildfly_mysql_module.xml /usr/local/docker-config/wildfly/
 fi
 
 # Pull through previous PICSURE configurations

@@ -64,6 +64,6 @@ docker run --name=wildfly --restart always --network=picsure -u root \
   $TRUSTSTORE_VOLUME \
   $EMAIL_TEMPLATE_VOUME \
   -v /usr/local/docker-config/wildfly/wildfly_mysql_module.xml:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/module.xml  \
-  -v /usr/local/docker-config/wildfly/mysql-connector-java-5.1.38.jar:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/mysql-connector-java-5.1.38.jar \
+  -v /usr/local/docker-config/wildfly/mysql-connector-java-5.1.49.jar:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/mysql-connector-java-5.1.49.jar  \
   -e JAVA_OPTS="$WILDFLY_JAVA_OPTS $TRUSTSTORE_JAVA_OPTS" \
   -d hms-dbmi/pic-sure-wildfly:LATEST

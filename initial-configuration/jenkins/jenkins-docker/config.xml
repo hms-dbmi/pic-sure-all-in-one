@@ -77,6 +77,7 @@
         <string>Load Genomic Metadata</string>
         <string>Load HPDS Data From CSV</string>
         <string>Load HPDS Data From RDBMS</string>
+        <string>Load HPDS Data From Multiple Files</string>
         <string>Start JupyterHub</string>
         <string>Start PIC-SURE</string>
         <string>Stop JupyterHub</string>

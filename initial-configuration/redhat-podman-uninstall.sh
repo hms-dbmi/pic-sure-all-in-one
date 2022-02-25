@@ -51,3 +51,6 @@ rm -rf /var/log/jenkins-docker-logs
 rm -rf /var/log/wildfly-docker-logs
 rm -rf /var/log/wildfly-docker-os-logs
 rm -rf /var/log/mysqld.log
+
+firewall-cmd --remove-port={80/tcp,443/tcp,8080/tcp,80/udp,8080/udp,3306/tcp}
+firewall-cmd --runtime-to-permanent

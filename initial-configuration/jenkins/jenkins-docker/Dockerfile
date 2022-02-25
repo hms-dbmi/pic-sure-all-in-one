@@ -1,4 +1,4 @@
-FROM jenkins/jenkins:lts
+FROM docker.io/jenkins/jenkins:lts-rhel-ubi8-jdk11
 
 COPY plugins.txt /usr/share/jenkins/ref/plugins.txt
 
@@ -8,28 +8,40 @@ COPY scriptApproval.xml /var/jenkins_home/scriptApproval.xml
 
 COPY hudson.tasks.Maven.xml /var/jenkins_home/hudson.tasks.Maven.xml
 
-USER root 
+USER root
 
-RUN echo deb http://deb.debian.org/debian stretch-backports main >> /etc/apt/sources.list
+RUN yum -y install dnf-utils wget yum-utils net-tools
 
-RUN apt-get update
+RUN dnf module install -y container-tools:rhel8
 
-RUN apt-get -y install apt-transport-https wget
+RUN yum -y install podman podman-remote
 
-RUN curl -fsSL https://get.docker.com | sh
+RUN systemctl enable podman.service
 
-RUN docker --version 
+RUN systemctl enable podman.socket
+
+RUN yum install -y podman-docker
+
+RUN pwd
+
+RUN whoami
+
+RUN alias docker=podman
+
+RUN podman --version
+
+RUN docker --version
 
 RUN wget https://www.apache.org/dist/maven/maven-3/3.6.3/binaries/apache-maven-3.6.3-bin.tar.gz -P /opt
 
-RUN apt-get -y -t stretch-backports install openjdk-11-jdk-headless
+RUN yum -y install java-11-openjdk
 
 RUN tar -xvzf /opt/apache-maven-3.6.3-bin.tar.gz -C /opt
 
 RUN rm /opt/apache-maven-3.6.3-bin.tar.gz
 
-RUN apt-get install jq -y
-
-RUN apt-get -y install uuid-runtime
+RUN yum install jq -y
 
 RUN /usr/local/bin/install-plugins.sh < /usr/share/jenkins/ref/plugins.txt || echo "Some errors occurred during plugin installation."
+
+RUN yum install -y iputils telnet

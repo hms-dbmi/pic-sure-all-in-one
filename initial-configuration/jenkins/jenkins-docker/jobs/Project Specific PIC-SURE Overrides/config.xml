@@ -51,6 +51,7 @@ if [ -f &quot;/usr/local/docker-config/setProxy.sh&quot; ]; then
 fi
 
 sed -i s/TARGET_BUILD_VERSION/LATEST/g ui/Dockerfile
+sed -i '/ssl_mutex/d' ui/httpd-vhosts.conf
 GIT_BRANCH_SHORT=`echo ${GIT_BRANCH} | cut -d &quot;/&quot; -f 2`
 GIT_COMMIT_SHORT=`echo ${GIT_COMMIT} | cut -c1-7`
 

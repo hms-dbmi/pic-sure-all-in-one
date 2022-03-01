@@ -18,6 +18,13 @@ if [ -f &quot;/usr/local/docker-config/setProxy.sh&quot; ]; then
    . /usr/local/docker-config/setProxy.sh
 fi
 
+mkdir -p /var/log/hpds-logs
+mkdir -p /var/log/httpd-docker-logs
+mkdir -p /var/log/wildfly-docker-logs
+mkdir -p /var/log/wildfly-docker-os-logs/
+mkdir -p /usr/local/docker-config/wildfly/passthru
+mkdir -p /usr/local/docker-config/wildfly/aggregate-data-sharing/
+mkdir -p /usr/local/docker-config/wildfly/emailTemplates
 
 if [ -z &quot;$(grep queryExportType /usr/local/docker-config/httpd/picsureui_settings.json | grep DISABLED)&quot; ]; then
 	export EXPORT_SIZE=&quot;2000&quot;;

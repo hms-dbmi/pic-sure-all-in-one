@@ -7,6 +7,8 @@ cp -r config/* /usr/local/docker-config/
 
 echo "Starting update"
 yum -y update 
+echo "Update yum to get correct version of MariaDB"
+curl -sS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash
 
 echo "Finished update, adding epel, docker-ce, mysql-community-release repositories and installing wget and yum-utils"
 yum -y install epel-release wget yum-utils
@@ -24,7 +26,7 @@ echo "Finished docker install, enabling and starting docker service"
 systemctl enable docker
 service docker start
 
-echo "Installing MySQL"
+echo "Installing MySQL/MariaDB"
 yum -y install mariadb-server
 echo  "Creating picsure docker network"
 export DOCKER_NETWORK_IF=br-`docker network create picsure | cut -c1-12`
@@ -49,24 +51,14 @@ echo "Starting mysql server"
 echo "[mysqld]" >> /etc/my.cnf
 echo "bind-address=127.0.0.1" >> /etc/my.cnf
 echo "default-time-zone='-00:00'" >> /etc/my.cnf
-#mysql_install_db --user=mysql --basedir=/usr --datadir=/var/lib/mysql
 systemctl start mariadb.service
 echo "` < /dev/urandom tr -dc @^=+$*%_A-Z-a-z-0-9 | head -c${1:-24}`%4cA" > pass.tmp
 mysql -u root --connect-expired-password -e "ALTER USER root@localhost IDENTIFIED BY '`cat pass.tmp`';flush privileges;"
-
 echo "[mysql]" > ~/.my.cnf
 echo "user = root" >> ~/.my.cnf
 echo "password = `cat pass.tmp`" >> ~/.my.cnf
-#echo "password = `grep "temporary password" /var/log/mysqld.log | cut -d ' ' -f 11`" >> ~/.my.cnf
-#echo "password = '' " >> ~/.my.cnf
 echo "port = 3306" >> ~/.my.cnf
 echo "host = 127.0.0.1" >> ~/.my.cnf
-
-cat ~/.my.cnf
-
-#echo "` < /dev/urandom tr -dc @^=+$*%_A-Z-a-z-0-9 | head -c${1:-24}`%4cA" > pass.tmp
-#sed -i "s/password = .*/password = \"`cat pass.tmp`\"/g" ~/.my.cnf
-#echo "password = `cat pass.tmp`" >> ~/.my.cnf
 
 for addr in $(ifconfig | grep netmask | sed 's/  */ /g'| cut -d ' ' -f 3)
 do

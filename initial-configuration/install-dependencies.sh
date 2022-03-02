@@ -11,8 +11,8 @@ yum -y update
 echo "Finished update, adding epel, docker-ce, mysql-community-release repositories and installing wget and yum-utils"
 yum -y install epel-release wget yum-utils
 yum-config-manager  --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-wget http://repo.mysql.com/mysql-community-release-el7-5.noarch.rpm
-rpm -ivh mysql-community-release-el7-5.noarch.rpm
+wget http://repo.mysql.com/mysql57-community-release-el7-9.noarch.rpm
+rpm -ivh mysql57-community-release-el7-9.noarch.rpm
 yum-config-manager --disable mysql56-community
 yum-config-manager --enable mysql57-community-dmr
 yum -y update
@@ -25,7 +25,7 @@ systemctl enable docker
 service docker start
 
 echo "Installing MySQL"
-yum -y install mysql-community-server
+yum -y install mariadb-server
 echo  "Creating picsure docker network"
 export DOCKER_NETWORK_IF=br-`docker network create picsure | cut -c1-12`
 sysctl -w net.ipv4.conf.$DOCKER_NETWORK_IF.route_localnet=1
@@ -40,28 +40,37 @@ echo "" >> /etc/systemd/system/configure_docker_networks.service
 echo "[Install]" >> /etc/systemd/system/configure_docker_networks.service
 echo "WantedBy=default.target" >> /etc/systemd/system/configure_docker_networks.service
 
-mv configure_docker_networking.sh /root/configure_docker_networking.sh 
+cp configure_docker_networking.sh /root/configure_docker_networking.sh 
 chmod +x /root/configure_docker_networking.sh 
 systemctl daemon-reload
 systemctl enable configure_docker_networks
 
 echo "Starting mysql server"
+echo "[mysqld]" >> /etc/my.cnf
 echo "bind-address=127.0.0.1" >> /etc/my.cnf
 echo "default-time-zone='-00:00'" >> /etc/my.cnf
-systemctl start mysqld
+#mysql_install_db --user=mysql --basedir=/usr --datadir=/var/lib/mysql
+systemctl start mariadb.service
+echo "` < /dev/urandom tr -dc @^=+$*%_A-Z-a-z-0-9 | head -c${1:-24}`%4cA" > pass.tmp
+mysql -u root --connect-expired-password -e "ALTER USER root@localhost IDENTIFIED BY '`cat pass.tmp`';flush privileges;"
+
 echo "[mysql]" > ~/.my.cnf
 echo "user = root" >> ~/.my.cnf
-echo "password = `grep "temporary password" /var/log/mysqld.log | cut -d ' ' -f 11`" >> ~/.my.cnf
+echo "password = `cat pass.tmp`" >> ~/.my.cnf
+#echo "password = `grep "temporary password" /var/log/mysqld.log | cut -d ' ' -f 11`" >> ~/.my.cnf
+#echo "password = '' " >> ~/.my.cnf
 echo "port = 3306" >> ~/.my.cnf
 echo "host = 127.0.0.1" >> ~/.my.cnf
 
-echo "` < /dev/urandom tr -dc @^=+$*%_A-Z-a-z-0-9 | head -c${1:-24}`%4cA" > pass.tmp
-mysql -u root --connect-expired-password -e "alter user 'root'@'localhost' identified by '`cat pass.tmp`';flush privileges;"
-sed -i "s/password = .*/password = \"`cat pass.tmp`\"/g" ~/.my.cnf
+cat ~/.my.cnf
+
+#echo "` < /dev/urandom tr -dc @^=+$*%_A-Z-a-z-0-9 | head -c${1:-24}`%4cA" > pass.tmp
+#sed -i "s/password = .*/password = \"`cat pass.tmp`\"/g" ~/.my.cnf
+#echo "password = `cat pass.tmp`" >> ~/.my.cnf
 
 for addr in $(ifconfig | grep netmask | sed 's/  */ /g'| cut -d ' ' -f 3)
 do
-	mysql -u root -e "grant all privileges on *.* to 'root'@'$addr' identified by '`cat pass.tmp`';flush privileges;";
+	mysql -u root -e "grant all privileges on *.* to root@$addr identified by '`cat pass.tmp`';flush privileges;";
 done
 
 rm -f pass.tmp

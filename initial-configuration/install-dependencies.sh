@@ -12,8 +12,6 @@ curl -sS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash
 
 echo "Finished update, adding epel, docker-ce, mysql-community-release repositories and installing wget and yum-utils"
 yum -y install epel-release wget yum-utils
-yum-config-manager  --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-wget http://repo.mysql.com/mysql57-community-release-el7-9.noarch.rpm
 rpm -ivh mysql57-community-release-el7-9.noarch.rpm
 yum-config-manager --disable mysql56-community
 yum-config-manager --enable mysql57-community-dmr

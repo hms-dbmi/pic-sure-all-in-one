@@ -66,6 +66,8 @@ do
  mysql -u root -e "grant all privileges on *.* to 'root'@'$addr' identified by '`cat pass.tmp`';flush privileges;";
 done
 
+MYSQL_PASSWORD=`cat pass.tmp`
+
 rm -f pass.tmp
 
 mysql -u root -e "create database picsure"
@@ -89,6 +91,47 @@ echo "` < /dev/urandom tr -dc @^=+$*%_A-Z-a-z-0-9 | head -c${1:-24}`%4cA" > auth
 mysql -u root -e "grant all privileges on auth.* to 'auth'@'%' identified by '`cat auth.tmp`';flush privileges;";
 sed -i s/__AUTH_MYSQL_PASSWORD__/`cat auth.tmp`/g /usr/local/docker-config/wildfly/standalone.xml
 rm -f auth.tmp
+
+echo "update MySql Instance configuration related to podman network"
+FILE="/root/.my.cnf"
+MYSQL_USER_NAME=root
+MYSQL_HOST_NAME=10.89.0.1
+MYSQL_PORT=3306
+cat <<EOM >$FILE
+[mysql]
+user=$MYSQL_USER_NAME
+password="$MYSQL_PASSWORD"
+host=$MYSQL_HOST_NAME
+port=$MYSQL_PORT
+EOM
+echo ""
+
+
+flyway_auth_url=jdbc:mysql://$MYSQL_HOST_NAME:$MYSQL_PORT/auth?serverTimezone=UTC
+flyway_picsure_url=jdbc:mysql://$MYSQL_HOST_NAME:$MYSQL_PORT/picsure?serverTimezone=UTC
+
+
+cd /usr/local/docker-config/flyway/auth
+sed -i '/flyway.url/d' ./flyway-auth.conf
+sed -i "1iflyway.url=$flyway_auth_url" ./flyway-auth.conf
+sed -i '/host/d' ./sql.properties
+sed -i "1ihost=$MYSQL_HOST_NAME" ./sql.properties
+sed -i '/port/d' ./sql.properties
+sed -i "2iport=$MYSQL_PORT" ./sql.properties
+
+cd /usr/local/docker-config/flyway/picsure
+sed -i '/flyway.url/d' ./flyway-picsure.conf
+sed -i "1iflyway.url=$flyway_picsure_url" ./flyway-picsure.conf
+sed -i '/host/d' ./sql.properties
+sed -i "1ihost=$MYSQL_HOST_NAME" ./sql.properties
+sed -i '/port/d' ./sql.properties
+sed -i "2iport=$MYSQL_PORT" ./sql.properties
+
+
+cd /usr/local/docker-config/wildfly
+sed -i 's/jdbc:mysql*.*auth/jdbc:mysql:\/\/'$MYSQL_HOST_NAME':'$MYSQL_PORT'\/auth/g' /usr/local/docker-config/wildfly/standalone.xml
+sed -i 's/jdbc:mysql*.*picsure/jdbc:mysql:\/\/'$MYSQL_HOST_NAME':'$MYSQL_PORT'\/picsure/g' /usr/local/docker-config/wildfly/standalone.xml
+
 echo "Mysql setup completed"
 echo "Building and installing Jenkins"
 docker build --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_proxy --build-arg no_proxy="$no_proxy" \

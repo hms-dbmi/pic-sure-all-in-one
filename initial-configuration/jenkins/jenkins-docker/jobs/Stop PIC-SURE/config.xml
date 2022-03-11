@@ -18,6 +18,11 @@
 docker stop httpd &amp;&amp; docker rm httpd
 
 docker stop wildfly &amp;&amp; docker rm wildfly
+
+sed  &apos;/wildfly/d&apos; /etc/hosts &gt; hosts.new &amp;&amp; cat hosts.new &gt; /etc/hosts
+sed  &apos;/httpd/d&apos; /etc/hosts &gt; hosts.new &amp;&amp; cat hosts.new &gt; /etc/hosts
+sed  &apos;/hpds/d&apos; /etc/hosts &gt; hosts.new &amp;&amp; cat hosts.new &gt; /etc/hosts
+
 </command>
     </hudson.tasks.Shell>
   </builders>

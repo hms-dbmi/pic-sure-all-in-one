@@ -34,9 +34,10 @@ yum -y remove podman-remote podman-docker podman
 yum module remove container-tools -y
 rm -rf /var/lib/docker
 rm -rf /var/lib/containers
-systemctl disable configure_docker_networks
-rm -f /etc/systemd/system/configure_docker_networks.service
-rm -f /root/configure_docker_networking.sh
+unlink /var/run/docker.sock
+rm -rf /run/podman/podman.sock
+rm -rf /run/podman
+rm -rf /run/netns
 
 # MySQL
 systemctl stop mysqld

@@ -37,7 +37,6 @@ rm -rf /var/lib/containers
 unlink /var/run/docker.sock
 rm -rf /run/podman/podman.sock
 rm -rf /run/podman
-rm -rf /run/netns
 
 # MySQL
 systemctl stop mysqld
@@ -58,3 +57,5 @@ rm -rf ~/.m2
 
 firewall-cmd --remove-port={80/tcp,443/tcp,8080/tcp,80/udp,8080/udp,3306/tcp}
 firewall-cmd --runtime-to-permanent
+rm -rf jenkins-plugin-manager-*.jar
+kill -9 $(ps -ef | pgrep -f "java"

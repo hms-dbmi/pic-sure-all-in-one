@@ -23,11 +23,13 @@ yum-config-manager --enable mysql57-community
 yum module disable mysql;
 yum remove java-1.8*
 yum clean packages
+#Instaling Maven
 wget https://www.apache.org/dist/maven/maven-3/3.6.3/binaries/apache-maven-3.6.3-bin.tar.gz -P /opt
 
 tar -xvzf /opt/apache-maven-3.6.3-bin.tar.gz -C /opt
 rm -rf /opt/apache-maven-3.6.3-bin.tar.gz
 /opt/apache-maven-3.6.3/bin/mvn clean install
+
 #################echo "Added docker-ce repo, starting docker install"
 echo "install container-tools podman podman-docker"
 

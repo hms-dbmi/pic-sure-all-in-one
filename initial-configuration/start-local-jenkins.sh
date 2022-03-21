@@ -1,7 +1,6 @@
 #!/bin/bash
 
 CWD=`pwd`
-#yum install -y  java-11-openjdk-devel jq openssl
 export JENKINS_HOME=/var/jenkins_home
 export JENKINS_WAR=jenkins.war
 export JAVA_HOME=/usr/bin/java

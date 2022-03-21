@@ -10,17 +10,24 @@ echo "Starting update"
 
 echo "Finished update, adding epel, docker-ce, mysql-community-release repositories and installing wget and yum-utils"
 #yum -y install epel-release wget yum-utils
-yum -y install dnf-utils wget
+yum -y install dnf-utils wget openssl java-11-openjdk
 #yum-config-manager  --add-repo https://download.docker.com/linux/centos/docker-ce.repo
 rpm --import https://repo.mysql.com/RPM-GPG-KEY-mysql-2022
 wget http://repo.mysql.com/mysql57-community-release-el7-9.noarch.rpm
 #yum localinstall -y mysql57-community-release-el7-9.noarch.rpm --nogpgcheck --allowerasing
+wget mirrors.jenkins.io/war-stable/latest/jenkins.war
 rpm -ivh mysql57-community-release-el7-9.noarch.rpm
 #yum-config-manager --disable mysql56-community
 yum-config-manager --disable mysql80-community
 yum-config-manager --enable mysql57-community
 yum module disable mysql;
+yum remove java-1.8*
 yum clean packages
+wget https://www.apache.org/dist/maven/maven-3/3.6.3/binaries/apache-maven-3.6.3-bin.tar.gz -P /opt
+
+tar -xvzf /opt/apache-maven-3.6.3-bin.tar.gz -C /opt
+rm -rf /opt/apache-maven-3.6.3-bin.tar.gz
+/opt/apache-maven-3.6.3/bin/mvn clean install
 #################echo "Added docker-ce repo, starting docker install"
 echo "install container-tools podman podman-docker"
 
@@ -131,7 +138,7 @@ sed -i "2iport=$MYSQL_PORT" ./sql.properties
 cd /usr/local/docker-config/wildfly
 sed -i 's/jdbc:mysql*.*auth/jdbc:mysql:\/\/'$MYSQL_HOST_NAME':'$MYSQL_PORT'\/auth/g' /usr/local/docker-config/wildfly/standalone.xml
 sed -i 's/jdbc:mysql*.*picsure/jdbc:mysql:\/\/'$MYSQL_HOST_NAME':'$MYSQL_PORT'\/picsure/g' /usr/local/docker-config/wildfly/standalone.xml
-
+cd $CWD
 echo "Mysql setup completed"
 echo "Building and installing Jenkins"
 docker build --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_proxy --build-arg no_proxy="$no_proxy" \
@@ -147,6 +154,7 @@ cp -r jenkins/jenkins-docker/config.xml /var/jenkins_home/config.xml
 cp -r jenkins/jenkins-docker/hudson.tasks.Maven.xml /var/jenkins_home/hudson.tasks.Maven.xml
 cp -r jenkins/jenkins-docker/scriptApproval.xml /var/jenkins_home/scriptApproval.xml
 mkdir  /var/log/httpd-docker-logs/ssl_mutex
+cd $CWD
 
 export APP_ID=`uuidgen -r`
 export APP_ID_HEX=`echo $APP_ID | awk '{ print toupper($0) }'|sed 's/-//g'`

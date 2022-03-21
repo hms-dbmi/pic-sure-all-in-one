@@ -1,15 +1,11 @@
 <?xml version='1.1' encoding='UTF-8'?>
 <project>
   <actions/>
-  <description>This job will load phenotype data from both csv files and RDBMS queries.   &#xd;
-&#xd;
-This job will load data found in the local directory /usr/local/docker-config/hpds_input.  The loader will scan the directory, and load all files ending with a .csv or .sql extension.  When this job completes successfully, it will move any existing HPDS phenotype data to a direectory &quot;/usr/local/docker-config/hpds_bak&quot;, and the new data will be placed in &quot;/usr/local/docker-config/hpds/&quot;.&#xd;
-&#xd;
-The &quot;Start PIC-SURE&quot; job needs to be run after this job completes to refresh the HPDS data volume mount and allow access to the new data from the PIC-SURE interface.&#xd;
+  <description>This job will load data found in the local directory /usr/local/docker-config/hpds_input.  The loader will scan the directory, and load all files ending with either a .csv or .sql extension.  When this job completes successfully, it will move any existing HPDS phenotype data to a backup directory &quot;/usr/local/docker-config/hpds_bak&quot;, and the new data will be placed in &quot;/usr/local/docker-config/hpds/&quot;.  The &quot;Start PIC-SURE&quot; job needs to be run after this job completes to refresh the HPDS data volume mount and allow PIC-SURE to access the new data.&#xd;
 &#xd;
 &#xd;
+for SQL data input, each file must contain a single SQL query that returns 5 columns, as described in the CSV header.   In addition, you need to create a properties file with your database connection details named /usr/local/docker-config/hpds_input/sql.properties.  See https://github.com/hms-dbmi/pic-sure-hpds/blob/master/docker/pic-sure-hpds-etl/hpds/sql.properties for an example.&#xd;
 &#xd;
-for SQL data input, each file must contain a single SQL query that returns 5 columns, as described in the CSV header.&#xd;
 For CSV data input, each file must start with a header line, exactly matching this string:&#xd;
 &#xd;
 &quot;PATIENT_NUM&quot;,&quot;CONCEPT_PATH&quot;,&quot;NVAL_NUM&quot;,&quot;TVAL_CHAR&quot;,&quot;TIMESTAMP&quot;&#xd;
@@ -17,9 +13,6 @@ For CSV data input, each file must start with a header line, exactly matching th
 &#xd;
 Each subsequent row in the data file or the SQL result must contain the following entries to match the header columns.  Please note, sorting the input data by the following column sequence will greatly speed up loading: CONCEPT_PATH,PATIENT_NUM,TIMESTAMP.&#xd;
 &#xd;
-&#xd;
-&#xd;
-Each subsequent row in the data file (or SQL query output) must contain the following entries to match the header columns.  Please note, sorting the input data by the following column sequence will greatly speed up loading: CONCEPT_PATH,PATIENT_NUM,TIMESTAMP.&#xd;
 &#xd;
 PATIENT_NUM: This is an integer value identifying the subject of the recorded observation fact.&#xd;
 &#xd;
@@ -58,6 +51,7 @@ openssl enc -aes-128-cbc -k secret -P | grep key | cut -d &apos;=&apos; -f2 &gt;
 docker run --name=hpds-etl \
 -v /usr/local/docker-config/hpds_temp:/opt/local/hpds \
 -v /usr/local/docker-config/hpds_input/:/opt/local/hpds_input/ \
+-e JAVA_OPTS=&quot;-Dlogback.log.level=INFO&quot; \
 -e HEAPSIZE=4096 -e LOADER_NAME=SequentialLoader hms-dbmi/pic-sure-hpds-etl:LATEST &amp;&amp; \
 mv /usr/local/docker-config/hpds /usr/local/docker-config/hpds_bak &amp;&amp; \
 mv /usr/local/docker-config/hpds_temp /usr/local/docker-config/hpds

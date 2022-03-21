@@ -21,8 +21,8 @@ rpm -ivh mysql57-community-release-el7-9.noarch.rpm
 yum-config-manager --disable mysql80-community
 yum-config-manager --enable mysql57-community
 yum module disable mysql;
-yum remove java-1.8*
-yum clean packages
+yum remove -y  java-1.8*
+yum clean -y  packages
 #Instaling Maven
 wget https://www.apache.org/dist/maven/maven-3/3.6.3/binaries/apache-maven-3.6.3-bin.tar.gz -P /opt
 
@@ -47,7 +47,7 @@ echo "Installing MySQL"
 yum -y install mysql-community-server
 echo  "Creating picsure docker network"
 podman network create podman
-podman network create --subnet 172.18.0.0/16 --gateway 172.18.0.1 picsure
+podman network create picsure
 #export DOCKER_NETWORK_IF=br-`docker network create picsure | cut -c1-12`
 docker run -it --rm hello-world
 docker run -it --rm  --name test1 --network=picsure hello-world

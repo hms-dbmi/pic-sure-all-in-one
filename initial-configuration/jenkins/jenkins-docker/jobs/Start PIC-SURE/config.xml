@@ -31,17 +31,21 @@ export PICSURE_SETTINGS_VOLUME=&quot;-v /usr/local/docker-config/httpd/picsureui
 export EMAIL_TEMPLATE_VOUME=&quot;-v /usr/local/docker-config/wildfly/emailTemplates:/opt/jboss/wildfly/standalone/configuration/emailTemplates &quot;
 
 # these debug options can be added to wildfly or hpds container startup to enable remote debugging or profiling.
-# Don't forget to add a port mapping too!
+# Don&apos;t forget to add a port mapping too!
 export DEBUG_OPTS=&quot;-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=0.0.0.0:8000&quot;
 export PROFILING_OPTS=&quot;-Dcom.sun.management.jmxremote.port=9000 -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Djava.rmi.server.hostname=localhost&quot;
 
 if [ -f /usr/local/docker-config/wildfly/application.truststore ]; then
 	export TRUSTSTORE_VOLUME=&quot;-v /usr/local/docker-config/wildfly/application.truststore:/opt/jboss/wildfly/standalone/configuration/application.truststore&quot;
-   	export TRUSTSTORE_JAVA_OPTS=&quot;-Djavax.net.ssl.trustStore=/opt/jboss/wildfly/standalone/configuration/application.truststore -Djavax.net.ssl.trustStorePassword=password&quot;
+	export TRUSTSTORE_JAVA_OPTS=&quot;-Djavax.net.ssl.trustStore=/opt/jboss/wildfly/standalone/configuration/application.truststore -Djavax.net.ssl.trustStorePassword=password&quot;
 fi
 
+# Make sure the docker networks are set up
+docker network inspect picsure --format &quot;{{.Name}}: {{.Id}}&quot; 2&gt;&amp;1  ||  docker network create picsure
+docker network inspect hpdsNet --format &quot;{{.Name}}: {{.Id}}&quot; 2&gt;&amp;1  ||  docker network create hpdsNet
+
 docker stop hpds &amp;&amp; docker rm hpds
-docker run --name=hpds --restart always --network=picsure \
+docker run --name=hpds --restart always --network=hpdsNet \
   -v /usr/local/docker-config/hpds:/opt/local/hpds \
   -v /usr/local/docker-config/hpds/all:/opt/local/hpds/all \
   -v /var/log/hpds-logs/:/var/log/ \
@@ -66,7 +70,7 @@ docker exec httpd sed -i &apos;/^#LoadModule proxy_wstunnel_module/s/^#//&apos; 
 docker restart httpd
 
 docker stop wildfly &amp;&amp; docker rm wildfly
-docker run --name=wildfly --restart always --network=picsure -u root \
+docker create --name=wildfly --restart always --network=picsure -u root \
   -v /var/log/wildfly-docker-logs/:/opt/jboss/wildfly/standalone/log/ \
   -v /etc/hosts:/etc/hosts \
   -v /var/log/wildfly-docker-os-logs/:/var/log/ \
@@ -79,7 +83,9 @@ docker run --name=wildfly --restart always --network=picsure -u root \
   -v /usr/local/docker-config/wildfly/wildfly_mysql_module.xml:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/module.xml  \
   -v /usr/local/docker-config/wildfly/mysql-connector-java-5.1.49.jar:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/mysql-connector-java-5.1.49.jar \
   -e JAVA_OPTS=&quot;$WILDFLY_JAVA_OPTS $TRUSTSTORE_JAVA_OPTS&quot; \
-  -d hms-dbmi/pic-sure-wildfly:LATEST
+  hms-dbmi/pic-sure-wildfly:LATEST
+docker network connect hpdsNet wildfly
+docker start wildfly
 </command>
     </hudson.tasks.Shell>
   </builders>

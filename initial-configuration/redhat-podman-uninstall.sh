@@ -22,7 +22,8 @@ networks=$(docker network ls)
 if [ ! -z "networks" ]; then
         docker network rm $(docker network ls)
 fi
-docker network prune
+docker network prune -a -f
+docker volume prune -a -f
 docker system prune -a -f
 docker system prune --volumes -f
 systemctl stop podman.socket
@@ -30,13 +31,14 @@ systemctl disable podman.socket
 
 rm -rf /usr/local/docker-config
 
-yum -y remove podman-remote podman-docker podman
+yum -y remove podman-remote podman-docker podman-plugins podman
 yum module remove container-tools -y
 rm -rf /var/lib/docker
 rm -rf /var/lib/containers
 unlink /var/run/docker.sock
 rm -rf /run/podman/podman.sock
 rm -rf /run/podman
+rm -rf /run/netns
 
 # MySQL
 systemctl stop mysqld
@@ -55,7 +57,7 @@ rm -rf /var/log/mysqld.log
 yum remove -y maven
 rm -rf ~/.m2
 
-firewall-cmd --remove-port={80/tcp,443/tcp,8080/tcp,80/udp,8080/udp,3306/tcp}
+firewall-cmd --remove-port={80/tcp,443/tcp,8080/tcp,3306/tcp}
 firewall-cmd --runtime-to-permanent
 rm -rf jenkins-plugin-manager-*.jar
-kill -9 $(ps -ef | pgrep -f "java"
+kill -9 $(ps -ef | pgrep -f "java")

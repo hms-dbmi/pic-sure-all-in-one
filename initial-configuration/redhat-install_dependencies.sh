@@ -15,21 +15,20 @@ yum -y install dnf-utils wget openssl java-11-openjdk
 rpm --import https://repo.mysql.com/RPM-GPG-KEY-mysql-2022
 wget http://repo.mysql.com/mysql57-community-release-el7-9.noarch.rpm
 #yum localinstall -y mysql57-community-release-el7-9.noarch.rpm --nogpgcheck --allowerasing
-wget mirrors.jenkins.io/war-stable/latest/jenkins.war
+#wget mirrors.jenkins.io/war-stable/latest/jenkins.war
 rpm -ivh mysql57-community-release-el7-9.noarch.rpm
 #yum-config-manager --disable mysql56-community
 yum-config-manager --disable mysql80-community
 yum-config-manager --enable mysql57-community
-yum module disable mysql;
+yum module disable -y mysql;
 yum remove -y  java-1.8*
 yum clean -y  packages
 #Instaling Maven
-wget https://www.apache.org/dist/maven/maven-3/3.6.3/binaries/apache-maven-3.6.3-bin.tar.gz -P /opt
-
-tar -xvzf /opt/apache-maven-3.6.3-bin.tar.gz -C /opt
-rm -rf /opt/apache-maven-3.6.3-bin.tar.gz
-/opt/apache-maven-3.6.3/bin/mvn clean install
-
+#wget https://www.apache.org/dist/maven/maven-3/3.6.3/binaries/apache-maven-3.6.3-bin.tar.gz -P /opt
+#tar -xvzf /opt/apache-maven-3.6.3-bin.tar.gz -C /opt
+#rm -rf /opt/apache-maven-3.6.3-bin.tar.gz
+#/opt/apache-maven-3.6.3/bin/mvn clean install
+mkdir -p  /root/.m2
 #################echo "Added docker-ce repo, starting docker install"
 echo "install container-tools podman podman-docker"
 
@@ -37,7 +36,7 @@ echo "install container-tools podman podman-docker"
 dnf module install -y container-tools:rhel8
 yum install -y podman podman-remote
 systemctl enable --now podman.socket
-yum install -y podman-docker
+yum install -y podman-docker podman-plugins
 #echo "Finished podman install, enabling and starting podman-remote service"
 ##############systemctl enable docker
 ##############service docker start
@@ -100,7 +99,7 @@ echo "` < /dev/urandom tr -dc @^=+$*%_A-Z-a-z-0-9 | head -c${1:-24}`%4cA" > auth
 mysql -u root -e "grant all privileges on auth.* to 'auth'@'%' identified by '`cat auth.tmp`';flush privileges;";
 sed -i s/__AUTH_MYSQL_PASSWORD__/`cat auth.tmp`/g /usr/local/docker-config/wildfly/standalone.xml
 rm -f auth.tmp
-
+########################### Configuring picsure-specif network and replacing docker specific ip address configurations in standaolne.xml #########################
 echo "update MySql Instance configuration related to podman network"
 FILE="/root/.my.cnf"
 MYSQL_USER_NAME=root
@@ -142,6 +141,7 @@ sed -i 's/jdbc:mysql*.*auth/jdbc:mysql:\/\/'$MYSQL_HOST_NAME':'$MYSQL_PORT'\/aut
 sed -i 's/jdbc:mysql*.*picsure/jdbc:mysql:\/\/'$MYSQL_HOST_NAME':'$MYSQL_PORT'\/picsure/g' /usr/local/docker-config/wildfly/standalone.xml
 cd $CWD
 echo "Mysql setup completed"
+###############################
 echo "Building and installing Jenkins"
 docker build --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_proxy --build-arg no_proxy="$no_proxy" \
   --build-arg HTTP_PROXY=$http_proxy --build-arg HTTPS_PROXY=$http_proxy --build-arg NO_PROXY="$no_proxy" \
@@ -155,7 +155,8 @@ cp -r jenkins/jenkins-docker/jobs /var/jenkins_home/jobs
 cp -r jenkins/jenkins-docker/config.xml /var/jenkins_home/config.xml
 cp -r jenkins/jenkins-docker/hudson.tasks.Maven.xml /var/jenkins_home/hudson.tasks.Maven.xml
 cp -r jenkins/jenkins-docker/scriptApproval.xml /var/jenkins_home/scriptApproval.xml
-mkdir  /var/log/httpd-docker-logs/ssl_mutex
+mkdir -p /var/log/httpd-docker-logs/ssl_mutex
+
 cd $CWD
 
 export APP_ID=`uuidgen -r`
@@ -179,5 +180,26 @@ cd /usr/local/docker-config/hpds_csv/
 tar -xvzf allConcepts.csv.tgz
 
 echo "Installation script complete.  Staring Jenkins."
+################################## Enabling Podman to use remote socket inside the jenkins container to launch the containers on the host######################
 cd $CWD
+PODMAN_REMOTE_FLAG=no
+echo "if you want to enable podman socket from Host enter yes else enter no"
+read -p "enter yes or no :  " PODMAN_REMOTE_FLAG
+if [ $PODMAN_REMOTE_FLAG == yes ]
+ then
+        sed -i '/<string>podman_remote_flag<\/string>/{n;s/<string>.*<\/string>/<string>--remote<\/string>/}' /var/jenkins_home/config.xml
+        mkdir -p /var/log/hpds-logs
+	mkdir -p /var/log/httpd-docker-logs
+	mkdir -p /var/log/wildfly-docker-logs
+	mkdir -p /var/log/wildfly-docker-os-logs/
+	mkdir -p /usr/local/docker-config/wildfly/passthru
+	mkdir -p /usr/local/docker-config/wildfly/aggregate-data-sharing/
+	mkdir -p /usr/local/docker-config/wildfly/emailTemplates
+fi
+if [ $PODMAN_REMOTE_FLAG == no ]
+ then
+        sed -i '/<string>podman_remote_flag<\/string>/{n;s/<string>.*<\/string>/<string><\/string>/}' /var/jenkins_home/config.xml
+fi
+###############################################
+
 ../start-jenkins.sh

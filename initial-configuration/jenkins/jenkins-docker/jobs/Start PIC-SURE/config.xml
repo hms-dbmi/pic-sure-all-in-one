@@ -47,8 +47,8 @@ if [ -f /usr/local/docker-config/wildfly/application.truststore ]; then
    	export TRUSTSTORE_JAVA_OPTS=&quot;-Djavax.net.ssl.trustStore=/opt/jboss/wildfly/standalone/configuration/application.truststore -Djavax.net.ssl.trustStorePassword=password&quot;
 fi
 
-docker stop hpds &amp;&amp; docker rm hpds
-docker run --name=hpds --hostname=hpds --restart always --network=picsure \
+docker $podman_remote_flag stop hpds &amp;&amp; docker $podman_remote_flag rm hpds
+docker $podman_remote_flag run --privileged --name=hpds --hostname=hpds --restart always --network=picsure \
   -v /etc/hosts:/etc/hosts \
   -v /usr/local/docker-config/hpds:/opt/local/hpds \
   -v /usr/local/docker-config/hpds/all:/opt/local/hpds/all \
@@ -61,8 +61,8 @@ if [ -f /usr/local/docker-config/httpd/custom_httpd_volumes ]; then
 	export CUSTOM_HTTPD_VOLUMES=&quot;`cat /usr/local/docker-config/httpd/custom_httpd_volumes`&quot;
 fi
 
-docker stop httpd &amp;&amp; docker rm httpd
-docker run --name=httpd --hostname=httpd --restart always --network=picsure \
+docker $podman_remote_flag stop httpd &amp;&amp; docker $podman_remote_flag rm httpd
+docker $podman_remote_flag run --privileged --name=httpd --hostname=httpd --restart always --network=picsure \
   -v /etc/hosts:/etc/hosts \
   -v /var/log/httpd-docker-logs/:/usr/local/apache2/logs/ \
   $PICSURE_SETTINGS_VOLUME \
@@ -71,11 +71,11 @@ docker run --name=httpd --hostname=httpd --restart always --network=picsure \
   -p 80:80 \
   -p 443:443 \
   -d hms-dbmi/pic-sure-ui-overrides:LATEST
-docker exec httpd sed -i &apos;/^#LoadModule proxy_wstunnel_module/s/^#//&apos; conf/httpd.conf
-docker restart httpd
+docker $podman_remote_flag exec httpd sed -i &apos;/^#LoadModule proxy_wstunnel_module/s/^#//&apos; conf/httpd.conf
+docker $podman_remote_flag restart httpd
 
-docker stop wildfly &amp;&amp; docker rm wildfly
-docker run --name=wildfly --hostname=wildfly --restart always --network=picsure -u root \
+docker $podman_remote_flag stop wildfly &amp;&amp; docker $podman_remote_flag rm wildfly
+docker $podman_remote_flag run --privileged --name=wildfly --hostname=wildfly --restart always --network=picsure -u root \
   -v /var/log/wildfly-docker-logs/:/opt/jboss/wildfly/standalone/log/ \
   -v /etc/hosts:/etc/hosts \
   -v /var/log/wildfly-docker-os-logs/:/var/log/ \
@@ -88,10 +88,10 @@ docker run --name=wildfly --hostname=wildfly --restart always --network=picsure 
   -v /usr/local/docker-config/wildfly/wildfly_mysql_module.xml:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/module.xml  \
   -v /usr/local/docker-config/wildfly/mysql-connector-java-5.1.49.jar:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/mysql-connector-java-5.1.49.jar \
   -e JAVA_OPTS=&quot;$WILDFLY_JAVA_OPTS $TRUSTSTORE_JAVA_OPTS&quot; \
-  -d hms-dbmi/pic-sure-wildfly:LATEST
-httpIP=$(podman inspect --format &apos;{{ .NetworkSettings.Networks.picsure.IPAddress }}&apos; httpd);
-wildflyIP=$(podman inspect --format &apos;{{ .NetworkSettings.Networks.picsure.IPAddress }}&apos; wildfly);
-hpdsIP=$(podman inspect --format &apos;{{ .NetworkSettings.Networks.picsure.IPAddress }}&apos; hpds);
+  -d hms-dbmi/pic-sure-jboss:LATEST
+httpIP=$(podman $podman_remote_flag inspect --format &apos;{{ .NetworkSettings.Networks.picsure.IPAddress }}&apos; httpd);
+wildflyIP=$(podman $podman_remote_flag inspect --format &apos;{{ .NetworkSettings.Networks.picsure.IPAddress }}&apos; wildfly);
+hpdsIP=$(podman $podman_remote_flag inspect --format &apos;{{ .NetworkSettings.Networks.picsure.IPAddress }}&apos; hpds);
 
 echo &quot;$httpIP httpd httpd&quot; &gt;&gt; /etc/hosts
 echo &quot;$wildflyIP wildfly wildfly&quot; &gt;&gt; /etc/hosts

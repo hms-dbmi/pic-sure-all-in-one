@@ -1,8 +1,8 @@
 <?xml version='1.1' encoding='UTF-8'?>
-<flow-definition plugin="workflow-job@2.39">
+<flow-definition plugin="workflow-job@1174.vdcb_d054cf74a_">
   <actions>
-    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobAction plugin="pipeline-model-definition@1.7.0"/>
-    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction plugin="pipeline-model-definition@1.7.0">
+    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobAction plugin="pipeline-model-definition@2.2064.v5eef7d0982b_e"/>
+    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction plugin="pipeline-model-definition@2.2064.v5eef7d0982b_e">
       <jobProperties/>
       <triggers/>
       <parameters/>
@@ -12,7 +12,7 @@
   <description></description>
   <keepDependencies>false</keepDependencies>
   <properties/>
-  <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@2.80">
+  <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@2660.vb_c0412dc4e6d">
     <script>import groovy.json.JsonSlurper;
 // variables for scm hashes
 def micro_app_ref = &apos;&apos;
@@ -63,23 +63,26 @@ node {
         checkout([$class: &apos;GitSCM&apos;, branches: [[name: micro_app_ref ]],
             userRemoteConfigs: [[url: &apos;https://github.com/hms-dbmi/pic-sure-auth-microapp&apos;]]])
         //git url: &apos;https://github.com/hms-dbmi/pic-sure-auth-microapp&apos;
-        docker.image(&apos;dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0&apos;).inside(&apos;--network=picsure -v /usr/local/docker-config/flyway/auth:/opt/flyway-migrations/auth &quot;--entrypoint=&quot; &apos;) { 
-            sh &quot;rm -rf /opt/flyway-migrations/auth/sql&quot;
-            sh &quot;cp -R ./pic-sure-auth-db/db/sql /opt/flyway-migrations/auth/sql&quot;
-            sh &quot;/opt/flyway/flyway -X -configFiles=/opt/flyway-migrations/auth/flyway-auth.conf migrate&quot;
-            sleep(time:10,unit:&quot;SECONDS&quot;) 
+        
+        
+        dir(&apos;pic-sure-auth-db&apos;){
+          sh &apos;&apos;&apos;
+            docker $podman_remote_flag run --privileged -d --name auth-dbmigration --network=picsure -v ./db/sql:/opt/flyway-migrations/auth/sql -v /usr/local/docker-config/flyway/auth:/opt/flyway-migrations/auth     dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0
+            docker $podman_remote_flag exec -it auth-dbmigration bash -c &quot;/opt/flyway/flyway -X -configFiles=/opt/flyway-migrations/auth/flyway-auth.conf migrate&quot;
+          &apos;&apos;&apos;          
         }
-    }
+    } 
     stage(&apos;Picsure Schema Migration&apos;) {
         checkout([$class: &apos;GitSCM&apos;, branches: [[name: pic_sure_ref ]],
             userRemoteConfigs: [[url: &apos;https://github.com/hms-dbmi/pic-sure&apos;]]])
         //git url: &apos;https://github.com/hms-dbmi/pic-sure&apos;
-        docker.image(&apos;dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0&apos;).inside(&apos;--network=picsure -v /usr/local/docker-config/flyway/picsure:/opt/flyway-migrations/picsure &quot;--entrypoint=&quot; &apos;) { 
-            sh &quot;rm -rf /opt/flyway-migrations/picsure/sql&quot;
-            sh &quot;cp -R ./pic-sure-api-data/src/main/resources/db/sql /opt/flyway-migrations/picsure/sql&quot;
-            sh &quot;/opt/flyway/flyway -X -configFiles=/opt/flyway-migrations/picsure/flyway-picsure.conf migrate&quot;
-            sleep(time:10,unit:&quot;SECONDS&quot;) 
-        }
+        
+        dir(&apos;pic-sure-api-data&apos;){
+        sh &apos;&apos;&apos;
+          docker $podman_remote_flag run --privileged -d --name picsure-dbmigration --network=picsure -v ./src/main/resources/db/sql:/opt/flyway-migrations/picsure/sql -v /usr/local/docker-config/flyway/picsure:/opt/flyway-migrations/picsure    dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0
+          docker $podman_remote_flag exec -it picsure-dbmigration bash -c &quot;/opt/flyway/flyway -X -configFiles=/opt/flyway-migrations/picsure/flyway-picsure.conf migrate&quot;
+        &apos;&apos;&apos;          
+      }
     }
     stage(&apos;Project Specific Migrations&apos;) {
         checkout([$class: &apos;GitSCM&apos;, branches: [[name: psu_ref ]],
@@ -89,21 +92,58 @@ node {
             sed -i &quot;s/__APPLICATION_UUID__/`cat /usr/local/docker-config/APP_ID_HEX`/g&quot; ./custom-migrations/auth/V2__CONFIGURE_PIC_SURE_APPLICATION.sql
             sed -i &quot;s/__RESOURCE_UUID__/`cat /usr/local/docker-config/RESOURCE_ID_HEX`/g&quot; ./custom-migrations/picsure/V2__CREATE_HPDS_RESOURCE.sql
         &quot;&quot;&quot;
-        docker.image(&apos;dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0&apos;).inside(&apos;--network=picsure -v /usr/local/docker-config/flyway/picsure:/opt/flyway-migrations/picsure &quot;--entrypoint=&quot; &apos;) {
-            sh &quot;rm -rf /opt/flyway-migrations/picsure/sql&quot;
-            sh &quot;cp -R ./custom-migrations/picsure /opt/flyway-migrations/picsure/sql&quot;
-            sh &quot;/opt/flyway/flyway -X -baselineOnMigrate=true -configFiles=/opt/flyway-migrations/picsure/flyway-picsure.conf -table=flyway_custom_schema_history migrate&quot;
-            sleep(time:10,unit:&quot;SECONDS&quot;) 
-        }
-        docker.image(&apos;dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0&apos;).inside(&apos;--network=picsure -v /usr/local/docker-config/flyway/auth:/opt/flyway-migrations/auth &quot;--entrypoint=&quot; &apos;) {
-            sh &quot;rm -rf /opt/flyway-migrations/auth/sql&quot;
-            sh &quot;cp -R ./custom-migrations/auth /opt/flyway-migrations/auth/sql&quot;
-            sh &quot;/opt/flyway/flyway -X -baselineOnMigrate=true -configFiles=/opt/flyway-migrations/auth/flyway-auth.conf -table=flyway_custom_schema_history migrate&quot;
-            sleep(time:10,unit:&quot;SECONDS&quot;) 
-        }
+
+        dir(&apos;custom-migrations&apos;){
+        sh &apos;&apos;&apos;
+          docker $podman_remote_flag run --privileged -d --name picsure-custom-dbmigration --network=picsure -v ./picsure:/opt/flyway-migrations/picsure/sql -v /usr/local/docker-config/flyway/picsure:/opt/flyway-migrations/picsure dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0
+          docker $podman_remote_flag exec -it picsure-custom-dbmigration bash -c &quot;/opt/flyway/flyway -X -baselineOnMigrate=true -configFiles=/opt/flyway-migrations/picsure/flyway-picsure.conf -table=flyway_custom_schema_history migrate&quot;
+        &apos;&apos;&apos;          
+      }
+      dir(&apos;custom-migrations&apos;){
+        sh &apos;&apos;&apos;
+          docker $podman_remote_flag run --privileged -d --name auth-custom-dbmigration --network=picsure -v ./auth:/opt/flyway-migrations/auth/sql -v /usr/local/docker-config/flyway/auth:/opt/flyway-migrations/auth dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0
+         docker $podman_remote_flag exec -it auth-custom-dbmigration bash -c &quot;/opt/flyway/flyway -X -baselineOnMigrate=true -configFiles=/opt/flyway-migrations/auth/flyway-auth.conf -table=flyway_custom_schema_history migrate&quot;
+        &apos;&apos;&apos;          
+      }
     }
     stage(&apos;Clean Workspace&apos;){ 
-        cleanWs() 
+        
+        sh &apos;&apos;&apos;
+            echo &quot;finally remove all the db migration containers&quot;
+            
+            AUTH_DB_CONTAINER=&quot;auth-dbmigration&quot;
+            AUTH_DB_CONTAINER_EXITS=&quot;$(docker $podman_remote_flag ps --all --quiet --filter=name=&quot;$AUTH_DB_CONTAINER&quot;)&quot;
+            echo $AUTH_DB_CONTAINER_EXITS
+            
+            if [ ! -z &quot;$AUTH_DB_CONTAINER_EXITS&quot; ]; then
+                docker $podman_remote_flag stop $AUTH_DB_CONTAINER_EXITS &amp;&amp; docker $podman_remote_flag rm $AUTH_DB_CONTAINER_EXITS
+            fi
+            
+            PICSURE_DB_CONTAINER=&quot;picsure-dbmigration&quot;
+            PICSURE_DB_CONTAINER_EXITS=&quot;$(docker $podman_remote_flag ps --all --quiet --filter=name=&quot;$PICSURE_DB_CONTAINER&quot;)&quot;
+            echo $PICSURE_DB_CONTAINER_EXITS
+            
+            if [ ! -z &quot;$PICSURE_DB_CONTAINER_EXITS&quot; ]; then
+                docker $podman_remote_flag stop $PICSURE_DB_CONTAINER_EXITS &amp;&amp; docker $podman_remote_flag rm $PICSURE_DB_CONTAINER_EXITS
+            fi
+            
+            AUTH_CUSTOM_DB_CONTAINER=&quot;auth-custom-dbmigration&quot;
+            AUTH_CUSTOM_DB_CONTAINER_EXITS=&quot;$(docker $podman_remote_flag ps --all --quiet --filter=name=&quot;$AUTH_CUSTOM_DB_CONTAINER&quot;)&quot;
+            echo $AUTH_CUSTOM_DB_CONTAINER_EXITS
+            
+            if [ ! -z &quot;$AUTH_CUSTOM_DB_CONTAINER_EXITS&quot; ]; then
+                docker $podman_remote_flag stop $AUTH_CUSTOM_DB_CONTAINER_EXITS &amp;&amp; docker $podman_remote_flag rm $AUTH_CUSTOM_DB_CONTAINER_EXITS
+            fi
+            
+            PICSURE_CUSTOM_DB_CONTAINER=&quot;picsure-custom-dbmigration&quot;
+            PICSURE_CUSTOM_DB_CONTAINER_EXITS=&quot;$(docker $podman_remote_flag ps --all --quiet --filter=name=&quot;$PICSURE_CUSTOM_DB_CONTAINER&quot;)&quot;
+            echo $PICSURE_CUSTOM_DB_CONTAINER_EXITS
+            
+            if [ ! -z &quot;$PICSURE_CUSTOM_DB_CONTAINER_EXITS&quot; ]; then
+                docker $podman_remote_flag stop $PICSURE_CUSTOM_DB_CONTAINER_EXITS &amp;&amp; docker $podman_remote_flag rm $PICSURE_CUSTOM_DB_CONTAINER_EXITS
+            fi
+        &apos;&apos;&apos;
+         cleanWs() 
     }
  
 }</script>

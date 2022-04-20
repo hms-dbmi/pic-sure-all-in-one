@@ -28,7 +28,7 @@ if [ -f /usr/local/docker-config/wildfly/application.truststore ]; then
 fi
 
 docker stop hpds && docker rm hpds
-docker run --name=hpds --restart always --network=picsure \
+docker run --name=hpds --hostname=hpds --restart always --network=picsure \
   -v /usr/local/docker-config/hpds:/opt/local/hpds \
   -v /usr/local/docker-config/hpds/all:/opt/local/hpds/all \
   -v /var/log/hpds-logs/:/var/log/ \
@@ -40,7 +40,7 @@ if [ -f /usr/local/docker-config/httpd/custom_httpd_volumes ]; then
 fi
 
 docker stop httpd && docker rm httpd
-docker run --name=httpd --restart always --network=picsure \
+docker run --privileged --name=httpd --hostname=httpd --restart always --network=picsure \
   -v /var/log/httpd-docker-logs/:/usr/local/apache2/logs/ \
   $PICSURE_SETTINGS_VOLUME \
   $PSAMA_SETTINGS_VOLUME \
@@ -53,7 +53,7 @@ docker exec httpd sed -i '/^#LoadModule proxy_wstunnel_module/s/^#//' conf/httpd
 docker restart httpd
 
 docker stop wildfly && docker rm wildfly
-docker run --name=wildfly --restart always --network=picsure -u root \
+docker run --privileged --name=wildfly --hostname=wildfly --restart always --network=picsure -u root \
   -v /var/log/wildfly-docker-logs/:/opt/jboss/wildfly/standalone/log/ \
   -v /etc/hosts:/etc/hosts \
   -v /var/log/wildfly-docker-os-logs/:/var/log/ \
@@ -66,4 +66,4 @@ docker run --name=wildfly --restart always --network=picsure -u root \
   -v /usr/local/docker-config/wildfly/wildfly_mysql_module.xml:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/module.xml  \
   -v /usr/local/docker-config/wildfly/mysql-connector-java-5.1.49.jar:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/mysql-connector-java-5.1.49.jar  \
   -e JAVA_OPTS="$WILDFLY_JAVA_OPTS $TRUSTSTORE_JAVA_OPTS" \
-  -d hms-dbmi/pic-sure-wildfly:LATEST
+  -d hms-dbmi/pic-sure-jboss:LATEST

@@ -40,6 +40,9 @@ def buildSpec = new JsonSlurper().parse(new File(&apos;/var/jenkins_home/workspa
 
 Jenkins.instance.getItemByFullName(&quot;PIC-SURE Pipeline&quot;)
     .scheduleBuild2(0).get()
+    
+Jenkins.instance.getItemByFullName(&quot;PIC-SURE Database Migrations&quot;)
+    .scheduleBuild2(0).get()
 </script>
           <sandbox>false</sandbox>
         </script>

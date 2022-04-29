@@ -8,9 +8,12 @@ cp -r config/* /usr/local/docker-config/
 echo "Starting update"
 #yum -y update
 
-echo "Finished update, adding epel, docker-ce, mysql-community-release repositories and installing wget and yum-utils"
+echo "Update yum to get correct version of MariaDB"
+curl -sS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash
+
+#echo "Finished update, adding epel, docker-ce, mysql-community-release repositories and installing wget and yum-utils"
 #yum -y install epel-release wget yum-utils
-yum -y install dnf-utils wget openssl java-11-openjdk
+yum -y install dnf-utils wget openssl java-11-openjdk dnsmasq
 #yum-config-manager  --add-repo https://download.docker.com/linux/centos/docker-ce.repo
 rpm --import https://repo.mysql.com/RPM-GPG-KEY-mysql-2022
 wget http://repo.mysql.com/mysql57-community-release-el7-9.noarch.rpm
@@ -33,8 +36,9 @@ mkdir -p  /root/.m2
 echo "install container-tools podman podman-docker"
 
 ########yum -y install docker-ce docker-ce-cli containerd.io
+yum -y install podman fuse-overlayfs --exclude container-selinux;
 dnf module install -y container-tools:rhel8
-yum install -y podman podman-remote
+yum install -y  podman-remote
 systemctl enable --now podman.socket
 yum install -y podman-docker podman-plugins
 #echo "Finished podman install, enabling and starting podman-remote service"
@@ -42,36 +46,51 @@ yum install -y podman-docker podman-plugins
 ##############service docker start
 echo "alias docker=podman" >> ~/.bash_profile
 source ~/.bash_profile
-echo "Installing MySQL"
-yum -y install mysql-community-server
+#echo "Installing MySQL"
+#yum -y install mysql-community-server
+
+echo "Installing MySQL/MariaDB"
+yum -y install mariadb-server
+
 echo  "Creating picsure docker network"
 podman network create podman
 podman network create picsure
 #export DOCKER_NETWORK_IF=br-`docker network create picsure | cut -c1-12`
 docker run -it --rm hello-world
 docker run -it --rm  --name test1 --network=picsure hello-world
-firewall-cmd --add-port={80/tcp,443/tcp,8080/tcp,3306/tcp}
+firewall-cmd --add-port={8080/tcp,3306/tcp}
 firewall-cmd --runtime-to-permanent
 podman network reload --all
 firewall-cmd --reload
 systemctl daemon-reload
+
 echo "Configuring mysql cnf file"
+echo "[mysqld]" >> /etc/my.cnf
 echo "bind-address=0.0.0.0" >> /etc/my.cnf
 echo "default-time-zone='-00:00'" >> /etc/my.cnf
-systemctl start mysqld
+
+#systemctl start mysqld
 #systemctl status mysqld
+systemctl enable --now  mariadb.service
+systemctl start mariadb.service
+
+echo "` < /dev/urandom tr -dc @^=+$*%_A-Z-a-z-0-9 | head -c${1:-24}`%4cA" > pass.tmp
+mysql -u root --connect-expired-password -e "ALTER USER root@localhost IDENTIFIED BY '`cat pass.tmp`';flush privileges;"
+
 echo "[mysql]" > ~/.my.cnf
 echo "user = root" >> ~/.my.cnf
-echo "password = `grep "temporary password" /var/log/mysqld.log | cut -d ' ' -f 11`" >> ~/.my.cnf
+echo "password = `cat pass.tmp`" >> ~/.my.cnf
+#echo "password = `grep "temporary password" /var/log/mysqld.log | cut -d ' ' -f 11`" >> ~/.my.cnf
 echo "port = 3306" >> ~/.my.cnf
 echo "host = 0.0.0.0" >> ~/.my.cnf
-echo "` < /dev/urandom tr -dc @^=+$*%_A-Z-a-z-0-9 | head -c${1:-24}`%4cA" > pass.tmp
-mysql -u root --connect-expired-password -e "alter user 'root'@'localhost' identified by '`cat pass.tmp`';flush privileges;"
-sed -i "s/password = .*/password = \"`cat pass.tmp`\"/g" ~/.my.cnf
+#echo "` < /dev/urandom tr -dc @^=+$*%_A-Z-a-z-0-9 | head -c${1:-24}`%4cA" > pass.tmp
+#mysql -u root --connect-expired-password -e "alter user 'root'@'localhost' identified by '`cat pass.tmp`';flush privileges;"
+#sed -i "s/password = .*/password = \"`cat pass.tmp`\"/g" ~/.my.cnf
 
 for addr in $(ifconfig | grep netmask | sed 's/  */ /g'| cut -d ' ' -f 3);
 do
- mysql -u root -e "grant all privileges on *.* to 'root'@'$addr' identified by '`cat pass.tmp`';flush privileges;";
+newaddr=$(awk -F"." '{print $1"."$2"."$3".%"}'<<<$addr)
+ mysql -u root -e "grant all privileges on *.* to 'root'@'$newaddr' identified by '`cat pass.tmp`';flush privileges;";
 done
 
 MYSQL_PASSWORD=`cat pass.tmp`
@@ -140,7 +159,7 @@ cd /usr/local/docker-config/wildfly
 sed -i 's/jdbc:mysql*.*auth/jdbc:mysql:\/\/'$MYSQL_HOST_NAME':'$MYSQL_PORT'\/auth/g' /usr/local/docker-config/wildfly/standalone.xml
 sed -i 's/jdbc:mysql*.*picsure/jdbc:mysql:\/\/'$MYSQL_HOST_NAME':'$MYSQL_PORT'\/picsure/g' /usr/local/docker-config/wildfly/standalone.xml
 cd $CWD
-echo "Mysql setup completed"
+echo "Mysql/MariaDB setup completed"
 ###############################
 echo "Building and installing Jenkins"
 docker build --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_proxy --build-arg no_proxy="$no_proxy" \

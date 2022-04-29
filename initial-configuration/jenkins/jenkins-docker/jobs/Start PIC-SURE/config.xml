@@ -18,6 +18,9 @@ if [ -f &quot;/usr/local/docker-config/setProxy.sh&quot; ]; then
    . /usr/local/docker-config/setProxy.sh
 fi
 
+if [ -z &quot;$PODMAN_REMOTE_FLAG&quot; ]
+then
+
 mkdir -p /var/log/hpds-logs
 mkdir -p /var/log/httpd-docker-logs
 mkdir -p /var/log/wildfly-docker-logs
@@ -25,6 +28,12 @@ mkdir -p /var/log/wildfly-docker-os-logs/
 mkdir -p /usr/local/docker-config/wildfly/passthru
 mkdir -p /usr/local/docker-config/wildfly/aggregate-data-sharing/
 mkdir -p /usr/local/docker-config/wildfly/emailTemplates
+
+fi
+
+sed  &apos;/wildfly/d&apos; /etc/hosts &gt; hosts.new &amp;&amp; cat hosts.new &gt; /etc/hosts
+sed  &apos;/httpd/d&apos; /etc/hosts &gt; hosts.new &amp;&amp; cat hosts.new &gt; /etc/hosts
+sed  &apos;/hpds/d&apos; /etc/hosts &gt; hosts.new &amp;&amp; cat hosts.new &gt; /etc/hosts
 
 if [ -z &quot;$(grep queryExportType /usr/local/docker-config/httpd/picsureui_settings.json | grep DISABLED)&quot; ]; then
 	export EXPORT_SIZE=&quot;2000&quot;;
@@ -88,7 +97,7 @@ docker $podman_remote_flag run --privileged --name=wildfly --hostname=wildfly --
   -v /usr/local/docker-config/wildfly/wildfly_mysql_module.xml:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/module.xml  \
   -v /usr/local/docker-config/wildfly/mysql-connector-java-5.1.49.jar:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/mysql-connector-java-5.1.49.jar \
   -e JAVA_OPTS=&quot;$WILDFLY_JAVA_OPTS $TRUSTSTORE_JAVA_OPTS&quot; \
-  -d hms-dbmi/pic-sure-jboss:LATEST
+  -d hms-dbmi/pic-sure-jbosseap:LATEST
 httpIP=$(podman $podman_remote_flag inspect --format &apos;{{ .NetworkSettings.Networks.picsure.IPAddress }}&apos; httpd);
 wildflyIP=$(podman $podman_remote_flag inspect --format &apos;{{ .NetworkSettings.Networks.picsure.IPAddress }}&apos; wildfly);
 hpdsIP=$(podman $podman_remote_flag inspect --format &apos;{{ .NetworkSettings.Networks.picsure.IPAddress }}&apos; hpds);

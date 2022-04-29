@@ -40,8 +40,8 @@ if [ -f /usr/local/docker-config/httpd/custom_httpd_volumes ]; then
 fi
 
 docker stop httpd && docker rm httpd
-docker run --privileged --name=httpd --hostname=httpd --restart always --network=picsure \
-  -v /var/log/httpd-docker-logs/:/usr/local/apache2/logs/ \
+docker run  --name=httpd --hostname=httpd --restart always --network=picsure \
+  -v /var/log/httpd-docker-logs/:/usr/local/apache2/logs/:Z \
   $PICSURE_SETTINGS_VOLUME \
   $PSAMA_SETTINGS_VOLUME \
   -v /usr/local/docker-config/httpd/cert:/usr/local/apache2/cert/ \
@@ -53,7 +53,7 @@ docker exec httpd sed -i '/^#LoadModule proxy_wstunnel_module/s/^#//' conf/httpd
 docker restart httpd
 
 docker stop wildfly && docker rm wildfly
-docker run --privileged --name=wildfly --hostname=wildfly --restart always --network=picsure -u root \
+docker run --security-opt label=disable --name=wildfly --hostname=wildfly --restart always --network=picsure -u root \
   -v /var/log/wildfly-docker-logs/:/opt/jboss/wildfly/standalone/log/ \
   -v /etc/hosts:/etc/hosts \
   -v /var/log/wildfly-docker-os-logs/:/var/log/ \

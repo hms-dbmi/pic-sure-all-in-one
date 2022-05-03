@@ -33,6 +33,7 @@ fi
 
 docker stop hpds && docker rm hpds
 docker run --name=hpds --hostname=hpds --restart always --network=picsure \
+  -v /etc/hosts:/etc/hosts \
   -v /usr/local/docker-config/hpds:/opt/local/hpds \
   -v /usr/local/docker-config/hpds/all:/opt/local/hpds/all \
   -v /var/log/hpds-logs/:/var/log/ \
@@ -45,6 +46,7 @@ fi
 
 docker stop httpd && docker rm httpd
 docker run --security-opt label=disable --name=httpd --hostname=httpd --restart always --network=picsure \
+  -v /etc/hosts:/etc/hosts \
   -v /var/log/httpd-docker-logs/:/usr/local/apache2/logs/ \
   $PICSURE_SETTINGS_VOLUME \
   $PSAMA_SETTINGS_VOLUME \
@@ -70,7 +72,7 @@ docker run --security-opt label=disable --name=wildfly --hostname=wildfly --rest
   -v /usr/local/docker-config/wildfly/wildfly_mysql_module.xml:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/module.xml  \
   -v /usr/local/docker-config/wildfly/mysql-connector-java-5.1.49.jar:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/mysql-connector-java-5.1.49.jar  \
   -e JAVA_OPTS="$WILDFLY_JAVA_OPTS $TRUSTSTORE_JAVA_OPTS" \
-  -d hms-dbmi/pic-sure-jboss:LATEST
+  -d hms-dbmi/pic-sure-jbosseap:LATEST
 httpIP=$(podman  inspect --format '{{ .NetworkSettings.Networks.picsure.IPAddress }}' httpd);
 wildflyIP=$(podman  inspect --format '{{ .NetworkSettings.Networks.picsure.IPAddress }}' wildfly);
 hpdsIP=$(podman  inspect --format '{{ .NetworkSettings.Networks.picsure.IPAddress }}' hpds);

@@ -4,7 +4,7 @@ if [ -f /usr/local/docker-config/setProxy.sh ]; then
    . /usr/local/docker-config/setProxy.sh
 fi
 
-docker run -d --privileged --device /dev/fuse --network=picsure \
+docker run -d --cap-add=sys_admin --cap-add mknod --security-opt seccomp=unconfined --security-opt label=disable  --device=/dev/fuse --network=picsure \
  -e http_proxy=$http_proxy \
  -e https_proxy=$https_proxy \
  -e no_proxy=$no_proxy \
@@ -16,6 +16,7 @@ docker run -d --privileged --device /dev/fuse --network=picsure \
  -v /root/.m2:/root/.m2 \
  -v /etc/hosts:/etc/hosts \
  -v /etc/cni/net.d:/etc/cni/net.d \
+ -v /sys/fs/cgroup:/sys/fs/cgroup:rw \
  -p 8080:8080 --name jenkins pic-sure-jenkins:LATEST
 
 docker restart jenkins

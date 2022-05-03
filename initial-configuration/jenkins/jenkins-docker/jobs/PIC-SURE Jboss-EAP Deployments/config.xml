@@ -38,8 +38,6 @@ echo &quot;&quot;
 cp &quot;/var/jenkins_home/workspace/PIC-SURE-API Build/pic-sure-api-war/target/pic-sure-api-war.war&quot; pic-sure-api-war.war
 cp &quot;/var/jenkins_home/workspace/PIC-SURE Auth Micro-App Build/pic-sure-auth-services/target/pic-sure-auth-services.war&quot; pic-sure-auth-services.war
 
-chmod 777 pic-sure-api-war.war pic-sure-auth-services.war
-
 unzip pic-sure-api-war.war 
 rm -rf pic-sure-api-war.war
 cp jboss-deployment-structure.xml WEB-INF/
@@ -52,8 +50,8 @@ rm -rf  pic-sure-auth-services.war
 zip -r pic-sure-auth-services.war WEB-INF/ META-INF/
 rm -rf WEB-INF/ META-INF/
 
-chmod 777 pic-sure-api-war.war pic-sure-auth-services.war
-
+chmod 755 pic-sure-api-war.war pic-sure-auth-services.war
+sleep 60
 cp pic-sure-auth-services.war /usr/local/docker-config/wildfly/deployments/pic-sure-auth-services.war
 cp pic-sure-api-war.war /usr/local/docker-config/wildfly/deployments/pic-sure-api-2.war
 

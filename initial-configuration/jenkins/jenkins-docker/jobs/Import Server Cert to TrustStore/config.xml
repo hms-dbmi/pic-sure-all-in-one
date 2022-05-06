@@ -31,7 +31,7 @@
   <builders>
     <hudson.tasks.Shell>
       <command>
-      if [-f /usr/local/docker-config/wildfly/application.truststore ] ; then
+      if [ -f /usr/local/docker-config/wildfly/application.truststore ] ; then
         set +e
       	keytool -v -delete -alias $CERTALIAS -keystore /usr/local/docker-config/wildfly/application.truststore -storepass password 
       	set -e

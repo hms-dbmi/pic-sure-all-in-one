@@ -6,19 +6,18 @@ mkdir -p /usr/local/docker-config
 cp -r config/* /usr/local/docker-config/
 
 echo "Starting update"
-#yum -y update
+yum -y update
 
 echo "Update yum to get correct version of MariaDB"
 curl -sS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash
 
 #echo "Finished update, adding epel, docker-ce, mysql-community-release repositories and installing wget and yum-utils"
 #yum -y install epel-release wget yum-utils
-yum -y install dnf-utils wget openssl java-11-openjdk dnsmasq
+yum -y install dnf-utils wget openssl java-11-openjdk
 #yum-config-manager  --add-repo https://download.docker.com/linux/centos/docker-ce.repo
 rpm --import https://repo.mysql.com/RPM-GPG-KEY-mysql-2022
 wget http://repo.mysql.com/mysql57-community-release-el7-9.noarch.rpm
 #yum localinstall -y mysql57-community-release-el7-9.noarch.rpm --nogpgcheck --allowerasing
-#wget mirrors.jenkins.io/war-stable/latest/jenkins.war
 rpm -ivh mysql57-community-release-el7-9.noarch.rpm
 #yum-config-manager --disable mysql56-community
 yum-config-manager --disable mysql80-community
@@ -27,17 +26,16 @@ yum module disable -y mysql;
 yum remove -y  java-1.8*
 yum clean -y  packages
 #Instaling Maven
-#wget https://www.apache.org/dist/maven/maven-3/3.6.3/binaries/apache-maven-3.6.3-bin.tar.gz -P /opt
-#tar -xvzf /opt/apache-maven-3.6.3-bin.tar.gz -C /opt
-#rm -rf /opt/apache-maven-3.6.3-bin.tar.gz
-#/opt/apache-maven-3.6.3/bin/mvn clean install
-mkdir -p  /root/.m2
+echo "installaing maven"
+wget https://www.apache.org/dist/maven/maven-3/3.6.3/binaries/apache-maven-3.6.3-bin.tar.gz -P /opt
+tar -xvzf /opt/apache-maven-3.6.3-bin.tar.gz -C /opt
+rm -rf /opt/apache-maven-3.6.3-bin.tar.gz
 #################echo "Added docker-ce repo, starting docker install"
 echo "install container-tools podman podman-docker"
 
 ########yum -y install docker-ce docker-ce-cli containerd.io
-yum -y install podman fuse-overlayfs --exclude container-selinux;
-dnf module install -y container-tools:rhel8
+dnf module reset -y container-tools
+dnf module install -y container-tools:4.0
 yum install -y  podman-remote
 systemctl enable --now podman.socket
 yum install -y podman-docker podman-plugins
@@ -162,19 +160,94 @@ cd $CWD
 echo "Mysql/MariaDB setup completed"
 ###############################
 echo "Building and installing Jenkins"
-docker build --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_proxy --build-arg no_proxy="$no_proxy" \
-  --build-arg HTTP_PROXY=$http_proxy --build-arg HTTPS_PROXY=$http_proxy --build-arg NO_PROXY="$no_proxy" \
-  -t pic-sure-jenkins:`git log -n 1 | grep commit | cut -d ' ' -f 2 | cut -c 1-7` jenkins/jenkins-docker
-docker tag pic-sure-jenkins:`git log -n 1 | grep commit | cut -d ' ' -f 2 | cut -c 1-7` pic-sure-jenkins:LATEST
+#docker build --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_proxy --build-arg no_proxy="$no_proxy" \
+#  --build-arg HTTP_PROXY=$http_proxy --build-arg HTTPS_PROXY=$http_proxy --build-arg NO_PROXY="$no_proxy" \
+#  -t pic-sure-jenkins:`git log -n 1 | grep commit | cut -d ' ' -f 2 | cut -c 1-7` -f jenkins/jenkins-docker/ubDockerfile
+#docker tag pic-sure-jenkins:`git log -n 1 | grep commit | cut -d ' ' -f 2 | cut -c 1-7` pic-sure-jenkins:LATEST
 
+wget mirrors.jenkins.io/war-stable/latest/jenkins.war
 echo "Creating Jenkins Log Path"
+mkdir -p /usr/share/jenkins
 mkdir -p /var/log/jenkins-docker-logs
 mkdir -p /var/jenkins_home
+mkdir -p /var/log/jenkins
+
+mv jenkins.war /usr/share/jenkins/jenkins.war
+
+########### Jenkins Systemd Script############
+cat <<EOM > /etc/jenkins.conf
+JENKINS_HOME=/var/jenkins_home
+JENKINS_WAR=/usr/share/jenkins/jenkins.war
+JENKINS_UC=https://updates.jenkins.io
+COPY_REFERENCE_FILE_LOG=/var/jenkins_home/copy_reference_file.log
+JENKINS_UC_EXPERIMENTAL=https://updates.jenkins.io/experimental
+JENKINS_INCREMENTALS_REPO_MIRROR=https://repo.jenkins-ci.org/incrementals
+JAVA_ARGS="-Djava.awt.headless=true -Djava.net.preferIPv4Stack=true -XX:+AlwaysPreTouch -XX:+UseG1GC -Xlog:gc*=debug:file=gclog.log:utctime,level,tags:filecount=9,filesize=1M"
+JENKINS_ARGS="--httpPort=8080 --logfile=/var/log/jenkins/jenkins.log --useJmx"
+EOM
+echo ""
+
+cat <<EOM > /etc/systemd/system/jenkins.service
+#/etc/systemd/system/jenkins.service
+#
+# This file is used to manage jenkins service using systemd(1)
+#To start Jenkins service
+#     systemctl start jenkins
+#To stop jenkins service
+#     systemctl stop jenkis
+#
+
+[Unit]
+Description=Jenkins Continuous Integration Server
+Requires=network.target
+After=network.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/jenkins.conf
+ExecStart=java \$JAVA_ARGS -jar \$JENKINS_WAR \$JENKINS_ARGS
+WorkingDirectory=/var/jenkins_home
+Restart=always
+RestartSec=30
+
+[Install]
+WantedBy=multi-user.target
+EOM
+#################################################
+
+systemctl daemon-reload
+systemctl enable -now jenkins
+systemctl jenkins start
+
 cp -r jenkins/jenkins-docker/jobs /var/jenkins_home/jobs
 cp -r jenkins/jenkins-docker/config.xml /var/jenkins_home/config.xml
 cp -r jenkins/jenkins-docker/hudson.tasks.Maven.xml /var/jenkins_home/hudson.tasks.Maven.xml
 cp -r jenkins/jenkins-docker/scriptApproval.xml /var/jenkins_home/scriptApproval.xml
 mkdir -p /var/log/httpd-docker-logs/ssl_mutex
+
+export JENKINS_HOME=/var/jenkins_home
+export JENKINS_WAR=jenkins.war
+export JENKINS_UC=https://updates.jenkins.io
+export COPY_REFERENCE_FILE_LOG=/var/jenkins_home/copy_reference_file.log
+export JENKINS_UC_EXPERIMENTAL=https://updates.jenkins.io/experimental
+export JENKINS_INCREMENTALS_REPO_MIRROR=https://repo.jenkins-ci.org/incrementals
+
+mkdir -p /var/log/jenkins
+
+cd $CWD/jenkins/jenkins-docker
+
+cp plugins.txt /usr/share/jenkins/ref/plugins.txt
+cd $CWD
+echo "Downloading jenkins Plugins"
+wget https://github.com/jenkinsci/plugin-installation-manager-tool/releases/download/2.12.3/jenkins-plugin-manager-2.12.3.jar
+java -jar $CWD/jenkins-plugin-manager-*.jar --war $CWD/jenkins.war -d /var/jenkins_home/plugins  --plugin-file $CWD/jenkins/jenkins-docker/plugins.txt --verbose
+echo "Starting Jenkins Locally"
+
+systemctl restart jenkins
+echo "Jenkins Startup completed checking jenkins process"
+ps -aef|grep jenkins
+
+##########################################################
 
 cd $CWD
 
@@ -221,4 +294,4 @@ if [ $PODMAN_REMOTE_FLAG == no ]
 fi
 ###############################################
 
-../start-jenkins.sh
+#../start-jenkins.sh

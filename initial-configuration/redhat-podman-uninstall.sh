@@ -58,6 +58,12 @@ rm -rf /var/log/mysqld.log
 yum remove -y maven
 rm -rf ~/.m2
 
+systemctl stop jenkins
+systemctl disable --now jenkins
+rm -rf /etc/systemd/system/jenkins.service
+rm -rf /etc/jenkins.conf
+rm -rf /usr/share/jenkins/jenkins.war*
+
 firewall-cmd --remove-port={8080/tcp,3306/tcp}
 firewall-cmd --runtime-to-permanent
 rm -rf jenkins-plugin-manager-*.jar

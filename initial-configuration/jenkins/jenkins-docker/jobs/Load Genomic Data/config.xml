@@ -24,7 +24,7 @@ When this job is complete, restart the PIC-SURE services for access to the data.
 cp /usr/local/docker-config/vcfLoad/vcfIndex.tsv /usr/local/docker-config/hpds/
 
 docker stop hpds_data_load_vcf &amp;&amp; docker rm hpds_data_load_vcf
-docker run \
+docker run --security-opt label=disable \
   -v /usr/local/docker-config/hpds:/opt/local/hpds \
   -v /usr/local/docker-config/vcfLoad:/opt/local/hpds/vcfInput \
   -v /usr/local/docker-config/hpds/all:/opt/local/hpds/vcfOutput \

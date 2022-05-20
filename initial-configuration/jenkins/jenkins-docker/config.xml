@@ -19,7 +19,7 @@
   <jdks>
     <jdk>
       <name>JDK-11</name>
-      <home>/opt/java/openjdk</home>
+      <home>/usr/lib/jvm/jre</home>
       <properties/>
     </jdk>
   </jdks>

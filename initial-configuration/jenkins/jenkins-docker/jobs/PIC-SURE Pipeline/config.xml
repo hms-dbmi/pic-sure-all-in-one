@@ -77,7 +77,7 @@ pipeline {
                 parallel (
                     jbosseap:{
                         script {
-                            def result = build job: &apos;PIC-SURE Jboss-EAP Image Build&apos;, parameters: [[$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId]]
+                            def result = build job: &apos;PIC-SURE Alpine-Jboss-EAP Image Build&apos;, parameters: [[$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId]]
                         }
                     },
                     projectSpecificUI:{

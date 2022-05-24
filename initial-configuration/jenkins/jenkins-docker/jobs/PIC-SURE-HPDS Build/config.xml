@@ -62,9 +62,26 @@ GIT_BRANCH_SHORT=`echo ${GIT_BRANCH} | cut -d &quot;/&quot; -f 2`
 GIT_COMMIT_SHORT=`echo ${GIT_COMMIT} | cut -c1-7`
 
 cd docker/pic-sure-hpds
+
+cat &lt;&lt;EOM &gt; MYDockerfile
+FROM docker.io/alpine:latest
+
+RUN apk add --no-cache --purge -uU bash &amp;&amp;     rm -rf /var/cache/apk/* /tmp/*
+
+RUN apk add --no-cache --purge -uU curl wget unzip
+
+RUN apk add --no-cache --purge openjdk11
+
+ADD hpds-war-1.0-SNAPSHOT-war-exec.jar /hpds.jar
+
+EXPOSE 8080
+EOM
+echo &quot;&quot;
+
+
 docker build --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_proxy --build-arg no_proxy=&quot;$no_proxy&quot; \
 --build-arg HTTP_PROXY=$http_proxy --build-arg HTTPS_PROXY=$http_proxy --build-arg NO_PROXY=&quot;$no_proxy&quot; \
--t hms-dbmi/pic-sure-hpds:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} .
+-t hms-dbmi/pic-sure-hpds:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} -f MYDockerfile
 docker tag hms-dbmi/pic-sure-hpds:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} hms-dbmi/pic-sure-hpds:LATEST
 cd ../pic-sure-hpds-etl
 docker build --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_proxy --build-arg no_proxy=&quot;$no_proxy&quot; \
@@ -72,6 +89,7 @@ docker build --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_pr
 -t hms-dbmi/pic-sure-hpds-etl:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} .
 docker tag hms-dbmi/pic-sure-hpds-etl:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} hms-dbmi/pic-sure-hpds-etl:LATEST
 cd ../../
+
 </command>
     </hudson.tasks.Shell>
   </builders>

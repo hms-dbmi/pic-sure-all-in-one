@@ -13,7 +13,7 @@ curl -sS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash
 
 #echo "Finished update, adding epel, docker-ce, mysql-community-release repositories and installing wget and yum-utils"
 #yum -y install epel-release wget yum-utils
-yum -y install dnf-utils wget openssl java-11-openjdk
+yum -y install dnf-utils wget openssl java-11-openjdk-devel net-tools
 #yum-config-manager  --add-repo https://download.docker.com/linux/centos/docker-ce.repo
 rpm --import https://repo.mysql.com/RPM-GPG-KEY-mysql-2022
 wget http://repo.mysql.com/mysql57-community-release-el7-9.noarch.rpm
@@ -25,6 +25,10 @@ yum-config-manager --enable mysql57-community
 yum module disable -y mysql;
 yum remove -y  java-1.8*
 yum clean -y  packages
+yum install firewalld -y
+systemctl start firewalld
+systemctl enable --now firewalld
+
 #Instaling Maven
 echo "installaing maven"
 wget https://www.apache.org/dist/maven/maven-3/3.6.3/binaries/apache-maven-3.6.3-bin.tar.gz -P /opt
@@ -165,7 +169,7 @@ echo "Building and installing Jenkins"
 #  -t pic-sure-jenkins:`git log -n 1 | grep commit | cut -d ' ' -f 2 | cut -c 1-7` -f jenkins/jenkins-docker/ubDockerfile
 #docker tag pic-sure-jenkins:`git log -n 1 | grep commit | cut -d ' ' -f 2 | cut -c 1-7` pic-sure-jenkins:LATEST
 
-wget mirrors.jenkins.io/war-stable/latest/jenkins.war
+wget https://get.jenkins.io/war-stable/2.332.3/jenkins.war
 echo "Creating Jenkins Log Path"
 mkdir -p /usr/share/jenkins
 mkdir -p /var/log/jenkins-docker-logs
@@ -217,7 +221,7 @@ EOM
 
 systemctl daemon-reload
 systemctl enable -now jenkins
-systemctl jenkins start
+systemctl start jenkins
 
 cp -r jenkins/jenkins-docker/jobs /var/jenkins_home/jobs
 cp -r jenkins/jenkins-docker/config.xml /var/jenkins_home/config.xml
@@ -227,7 +231,7 @@ mkdir -p /var/log/httpd-docker-logs/ssl_mutex
 
 export JENKINS_HOME=/var/jenkins_home
 export JENKINS_WAR=jenkins.war
-export JENKINS_UC=https://updates.jenkins.io
+export JENKINS_UCi_URL=https://updates.jenkins.io
 export COPY_REFERENCE_FILE_LOG=/var/jenkins_home/copy_reference_file.log
 export JENKINS_UC_EXPERIMENTAL=https://updates.jenkins.io/experimental
 export JENKINS_INCREMENTALS_REPO_MIRROR=https://repo.jenkins-ci.org/incrementals
@@ -239,11 +243,12 @@ cd $CWD/jenkins/jenkins-docker
 cp plugins.txt /usr/share/jenkins/ref/plugins.txt
 cd $CWD
 echo "Downloading jenkins Plugins"
-wget https://github.com/jenkinsci/plugin-installation-manager-tool/releases/download/2.12.3/jenkins-plugin-manager-2.12.3.jar
-java -jar $CWD/jenkins-plugin-manager-*.jar --war $CWD/jenkins.war -d /var/jenkins_home/plugins  --plugin-file $CWD/jenkins/jenkins-docker/plugins.txt --verbose
+#wget https://github.com/jenkinsci/plugin-installation-manager-tool/releases/download/2.12.6/jenkins-plugin-manager-2.12.6.jar
+java -jar $CWD/jenkins-plugin-manager-2.12.6.jar --war /usr/share/jenkins/jenkins.war -d /var/jenkins_home/plugins  --plugin-file $CWD/jenkins/jenkins-docker/plugins.txt --verbose
 echo "Starting Jenkins Locally"
 
-systemctl restart jenkins
+systemctl stop jenkins
+systemctl start jenkins
 echo "Jenkins Startup completed checking jenkins process"
 ps -aef|grep jenkins
 

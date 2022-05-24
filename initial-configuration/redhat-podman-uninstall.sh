@@ -66,5 +66,3 @@ rm -rf /usr/share/jenkins/jenkins.war*
 
 firewall-cmd --remove-port={8080/tcp,3306/tcp}
 firewall-cmd --runtime-to-permanent
-rm -rf jenkins-plugin-manager-*.jar
-kill -9 $(ps -ef | pgrep -f "java")

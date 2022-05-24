@@ -44,7 +44,8 @@
       <properties class="hudson.model.View$PropertyList"/>
       <jobNames>
         <comparator class="hudson.util.CaseInsensitiveComparator"/>
-        <string>PIC-SURE Auth Micro-App Build</string>
+	<string>PIC-SURE Alpine-Jboss-EAP Image Build</string>        
+	<string>PIC-SURE Auth Micro-App Build</string>
         <string>PIC-SURE Jboss-EAP Image Build</string>
 	<string>PIC-SURE Pipeline</string>
         <string>PIC-SURE Wildfly Image Build</string>

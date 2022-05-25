@@ -11,53 +11,47 @@ yum -y update
 echo "Update yum to get correct version of MariaDB"
 curl -sS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash
 
-#echo "Finished update, adding epel, docker-ce, mysql-community-release repositories and installing wget and yum-utils"
-#yum -y install epel-release wget yum-utils
 yum -y install dnf-utils wget openssl java-11-openjdk-devel net-tools
-#yum-config-manager  --add-repo https://download.docker.com/linux/centos/docker-ce.repo
 rpm --import https://repo.mysql.com/RPM-GPG-KEY-mysql-2022
 wget http://repo.mysql.com/mysql57-community-release-el7-9.noarch.rpm
-#yum localinstall -y mysql57-community-release-el7-9.noarch.rpm --nogpgcheck --allowerasing
 rpm -ivh mysql57-community-release-el7-9.noarch.rpm
-#yum-config-manager --disable mysql56-community
 yum-config-manager --disable mysql80-community
 yum-config-manager --enable mysql57-community
 yum module disable -y mysql;
 yum remove -y  java-1.8*
 yum clean -y  packages
+
+## Installing and starting Firewalld service 
+
 yum install firewalld -y
 systemctl start firewalld
 systemctl enable --now firewalld
 
-#Instaling Maven
+##Instaling Maven
+
 echo "installaing maven"
 wget https://www.apache.org/dist/maven/maven-3/3.6.3/binaries/apache-maven-3.6.3-bin.tar.gz -P /opt
 tar -xvzf /opt/apache-maven-3.6.3-bin.tar.gz -C /opt
 rm -rf /opt/apache-maven-3.6.3-bin.tar.gz
-#################echo "Added docker-ce repo, starting docker install"
-echo "install container-tools podman podman-docker"
 
-########yum -y install docker-ce docker-ce-cli containerd.io
+##Installing continer tools, podman services to build and run containers.
+
+echo "install container-tools podman podman-docker podman-remote podman-plugins"
 dnf module reset -y container-tools
 dnf module install -y container-tools:4.0
 yum install -y  podman-remote
 systemctl enable --now podman.socket
 yum install -y podman-docker podman-plugins
-#echo "Finished podman install, enabling and starting podman-remote service"
-##############systemctl enable docker
-##############service docker start
+echo "Finished podman install, enabling and starting podman required service"
+
 echo "alias docker=podman" >> ~/.bash_profile
 source ~/.bash_profile
-#echo "Installing MySQL"
-#yum -y install mysql-community-server
 
-echo "Installing MySQL/MariaDB"
-yum -y install mariadb-server
+## Creating Podman networks 
 
 echo  "Creating picsure docker network"
 podman network create podman
 podman network create picsure
-#export DOCKER_NETWORK_IF=br-`docker network create picsure | cut -c1-12`
 docker run -it --rm hello-world
 docker run -it --rm  --name test1 --network=picsure hello-world
 firewall-cmd --add-port={8080/tcp,3306/tcp}
@@ -66,13 +60,16 @@ podman network reload --all
 firewall-cmd --reload
 systemctl daemon-reload
 
+##Installing Configuring MariaDB/Mysql configuration
+
+echo "Installing MySQL/MariaDB"
+yum -y install mariadb-server
+
 echo "Configuring mysql cnf file"
 echo "[mysqld]" >> /etc/my.cnf
 echo "bind-address=0.0.0.0" >> /etc/my.cnf
 echo "default-time-zone='-00:00'" >> /etc/my.cnf
 
-#systemctl start mysqld
-#systemctl status mysqld
 systemctl enable --now  mariadb.service
 systemctl start mariadb.service
 
@@ -120,7 +117,7 @@ echo "` < /dev/urandom tr -dc @^=+$*%_A-Z-a-z-0-9 | head -c${1:-24}`%4cA" > auth
 mysql -u root -e "grant all privileges on auth.* to 'auth'@'%' identified by '`cat auth.tmp`';flush privileges;";
 sed -i s/__AUTH_MYSQL_PASSWORD__/`cat auth.tmp`/g /usr/local/docker-config/wildfly/standalone.xml
 rm -f auth.tmp
-########################### Configuring picsure-specif network and replacing docker specific ip address configurations in standaolne.xml #########################
+## Configuring picsure-specif network and replacing docker specific ip address configurations in standaolne.xml #########################
 echo "update MySql Instance configuration related to podman network"
 FILE="/root/.my.cnf"
 MYSQL_USER_NAME=root
@@ -169,6 +166,7 @@ echo "Building and installing Jenkins"
 #  -t pic-sure-jenkins:`git log -n 1 | grep commit | cut -d ' ' -f 2 | cut -c 1-7` -f jenkins/jenkins-docker/ubDockerfile
 #docker tag pic-sure-jenkins:`git log -n 1 | grep commit | cut -d ' ' -f 2 | cut -c 1-7` pic-sure-jenkins:LATEST
 
+##Configuring Jenkins on local host downloading,Jenkins war and creating necessary directories 
 wget https://get.jenkins.io/war-stable/2.332.3/jenkins.war
 echo "Creating Jenkins Log Path"
 mkdir -p /usr/share/jenkins
@@ -178,7 +176,7 @@ mkdir -p /var/log/jenkins
 
 mv jenkins.war /usr/share/jenkins/jenkins.war
 
-########### Jenkins Systemd Script############
+## Creating jenkins.conf file to have all required JVM arguments for jenkins server to start
 cat <<EOM > /etc/jenkins.conf
 JENKINS_HOME=/var/jenkins_home
 JENKINS_WAR=/usr/share/jenkins/jenkins.war
@@ -191,6 +189,7 @@ JENKINS_ARGS="--httpPort=8080 --logfile=/var/log/jenkins/jenkins.log --useJmx"
 EOM
 echo ""
 
+## Creating Systemd Scripts for install and manitains Jenkins server
 cat <<EOM > /etc/systemd/system/jenkins.service
 #/etc/systemd/system/jenkins.service
 #

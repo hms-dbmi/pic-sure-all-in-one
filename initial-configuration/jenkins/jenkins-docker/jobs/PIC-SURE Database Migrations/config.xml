@@ -67,8 +67,8 @@ node {
         
         dir(&apos;pic-sure-auth-db&apos;){
           sh &apos;&apos;&apos;
-            docker $podman_remote_flag run --security-opt label=disable -d --name auth-dbmigration --network=picsure -v ./db/sql:/opt/flyway-migrations/auth/sql -v /usr/local/docker-config/flyway/auth:/opt/flyway-migrations/auth     dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0
-            docker $podman_remote_flag exec -it auth-dbmigration bash -c &quot;/opt/flyway/flyway -X -configFiles=/opt/flyway-migrations/auth/flyway-auth.conf migrate&quot;
+            docker  run --security-opt label=disable -d --name auth-dbmigration --network=picsure -v ./db/sql:/opt/flyway-migrations/auth/sql -v /usr/local/docker-config/flyway/auth:/opt/flyway-migrations/auth     dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0
+            docker  exec -it auth-dbmigration bash -c &quot;/opt/flyway/flyway -X -configFiles=/opt/flyway-migrations/auth/flyway-auth.conf migrate&quot;
           &apos;&apos;&apos;          
         }
     } 
@@ -79,8 +79,8 @@ node {
         
         dir(&apos;pic-sure-api-data&apos;){
         sh &apos;&apos;&apos;
-          docker $podman_remote_flag run --security-opt label=disable -d --name picsure-dbmigration --network=picsure -v ./src/main/resources/db/sql:/opt/flyway-migrations/picsure/sql -v /usr/local/docker-config/flyway/picsure:/opt/flyway-migrations/picsure    dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0
-          docker $podman_remote_flag exec -it picsure-dbmigration bash -c &quot;/opt/flyway/flyway -X -configFiles=/opt/flyway-migrations/picsure/flyway-picsure.conf migrate&quot;
+          docker  run --security-opt label=disable -d --name picsure-dbmigration --network=picsure -v ./src/main/resources/db/sql:/opt/flyway-migrations/picsure/sql -v /usr/local/docker-config/flyway/picsure:/opt/flyway-migrations/picsure    dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0
+          docker  exec -it picsure-dbmigration bash -c &quot;/opt/flyway/flyway -X -configFiles=/opt/flyway-migrations/picsure/flyway-picsure.conf migrate&quot;
         &apos;&apos;&apos;          
       }
     }
@@ -95,14 +95,14 @@ node {
 
         dir(&apos;custom-migrations&apos;){
         sh &apos;&apos;&apos;
-          docker $podman_remote_flag run --security-opt label=disable -d --name picsure-custom-dbmigration --network=picsure -v ./picsure:/opt/flyway-migrations/picsure/sql -v /usr/local/docker-config/flyway/picsure:/opt/flyway-migrations/picsure dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0
-          docker $podman_remote_flag exec -it picsure-custom-dbmigration bash -c &quot;/opt/flyway/flyway -X -baselineOnMigrate=true -configFiles=/opt/flyway-migrations/picsure/flyway-picsure.conf -table=flyway_custom_schema_history migrate&quot;
+          docker  run --security-opt label=disable -d --name picsure-custom-dbmigration --network=picsure -v ./picsure:/opt/flyway-migrations/picsure/sql -v /usr/local/docker-config/flyway/picsure:/opt/flyway-migrations/picsure dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0
+          docker  exec -it picsure-custom-dbmigration bash -c &quot;/opt/flyway/flyway -X -baselineOnMigrate=true -configFiles=/opt/flyway-migrations/picsure/flyway-picsure.conf -table=flyway_custom_schema_history migrate&quot;
         &apos;&apos;&apos;          
       }
       dir(&apos;custom-migrations&apos;){
         sh &apos;&apos;&apos;
-          docker $podman_remote_flag run --security-opt label=disable -d --name auth-custom-dbmigration --network=picsure -v ./auth:/opt/flyway-migrations/auth/sql -v /usr/local/docker-config/flyway/auth:/opt/flyway-migrations/auth dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0
-         docker $podman_remote_flag exec -it auth-custom-dbmigration bash -c &quot;/opt/flyway/flyway -X -baselineOnMigrate=true -configFiles=/opt/flyway-migrations/auth/flyway-auth.conf -table=flyway_custom_schema_history migrate&quot;
+          docker  run --security-opt label=disable -d --name auth-custom-dbmigration --network=picsure -v ./auth:/opt/flyway-migrations/auth/sql -v /usr/local/docker-config/flyway/auth:/opt/flyway-migrations/auth dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0
+         docker  exec -it auth-custom-dbmigration bash -c &quot;/opt/flyway/flyway -X -baselineOnMigrate=true -configFiles=/opt/flyway-migrations/auth/flyway-auth.conf -table=flyway_custom_schema_history migrate&quot;
         &apos;&apos;&apos;          
       }
     }
@@ -112,35 +112,35 @@ node {
             echo &quot;finally remove all the db migration containers&quot;
             
             AUTH_DB_CONTAINER=&quot;auth-dbmigration&quot;
-            AUTH_DB_CONTAINER_EXITS=&quot;$(docker $podman_remote_flag ps --all --quiet --filter=name=&quot;$AUTH_DB_CONTAINER&quot;)&quot;
+            AUTH_DB_CONTAINER_EXITS=&quot;$(docker  ps --all --quiet --filter=name=&quot;$AUTH_DB_CONTAINER&quot;)&quot;
             echo $AUTH_DB_CONTAINER_EXITS
             
             if [ ! -z &quot;$AUTH_DB_CONTAINER_EXITS&quot; ]; then
-                docker $podman_remote_flag stop $AUTH_DB_CONTAINER_EXITS &amp;&amp; docker $podman_remote_flag rm $AUTH_DB_CONTAINER_EXITS
+                docker  stop $AUTH_DB_CONTAINER_EXITS &amp;&amp; docker  rm $AUTH_DB_CONTAINER_EXITS
             fi
             
             PICSURE_DB_CONTAINER=&quot;picsure-dbmigration&quot;
-            PICSURE_DB_CONTAINER_EXITS=&quot;$(docker $podman_remote_flag ps --all --quiet --filter=name=&quot;$PICSURE_DB_CONTAINER&quot;)&quot;
+            PICSURE_DB_CONTAINER_EXITS=&quot;$(docker  ps --all --quiet --filter=name=&quot;$PICSURE_DB_CONTAINER&quot;)&quot;
             echo $PICSURE_DB_CONTAINER_EXITS
             
             if [ ! -z &quot;$PICSURE_DB_CONTAINER_EXITS&quot; ]; then
-                docker $podman_remote_flag stop $PICSURE_DB_CONTAINER_EXITS &amp;&amp; docker $podman_remote_flag rm $PICSURE_DB_CONTAINER_EXITS
+                docker  stop $PICSURE_DB_CONTAINER_EXITS &amp;&amp; docker  rm $PICSURE_DB_CONTAINER_EXITS
             fi
             
             AUTH_CUSTOM_DB_CONTAINER=&quot;auth-custom-dbmigration&quot;
-            AUTH_CUSTOM_DB_CONTAINER_EXITS=&quot;$(docker $podman_remote_flag ps --all --quiet --filter=name=&quot;$AUTH_CUSTOM_DB_CONTAINER&quot;)&quot;
+            AUTH_CUSTOM_DB_CONTAINER_EXITS=&quot;$(docker  ps --all --quiet --filter=name=&quot;$AUTH_CUSTOM_DB_CONTAINER&quot;)&quot;
             echo $AUTH_CUSTOM_DB_CONTAINER_EXITS
             
             if [ ! -z &quot;$AUTH_CUSTOM_DB_CONTAINER_EXITS&quot; ]; then
-                docker $podman_remote_flag stop $AUTH_CUSTOM_DB_CONTAINER_EXITS &amp;&amp; docker $podman_remote_flag rm $AUTH_CUSTOM_DB_CONTAINER_EXITS
+                docker  stop $AUTH_CUSTOM_DB_CONTAINER_EXITS &amp;&amp; docker  rm $AUTH_CUSTOM_DB_CONTAINER_EXITS
             fi
             
             PICSURE_CUSTOM_DB_CONTAINER=&quot;picsure-custom-dbmigration&quot;
-            PICSURE_CUSTOM_DB_CONTAINER_EXITS=&quot;$(docker $podman_remote_flag ps --all --quiet --filter=name=&quot;$PICSURE_CUSTOM_DB_CONTAINER&quot;)&quot;
+            PICSURE_CUSTOM_DB_CONTAINER_EXITS=&quot;$(docker  ps --all --quiet --filter=name=&quot;$PICSURE_CUSTOM_DB_CONTAINER&quot;)&quot;
             echo $PICSURE_CUSTOM_DB_CONTAINER_EXITS
             
             if [ ! -z &quot;$PICSURE_CUSTOM_DB_CONTAINER_EXITS&quot; ]; then
-                docker $podman_remote_flag stop $PICSURE_CUSTOM_DB_CONTAINER_EXITS &amp;&amp; docker $podman_remote_flag rm $PICSURE_CUSTOM_DB_CONTAINER_EXITS
+                docker  stop $PICSURE_CUSTOM_DB_CONTAINER_EXITS &amp;&amp; docker  rm $PICSURE_CUSTOM_DB_CONTAINER_EXITS
             fi
         &apos;&apos;&apos;
          cleanWs() 

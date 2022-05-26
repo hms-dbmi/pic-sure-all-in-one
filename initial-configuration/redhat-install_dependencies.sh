@@ -36,11 +36,9 @@ rm -rf /opt/apache-maven-3.6.3-bin.tar.gz
 
 ##Installing continer tools, podman services to build and run containers.
 
-echo "install container-tools podman podman-docker podman-remote podman-plugins"
+echo "install container-tools podman podman-docker podman-plugins"
 dnf module reset -y container-tools
 dnf module install -y container-tools:4.0
-yum install -y  podman-remote
-systemctl enable --now podman.socket
 yum install -y podman-docker podman-plugins
 echo "Finished podman install, enabling and starting podman required service"
 
@@ -276,26 +274,5 @@ cd /usr/local/docker-config/hpds_csv/
 tar -xvzf allConcepts.csv.tgz
 
 echo "Installation script complete.  Staring Jenkins."
-################################## Enabling Podman to use remote socket inside the jenkins container to launch the containers on the host######################
-cd $CWD
-PODMAN_REMOTE_FLAG=no
-echo "if you want to enable podman socket from Host enter yes else enter no"
-read -p "enter yes or no :  " PODMAN_REMOTE_FLAG
-if [ $PODMAN_REMOTE_FLAG == yes ]
- then
-        sed -i '/<string>podman_remote_flag<\/string>/{n;s/<string>.*<\/string>/<string>--remote<\/string>/}' /var/jenkins_home/config.xml
-        mkdir -p /var/log/hpds-logs
-	mkdir -p /var/log/httpd-docker-logs
-	mkdir -p /var/log/wildfly-docker-logs
-	mkdir -p /var/log/wildfly-docker-os-logs/
-	mkdir -p /usr/local/docker-config/wildfly/passthru
-	mkdir -p /usr/local/docker-config/wildfly/aggregate-data-sharing/
-	mkdir -p /usr/local/docker-config/wildfly/emailTemplates
-fi
-if [ $PODMAN_REMOTE_FLAG == no ]
- then
-        sed -i '/<string>podman_remote_flag<\/string>/{n;s/<string>.*<\/string>/<string><\/string>/}' /var/jenkins_home/config.xml
-fi
-###############################################
 
 #../start-jenkins.sh

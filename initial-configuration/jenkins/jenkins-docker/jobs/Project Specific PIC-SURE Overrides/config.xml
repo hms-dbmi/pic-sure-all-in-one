@@ -8,20 +8,18 @@
       <parameterDefinitions>
         <hudson.model.StringParameterDefinition>
           <name>pipeline_build_id</name>
-          <description></description>
           <defaultValue>MANUAL_RUN</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>git_hash</name>
-          <description></description>
-          <defaultValue>*/main</defaultValue>
+          <defaultValue>feature/redhat</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
   </properties>
-  <scm class="hudson.plugins.git.GitSCM" plugin="git@4.2.2">
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@4.11.3">
     <configVersion>2</configVersion>
     <userRemoteConfigs>
       <hudson.plugins.git.UserRemoteConfig>
@@ -34,7 +32,7 @@
       </hudson.plugins.git.BranchSpec>
     </branches>
     <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
-    <submoduleCfg class="list"/>
+    <submoduleCfg class="empty-list"/>
     <extensions/>
   </scm>
   <canRoam>true</canRoam>
@@ -51,7 +49,7 @@ if [ -f &quot;/usr/local/docker-config/setProxy.sh&quot; ]; then
 fi
 
 sed -i s/TARGET_BUILD_VERSION/LATEST/g ui/Dockerfile
-sed -i '/ssl_mutex/d' ui/httpd-vhosts.conf
+sed -i &apos;/ssl_mutex/d&apos; ui/httpd-vhosts.conf
 GIT_BRANCH_SHORT=`echo ${GIT_BRANCH} | cut -d &quot;/&quot; -f 2`
 GIT_COMMIT_SHORT=`echo ${GIT_COMMIT} | cut -c1-7`
 
@@ -71,6 +69,7 @@ docker build --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_pr
 docker tag hms-dbmi/pic-sure-ui-overrides:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} hms-dbmi/pic-sure-ui-overrides:LATEST
 
 </command>
+      <configuredLocalRules/>
     </hudson.tasks.Shell>
   </builders>
   <publishers/>

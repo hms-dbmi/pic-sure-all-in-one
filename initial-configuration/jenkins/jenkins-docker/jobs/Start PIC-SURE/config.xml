@@ -57,12 +57,17 @@ if [ -f /usr/local/docker-config/httpd/custom_httpd_volumes ]; then
 	export CUSTOM_HTTPD_VOLUMES=&quot;`cat /usr/local/docker-config/httpd/custom_httpd_volumes`&quot;
 fi
 
+if [ -f /usr/local/docker-config/httpd/custom_httpd_volumes ]; then
+        export CUSTOM_HTTPD_VOLUMES=&quot;`cat /usr/local/docker-config/httpd/custom_httpd_volumes`&quot;
+fi
+
 docker stop httpd &amp;&amp; docker rm httpd
 docker run --name=httpd --restart always --network=picsure \
   -v /var/log/httpd-docker-logs/:/usr/local/apache2/logs/ \
   $PICSURE_SETTINGS_VOLUME \
   -v /usr/local/docker-config/httpd/cert:/usr/local/apache2/cert/ \
   $CUSTOM_HTTPD_VOLUMES \
+  $CONNECTIONS_VOLUME \
   -p 80:80 \
   -p 443:443 \
   -d hms-dbmi/pic-sure-ui-overrides:LATEST

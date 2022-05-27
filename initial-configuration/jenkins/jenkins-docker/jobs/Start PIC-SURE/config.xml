@@ -57,8 +57,8 @@ if [ -f /usr/local/docker-config/httpd/custom_httpd_volumes ]; then
 	export CUSTOM_HTTPD_VOLUMES=&quot;`cat /usr/local/docker-config/httpd/custom_httpd_volumes`&quot;
 fi
 
-if [ -f /usr/local/docker-config/httpd/custom_httpd_volumes ]; then
-        export CUSTOM_HTTPD_VOLUMES=&quot;`cat /usr/local/docker-config/httpd/custom_httpd_volumes`&quot;
+if [ -f /usr/local/docker-config/httpd/connections.json ]; then
+        export CONNECTIONS_VOLUME=&quot;-v /usr/local/docker-config/httpd/connections.json:/usr/local/apache2/htdocs/picsureui/psamaui/login/connections.json&quot;
 fi
 
 docker stop httpd &amp;&amp; docker rm httpd

@@ -1,0 +1,40 @@
+FROM docker.io/alpine:3.16
+
+RUN apk add --no-cache --purge -uU bash &&     rm -rf /var/cache/apk/* /tmp/*
+
+RUN apk add --no-cache --purge -uU curl wget unzip
+
+RUN apk add --no-cache --purge openjdk11
+
+RUN addgroup -g 1000 -S jboss && adduser -u 1000 -G jboss -D -s /sbin/noogin -h /opt/jboss -S jboss && chmod 0755 /opt/jboss
+
+WORKDIR /opt/jboss
+
+USER jboss
+
+MAINTAINER Prakash Pannala <reddy.prodev@gmail.com>
+
+USER root
+
+ADD jboss.zip /tmp/jboss.zip
+
+RUN unzip /tmp/jboss.zip -d /opt/jboss && mv /opt/jboss/jboss-eap-7.4 /opt/jboss/wildfly
+
+USER jboss
+
+ENV JAVA_HOME=/usr/lib/jvm/java-11-openjdk PATH=/usr/lib/jvm/java-11-openjdk/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
+ENV JBOSS_HOME=/opt/jboss/wildfly
+
+EXPOSE 8080 8443 9990 9999
+
+USER root
+
+RUN chown -R jboss:jboss /opt/jboss
+
+RUN chmod -R 0755 /opt/jboss
+
+USER jboss
+
+ENTRYPOINT ["/opt/jboss/wildfly/bin/standalone.sh", "-b", "0.0.0.0"]
+

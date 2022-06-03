@@ -1,0 +1,8 @@
+JENKINS_HOME=/var/jenkins_home
+JENKINS_WAR=/usr/share/jenkins/jenkins.war
+JENKINS_UC=https://updates.jenkins.io
+COPY_REFERENCE_FILE_LOG=/var/jenkins_home/copy_reference_file.log
+JENKINS_UC_EXPERIMENTAL=https://updates.jenkins.io/experimental
+JENKINS_INCREMENTALS_REPO_MIRROR=https://repo.jenkins-ci.org/incrementals
+JAVA_ARGS="-Djava.awt.headless=true -Djava.net.preferIPv4Stack=true -XX:+AlwaysPreTouch -XX:+UseG1GC -Xlog:gc*=debug:file=gclog.log:utctime,level,tags:filecount=9,filesize=1M"
+JENKINS_ARGS="--httpPort=8080 --logfile=/var/log/jenkins/jenkins.log --useJmx"

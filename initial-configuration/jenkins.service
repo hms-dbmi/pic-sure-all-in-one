@@ -1,0 +1,21 @@
+#/etc/systemd/system/jenkins.service
+#
+# This file is used to manage jenkins service using systemd(1)
+#To start Jenkins service
+#     systemctl start jenkins
+#To stop jenkins service
+#     systemctl stop jenkis
+#
+[Unit]
+Description=Jenkins Continuous Integration Server
+Requires=network.target
+After=network.target
+[Service]
+Type=simple
+EnvironmentFile=/etc/jenkinsconf
+ExecStart=java $JAVA_ARGS -jar $JENKINS_WAR $JENKINS_ARGS
+WorkingDirectory=/var/jenkins_home
+Restart=always
+RestartSec=30
+[Install]
+WantedBy=multi-user.target

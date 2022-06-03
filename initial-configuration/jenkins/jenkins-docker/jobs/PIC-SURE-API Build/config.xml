@@ -8,20 +8,18 @@
       <parameterDefinitions>
         <hudson.model.StringParameterDefinition>
           <name>pipeline_build_id</name>
-          <description></description>
           <defaultValue>MANUAL_RUN</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>git_hash</name>
-          <description></description>
           <defaultValue>*/master</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
   </properties>
-  <scm class="hudson.plugins.git.GitSCM" plugin="git@4.3.0">
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@4.11.3">
     <configVersion>2</configVersion>
     <userRemoteConfigs>
       <hudson.plugins.git.UserRemoteConfig>
@@ -34,7 +32,7 @@
       </hudson.plugins.git.BranchSpec>
     </branches>
     <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
-    <submoduleCfg class="list"/>
+    <submoduleCfg class="empty-list"/>
     <extensions/>
   </scm>
   <canRoam>true</canRoam>
@@ -66,9 +64,19 @@ docker build --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_pr
   --build-arg HTTP_PROXY=$http_proxy --build-arg HTTPS_PROXY=$http_proxy --build-arg NO_PROXY=&quot;$no_proxy&quot; \
   -t hms-dbmi/pic-sure-api:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} .
 docker tag hms-dbmi/pic-sure-api:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} hms-dbmi/pic-sure-api:LATEST
+
+cd target/
+cp /usr/local/docker-config/wildfly/jboss-deployment-structure.xml .
+unzip pic-sure-api-war.war 
+rm -rf pic-sure-api-war.war
+cp jboss-deployment-structure.xml WEB-INF/
+zip -r pic-sure-api-war.war WEB-INF/ META-INF/
+rm -rf WEB-INF/ META-INF/ jboss-deployment-structure.xml
 mkdir -p /usr/local/docker-config/wildfly/deployments/
-cp target/pic-sure-api-war.war /usr/local/docker-config/wildfly/deployments/pic-sure-api-2.war
+
+cp pic-sure-api-war.war /usr/local/docker-config/wildfly/deployments/pic-sure-api-2.war
 </command>
+      <configuredLocalRules/>
     </hudson.tasks.Shell>
   </builders>
   <publishers/>

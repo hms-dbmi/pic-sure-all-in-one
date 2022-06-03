@@ -88,13 +88,13 @@ PICSURE_PASSWORD=`sed -n &apos;s/&lt;password&gt;\(.*\)&lt;\/password&gt;/\1/p&a
 AUTH_PASSWORD=`sed -n &apos;s/&lt;password&gt;\(.*\)&lt;\/password&gt;/\1/p&apos; auth.tmp | xargs` 
 
 
-docker run -i --security-opt label=disable -v /root/.my.cnf:/root/.my.cnf mysql mysql -e  &quot;grant all privileges on auth.* to &apos;airflow&apos;@&apos;%&apos; identified by &apos;$AIRFLOW_PASSWORD&apos;;flush privileges;&quot; mysql
-docker run -i --security-opt label=disable -v /root/.my.cnf:/root/.my.cnf mysql mysql -e  &quot;grant all privileges on picsure.* to &apos;airflow&apos;@&apos;%&apos; identified by &apos;$AIRFLOW_PASSWORD&apos;;flush privileges;&quot; mysql
-docker run -i --security-opt label=disable -v /root/.my.cnf:/root/.my.cnf mysql mysql -e  &quot;grant all privileges on picsure.* to &apos;picsure&apos;@&apos;%&apos; identified by &apos;$PICSURE_PASSWORD&apos;;flush privileges;&quot; mysql
-docker run -i --security-opt label=disable -v /root/.my.cnf:/root/.my.cnf mysql mysql -e  &quot;grant all privileges on auth.* to &apos;auth&apos;@&apos;%&apos; identified by &apos;$AUTH_PASSWORD&apos;;flush privileges;&quot; mysql
+docker run -i --security-opt label=disable -v /root/.my.cnf:/root/.my.cnf mariadb:10.7 mysql -e  &quot;grant all privileges on auth.* to &apos;airflow&apos;@&apos;%&apos; identified by &apos;$AIRFLOW_PASSWORD&apos;;flush privileges;&quot; mysql
+docker run -i --security-opt label=disable -v /root/.my.cnf:/root/.my.cnf mariadb:10.7 mysql -e  &quot;grant all privileges on picsure.* to &apos;airflow&apos;@&apos;%&apos; identified by &apos;$AIRFLOW_PASSWORD&apos;;flush privileges;&quot; mysql
+docker run -i --security-opt label=disable -v /root/.my.cnf:/root/.my.cnf mariadb:10.7 mysql -e  &quot;grant all privileges on picsure.* to &apos;picsure&apos;@&apos;%&apos; identified by &apos;$PICSURE_PASSWORD&apos;;flush privileges;&quot; mysql
+docker run -i --security-opt label=disable -v /root/.my.cnf:/root/.my.cnf mariadb:10.7 mysql -e  &quot;grant all privileges on auth.* to &apos;auth&apos;@&apos;%&apos; identified by &apos;$AUTH_PASSWORD&apos;;flush privileges;&quot; mysql
 
-docker run -i --security-opt label=disable -v /root/.my.cnf:/root/.my.cnf mysql mysql -e  &quot;drop database IF EXISTS auth; create database auth;&quot; mysql
-docker run -i --security-opt label=disable --rm -v /root/.my.cnf:/root/.my.cnf mysql mysql -e  &quot;drop database IF EXISTS picsure; create database picsure;&quot; mysql
+docker run -i --security-opt label=disable -v /root/.my.cnf:/root/.my.cnf mariadb:10.7 mysql -e  &quot;drop database IF EXISTS auth; create database auth;&quot; mysql
+docker run -i --security-opt label=disable --rm -v /root/.my.cnf:/root/.my.cnf mariadb:10.7 mysql -e  &quot;drop database IF EXISTS picsure; create database picsure;&quot; mysql
 </command>
     </hudson.tasks.Shell>
   </builders>

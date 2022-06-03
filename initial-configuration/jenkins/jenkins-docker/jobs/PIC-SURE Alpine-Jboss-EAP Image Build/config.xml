@@ -30,49 +30,8 @@ fi
 cp /usr/local/docker-config/wildfly/jboss-eap-7.4.0.zip jboss.zip
 
 
-cat &lt;&lt;EOM &gt; Dockerfile
-FROM docker.io/alpine:latest
+cp /usr/local/docker-config/wildfly/jboss-alpine-dockerfile Dockerfile
 
-RUN apk add --no-cache --purge -uU bash &amp;&amp;     rm -rf /var/cache/apk/* /tmp/*
-
-RUN apk add --no-cache --purge -uU curl wget unzip
-
-RUN apk add --no-cache --purge openjdk11
-
-RUN addgroup -g 1000 -S jboss &amp;&amp; adduser -u 1000 -G jboss -D -s /sbin/noogin -h /opt/jboss -S jboss &amp;&amp; chmod 0755 /opt/jboss
-
-WORKDIR /opt/jboss
-
-USER jboss
-
-MAINTAINER Prakash Pannala &lt;reddy.prodev@gmail.com&gt;
-
-USER root
-
-ADD jboss.zip /tmp/jboss.zip
-
-RUN unzip /tmp/jboss.zip -d /opt/jboss &amp;&amp; mv /opt/jboss/jboss-eap-7.4 /opt/jboss/wildfly
-
-USER jboss
-
-ENV JAVA_HOME=/usr/lib/jvm/java-11-openjdk PATH=/usr/lib/jvm/java-11-openjdk/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
-
-ENV JBOSS_HOME=/opt/jboss/wildfly
-
-EXPOSE 8080 8443 9990 9999
-
-USER root
-
-RUN chown -R jboss:jboss /opt/jboss
-
-RUN chmod -R 0755 /opt/jboss
-
-USER jboss
-
-ENTRYPOINT [&quot;/opt/jboss/wildfly/bin/standalone.sh&quot;, &quot;-b&quot;, &quot;0.0.0.0&quot;]
-
-EOM
-echo &quot;&quot;
 
 #ENTRYPOINT [&quot;/opt/jboss/wildfly/bin/standalone.sh&quot;, &quot;-b&quot;, &quot;0.0.0.0&quot;]
 docker build --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_proxy --build-arg no_proxy=&quot;$no_proxy&quot; \

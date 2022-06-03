@@ -1,8 +1,8 @@
 <?xml version='1.1' encoding='UTF-8'?>
-<flow-definition plugin="workflow-job@2.38">
+<flow-definition plugin="workflow-job@1182.v60a_e6279b_579">
   <actions>
-    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobAction plugin="pipeline-model-definition@1.6.0"/>
-    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction plugin="pipeline-model-definition@1.6.0">
+    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobAction plugin="pipeline-model-definition@2.2086.v12b_420f036e5"/>
+    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction plugin="pipeline-model-definition@2.2086.v12b_420f036e5">
       <jobProperties/>
       <triggers/>
       <parameters/>
@@ -16,43 +16,40 @@
       <parameterDefinitions>
         <hudson.model.StringParameterDefinition>
           <name>AUTH0_CLIENT_ID</name>
-          <description></description>
-          <defaultValue>__PIC_SURE_CLIENT_ID__</defaultValue>
+          <defaultValue>BYK9Vt552zZUnyVuP0mTQkLoMjWSGgJy</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>AUTH0_CLIENT_SECRET</name>
-          <description></description>
-          <defaultValue>__PIC_SURE_CLIENT_SECRET__</defaultValue>
+          <defaultValue>kUjeyQvbWZK3nWz6CTeRL7jV3wcWVH89t85cCYHAvdM2GWn00c19tOSv-b7SgDJJ</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>AUTH0_TENANT</name>
-          <description></description>
           <defaultValue>avillachlab</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>ADMIN_USER_EMAIL</name>
           <description>The email address for the initial admin user.  This should be a Google account.</description>
-          <defaultValue></defaultValue>
+          <defaultValue>reddy.prodev@gmail.com</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>PROJECT_SPECIFIC_OVERRIDE_REPOSITORY</name>
           <description>This must be the project specific git repository that contains the project specific database migrations and UI overrides in the standard PIC-SURE Override Repository Structure.</description>
-          <defaultValue></defaultValue>
+          <defaultValue>https://github.com/hms-dbmi/baseline-pic-sure</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>RELEASE_CONTROL_REPOSITORY</name>
           <description>This must be the project specific release control git repository that contains the git commit hashes that will be built and deployed.</description>
-          <defaultValue></defaultValue>
+          <defaultValue>https://github.com/hms-dbmi/baseline-pic-sure-release-control</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>OUTBOUND_EMAIL_USER</name>
-          <description>The email account name that should be used to send outbound email.  The default server is Google's SMTP, so this should be a GMail account.  This field is optional</description>
+          <description>The email account name that should be used to send outbound email.  The default server is Google&apos;s SMTP, so this should be a GMail account.  This field is optional</description>
           <defaultValue>__user@email.com__</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
@@ -65,7 +62,7 @@
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
   </properties>
-  <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@2.80">
+  <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@2706.v71dd22b_c5a_a_2">
     <script>import groovy.json.JsonSlurper;
 
 def retrieveBuildSpecId;
@@ -162,9 +159,6 @@ pipeline {
                 }
                 script {
                     def result = build job: &apos;Start PIC-SURE&apos;, parameters: [[$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],[$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSU&apos;]]]
-                }
-		script {
-                    def result = build job: &apos;PIC-SURE Jboss-EAP Deployments&apos;, parameters: [[$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],[$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSU&apos;]]]
                 }
             }
         }

@@ -29,8 +29,11 @@ docker system prune --volumes -f
 systemctl stop podman.socket
 systemctl disable podman.socket
 
-rm -rf /usr/local/docker-config
+CWD=`pwd`
 
+cd /usr/local/docker-config
+rm -rf APP_ID_HEX  APP_ID_RAW  flyway  hpds  hpds_csv  httpd  jupyterhub_config.py  RESOURCE_ID_HEX  RESOURCE_ID_RAW  setProxy.sh  wildfly
+cd $CWD
 yum -y remove podman-remote podman-docker podman-plugins podman
 yum module remove container-tools -y
 rm -rf /var/lib/docker
@@ -61,8 +64,8 @@ rm -rf ~/.m2
 systemctl stop jenkins
 systemctl disable --now jenkins
 rm -rf /etc/systemd/system/jenkins.service
-rm -rf /etc/jenkins.conf
+rm -rf /etc/jenkinsconf
 rm -rf /usr/share/jenkins/jenkins.war*
 
-firewall-cmd --remove-port={8080/tcp,3306/tcp}
+firewall-cmd --remove-port=8080/tcp
 firewall-cmd --runtime-to-permanent

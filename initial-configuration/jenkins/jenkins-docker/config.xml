@@ -46,7 +46,6 @@
         <comparator class="hudson.util.CaseInsensitiveComparator"/>
 	<string>PIC-SURE Alpine-Jboss-EAP Image Build</string>        
 	<string>PIC-SURE Auth Micro-App Build</string>
-        <string>PIC-SURE Jboss-EAP Image Build</string>
 	<string>PIC-SURE Pipeline</string>
         <string>PIC-SURE Wildfly Image Build</string>
         <string>PIC-SURE-API Build</string>
@@ -79,7 +78,6 @@
         <string>Load Genomic Metadata</string>
         <string>Load HPDS Data From CSV</string>
         <string>Load HPDS Data From RDBMS</string>
-	<string>PIC-SURE Jboss-EAP Deployments</string>        
 	<string>Start JupyterHub</string>
         <string>Start PIC-SURE</string>
         <string>Stop JupyterHub</string>

@@ -16,12 +16,12 @@
       <parameterDefinitions>
         <hudson.model.StringParameterDefinition>
           <name>AUTH0_CLIENT_ID</name>
-          <defaultValue>BYK9Vt552zZUnyVuP0mTQkLoMjWSGgJy</defaultValue>
+          <defaultValue></defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>AUTH0_CLIENT_SECRET</name>
-          <defaultValue>kUjeyQvbWZK3nWz6CTeRL7jV3wcWVH89t85cCYHAvdM2GWn00c19tOSv-b7SgDJJ</defaultValue>
+          <defaultValue></defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
@@ -32,19 +32,19 @@
         <hudson.model.StringParameterDefinition>
           <name>ADMIN_USER_EMAIL</name>
           <description>The email address for the initial admin user.  This should be a Google account.</description>
-          <defaultValue>reddy.prodev@gmail.com</defaultValue>
+          <defaultValue></defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>PROJECT_SPECIFIC_OVERRIDE_REPOSITORY</name>
           <description>This must be the project specific git repository that contains the project specific database migrations and UI overrides in the standard PIC-SURE Override Repository Structure.</description>
-          <defaultValue>https://github.com/hms-dbmi/baseline-pic-sure</defaultValue>
+          <defaultValue></defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>RELEASE_CONTROL_REPOSITORY</name>
           <description>This must be the project specific release control git repository that contains the git commit hashes that will be built and deployed.</description>
-          <defaultValue>https://github.com/hms-dbmi/baseline-pic-sure-release-control</defaultValue>
+          <defaultValue></defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>

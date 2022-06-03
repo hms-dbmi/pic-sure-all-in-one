@@ -10,10 +10,6 @@ RUN addgroup -g 1000 -S jboss && adduser -u 1000 -G jboss -D -s /sbin/noogin -h 
 
 WORKDIR /opt/jboss
 
-USER jboss
-
-MAINTAINER Prakash Pannala <reddy.prodev@gmail.com>
-
 USER root
 
 ADD jboss.zip /tmp/jboss.zip

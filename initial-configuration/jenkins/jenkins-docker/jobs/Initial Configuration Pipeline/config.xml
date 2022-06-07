@@ -16,12 +16,12 @@
       <parameterDefinitions>
         <hudson.model.StringParameterDefinition>
           <name>AUTH0_CLIENT_ID</name>
-          <defaultValue></defaultValue>
+          <defaultValue>__PIC_SURE_CLIENT_ID__</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>AUTH0_CLIENT_SECRET</name>
-          <defaultValue></defaultValue>
+          <defaultValue>__PIC_SURE_CLIENT_SECRET__</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
@@ -32,19 +32,16 @@
         <hudson.model.StringParameterDefinition>
           <name>ADMIN_USER_EMAIL</name>
           <description>The email address for the initial admin user.  This should be a Google account.</description>
-          <defaultValue></defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>PROJECT_SPECIFIC_OVERRIDE_REPOSITORY</name>
           <description>This must be the project specific git repository that contains the project specific database migrations and UI overrides in the standard PIC-SURE Override Repository Structure.</description>
-          <defaultValue></defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>RELEASE_CONTROL_REPOSITORY</name>
           <description>This must be the project specific release control git repository that contains the git commit hashes that will be built and deployed.</description>
-          <defaultValue></defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
@@ -62,7 +59,7 @@
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
   </properties>
-  <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@2706.v71dd22b_c5a_a_2">
+  <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@2710.vcd48b_b_9e0e7d">
     <script>import groovy.json.JsonSlurper;
 
 def retrieveBuildSpecId;

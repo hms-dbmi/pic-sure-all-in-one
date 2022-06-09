@@ -30,11 +30,9 @@ DATE - A date for the observation fact. If this HPDS instance is part of a PIC-S
       <parameterDefinitions>
         <hudson.model.FileParameterDefinition>
           <name>sql.properties</name>
-          <description></description>
         </hudson.model.FileParameterDefinition>
         <hudson.model.FileParameterDefinition>
           <name>loadQuery.sql</name>
-          <description></description>
         </hudson.model.FileParameterDefinition>
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
@@ -55,12 +53,14 @@ DATE - A date for the observation fact. If this HPDS instance is part of a PIC-S
 		
 		cp loadQuery.sql /usr/local/docker-config/hpds_temp/loadQuery.sql
 		cp sql.properties /usr/local/docker-config/hpds_temp/sql.properties
+        
+        docker stop hpds-etl &amp;amp;&amp;amp; docker rm hpds-etl
 		
 		#generate a new encryption key
-		openssl enc -aes-128-cbc -k secret -P | grep key | cut -d '=' -f2 >  /usr/local/docker-config/hpds_temp/encryption_key
+		openssl enc -aes-128-cbc -k secret -P | grep key | cut -d &apos;=&apos; -f2 &gt;  /usr/local/docker-config/hpds_temp/encryption_key
 		
 		docker stop hpds_data_load_rdbms &amp;&amp; docker rm hpds_data_load_rdbms
-		docker run --security-opt label=disable \
+		docker run --security-opt label=disable --name=hpds-etl \
 		  -v /usr/local/docker-config/hpds_temp:/opt/local/hpds \
 		  -v /usr/local/docker-config/hpds_csv/allConcepts.csv:/opt/local/hpds/allConcepts.csv \
 		  -e HEAPSIZE=20480 -e LOADER_NAME=SQLLoader \
@@ -68,8 +68,9 @@ DATE - A date for the observation fact. If this HPDS instance is part of a PIC-S
 		find /usr/local/docker-config/hpds/ -not -type d -maxdepth 1 -exec echo mv {} /usr/local/docker-config/hpds_pheno_bak \;    &amp;&amp; \
 		mv /usr/local/docker-config/hpds_temp/* /usr/local/docker-config/hpds
 	</command>
+      <configuredLocalRules/>
     </hudson.tasks.Shell>
-    </builders>
+  </builders>
   <publishers/>
   <buildWrappers/>
 </project>

@@ -21,12 +21,12 @@
         <hudson.model.PasswordParameterDefinition>
           <name>MYSQL_PASSWORD</name>
           <description>The root user password for the MySQL Database</description>
-          <defaultValue>{AQAAABAAAAAQtW1PTxdQgNch+qkrCMeg8ruar/gFNM3eSa8tB935tQI=}</defaultValue>
+          <defaultValue>{AQAAABAAAAAQfILRjhjiLIeLMZfNup/BkCtAsZVfmnf4Vzj9TG3PmF8=}</defaultValue>
         </hudson.model.PasswordParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>MYSQL_PORT</name>
           <description>MySQL server is listening on,  used by MySQL client, MySQL Connectors</description>
-          <defaultValue>4000</defaultValue>
+          <defaultValue>3306</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
       </parameterDefinitions>
@@ -96,6 +96,7 @@ docker run -i --rm --security-opt label=disable -v /root/.my.cnf:/root/.my.cnf m
 docker run -i --rm --security-opt label=disable -v /root/.my.cnf:/root/.my.cnf mariadb:10.7 mysql -e  &quot;drop database IF EXISTS auth; create database auth;&quot; mysql
 docker run -i --rm --security-opt label=disable -v /root/.my.cnf:/root/.my.cnf mariadb:10.7 mysql -e  &quot;drop database IF EXISTS picsure; create database picsure;&quot; mysql
 </command>
+      <configuredLocalRules/>
     </hudson.tasks.Shell>
   </builders>
   <publishers>

@@ -6,16 +6,14 @@
   <properties>
     <hudson.model.ParametersDefinitionProperty>
       <parameterDefinitions>
-      <hudson.model.StringParameterDefinition>
-            <name>SERVERNAME</name>
+        <hudson.model.StringParameterDefinition>
+          <name>SERVERNAME</name>
           <description>the server name to query for a certificate</description>
-          <defaultValue></defaultValue>
           <trim>true</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
-            <name>CERTALIAS</name>
+          <name>CERTALIAS</name>
           <description>Alias for this certificate in the trustStore</description>
-          <defaultValue></defaultValue>
           <trim>true</trim>
         </hudson.model.StringParameterDefinition>
       </parameterDefinitions>
@@ -31,18 +29,19 @@
   <builders>
     <hudson.tasks.Shell>
       <command>
-      if [-f /usr/local/docker-config/wildfly/application.truststore ] ; then
+      if [ -f /usr/local/docker-config/wildfly/application.truststore ] ; then
         set +e
       	keytool -v -delete -alias $CERTALIAS -keystore /usr/local/docker-config/wildfly/application.truststore -storepass password 
       	set -e
       fi
       
-      echo | openssl s_client -showcerts -servername $SERVERNAME -connect $SERVERNAME:443  2>&amp;1 | openssl x509 -text | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' > server.crt
+      echo | openssl s_client -showcerts -servername $SERVERNAME -connect $SERVERNAME:443  2&gt;&amp;1 | openssl x509 -text | sed -ne &apos;/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p&apos; &gt; server.crt
       
       keytool -import -noprompt -trustcacerts -keystore /usr/local/docker-config/wildfly/application.truststore -storepass password -alias $CERTALIAS -file server.crt
       
       rm server.crt
 </command>
+      <configuredLocalRules/>
     </hudson.tasks.Shell>
   </builders>
   <publishers/>

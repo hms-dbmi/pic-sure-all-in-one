@@ -1,8 +1,8 @@
 <?xml version='1.1' encoding='UTF-8'?>
-<flow-definition plugin="workflow-job@1174.vdcb_d054cf74a_">
+<flow-definition plugin="workflow-job@1186.v8def1a_5f3944">
   <actions>
-    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobAction plugin="pipeline-model-definition@2.2064.v5eef7d0982b_e"/>
-    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction plugin="pipeline-model-definition@2.2064.v5eef7d0982b_e">
+    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobAction plugin="pipeline-model-definition@2.2086.v12b_420f036e5"/>
+    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction plugin="pipeline-model-definition@2.2086.v12b_420f036e5">
       <jobProperties/>
       <triggers/>
       <parameters/>
@@ -12,7 +12,7 @@
   <description></description>
   <keepDependencies>false</keepDependencies>
   <properties/>
-  <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@2660.vb_c0412dc4e6d">
+  <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@2725.v7b_c717eb_12ce">
     <script>import groovy.json.JsonSlurper;
 // variables for scm hashes
 def micro_app_ref = &apos;&apos;
@@ -89,8 +89,8 @@ node {
             userRemoteConfigs: [[url: env.project_specific_override_repo]]])
         //git url: env.project_specific_override_repo
         sh &quot;&quot;&quot;
-            sed -i &quot;s/__APPLICATION_UUID__/`cat /usr/local/docker-config/APP_ID_HEX`/g&quot; ./custom-migrations/auth/V2__CONFIGURE_PIC_SURE_APPLICATION.sql
-            sed -i &quot;s/__RESOURCE_UUID__/`cat /usr/local/docker-config/RESOURCE_ID_HEX`/g&quot; ./custom-migrations/picsure/V2__CREATE_HPDS_RESOURCE.sql
+            sed -i &quot;s/__APPLICATION_UUID__/`cat /usr/local/docker-config/APP_ID_HEX`/g&quot; ./custom-migrations/auth/*.sql
+            sed -i &quot;s/__RESOURCE_UUID__/`cat /usr/local/docker-config/RESOURCE_ID_HEX`/g&quot; ./custom-migrations/picsure/*.sql
         &quot;&quot;&quot;
 
         dir(&apos;custom-migrations&apos;){

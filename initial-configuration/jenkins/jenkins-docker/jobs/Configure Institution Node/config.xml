@@ -1,8 +1,8 @@
 <?xml version='1.1' encoding='UTF-8'?>
-<flow-definition plugin="workflow-job@2.38">
+<flow-definition plugin="workflow-job@1186.v8def1a_5f3944">
   <actions>
-    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobAction plugin="pipeline-model-definition@1.6.0"/>
-    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction plugin="pipeline-model-definition@1.6.0">
+    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobAction plugin="pipeline-model-definition@2.2086.v12b_420f036e5"/>
+    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction plugin="pipeline-model-definition@2.2086.v12b_420f036e5">
       <jobProperties/>
       <triggers/>
       <parameters/>
@@ -16,43 +16,37 @@
       <parameterDefinitions>
         <hudson.model.StringParameterDefinition>
           <name>AUTH0_CLIENT_ID</name>
-          <description></description>
           <defaultValue>__PIC_SURE_CLIENT_ID__</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>AUTH0_CLIENT_SECRET</name>
-          <description></description>
           <defaultValue>__PIC_SURE_CLIENT_SECRET__</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>AUTH0_TENANT</name>
-          <description></description>
           <defaultValue>avillachlab</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>ADMIN_USER_EMAIL</name>
           <description>The email address for the initial admin user.  This should be a Google account.</description>
-          <defaultValue></defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>PROJECT_SPECIFIC_OVERRIDE_REPOSITORY</name>
           <description>This must be the project specific git repository that contains the project specific database migrations and UI overrides in the standard PIC-SURE Override Repository Structure.</description>
-          <defaultValue></defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>RELEASE_CONTROL_REPOSITORY</name>
           <description>This must be the project specific release control git repository that contains the git commit hashes that will be built and deployed.</description>
-          <defaultValue></defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>OUTBOUND_EMAIL_USER</name>
-          <description>The email account name that should be used to send outbound email.  The default server is Google's SMTP, so this should be a GMail account.  This field is optional</description>
+          <description>The email account name that should be used to send outbound email.  The default server is Google&apos;s SMTP, so this should be a GMail account.  This field is optional</description>
           <defaultValue>__user@email.com__</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
@@ -62,19 +56,16 @@
           <defaultValue>__YOUR_EMAIL_PASSWORD__</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
-         <hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
           <name>TARGET_OBFUSCATION_THRESHOLD</name>
           <description>The aggregate resource will be configured to obfuscate result counts lower than this threshold</description>
           <defaultValue>10</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
-        
-        
-        
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
   </properties>
-  <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@2.80">
+  <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@2725.v7b_c717eb_12ce">
     <script>import groovy.json.JsonSlurper;
 
 def retrieveBuildSpecId;
@@ -172,7 +163,7 @@ pipeline {
     
     stage(&apos;Auth Schema Migration&apos;) { 
  		steps {
-	 		node("master") {   
+	 		node(&quot;master&quot;) {   
 	 			script {
 			        checkout([$class: &apos;GitSCM&apos;, branches: [[name: micro_app_ref ]],
 			            userRemoteConfigs: [[url: &apos;https://github.com/hms-dbmi/pic-sure-auth-microapp&apos;]]])
@@ -189,7 +180,7 @@ pipeline {
     }
     stage(&apos;Picsure Schema Migration&apos;) {
 	     steps {
-	     	node("master") {   
+	     	node(&quot;master&quot;) {   
 	 			script {
 			        checkout([$class: &apos;GitSCM&apos;, branches: [[name: pic_sure_ref ]],
 			            userRemoteConfigs: [[url: &apos;https://github.com/hms-dbmi/pic-sure&apos;]]])
@@ -220,14 +211,14 @@ pipeline {
     
     stage(&apos;Project Specific Migrations&apos;) {
 	    steps {
-	    	node("master") {   
+	    	node(&quot;master&quot;) {   
 	 			script {
 			        checkout([$class: &apos;GitSCM&apos;, branches: [[name: psu_ref ]],
 			            userRemoteConfigs: [[url: env.project_specific_override_repo]]])
 			        //git url: env.project_specific_override_repo
 			        sh &quot;&quot;&quot;
-			            sed -i &quot;s/__APPLICATION_UUID__/`cat /usr/local/docker-config/APP_ID_HEX`/g&quot; ./custom-migrations/auth/V2__CONFIGURE_PIC_SURE_APPLICATION.sql
-			            sed -i &quot;s/__RESOURCE_UUID__/`cat /usr/local/docker-config/RESOURCE_ID_HEX`/g&quot; ./custom-migrations/picsure/V2__CREATE_HPDS_RESOURCE.sql
+			            sed -i &quot;s/__APPLICATION_UUID__/`cat /usr/local/docker-config/APP_ID_HEX`/g&quot; ./custom-migrations/auth/*.sql
+			            sed -i &quot;s/__RESOURCE_UUID__/`cat /usr/local/docker-config/RESOURCE_ID_HEX`/g&quot; ./custom-migrations/picsure/*.sql
 			        &quot;&quot;&quot;
 			        docker.image(&apos;dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0&apos;).inside(&apos;--network=picsure -v /usr/local/docker-config/flyway/picsure:/opt/flyway-migrations/picsure &quot;--entrypoint=&quot; &apos;) {
 			            sh &quot;rm -rf /opt/flyway-migrations/picsure/sql&quot;

@@ -4,7 +4,7 @@
   <description></description>
   <keepDependencies>false</keepDependencies>
   <properties/>
-  <scm class="hudson.plugins.git.GitSCM" plugin="git@4.2.2">
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@4.11.3">
     <configVersion>2</configVersion>
     <userRemoteConfigs>
       <hudson.plugins.git.UserRemoteConfig>
@@ -17,7 +17,7 @@
       </hudson.plugins.git.BranchSpec>
     </branches>
     <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
-    <submoduleCfg class="list"/>
+    <submoduleCfg class="empty-list"/>
     <extensions/>
   </scm>
   <canRoam>true</canRoam>
@@ -27,9 +27,9 @@
   <triggers/>
   <concurrentBuild>false</concurrentBuild>
   <builders>
-    <hudson.plugins.groovy.SystemGroovy plugin="groovy@2.2">
+    <hudson.plugins.groovy.SystemGroovy plugin="groovy@2.4">
       <source class="hudson.plugins.groovy.StringSystemScriptSource">
-        <script plugin="script-security@1.71">
+        <script plugin="script-security@1175.v4b_d517d6db_f0">
           <script>import jenkins.*
 import jenkins.model.*
 import hudson.*
@@ -40,14 +40,15 @@ def buildSpec = new JsonSlurper().parse(new File(&apos;/var/jenkins_home/workspa
 
 Jenkins.instance.getItemByFullName(&quot;PIC-SURE Pipeline&quot;)
     .scheduleBuild2(0).get()
-</script>
+Jenkins.instance.getItemByFullName(&quot;PIC-SURE Database Migrations&quot;)
+    .scheduleBuild2(0).get()</script>
           <sandbox>false</sandbox>
         </script>
       </source>
     </hudson.plugins.groovy.SystemGroovy>
-    <hudson.plugins.groovy.SystemGroovy plugin="groovy@2.2">
+    <hudson.plugins.groovy.SystemGroovy plugin="groovy@2.4">
       <source class="hudson.plugins.groovy.StringSystemScriptSource">
-        <script plugin="script-security@1.71">
+        <script plugin="script-security@1175.v4b_d517d6db_f0">
           <script>import jenkins.*
 import jenkins.model.*
 import hudson.*
@@ -64,7 +65,7 @@ def envVars= Hudson.instance.getItem(&quot;Check For Updates&quot;).lastBuild.pr
   </builders>
   <publishers/>
   <buildWrappers>
-    <hudson.plugins.ws__cleanup.PreBuildCleanup plugin="ws-cleanup@0.38">
+    <hudson.plugins.ws__cleanup.PreBuildCleanup plugin="ws-cleanup@0.42">
       <deleteDirs>false</deleteDirs>
       <cleanupParameter></cleanupParameter>
       <externalDelete></externalDelete>

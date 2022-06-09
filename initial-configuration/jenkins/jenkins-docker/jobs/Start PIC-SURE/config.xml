@@ -42,7 +42,7 @@ export PICSURE_SETTINGS_VOLUME=&quot;-v /usr/local/docker-config/httpd/picsureui
 export EMAIL_TEMPLATE_VOUME=&quot;-v /usr/local/docker-config/wildfly/emailTemplates:/opt/jboss/wildfly/standalone/configuration/emailTemplates &quot;
 
 # these debug options can be added to wildfly or hpds container startup to enable remote debugging or profiling.
-# Don't forget to add a port mapping too!
+# Don&apos;t forget to add a port mapping too!
 export DEBUG_OPTS=&quot;-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=0.0.0.0:8000&quot;
 export PROFILING_OPTS=&quot;-Dcom.sun.management.jmxremote.port=9000 -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Djava.rmi.server.hostname=localhost&quot;
 
@@ -51,8 +51,12 @@ if [ -f /usr/local/docker-config/wildfly/application.truststore ]; then
    	export TRUSTSTORE_JAVA_OPTS=&quot;-Djavax.net.ssl.trustStore=/opt/jboss/wildfly/standalone/configuration/application.truststore -Djavax.net.ssl.trustStorePassword=password&quot;
 fi
 
+# Make sure the docker networks are set up
+docker network inspect picsure --format &quot;{{.Name}}: {{.Id}}&quot; 2&gt;&amp;1  ||  docker network create picsure
+docker network inspect hpdsNet --format &quot;{{.Name}}: {{.Id}}&quot; 2&gt;&amp;1  ||  docker network create hpdsNet
+
 docker  stop hpds &amp;&amp; docker  rm hpds
-docker  run --name=hpds --hostname=hpds --restart always --network=picsure \
+docker  run --name=hpds --hostname=hpds --restart always --network=hpdsNet \
   -v /etc/hosts:/etc/hosts \
   -v /usr/local/docker-config/hpds:/opt/local/hpds \
   -v /usr/local/docker-config/hpds/all:/opt/local/hpds/all \
@@ -65,6 +69,10 @@ if [ -f /usr/local/docker-config/httpd/custom_httpd_volumes ]; then
 	export CUSTOM_HTTPD_VOLUMES=&quot;`cat /usr/local/docker-config/httpd/custom_httpd_volumes`&quot;
 fi
 
+if [ -f /usr/local/docker-config/httpd/connections.json ]; then
+       export CONNECTIONS_VOLUME=&quot;-v /usr/local/docker-config/httpd/connections.json:/usr/local/apache2/htdocs/picsureui/psamaui/login/connections.json&quot;
+fi
+
 docker  stop httpd &amp;&amp; docker  rm httpd
 docker  run --security-opt label=disable --name=httpd --hostname=httpd --restart always --network=picsure \
   -v /etc/hosts:/etc/hosts \
@@ -72,14 +80,16 @@ docker  run --security-opt label=disable --name=httpd --hostname=httpd --restart
   $PICSURE_SETTINGS_VOLUME \
   -v /usr/local/docker-config/httpd/cert:/usr/local/apache2/cert/ \
   $CUSTOM_HTTPD_VOLUMES \
+  $CONNECTIONS_VOLUME \
   -p 80:80 \
   -p 443:443 \
   -d hms-dbmi/pic-sure-ui-overrides:LATEST
 docker  exec httpd sed -i &apos;/^#LoadModule proxy_wstunnel_module/s/^#//&apos; conf/httpd.conf
 docker  restart httpd
 
+
 docker  stop wildfly &amp;&amp; docker  rm wildfly
-docker  run --security-opt label=disable --name=wildfly --hostname=wildfly --restart always --network=picsure -u root \
+docker create --security-opt label=disable --name=wildfly --hostname=wildfly --restart always --network=picsure -u root \
   -v /var/log/wildfly-docker-logs/:/opt/jboss/wildfly/standalone/log/ \
   -v /etc/hosts:/etc/hosts \
   -v /var/log/wildfly-docker-os-logs/:/var/log/ \
@@ -92,16 +102,20 @@ docker  run --security-opt label=disable --name=wildfly --hostname=wildfly --res
   -v /usr/local/docker-config/wildfly/wildfly_mysql_module.xml:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/module.xml  \
   -v /usr/local/docker-config/wildfly/mysql-connector-java-5.1.49.jar:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/mysql-connector-java-5.1.49.jar \
   -e JAVA_OPTS=&quot;$WILDFLY_JAVA_OPTS $TRUSTSTORE_JAVA_OPTS&quot; \
-  -d hms-dbmi/pic-sure-jbosseap:LATEST
+  hms-dbmi/pic-sure-jbosseap:LATEST
+   
+docker network connect hpdsNet wildfly
+docker start wildfly
 httpIP=$(podman  inspect --format &apos;{{ .NetworkSettings.Networks.picsure.IPAddress }}&apos; httpd);
 wildflyIP=$(podman  inspect --format &apos;{{ .NetworkSettings.Networks.picsure.IPAddress }}&apos; wildfly);
-hpdsIP=$(podman  inspect --format &apos;{{ .NetworkSettings.Networks.picsure.IPAddress }}&apos; hpds);
+hpdsIP=$(podman  inspect --format &apos;{{ .NetworkSettings.Networks.hpdsNet.IPAddress }}&apos; hpds);
 
 echo &quot;$httpIP httpd httpd&quot; &gt;&gt; /etc/hosts
 echo &quot;$wildflyIP wildfly wildfly&quot; &gt;&gt; /etc/hosts
 echo &quot;$hpdsIP hpds hpds&quot; &gt;&gt; /etc/hosts
 
 </command>
+      <configuredLocalRules/>
     </hudson.tasks.Shell>
   </builders>
   <publishers/>

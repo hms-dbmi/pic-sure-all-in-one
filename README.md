@@ -59,13 +59,17 @@ ________________________________________________________________________________
   **Example:**
      - sudo scp -i your-ec2-instance.pem \~/Downloads/jboss-eap-7.4.0.zip [ec2-user@your-ec2-instance.amazon.com](mailto:ec2-  user@ec2instance.amazon.com):/usr/local/docker-config/pic-sure-all-in-one/initial-configuration/config/wildfly
   5. Run The redhat install dependencies script, This script will install all necessary dependency to run project, MariaDB server, Jenkins server, copy the necessary file changes to respective mount locations, create necessary directories
-    **./redhat-install-dependencies.sh**
+  		- **./redhat-install-dependencies.sh**
+   	
    **Note:** Please check the console output while the script is executing, MariaDB is started and Jenkins container started. If everything looks good you can check jenkins docker service is started.
+   
   6. Browse to Jenkins server
-	Point your browser at your server's IP on port 8080. Or localhost port 8080
-	For example, To access jenkins on **http://localhost:8080**  
+	- Point your browser at your server's IP on port 8080. Or localhost port 8080
+	- For example, To access jenkins on **http://localhost:8080**  
  	if your server has IP 10.89.144.12, please browse to **[http://10.89.144.12:8080]**(http://192.168.57.3:8080)
-	**Note**: Work with your local IT department to ensure that this port is not available to the public internet, but is accessible to you on your intranet or VPN. Anyone with access to this port can launch any application they wish on your server.
+
+**Note**: Work with your local IT department to ensure that this port is not available to the public internet, but is accessible to you on your intranet or VPN. Anyone with access to this port can launch any application they wish on your server.
+
   7. In Jenkins you will see 5 tabs: All, Configuration, Deployment, PIC-SURE Builds, Supporting Jobs
     Click the Configuration tab, then click the button to the right of the Initial Configuration Pipeline job. It resembles a clock with a green triangle on it.
     Provide the following information:

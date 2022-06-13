@@ -32,6 +32,10 @@ ________________________________________________________________________________
 
 - Create home directory for stack /usr/local/docker-config
     - mkdir -p  /usr/local/docker-config
+ 
+- Install aws cli on EC2 instance
+    - yum install -y awscli
+     
 - Minimum system requirements:
     - 32 GB of RAM
     - 8 core

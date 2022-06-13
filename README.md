@@ -42,13 +42,13 @@ ________________________________________________________________________________
     - 100 GB of hard drive space plus enough to hold your data
 	- RHEL 8.4 or RHEL 8.6 operating system
 	
-- List of git branches modified or usedfor feature/Redhat branch
+- List of git branches modified or used for feature/redhat branch
 
-	- Pic-sure-all-in-one feature/Redhat core branch: 
+	- Pic-sure-all-in-one feature/redhat core branch: 
 		- git clone -b feature/redhat  https://github.com/hms-dbmi/pic-sure-all-in-one
-	- Pic-sure-hpds-ui  feature/Redhat httpd base image base repo
+	- Pic-sure-hpds-ui  feature/redhat httpd base image base repo
 		- git clone -b feature/redhat https://github.com/hms-dbmi/pic-sure-hpds-ui.git
-	- Pic-sure-hpds-ui feature/Redhat hpds image git repo
+	- Pic-sure-hpds-ui feature/redhat hpds image git repo
 		- git clone -b feature/redhat https://github.com/hms-dbmi/pic-sure-hpds.git
 	- Pic-sure baseline release control  which will have git hashes specific to feature/redhat branches
 		- git clone -b feature/redhat  https://github.com/hms-dbmi/baseline-pic-sure-release-control
@@ -131,4 +131,4 @@ ________________________________________________________________________________
    - cd /usr/local/docker-config/pic-sure-all-in-one
    - ./start-picsure-redhat.sh
 
-- **Note**: If multiple users need to login to pic-sure-application we need to create one user and set as pic-sure user
+- **Note**: If multiple users need to login to pic-sure-application we need to create an user and set as pic-sure user

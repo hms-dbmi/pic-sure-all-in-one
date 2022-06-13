@@ -41,6 +41,17 @@ ________________________________________________________________________________
     - 8 core
     - 100 GB of hard drive space plus enough to hold your data
 	- RHEL 8.4 or RHEL 8.6 operating system
+	
+- List of git branches modified or usedfor feature/Redhat branch
+
+	- Pic-sure-all-in-one feature/Redhat core branch: 
+		- git clone -b feature/redhat  https://github.com/hms-dbmi/pic-sure-all-in-one
+	- Pic-sure-hpds-ui  feature/Redhat httpd base image base repo
+		- git clone -b feature/redhat https://github.com/hms-dbmi/pic-sure-hpds-ui.git
+	- Pic-sure-hpds-ui feature/Redhat hpds image git repo
+		- git clone -b feature/redhat https://github.com/hms-dbmi/pic-sure-hpds.git
+	- Pic-sure baseline release control  which will have git hashes specific to feature/redhat branches
+		- git clone -b feature/redhat  https://github.com/hms-dbmi/baseline-pic-sure-release-control
 
 **Preparing to deploy:**
 
@@ -61,7 +72,7 @@ ________________________________________________________________________________
   4. Download and copy **jboss-eap-7.4.0.zip** file from local to ec2 instance
       - On my local under downloads folder i have Jboss-eap-7.4.0.zip redhat file, scp the file to ec2 instance pics-sure-all-in-one config location        “**/usr/local/docker-config/pic-sure-all-in-one/initial-configuration/config/wildfly”**  
   **Example:**
-     - sudo scp -i your-ec2-instance.pem \~/Downloads/jboss-eap-7.4.0.zip [ec2-user@your-ec2-instance.amazon.com](mailto:ec2-  user@ec2instance.amazon.com):/usr/local/docker-config/pic-sure-all-in-one/initial-configuration/config/wildfly
+     - sudo scp -i your-ec2-instance.pem \~/Downloads/jboss-eap-7.4.0.zip ec2-user@your-ec2-instance.amazon.com:/usr/local/docker-config/pic-sure-all-in-one/initial-configuration/config/wildfly
   5. Run The redhat install dependencies script, This script will install all necessary dependency to run project, MariaDB server, jenkins server, copy the necessary file changes to respective mount locations, create necessary directories
   		- **./redhat-install-dependencies.sh**
    	
@@ -119,3 +130,5 @@ ________________________________________________________________________________
 - **To start pic-sure application**
    - cd /usr/local/docker-config/pic-sure-all-in-one
    - ./start-picsure-redhat.sh
+
+- **Note**: If multiple users need to login to pic-sure-application we need to create one user and set as pic-sure user

@@ -10,7 +10,7 @@ ________________________________________________________________________________
         - Using the Configure Remote MySQL instance Jenkins job to point to Remote Database (either running on a different host or in RDS)
 - Need to run the script as root
 
-    **We need Root access on the EC2 instance for following reasons**
+    *We need Root access on the EC2 instance for following reasons*
 
     - To install yum updates
     - To Install and enable systems services for MariaDB, Jenkins.service, Firewalld

@@ -94,8 +94,8 @@ ________________________________________________________________________________
     If all jobs have blue dots except the "Check For Updates" and "Configure SSL Certificates job", which should be gray, you can log into the UI for the first time.
 	  - To access pic-sure application locally from browser add an alias/route for picsure.local to map your host ip in /etc/hosts file
     on the host as root/admin user
-    		- **example** : 127.0.0.1 is my local host and picsure.local is url which accessed from browser
-    		- **/etc/hosts** 127.0.0.1 picsure.local
+    	  - **example** : 127.0.0.1 is my local host and picsure.local is url which accessed from browser
+    	  	- **/etc/hosts** 127.0.0.1 picsure.local
   	  - From Ec2 to do local port forward to access picsure.local you can use below example
   	  	- **example** : sudo ssh -i yuurec2pemfile.pem -L 8080:localhost:8080 -L 443:localhost:443 ec2_user@your-ec2-instance.amazon.com
 10. Navigate to browser and enter https://picsure.local

@@ -37,6 +37,7 @@ ________________________________________________________________________________
 - List of git branches modified or used for feature/redhat branch
 	- Pic-sure-all-in-one feature/redhat core branch: 
 		- git clone -b feature/redhat  https://github.com/hms-dbmi/pic-sure-all-in-one
+	- **Note: We need to clone only pic-sure-all-in-one feature/redhat branch only. we dont need below branches to be cloned or checkout, Below branches will be checkout by jenkins jobs. 
 	- Pic-sure-hpds-ui  feature/redhat httpd base image base repo
 		- git clone -b feature/redhat https://github.com/hms-dbmi/pic-sure-hpds-ui.git
 	- Pic-sure-hpds-ui feature/redhat hpds image git repo
@@ -65,13 +66,24 @@ ________________________________________________________________________________
   	  - sudo scp -i your-ec2-instance.pem ~/Downloads/jboss-eap-7.4.0.zip ec2-user@your-ec2-instance.amazon.com:/usr/local/docker-config/pic-sure-all-in-one/initial-configuration/config/wildfly
   5. Run The redhat install dependencies script, This script will install all necessary dependency to run project, MariaDB server, jenkins server, copy the necessary file changes to respective mount locations, create necessary directories
   	  - **./redhat-install-dependencies.sh**
-   	
+   
      **Note:** Please check the console output while the script is executing, MariaDB is started and jenkins server started without any errors 
    
-  6. Browse to jenkins server
-	  - Point your browser at your server's IP on port 8080. Or localhost port 8080
+  6. Verify jenkins server is running and browse to jenkins server
+	  - Check jenkins process is running on the system using ps command.
+	  	- ps -aef|grep jenkins
+	  - If jenkins process is running, Point your browser at your server's IP on port 8080. Or localhost port 8080
 	  - For example, to access jenkins on localhost **http://localhost:8080**
 	  - If your server has IP 10.89.144.12, please browse to **http://10.89.144.12:8080**
+	  - If you are not able to access jenkins from the browser, you can launch a seperate ssh session of Ec2 instance local port forwarding using pem file or private key
+	  	- From Ec2 to do local port forward to access jenkins you can use below example, 
+  	  	- **example** : sudo ssh -i your-ec2-pem-file-or-private-key-file -L 8080:localhost:8080  ec2_user@your-ec2-instance.amazon.com 
+	  - When you try to access the jenkins server from browser first time, it will ask for jenkins intial administartive password to unlock the jenkins server, the initial jenkins password is located in "/var/jenkins_home/secrets/initialAdminPassword" location, cat the file and copy the secret, paste it in the "Adminstrator Password" textbox. click continue button
+	  	- sudo cat /var/jenkins_home/secrets/initialAdminPassword 
+	  - On customize jenkins screen, select "Install suggested plugins" box, it will install required jenkins plugins for this project
+	  - Need to create first adminstartor user, Enter jenkins default admin username, firstname, password, email address click  "save and continue" button
+	  - Click on "Save and Finish"  button.
+	  - Click on "Start Jenkins" button. Jenkins will start and displays the jenkins homescreen 
 
      **Note**: Work with your local IT department to ensure that this port is not available to the public internet, but is accessible to you on your intranet or VPN. anyone with access to this port can launch any application they wish on your server.
 
@@ -92,10 +104,17 @@ ________________________________________________________________________________
     
 8. Click the All tab to ensure nothing displays with a red dot next to it. If you see any red dots, please try restarting with a fresh redhat 8.4 install. If you consistently have one or more jobs fail and display red dots, please reach out to [http://avillachlabsupport.hms.harvard.edu](http://avillachlabsupport.hms.harvard.edu/) for help.
     If all jobs have blue dots except the "Check For Updates" and "Configure SSL Certificates job", which should be gray, you can log into the UI for the first time.
-	  - To access pic-sure application locally from browser add an alias/route for picsure.local to map your host ip in /etc/hosts file
+	  - To access pic-sure application locally from browser add an alias/route for picsure.local to map your host ip in hosts file
     on the host as root/admin user
     	  - **example** : 127.0.0.1 is my local host and picsure.local is url which accessed from browser
-    	  	- **/etc/hosts** 127.0.0.1 picsure.local
+    	  - For mac, Llnux based operating system users can edit /etc/hosts file and update the entry for picsure.local, and save the file
+    	  	- sudo vi /etc/hosts
+    	  	- 127.0.0.1 picsure.local
+    	  - For Windows operating system users can edit c:\Windows\System32\Drivers\etc\hosts file and update the entry for picsure.local and save the file.
+    	  	- Launch notpad in administartive mode
+    	  	- open c:\Windows\System32\Drivers\etc\hosts file and update the picsure.local entry
+    	  	- 127.0.0.1 picsure.local
+    	  
   	  - From Ec2 to do local port forward to access picsure.local you can use below example
   	  	- **example** : sudo ssh -i yuurec2pemfile.pem -L 8080:localhost:8080 -L 443:localhost:443 ec2_user@your-ec2-instance.amazon.com
 10. Navigate to browser and enter https://picsure.local
@@ -121,5 +140,15 @@ ________________________________________________________________________________
           - **To start pic-sure application**
    		- cd /usr/local/docker-config/pic-sure-all-in-one
    		- ./start-picsure-redhat.sh
+15. Log directory locations.
+	- Hpds container log file location:
+		- /var/log/hpds-logs
+	- Apache httpd container log file location, This location is mounted to /usr/local/apache2/logs you will find access logs, ssl logs, error logs for httpd request in this location
+		- /var/log/httpd-docker-logs
+	- Jboss Container log file location, This location  is volume mounted to $JBOSS_HOME/logs/ logs directory of jboss container server.log 
+		- /var/log/wildfly-docker-logs
+	- Jboss container os log file location, This location is volume mounted to jboss container to the /var/log/  location.
+		- /var/log/wildfly-docker-os-logs/
+	
 
 **Note**: If multiple users need to login to pic-sure-application we need to create an user and set as pic-sure user

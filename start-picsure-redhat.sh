@@ -31,8 +31,11 @@ if [ -f /usr/local/docker-config/wildfly/application.truststore ]; then
    	export TRUSTSTORE_JAVA_OPTS="-Djavax.net.ssl.trustStore=/opt/jboss/wildfly/standalone/configuration/application.truststore -Djavax.net.ssl.trustStorePassword=password"
 fi
 
+docker network inspect picsure --format "{{.Name}}: {{.Id}}" 2>&1  ||  docker network create picsure
+docker network inspect hpdsNet --format "{{.Name}}: {{.Id}}" 2>&1  ||  docker network create hpdsNet
+
 docker stop hpds && docker rm hpds
-docker run --name=hpds --hostname=hpds --restart always --network=picsure \
+docker run --name=hpds --hostname=hpds --restart always --network=hpdsNet \
   -v /etc/hosts:/etc/hosts \
   -v /usr/local/docker-config/hpds:/opt/local/hpds \
   -v /usr/local/docker-config/hpds/all:/opt/local/hpds/all \
@@ -44,6 +47,10 @@ if [ -f /usr/local/docker-config/httpd/custom_httpd_volumes ]; then
 	export CUSTOM_HTTPD_VOLUMES=`cat /usr/local/docker-config/httpd/custom_httpd_volumes`
 fi
 
+if [ -f /usr/local/docker-config/httpd/connections.json ]; then
+        export CONNECTIONS_VOLUME="-v /usr/local/docker-config/httpd/connections.json:/usr/local/apache2/htdocs/picsureui/psamaui/login/connections.json"
+fi
+
 docker stop httpd && docker rm httpd
 docker run --security-opt label=disable --name=httpd --hostname=httpd --restart always --network=picsure \
   -v /etc/hosts:/etc/hosts \
@@ -52,6 +59,7 @@ docker run --security-opt label=disable --name=httpd --hostname=httpd --restart 
   $PSAMA_SETTINGS_VOLUME \
   -v /usr/local/docker-config/httpd/cert:/usr/local/apache2/cert/ \
   $CUSTOM_HTTPD_VOLUMES \
+  $CONNECTIONS_VOLUME \
   -p 80:80 \
   -p 443:443 \
   -d hms-dbmi/pic-sure-ui-overrides:LATEST
@@ -59,7 +67,7 @@ docker exec httpd sed -i '/^#LoadModule proxy_wstunnel_module/s/^#//' conf/httpd
 docker restart httpd
 
 docker stop wildfly && docker rm wildfly
-docker run --security-opt label=disable --name=wildfly --hostname=wildfly --restart always --network=picsure -u root \
+docker create --security-opt label=disable --name=wildfly --hostname=wildfly --restart always --network=picsure -u root \
   -v /var/log/wildfly-docker-logs/:/opt/jboss/wildfly/standalone/log/ \
   -v /etc/hosts:/etc/hosts \
   -v /var/log/wildfly-docker-os-logs/:/var/log/ \
@@ -72,10 +80,14 @@ docker run --security-opt label=disable --name=wildfly --hostname=wildfly --rest
   -v /usr/local/docker-config/wildfly/wildfly_mysql_module.xml:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/module.xml  \
   -v /usr/local/docker-config/wildfly/mysql-connector-java-5.1.49.jar:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/mysql-connector-java-5.1.49.jar  \
   -e JAVA_OPTS="$WILDFLY_JAVA_OPTS $TRUSTSTORE_JAVA_OPTS" \
-  -d hms-dbmi/pic-sure-jbosseap:LATEST
+   hms-dbmi/pic-sure-jbosseap:LATEST
+
+docker network connect hpdsNet wildfly
+docker start wildfly
+
 httpIP=$(podman  inspect --format '{{ .NetworkSettings.Networks.picsure.IPAddress }}' httpd);
 wildflyIP=$(podman  inspect --format '{{ .NetworkSettings.Networks.picsure.IPAddress }}' wildfly);
-hpdsIP=$(podman  inspect --format '{{ .NetworkSettings.Networks.picsure.IPAddress }}' hpds);
+hpdsIP=$(podman  inspect --format '{{ .NetworkSettings.Networks.hpdsNet.IPAddress }}' hpds);
 
 echo "$httpIP httpd httpd" >> /etc/hosts
 echo "$wildflyIP wildfly wildfly" >> /etc/hosts

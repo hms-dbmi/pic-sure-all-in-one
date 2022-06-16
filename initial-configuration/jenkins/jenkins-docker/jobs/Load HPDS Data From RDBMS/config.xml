@@ -60,7 +60,7 @@ DATE - A date for the observation fact. If this HPDS instance is part of a PIC-S
 		openssl enc -aes-128-cbc -k secret -P | grep key | cut -d &apos;=&apos; -f2 &gt;  /usr/local/docker-config/hpds_temp/encryption_key
 		
 		docker stop hpds_data_load_rdbms &amp;&amp; docker rm hpds_data_load_rdbms
-		docker run --security-opt label=disable --name=hpds-etl \
+		docker run --security-opt label=disable --name=hpds-etl --network=hpdsNet \
 		  -v /usr/local/docker-config/hpds_temp:/opt/local/hpds \
 		  -v /usr/local/docker-config/hpds_csv/allConcepts.csv:/opt/local/hpds/allConcepts.csv \
 		  -e HEAPSIZE=20480 -e LOADER_NAME=SQLLoader \

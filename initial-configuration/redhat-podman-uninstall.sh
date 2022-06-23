@@ -34,7 +34,7 @@ CWD=`pwd`
 cd /usr/local/docker-config
 rm -rf APP_ID_HEX  APP_ID_RAW  flyway  hpds  hpds_csv  httpd  jupyterhub_config.py  RESOURCE_ID_HEX  RESOURCE_ID_RAW  setProxy.sh  wildfly
 cd $CWD
-yum -y remove podman-remote podman-docker podman-plugins podman
+yum -y remove podman-remote podman-docker podman-plugins podman-compose
 yum module remove container-tools -y
 rm -rf /var/lib/docker
 rm -rf /var/lib/containers

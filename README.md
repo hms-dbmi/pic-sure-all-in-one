@@ -148,6 +148,8 @@ ________________________________________________________________________________
 		- /var/log/wildfly-docker-logs
 	- Jboss container os log file location, This location is volume mounted to jboss container to the /var/log/  location.
 		- /var/log/wildfly-docker-os-logs/
-	
+16. Connect to mariadb on the host
+	- Connect to mariadb server from host as non-root user
+		- sudo mariadb --defaults-file=/root/.my.cnf
 
 **Note**: If multiple users need to login to pic-sure-application we need to create an user and set as pic-sure user

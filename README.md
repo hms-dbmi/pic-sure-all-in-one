@@ -34,16 +34,15 @@ ________________________________________________________________________________
         - mkdir -p  /usr/local/docker-config
 - Install aws cli on EC2 instance
         - yum install -y awscli
-- List of git branches modified or used for feature/redhat branch
+- List of git branches modified or used for feature/redhat branch (Don't clone)
 	- Pic-sure-all-in-one feature/redhat core branch: 
-		- git clone -b feature/redhat  https://github.com/hms-dbmi/pic-sure-all-in-one
-	- **Note: We need to clone only pic-sure-all-in-one feature/redhat branch only. we dont need below branches to be cloned or checkout, Below branches will be checkout by jenkins jobs. 
+		- https://github.com/hms-dbmi/pic-sure-all-in-one (feature/redhat)
 	- Pic-sure-hpds-ui  feature/redhat httpd base image base repo
-		- git clone -b feature/redhat https://github.com/hms-dbmi/pic-sure-hpds-ui.git
+		- https://github.com/hms-dbmi/pic-sure-hpds-ui.git (feature/redhat)
 	- Pic-sure-hpds-ui feature/redhat hpds image git repo
-		- git clone -b feature/redhat https://github.com/hms-dbmi/pic-sure-hpds.git
+		- https://github.com/hms-dbmi/pic-sure-hpds.git (feature/redhat)
 	- Pic-sure baseline release control  which will have git hashes specific to feature/redhat branches
-		- git clone -b feature/redhat  https://github.com/hms-dbmi/baseline-pic-sure-release-control
+		- https://github.com/hms-dbmi/baseline-pic-sure-release-control (feature/redhat)
 
 **Preparing to deploy:**
 

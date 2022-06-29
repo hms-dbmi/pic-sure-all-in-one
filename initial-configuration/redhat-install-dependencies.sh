@@ -237,6 +237,6 @@ cp allConcepts.csv.tgz /usr/local/docker-config/hpds_csv/
 cd /usr/local/docker-config/hpds_csv/
 tar -xvzf allConcepts.csv.tgz
 
-echo "Installation script complete.  Staring Jenkins."
+echo "Installation script complete.  Started Jenkins."
 
 #../start-jenkins.sh

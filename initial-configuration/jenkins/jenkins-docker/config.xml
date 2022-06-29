@@ -83,6 +83,7 @@
         <string>Start PIC-SURE</string>
         <string>Stop JupyterHub</string>
         <string>Stop PIC-SURE</string>
+	<string>Stop and Remove PIC-SURE Containers</string>
       </jobNames>
       <jobFilters/>
       <columns>

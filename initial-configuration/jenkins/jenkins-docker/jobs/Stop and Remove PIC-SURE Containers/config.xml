@@ -1,0 +1,47 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description></description>
+  <keepDependencies>false</keepDependencies>
+  <properties/>
+  <scm class="hudson.scm.NullSCM"/>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash
+
+docker stop hpds &amp;&amp; docker rm hpds
+
+docker stop httpd &amp;&amp; docker rm httpd
+
+docker stop wildfly &amp;&amp; docker rm wildfly
+
+DANGLING_CONTAINER_EXITS=&quot;$(docker ps --all --quiet --filter &quot;status=exited&quot; --filter &quot;status=created&quot;)&quot;
+echo $DANGLING_CONTAINER_EXITSS
+if [ ! -z &quot;$DANGLING_CONTAINER_EXITS&quot; ]; then
+    echo &quot;Removing unsed and not running containers&quot;
+    docker stop $(docker ps --all --quiet --filter &quot;status=exited&quot; --filter &quot;status=created&quot;) &amp;&amp; docker rm -f $(docker ps --all --quiet --filter &quot;status=exited&quot; --filter &quot;status=created&quot; --filter &quot;status=stopped&quot;)
+fi
+if [ -z &quot;$DANGLING_CONTAINER_EXITS&quot; ]; then
+    echo &quot;No containers are in error state to cleanup&quot;
+else
+    echo &quot;Unable to clean up below containers please manually inspect and Delete them&quot;
+    echo &quot;$DANGLING_CONTAINER_EXITS&quot;
+fi
+
+sed  &apos;/wildfly/d&apos; /etc/hosts &gt; hosts.new &amp;&amp; cat hosts.new &gt; /etc/hosts
+sed  &apos;/httpd/d&apos; /etc/hosts &gt; hosts.new &amp;&amp; cat hosts.new &gt; /etc/hosts
+sed  &apos;/hpds/d&apos; /etc/hosts &gt; hosts.new &amp;&amp; cat hosts.new &gt; /etc/hosts
+
+</command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

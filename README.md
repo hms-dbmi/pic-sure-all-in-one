@@ -153,3 +153,33 @@ ________________________________________________________________________________
 		- sudo mariadb --defaults-file=/root/.my.cnf
 
 **Note**: If multiple users need to login to pic-sure-application we need to create an user and set as pic-sure user
+
+**Steps to uninstall and reinstall pic-sure-all-in-one project**
+
+**Steps to uninstall**
+1. Login as root user 
+	- sudo su -
+2. Navigate to pic-sure-all-in-one project directory to access redhat-podman-uninstall.sh script
+	- cd /usr/local/docker-config/pic-sure-all-in-one/initial-configuration
+3. Run the red hat-podman-uninstall script, this script will uninstall all dependencies which are installed as part of the installation script. This script will uninstall  MariaDB server, Jenkins server, delete the necessary file changes to respective mount locations, remove all directories created to support the project, stop all running podman containers, remove all podman containers,podman volumes, podman networks, podman images.  
+ 	- ./redhat-podman-uninstall.sh
+Please check the console output while the script is executing, MariaDB is uninstalled and Jenkins service removed.
+
+**Steps to reinstall picsure-all-in-one project after cleaning up exisiting stack**
+
+4. Navigate to pic-sure-all-in-one project directory to access startup
+	- cd /usr/local/docker-config/pic-sure-all-in-one/
+5. If you have any local changes to the project, revert and pull the latest changes from feature/redhat branch.
+	- To check the status of the git branch for any existing file changes.
+		- git status
+	- To clean and revert the local changes 
+		- git reset –-hard
+		- git clean -fxd
+ 	- To pull latest changes from the branch
+ 		- git pull 
+6. Run the redhat install dependencies script, this script will install all necessary dependency to run project, MariaDB server, jenkins server, copy the necessary file changes to respective mount locations, create necessary directories
+	- ./redhat-install-dependencies.sh
+7. Please repeat the steps 6 to steps 11 from section **"Steps to install pic-sure-all-in-one project on a RHEL 8.4"**
+
+**Note:** During reinstall steps if you ran into any issue with git revert local changes or stack not able update the latest changes, take back up of  **/usr/local/docker-config/pic-sure-all-in-one** directory or remove **/usr/local/docker-config/pic-sure-all-in-one** the directory and follow the **"Steps to install pic-sure-all-in-one project on a RHEL 8.4"**
+

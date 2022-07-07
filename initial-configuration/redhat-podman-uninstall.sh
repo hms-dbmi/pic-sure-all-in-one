@@ -13,10 +13,10 @@ if [ ! -z "$containers" ]; then
         docker stop $(docker ps -a -q)
         docker rm $(docker ps -a -q)
 fi
-images=$(docker ps -a -q)
-if [ ! -z "$images" ]; then
-        docker rmi $(docker images -a -q)
-fi
+#images=$(docker images -a -q)
+#if [ ! -z "$images" ]; then
+#        docker rmi $(docker images -a -q)
+#fi
 
 networks=$(docker network ls)
 if [ ! -z "networks" ]; then
@@ -24,8 +24,8 @@ if [ ! -z "networks" ]; then
 fi
 docker network prune  -f
 docker volume prune  -f
-docker system prune -a -f
-docker system prune --volumes -f
+#docker system prune -a -f
+#docker system prune --volumes -f
 systemctl stop podman.socket
 systemctl disable podman.socket
 
@@ -36,8 +36,8 @@ rm -rf APP_ID_HEX  APP_ID_RAW  flyway  hpds  hpds_csv  httpd  jupyterhub_config.
 cd $CWD
 yum -y remove podman-remote podman-docker podman-plugins podman-compose
 yum module remove container-tools -y
-rm -rf /var/lib/docker
-rm -rf /var/lib/containers
+#rm -rf /var/lib/docker
+#rm -rf /var/lib/containers
 unlink /var/run/docker.sock
 rm -rf /run/podman/podman.sock
 rm -rf /run/podman

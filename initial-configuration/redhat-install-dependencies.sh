@@ -48,10 +48,14 @@ source ~/.bash_profile
 
 ## Creating Podman networks 
 
-echo  "Creating picsure, hpdsNet docker network"
-podman network create podman
-podman network create picsure
-podman network create hpdsNet
+echo  "Creating picsure, hpdsNet podman network"
+docker network inspect podman --format "{{.Name}}: {{.Id}}" 2>&1  ||  docker network create podman
+docker network inspect picsure --format "{{.Name}}: {{.Id}}" 2>&1  ||  docker network create picsure
+docker network inspect hpdsNet --format "{{.Name}}: {{.Id}}" 2>&1  ||  docker network create hpdsNet
+
+#podman network create podman
+#podman network create picsure
+#podman network create hpdsNet
 
 docker run -it --rm hello-world
 docker run -it --rm  --name test1 --network=picsure hello-world
@@ -169,7 +173,7 @@ echo "Building and installing Jenkins"
 #docker tag pic-sure-jenkins:`git log -n 1 | grep commit | cut -d ' ' -f 2 | cut -c 1-7` pic-sure-jenkins:LATEST
 
 ##Configuring Jenkins on local host downloading,Jenkins war and creating necessary directories 
-wget https://get.jenkins.io/war-stable/2.332.3/jenkins.war
+wget https://get.jenkins.io/war-stable/2.346.1/jenkins.war
 echo "Creating Jenkins Log Path"
 mkdir -p /usr/share/jenkins
 mkdir -p /var/log/jenkins-docker-logs

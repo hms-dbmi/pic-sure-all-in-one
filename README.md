@@ -151,9 +151,7 @@ ________________________________________________________________________________
 16. Connect to mariadb on the host
 	- Connect to mariadb server from host as non-root user
 		- sudo mariadb --defaults-file=/root/.my.cnf
-
-**Note**: If multiple users need to login to pic-sure-application we need to create an user and set as pic-sure user
-
+		
 **Steps to uninstall and reinstall pic-sure-all-in-one project**
 
 **Steps to uninstall**
@@ -161,7 +159,7 @@ ________________________________________________________________________________
 	- sudo su -
 2. Navigate to pic-sure-all-in-one project directory to access redhat-podman-uninstall.sh script
 	- cd /usr/local/docker-config/pic-sure-all-in-one/initial-configuration
-3. Run the red hat-podman-uninstall script, this script will uninstall all dependencies which are installed as part of the installation script. This script will uninstall  MariaDB server, Jenkins server, delete the necessary file changes to respective mount locations, remove all directories created to support the project, stop all running podman containers, remove all podman containers,podman volumes, podman networks, podman images.  
+3. Run the redhat-podman-uninstall script, this script will uninstall all dependencies which are installed as part of the installation script. This script will uninstall  MariaDB server, Jenkins server, delete the necessary file changes to respective mount locations, remove all directories created to support the project, stop all running podman containers, remove all podman containers,podman volumes, podman networks, podman images.  
  	- ./redhat-podman-uninstall.sh
 Please check the console output while the script is executing, MariaDB is uninstalled and Jenkins service removed.
 

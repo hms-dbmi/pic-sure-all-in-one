@@ -36,7 +36,7 @@ rm -rf /run/podman
 rm -rf /run/netns
 
 # MySQL
-systemctl stop mysqld
+systemctl stop mariadb
 systemctl disable mariadb
 yum -y remove  mariadb-server mysql-community-server mysql-community-client mysql-community-release
 rm -f /etc/my.cnf
@@ -49,7 +49,7 @@ rm -rf /var/log/jenkins-docker-logs
 rm -rf /var/log/wildfly-docker-logs
 rm -rf /var/log/wildfly-docker-os-logs
 rm -rf /var/log/mysqld.log
-
+rm -rf mysql57-community-release-el7-9.noarch.rpm*
 yum remove -y maven
 rm -rf ~/.m2
 

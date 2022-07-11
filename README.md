@@ -57,18 +57,17 @@ cd pic-sure-all-in-one/initial-configuration
 sudo ./install-dependencies.sh
 
 4. Browse to Jenkins server
-
-5. Point your browser at your server's IP on port 8080. 
+Point your browser at your server's IP on port 8080. 
 
 For example, if your server has IP 10.109.190.146, please browse to http://10.109.190.146:8080
 
 Note: Work with your local IT department to ensure that this port is not available to the public internet, but is accessible to you on your intranet or VPN. Anyone with access to this port can launch any application they wish on your server.
 
-6. In Jenkins you will see 5 tabs: All, Configuration, Deployment, PIC-SURE Builds, Supporting Jobs
+5. In Jenkins you will see 5 tabs: All, Configuration, Deployment, PIC-SURE Builds, Supporting Jobs
 
 Click the Configuration tab, then click the button to the right of the Initial Configuration Pipeline job. It resembles a clock with a green triangle on it. 
 
-7. Provide the following information:
+6. Provide the following information:
 
     - AUTH0_CLIENT_ID: This is the client_id of your Auth0 Application
 
@@ -84,21 +83,21 @@ Click the Configuration tab, then click the button to the right of the Initial C
 
 Note: Ensure none of these fields contain leading or trailing whitespace, the values must be exact. Once you have entered the information,
 
-8. Click the "Build" button.
+7. Click the "Build" button.
 
 Wait until all jobs complete. This may take several minutes. When nothing displays in the Build Queue or Build Executor Status to the left of the page, all jobs will have completed.
 
-9. Click the All tab to ensure nothing displays with a red dot next to it. If you see any red dots, please try restarting with a fresh Centos7 install. If you consistently have one or more jobs fail and display red dots, please reach out to http://avillachlabsupport.hms.harvard.edu for help.
+8. Click the All tab to ensure nothing displays with a red dot next to it. If you see any red dots, please try restarting with a fresh Centos7 install. If you consistently have one or more jobs fail and display red dots, please reach out to http://avillachlabsupport.hms.harvard.edu for help.
 
 If all jobs have blue dots except the Check For Updates and Configure SSL Certificates job, which should be gray, you can log into the UI for the first time. 
 
-10. Browse to the same domain or IP address as your Jenkins server without the 8080 port.
+9. Browse to the same domain or IP address as your Jenkins server without the 8080 port.
 
 For example, if your server has IP 10.109.190.146, you would browse to https://10.109.190.146
 
-11. Log in using your Google account that you previously configured.
+10. Log in using your Google account that you previously configured.
 
-12. Once you have confirmed that you can access the PIC-SURE UI using your admin user, stop the jenkins server by runnning the following stop-jenkins.sh script:
+11. Once you have confirmed that you can access the PIC-SURE UI using your admin user, stop the jenkins server by runnning the following stop-jenkins.sh script:
 
 sudo ./stop-jenkins.sh
 

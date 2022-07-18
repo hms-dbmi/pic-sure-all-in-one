@@ -50,7 +50,7 @@ export old_token_introspection_token=`cat /usr/local/docker-config/jupyterhub_co
 
 sed -i &quot;s/$old_token_introspection_token/$new_token_introspection_token/g&quot; /usr/local/docker-config/jupyterhub_config.py
 
-docker run -i --rm -v /root/.my.cnf:/root/.my.cnf --network=host mariadb:10.7 mysql -h 127.0.0.1 -e \
+docker run -i --rm -v /root/.my.cnf:/root/.my.cnf --network=host mariadb:10.8.3 mysql -h 127.0.0.1 -e \
 &quot;update application set token=&apos;$new_token_introspection_token&apos; where uuid=$application_id;&quot; auth
 </command>
     </hudson.tasks.Shell>

@@ -181,3 +181,9 @@ Please check the console output while the script is executing, MariaDB is uninst
 
 **Note:** During reinstall steps if you ran into any issue with git revert local changes or stack not able update the latest changes, take back up of  **/usr/local/docker-config/pic-sure-all-in-one** directory or remove **/usr/local/docker-config/pic-sure-all-in-one** the directory and follow the **"Steps to install pic-sure-all-in-one project on a RHEL 8.4"**
 
+**Steps to Cleanup Remove unused images and dangling containers**
+1. In Jenkins you will see 5 tabs: All, Configuration, Deployment, "PIC-SURE Builds", "Supporting Jobs"
+    Click the Deployment tab, then click the button to the right of the "Cleanup Containers and Images" job. It resembles a clock with a green triangle on it.
+2. This job will remove all unused, not-running, exited status containers and removes all images not in use by containers.
+
+Note: Cleanup Remove ununsed images and dangling containers jenkins job need to run after start-picsure job is completed.

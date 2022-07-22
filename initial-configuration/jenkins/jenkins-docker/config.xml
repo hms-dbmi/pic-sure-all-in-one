@@ -74,7 +74,8 @@
       <jobNames>
         <comparator class="hudson.util.CaseInsensitiveComparator" reference="../../../listView/jobNames/comparator"/>
         <string>Check For Updates</string>
-        <string>Load Genomic Data</string>
+	<string>Cleanup Containers and Images</string>        
+	<string>Load Genomic Data</string>
         <string>Load Genomic Metadata</string>
         <string>Load HPDS Data From CSV</string>
         <string>Load HPDS Data From RDBMS</string>

@@ -67,7 +67,7 @@ node {
         
         dir(&apos;pic-sure-auth-db&apos;){
           sh &apos;&apos;&apos;
-            docker  run --security-opt label=disable -d --name auth-dbmigration --network=picsure -v ./db/sql:/opt/flyway-migrations/auth/sql -v /usr/local/docker-config/flyway/auth:/opt/flyway-migrations/auth     dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0
+            docker  run --security-opt label=disable -d --name auth-dbmigration --network=picsure -v ./db/sql:/opt/flyway-migrations/auth/sql -v /usr/local/docker-config/flyway/auth:/opt/flyway-migrations/auth     dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.1
             docker  exec -it auth-dbmigration bash -c &quot;/opt/flyway/flyway -X -configFiles=/opt/flyway-migrations/auth/flyway-auth.conf migrate&quot;
           &apos;&apos;&apos;          
         }
@@ -79,7 +79,7 @@ node {
         
         dir(&apos;pic-sure-api-data&apos;){
         sh &apos;&apos;&apos;
-          docker  run --security-opt label=disable -d --name picsure-dbmigration --network=picsure -v ./src/main/resources/db/sql:/opt/flyway-migrations/picsure/sql -v /usr/local/docker-config/flyway/picsure:/opt/flyway-migrations/picsure    dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0
+          docker  run --security-opt label=disable -d --name picsure-dbmigration --network=picsure -v ./src/main/resources/db/sql:/opt/flyway-migrations/picsure/sql -v /usr/local/docker-config/flyway/picsure:/opt/flyway-migrations/picsure    dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.1
           docker  exec -it picsure-dbmigration bash -c &quot;/opt/flyway/flyway -X -configFiles=/opt/flyway-migrations/picsure/flyway-picsure.conf migrate&quot;
         &apos;&apos;&apos;          
       }
@@ -95,13 +95,13 @@ node {
 
         dir(&apos;custom-migrations&apos;){
         sh &apos;&apos;&apos;
-          docker  run --security-opt label=disable -d --name picsure-custom-dbmigration --network=picsure -v ./picsure:/opt/flyway-migrations/picsure/sql -v /usr/local/docker-config/flyway/picsure:/opt/flyway-migrations/picsure dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0
+          docker  run --security-opt label=disable -d --name picsure-custom-dbmigration --network=picsure -v ./picsure:/opt/flyway-migrations/picsure/sql -v /usr/local/docker-config/flyway/picsure:/opt/flyway-migrations/picsure dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.1
           docker  exec -it picsure-custom-dbmigration bash -c &quot;/opt/flyway/flyway -X -baselineOnMigrate=true -configFiles=/opt/flyway-migrations/picsure/flyway-picsure.conf -table=flyway_custom_schema_history migrate&quot;
         &apos;&apos;&apos;          
       }
       dir(&apos;custom-migrations&apos;){
         sh &apos;&apos;&apos;
-          docker  run --security-opt label=disable -d --name auth-custom-dbmigration --network=picsure -v ./auth:/opt/flyway-migrations/auth/sql -v /usr/local/docker-config/flyway/auth:/opt/flyway-migrations/auth dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0
+          docker  run --security-opt label=disable -d --name auth-custom-dbmigration --network=picsure -v ./auth:/opt/flyway-migrations/auth/sql -v /usr/local/docker-config/flyway/auth:/opt/flyway-migrations/auth dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.1
          docker  exec -it auth-custom-dbmigration bash -c &quot;/opt/flyway/flyway -X -baselineOnMigrate=true -configFiles=/opt/flyway-migrations/auth/flyway-auth.conf -table=flyway_custom_schema_history migrate&quot;
         &apos;&apos;&apos;          
       }

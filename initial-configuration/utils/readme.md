@@ -1,5 +1,5 @@
 **update-jenkins-job.sh**
-  - Instruction to run the script update-jenkins-job.sh
+  - Instructions to run the script update-jenkins-job.sh
     1) Stop the jenkins
        - **cd /usr/local/docker-config/pic-sure-all-in-one/initial-configuration**
        - **./stop-local-jenkins.sh or sudo ./stop-local-jenkins.sh**
@@ -15,7 +15,7 @@
 	     - **sudo cd /usr/local/docker-config/pic-sure-all-in-one/initial-configuration/utils**
   	6) Run the script update-jenkins-job.sh
   	   - **sudo ./update-jenkins-job.sh**
-  Note: This script will deploy latest jenkins jobs to existing pics-are installation on the host)
+  Note: This script will deploy latest jenkins jobs to existing pic-sure installation on the host
 	  7) Start jenkins
           - **sudo cd /usr/local/docker-config/pic-sure-all-in-one/initial-configuration**
           - **sudo ./start-local-jenkins.sh or sudo ./start-local-jenkins.sh**

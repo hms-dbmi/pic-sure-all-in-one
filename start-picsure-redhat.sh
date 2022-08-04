@@ -34,7 +34,7 @@ fi
 docker network inspect picsure --format "{{.Name}}: {{.Id}}" 2>&1  ||  docker network create picsure
 docker network inspect hpdsNet --format "{{.Name}}: {{.Id}}" 2>&1  ||  docker network create hpdsNet
 
-docker stop hpds && docker rm hpds
+docker stop hpds && docker rm -f hpds
 docker run --name=hpds --hostname=hpds --restart always --network=hpdsNet \
   -v /etc/hosts:/etc/hosts \
   -v /usr/local/docker-config/hpds:/opt/local/hpds \
@@ -51,7 +51,7 @@ if [ -f /usr/local/docker-config/httpd/connections.json ]; then
         export CONNECTIONS_VOLUME="-v /usr/local/docker-config/httpd/connections.json:/usr/local/apache2/htdocs/picsureui/psamaui/login/connections.json"
 fi
 
-docker stop httpd && docker rm httpd
+docker stop httpd && docker rm -f httpd
 docker run --security-opt label=disable --name=httpd --hostname=httpd --restart always --network=picsure \
   -v /etc/hosts:/etc/hosts \
   -v /var/log/httpd-docker-logs/:/usr/local/apache2/logs/ \
@@ -66,7 +66,7 @@ docker run --security-opt label=disable --name=httpd --hostname=httpd --restart 
 docker exec httpd sed -i '/^#LoadModule proxy_wstunnel_module/s/^#//' conf/httpd.conf
 docker restart httpd
 
-docker stop wildfly && docker rm wildfly
+docker stop wildfly && docker rm -f wildfly
 docker create --security-opt label=disable --name=wildfly --hostname=wildfly --restart always --network=picsure -u root \
   -v /var/log/wildfly-docker-logs/:/opt/jboss/wildfly/standalone/log/ \
   -v /etc/hosts:/etc/hosts \

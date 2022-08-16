@@ -32,6 +32,5 @@
 	    - http://localhost:8080/job/Check%20For%20Updates/
 	11) Click the Deployment tab, then click the button to the right of the "Start PIC-SURE" job. It resembles a clock with a green triangle on it.
 	     - http://localhost:8080/job/Start%20PIC-SURE/
-	12) Click the Deployment tab, then click the button to the right of the "Cleanup Containers and Images" job. It resembles a clock with a green triangle on it.
-	     - http://localhost:8080/job/Cleanup%20Containers%20and%20Images/
+	
 

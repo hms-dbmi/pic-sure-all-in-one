@@ -6,5 +6,8 @@
         </exclusions>
         <exclude-subsystems>
     </exclude-subsystems>
+	<dependencies>
+                <module name="org.jboss.resteasy.resteasy-jettison-provider" services="import"/>
+            </dependencies>
     </deployment>
 </jboss-deployment-structure>

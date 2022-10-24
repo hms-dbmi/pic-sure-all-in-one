@@ -1,3 +1,4 @@
+
 #!/usr/bin/env bash
 
 CWD=`pwd`
@@ -7,6 +8,7 @@ cp -r config/* /usr/local/docker-config/
 
 echo "Starting update"
 yum -y update 
+yum -y install net-tools
 echo "Update yum to get correct version of MariaDB"
 curl -sS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash
 

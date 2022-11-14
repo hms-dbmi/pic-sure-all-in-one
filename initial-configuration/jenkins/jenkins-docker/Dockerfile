@@ -1,4 +1,4 @@
-FROM jenkins/jenkins:2.332.4
+FROM jenkins/jenkins:2.377
 
 COPY plugins.txt /usr/share/jenkins/ref/plugins.txt
 
@@ -32,4 +32,4 @@ RUN apt-get install jq -y
 
 RUN apt-get -y install uuid-runtime
 
-RUN /usr/local/bin/install-plugins.sh < /usr/share/jenkins/ref/plugins.txt || echo "Some errors occurred during plugin installation."
+RUN jenkins-plugin-cli --plugin-file /usr/share/jenkins/ref/plugins.txt

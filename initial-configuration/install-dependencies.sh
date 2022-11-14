@@ -52,6 +52,7 @@ echo "[mysqld]" >> /etc/my.cnf
 echo "bind-address=127.0.0.1" >> /etc/my.cnf
 echo "default-time-zone='-00:00'" >> /etc/my.cnf
 systemctl start mariadb.service
+systemctl enable mariadb.service
 echo "` < /dev/urandom tr -dc @^=+$*%_A-Z-a-z-0-9 | head -c${1:-24}`%4cA" > pass.tmp
 mysql -u root --connect-expired-password -e "ALTER USER root@localhost IDENTIFIED BY '`cat pass.tmp`';flush privileges;"
 echo "[mysql]" > ~/.my.cnf

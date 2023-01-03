@@ -65,7 +65,7 @@ Note: Work with your local IT department to ensure that this port is not availab
 
 5. In Jenkins you will see 5 tabs: All, Configuration, Deployment, PIC-SURE Builds, Supporting Jobs
 
-Click the Configuration tab, then click the button to the right of the Initial Configuration Pipeline job. It resembles a clock with a green triangle on it. 
+Click the Configuration tab, then click the button to the right of the Initial Configuration Pipeline job. It resembles a clock with a green triangle on it. See Additional Information below for how to connect to a remote SQL instance. 
 
 6. Provide the following information:
 
@@ -116,7 +116,9 @@ For example, if your server has IP 10.109.190.146, browse to https://10.109.190.
 
 - If you have an Apache HTTPD compatible certificate, chain, and key files for SSL configuration, navigate to the Configuration tab and run the Configure SSL Certificates job uploading your server.crt, server.chain, and server.key files using the Choose File buttons, then press the Build button. Once this completes, go to the Deployment tab and run the Deploy PIC-SURE job to restart your containers so the updated SSL configuration is used.
 
-- As your project progresses you will run the Check For Updates job to pull and build the latest release of each component as the release control repository is updated. To deploy the latest updates after Check For Updates is run, execute the Start PIC-SURE job.
+- As your project progresses you will run the "Check For Updates" job to pull and build the latest release of each component as the release control repository is updated. To deploy the latest updates after "Check For Updates" is run, execute the Start PIC-SURE job.
+
+- If you would like to connect to a remote database, then run the "Configure Remote MySQL Instance" Jenkins job. 
 
 # Data Loading into HPDS
 - Genotype Data Load: [https://github.com/hms-dbmi/pic-sure-all-in-one/blob/master/hpds_geno_load.md](https://github.com/hms-dbmi/pic-sure-all-in-one/blob/master/hpds_geno_load.md)

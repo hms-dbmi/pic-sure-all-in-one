@@ -63,9 +63,8 @@ For example, if your server has IP 10.109.190.146, please browse to http://10.10
 
 Note: Work with your local IT department to ensure that this port is not available to the public internet, but is accessible to you on your intranet or VPN. Anyone with access to this port can launch any application they wish on your server.
 
-5. In Jenkins you will see 5 tabs: All, Configuration, Deployment, PIC-SURE Builds, Supporting Jobs
-
-Click the Configuration tab, then click the button to the right of the Initial Configuration Pipeline job. It resembles a clock with a green triangle on it. See Additional Information below for how to connect to a remote SQL instance. 
+5. Run the Initial Configuration Pipeline job. 
+In Jenkins you will see 5 tabs: All, Configuration, Deployment, PIC-SURE Builds, Supporting Jobs. Click the Configuration tab, then click the button to the right of the Initial Configuration Pipeline job. It resembles a clock with a green triangle on it. See Additional Information below for how to connect to a remote SQL instance. 
 
 6. Provide the following information:
 

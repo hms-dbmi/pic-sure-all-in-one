@@ -132,7 +132,7 @@ For example, if your server has IP `10.109.190.146`, browse to https://10.109.19
 
 - If you would like to connect to a remote database, then run the "Configure Remote MySQL Instance" Jenkins job. 
 
-# Data Loading into HPDS
+## Data Loading into HPDS
 - Genotype Data Load: [https://github.com/hms-dbmi/pic-sure-all-in-one/blob/master/hpds_geno_load.md](https://github.com/hms-dbmi/pic-sure-all-in-one/blob/master/hpds_geno_load.md)
 - Phenotypic Data Load: [https://github.com/hms-dbmi/pic-sure-hpds-phenotype-load-example](https://github.com/hms-dbmi/pic-sure-hpds-phenotype-load-example)
 

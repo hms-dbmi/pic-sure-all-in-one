@@ -1,18 +1,31 @@
-# pic-sure-all-in-one
+# PIC-SURE All-in-one
+
+Welcome to PIC-SURE! The PIC-SURE all-in-one package is a comprehensive tool developed by the Avillach Lab that offers a seamless and efficient installation process for the PIC-SURE ecosystem. This integrated package includes the PIC-SURE API, a powerful and flexible programming interface that enables easy access to a wide variety of clinical and genomic data sources. Additionally, the tool offers a customizable web-based user interface (UI) that enables users to explore and analyze complex datasets visually and interactively. The All-in-one also includes a Jenkins server that facilitates the developing, updating, testing, and deploying of PIC-SURE systems, making it easier for developers to manage and monitor the PIC-SURE ecosystem.
+
+## What is PIC-SURE?
+
+The Patient-centered Information Commons: Standard Unification of Research Elements (PIC-SURE) platform integrates different layers of clinical and genomic data from diverse data sources, providing a multifaceted approach to biomedical research.
+The PIC-SURE platform was built on i2b2 (Informatics for Integrating Biology & the Bedside, a data model created for EHR data), with an Apache 2.0 license (open source). PIC-SURE has been deployed in both FISMA Moderate ATO and HI-TRUST environments.
+
+The PIC-SURE platform provides both an intuitive graphical user interface (UI) and an application programming interface (API) to meet different use cases and levels of experience with data manipulation. The PIC-SURE UI allows for an investigator to search for variables of interest and to conduct feasibility queries. In this way, cohorts are built in real-time and results can be retrieved for analysis.
+
+See more at [pic-sure.org](https://pic-sure.org/about)
+
+## Using the All-in-one
 
 Assumptions:
 
 - This system will be maintained by someone with either a basic understanding of Docker or the will to learn and develop that understanding over time.
 
-- The server can access the internet and your browser can access the server on ports 80, 443, 8080.
+- The server can access the internet and your browser can access the server on ports `80`, `443`, `8080`.
 
-- You have sudo privileges or root account access on the server.
+- You have `sudo` privileges or root account access on the server.
 
 Preparing to deploy:
 
 - You will create an initial admin user tied to a Google account. Decide which google account you want to use.
 
-- You need an Auth0 Client Secret(AUTH0_CLIENT_SECRET), Client ID(AUTH0_CLIENT_ID), and an AUTH0_TENANT value for the Configure Auth0 Integration Jenkins job. Please contact us at http://avillachlabsupport.hms.harvard.edu and select "PIC-SURE All-in-one evaluation client credentials" for evaluation Client Credentials. If you are just evaluating PIC-SURE in a demo environment with the demo data that is included, you should use our demo credentials. You will want to use production credentials for environments that have controlled access data. Please specify which of these use-cases applies in your request. The Auth0 Applicatioon created to obtain this CLIENT_ID and CLIENT_SECRET must have OpenID-Connect Compliance turned off in the Auth0 settings.
+- You need an Auth0 Client Secret(`AUTH0_CLIENT_SECRET`), Client ID(`AUTH0_CLIENT_ID`), and an `AUTH0_TENANT` value for the Configure Auth0 Integration Jenkins job. Please contact us at http://avillachlabsupport.hms.harvard.edu and select "PIC-SURE All-in-one evaluation client credentials" for evaluation Client Credentials. If you are just evaluating PIC-SURE in a demo environment with the demo data that is included, you should use our demo credentials. You will want to use production credentials for environments that have controlled access data. Please specify which of these use-cases applies in your request. The Auth0 Applicatioon created to obtain this `CLIENT_ID` and `CLIENT_SECRET` must have OpenID-Connect Compliance turned off in the Auth0 settings.
 
 - Before you can safely run the system in production you will need a SSL certificate, chain, and key that is compatible with Apache HTTPD. If you are unable to obtain secure SSL certs and key, and are taking steps to keep your system from being accessible to the public internet you can choose to accept the risk that someone may steal your data or hijack your server by using the development certs and key that come installed by default. -- *USE THE DEFAULT CERTS AND KEY AT YOUR OWN RISK* --
 
@@ -28,7 +41,7 @@ Data Loading Requirements: <p>
 The resources required to load the data are determined based on the attributes of the data (number of patients, metadata per patient, annotations, etc.) and the mechanism to load the data (CSV, RDS). <br>
 Examples:
 - If you are loading the small example datasets provided, such as 1000 patients from CDC NHANES and/or one chromosome from 1000 Genomes, then the minimum system requirements (8 vCPU, 32 GB ram) will be excessive. 
-- Boston Children’s Hospital requires m5.4xlarge ec2 (16 vCPU, 64 GB ram) and HEAPSIZE=40,960 to load the following: 
+- Boston Children’s Hospital requires `m5.4xlarge` ec2 (16 vCPU, 64 GB ram) and `HEAPSIZE=40,960` to load the following: 
     - Clinical data for 2.9 million patients, with 112,267 variables and 874,530,503 observed facts in total loaded from an RDBMS using SQLLoader. Using the CSV loader may result in more resources being needed. 
     - Genomic data for 4,000 patients, with the following annotation columns configured using the HPDS annotation pipeline to generate those annotations for 30,879,078 total variants.
         - Allele frequency in GNOMAD
@@ -40,26 +53,26 @@ Examples:
 - Since a precise calculation to determine the resources required for loading data takes a prohibitive effort, a trial and error approach is the most practical way to determine what the loading resource environment is for any set of data. 
 
 
-# Steps to install on a fresh Centos 7 installation:
+## Steps to install on a fresh Centos 7 installation:
 
 1. Install Git
 
-sudo yum -y install git
+`sudo yum -y install git`
 
 2. Clone the PIC-SURE All-in-one repository
 
-git clone https://github.com/hms-dbmi/pic-sure-all-in-one
+`git clone https://github.com/hms-dbmi/pic-sure-all-in-one`
 
 3. Install the dependencies and build the Jenkins container
 
-cd pic-sure-all-in-one/initial-configuration
+`cd pic-sure-all-in-one/initial-configuration`
 
-sudo ./install-dependencies.sh
+`sudo ./install-dependencies.sh`
 
 4. Browse to Jenkins server
-Point your browser at your server's IP on port 8080. 
+Point your browser at your server's IP on port `8080`. 
 
-For example, if your server has IP 10.109.190.146, please browse to http://10.109.190.146:8080
+For example, if your server has IP `10.109.190.146`, please browse to http://10.109.190.146:8080
 
 Note: Work with your local IT department to ensure that this port is not available to the public internet, but is accessible to you on your intranet or VPN. Anyone with access to this port can launch any application they wish on your server.
 
@@ -90,9 +103,9 @@ Wait until all jobs complete. This may take several minutes. When nothing displa
 
 If all jobs have blue dots except the Check For Updates and Configure SSL Certificates job, which should be gray, you can log into the UI for the first time. 
 
-9. Browse to the same domain or IP address as your Jenkins server without the 8080 port.
+9. Browse to the same domain or IP address as your Jenkins server without the `8080` port.
 
-For example, if your server has IP 10.109.190.146, you would browse to https://10.109.190.146
+For example, if your server has IP `10.109.190.146`, you would browse to https://10.109.190.146
 
 10. Log in using your Google account that you previously configured.
 
@@ -101,9 +114,9 @@ For example, if your server has IP 10.109.190.146, you would browse to https://1
 sudo ./stop-jenkins.sh
 
 
-# Additional Information:
+## Additional Information:
 
-- Any time you wish to update the system, please run the update-jenkins.sh script and then start the Jenkins server. This ensures the jenkins jobs and configurations are up to date.  
+- Any time you wish to update the system, please run the update-jenkins.sh script and then start the Jenkins server. This ensures the jenkins jobs and configurations are up to date. See [here](#updating-jenkins)
 
 - Always stop Jenkins using the stop-jenkins.sh script when you are done to prevent unauthorized access as Jenkins effectively has root privileges on your server.
 
@@ -111,7 +124,7 @@ sudo ./stop-jenkins.sh
 
 - To start or stop JupyterHub use the "Start JupyterHub" and "Stop JupyterHub" jobs. The Start JupyterHub job asks you to set a password. Currently this password is shared by all JupyterHub users, we are working to integrate JupyterHub with the PIC-SURE Auth Micro-App so that users can log in using the same credentials they use to access PIC-SURE UI. To access JupyterHub browse to your server ip address on the path /jupyterhub
 
-For example, if your server has IP 10.109.190.146, browse to https://10.109.190.146/jupyterhub
+For example, if your server has IP `10.109.190.146`, browse to https://10.109.190.146/jupyterhub
 
 - If you have an Apache HTTPD compatible certificate, chain, and key files for SSL configuration, navigate to the Configuration tab and run the Configure SSL Certificates job uploading your server.crt, server.chain, and server.key files using the Choose File buttons, then press the Build button. Once this completes, go to the Deployment tab and run the Deploy PIC-SURE job to restart your containers so the updated SSL configuration is used.
 
@@ -119,13 +132,24 @@ For example, if your server has IP 10.109.190.146, browse to https://10.109.190.
 
 - If you would like to connect to a remote database, then run the "Configure Remote MySQL Instance" Jenkins job. 
 
-# Data Loading into HPDS
+## Data Loading into HPDS
 - Genotype Data Load: [https://github.com/hms-dbmi/pic-sure-all-in-one/blob/master/hpds_geno_load.md](https://github.com/hms-dbmi/pic-sure-all-in-one/blob/master/hpds_geno_load.md)
 - Phenotypic Data Load: [https://github.com/hms-dbmi/pic-sure-hpds-phenotype-load-example](https://github.com/hms-dbmi/pic-sure-hpds-phenotype-load-example)
 
-# Users
-## Adding and Removing Users
-To add a user:
+## Updating Jenkins
+
+We recomend you update jenkins in a regualar cadence. We have a script you can run to make this easy. It updates both the jenkins jobs and and the jenkins version the the latest in the master branch of this repository. **IMPORTANT NOTE:** This script does not migrate the jenkins admin/users. However, it does migrate your initial configurations.  (Does not impact PIC-SURE users)
+
+1. On the host machine navigate to the `pic-sure-all-in-one` directory.
+1. Run `sudo ./update-jenkins.sh`
+1. If jenkins is not running run the start script `sudo ./start-jenkins.sh`
+1. Follow the jenkins set up steps again.
+    
+A backup of your jenkins home can be found here: `/var/jenkins_home_bak/`
+    
+## Users
+### Adding and Removing Users
+#### To add a user:
 1. Click **Admin**.
 2. Click **Add User**. A window appears.
 3. **Adding User For** - If not Google, select the user's authentication service, also known as connection type. 
@@ -137,7 +161,7 @@ To add a user:
 - **JupyterHub User**: A normal user who can access JupyterHub.
 6. Click **Save user**.
 
-To remove a user:
+#### To remove a user:
 1. Click **Admin**.
 2. Click the user you want to remove.
 3. Click **Edit**.

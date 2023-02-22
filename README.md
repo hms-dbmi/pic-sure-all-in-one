@@ -148,8 +148,8 @@ We recomend you update jenkins in a regualar cadence. We have a script you can r
 A backup of your jenkins home can be found here: `/var/jenkins_home_bak/`
     
 ## Users
-## Adding and Removing Users
-To add a user:
+### Adding and Removing Users
+#### To add a user:
 1. Click **Admin**.
 2. Click **Add User**. A window appears.
 3. **Adding User For** - If not Google, select the user's authentication service, also known as connection type. 
@@ -161,7 +161,7 @@ To add a user:
 - **JupyterHub User**: A normal user who can access JupyterHub.
 6. Click **Save user**.
 
-To remove a user:
+#### To remove a user:
 1. Click **Admin**.
 2. Click the user you want to remove.
 3. Click **Edit**.

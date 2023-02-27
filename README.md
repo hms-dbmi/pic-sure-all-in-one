@@ -138,7 +138,7 @@ For example, if your server has IP `10.109.190.146`, browse to https://10.109.19
 
 ## Updating Jenkins
 
-We recomend you update jenkins in a regualar cadence. We have a script you can run to make this easy. It updates both the jenkins jobs and and the jenkins version the the latest in the master branch of this repository. **IMPORTANT NOTE:** This script does not migrate the jenkins admin/users. However, it does migrate your initial configurations.  (Does not impact PIC-SURE users)
+We recommend you update jenkins in a regular cadence. We have a script you can run to make this easy. On an instance that is already running, it updates both the jenkins jobs and and the jenkins version the the latest in the branch of this repository you are using. **IMPORTANT NOTE:** This script does not migrate the jenkins admin/users. However, it does migrate your initial configurations.  (Does not impact PIC-SURE users)
 
 1. On the host machine navigate to the `pic-sure-all-in-one` directory.
 1. Run `sudo ./update-jenkins.sh`

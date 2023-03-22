@@ -40,7 +40,7 @@ echo "install container-tools podman podman-docker podman-plugins"
 dnf module reset -y container-tools
 dnf module install -y container-tools:4.0
 yum install -y podman-docker podman-plugins
-yum install -y podman-compose-0.1.7
+yum install -y podman-compose-1.0.3
 echo "Finished podman install, enabling and starting podman required service"
 
 echo "alias docker=podman" >> ~/.bash_profile

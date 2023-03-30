@@ -37,10 +37,12 @@ rm -rf /opt/apache-maven-3.6.3-bin.tar.gz
 ##Installing continer tools, podman services to build and run containers.
 
 echo "install container-tools podman podman-docker podman-plugins"
-dnf module reset -y container-tools
-dnf module install -y container-tools:4.0
-yum install -y podman-docker podman-plugins
-yum install -y podman-compose-1.0.3
+yum module reset -y container-tools
+#dnf module install -y container-tools:4.0
+#yum install -y podman-docker podman-plugins
+#yum install -y podman-compose-1.0.3
+yum module enable -y container-tools:rhel8
+yum module install -y container-tools:rhel8
 echo "Finished podman install, enabling and starting podman required service"
 
 echo "alias docker=podman" >> ~/.bash_profile

@@ -45,8 +45,7 @@ yum module enable -y container-tools:rhel8
 yum module install -y container-tools:rhel8
 echo "Finished podman install, enabling and starting podman required service"
 
-echo "alias docker=podman" >> ~/.bash_profile
-source ~/.bash_profile
+ln -s "$(which podman)" /bin/docker
 
 ## Creating Podman networks 
 

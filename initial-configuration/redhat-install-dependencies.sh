@@ -56,9 +56,9 @@ docker network inspect hpdsNet --format "{{.Name}}: {{.Id}}" 2>&1  ||  docker ne
 #podman network create picsure
 #podman network create hpdsNet
 
-docker run -t --rm hello-world
-docker run -t --rm  --name test1 --network=picsure hello-world
-docker run -t --rm  --name test2 --network=hpdsNet hello-world && docker rmi hello-world
+docker run -it --rm hello-world
+docker run -it --rm  --name test1 --network=picsure hello-world
+docker run -it --rm  --name test2 --network=hpdsNet hello-world && docker rmi hello-world
 firewall-cmd --add-port=8080/tcp
 firewall-cmd --runtime-to-permanent
 podman network reload --all

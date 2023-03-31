@@ -40,7 +40,6 @@ echo "install container-tools podman podman-docker podman-plugins"
 yum module reset -y container-tools
 yum module enable -y container-tools:rhel8
 yum module install -y container-tools:rhel8
-#pip3 install podman-compose
 yum install -y podman-compose
 echo "Finished podman install, enabling and starting podman required service"
 
@@ -59,11 +58,6 @@ podman network reload --all
 firewall-offline-cmd --reload
 systemctl daemon-reload
 
-# test docker network
-#docker run -it --rm hello-world
-#docker run -it --rm --name test1 --network=picsure hello-world
-#docker run -it --rm --name test2 --network=hpdsNet hello-world && docker rmi hello-world
-
 ##Installing Configuring MariaDB/Mysql configuration
 
 echo "Installing MySQL/MariaDB"
@@ -78,18 +72,13 @@ systemctl enable --now  mariadb.service
 systemctl start mariadb.service
 
 echo "` < /dev/urandom tr -dc @^=+$*%_A-Z-a-z-0-9 | head -c${1:-24}`%4cA" > pass.tmp
-mysql -u root --connect-expired-password -e "SET PASSWORD FOR 'root'@'localhost' = PASSWORD('`cat pass.tmp`');flush privileges;"
-
+mysql -u root -e "SET PASSWORD FOR 'root'@'localhost' = PASSWORD('`cat pass.tmp`');flush privileges;"
 
 echo "[mysql]" > ~/.my.cnf
 echo "user = root" >> ~/.my.cnf
 echo "password = `cat pass.tmp`" >> ~/.my.cnf
-#echo "password = `grep "temporary password" /var/log/mysqld.log | cut -d ' ' -f 11`" >> ~/.my.cnf
 echo "port = 3306" >> ~/.my.cnf
 echo "host = 0.0.0.0" >> ~/.my.cnf
-#echo "` < /dev/urandom tr -dc @^=+$*%_A-Z-a-z-0-9 | head -c${1:-24}`%4cA" > pass.tmp
-#mysql -u root --connect-expired-password -e "alter user 'root'@'localhost' identified by '`cat pass.tmp`';flush privileges;"
-#sed -i "s/password = .*/password = \"`cat pass.tmp`\"/g" ~/.my.cnf
 
 for addr in $(ifconfig | grep netmask | sed 's/  */ /g'| cut -d ' ' -f 3);
 do
@@ -242,5 +231,3 @@ cd /usr/local/docker-config/hpds_csv/
 tar -xvzf allConcepts.csv.tgz
 
 echo "Installation script complete.  Started Jenkins."
-
-#../start-jenkins.sh

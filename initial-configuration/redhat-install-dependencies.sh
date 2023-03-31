@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -xv
+
 CWD=`pwd`
 
 mkdir -p /usr/local/docker-config
@@ -40,7 +42,8 @@ echo "install container-tools podman podman-docker podman-plugins"
 yum module reset -y container-tools
 yum module enable -y container-tools:rhel8
 yum module install -y container-tools:rhel8
-pip3 install podman-compose
+#pip3 install podman-compose
+yum install -y podman-compose
 echo "Finished podman install, enabling and starting podman required service"
 
 ln -s "$(which podman)" /bin/docker
@@ -57,6 +60,11 @@ firewall-cmd --runtime-to-permanent
 podman network reload --all
 firewall-cmd --reload
 systemctl daemon-reload
+
+# Test podman network
+docker run -it --rm hello-world
+docker run -it --rm --name test1 --network=picsure hello-world
+docker run -it --rm --name test2 --network=hpdsNet hello-world && docker rmi hello-world
 
 ##Installing Configuring MariaDB/Mysql configuration
 
@@ -157,11 +165,6 @@ sed -i 's/jdbc:mysql*.*auth/jdbc:mysql:\/\/'$MYSQL_HOST_NAME':'$MYSQL_PORT'\/aut
 sed -i 's/jdbc:mysql*.*picsure/jdbc:mysql:\/\/'$MYSQL_HOST_NAME':'$MYSQL_PORT'\/picsure/g' /usr/local/docker-config/wildfly/standalone.xml
 cd $CWD
 echo "Mysql/MariaDB setup completed"
-
-# Test podman network
-docker run -it --rm --log-level=debug hello-world
-docker run -it --rm --log-level=debug --name test1 --network=picsure hello-world
-docker run -it --rm --log-level=debug --name test2 --network=hpdsNet hello-world && docker rmi hello-world
 
 ###############################
 echo "Building and installing Jenkins"

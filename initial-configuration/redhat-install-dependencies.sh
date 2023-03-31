@@ -49,20 +49,19 @@ ln -s "$(which podman)" /bin/docker
 ## Creating Podman networks 
 
 echo  "Creating picsure, hpdsNet podman network"
-docker network inspect podman --format "{{.Name}}: {{.Id}}" 2>&1  ||  docker network create podman
-docker network inspect picsure --format "{{.Name}}: {{.Id}}" 2>&1  ||  docker network create picsure
-docker network inspect hpdsNet --format "{{.Name}}: {{.Id}}" 2>&1  ||  docker network create hpdsNet
+docker network inspect podman --format "{{.Name}}: {{.Id}}" 2>/dev/null || docker network create podman
+docker network inspect picsure --format "{{.Name}}: {{.Id}}" 2>/dev/null || docker network create picsure
+docker network inspect hpdsNet --format "{{.Name}}: {{.Id}}" 2>/dev/null || docker network create hpdsNet
+
+docker run -it --rm hello-world
+docker run -it --rm --name test1 --network=picsure hello-world
+docker run -it --rm --name test2 --network=hpdsNet hello-world && docker rmi hello-world
 
 firewall-cmd --add-port=8080/tcp
 firewall-cmd --runtime-to-permanent
 podman network reload --all
 firewall-cmd --reload
 systemctl daemon-reload
-
-# Test podman network
-docker run -it --rm hello-world
-docker run -it --rm --name test1 --network=picsure hello-world
-docker run -it --rm --name test2 --network=hpdsNet hello-world && docker rmi hello-world
 
 ##Installing Configuring MariaDB/Mysql configuration
 

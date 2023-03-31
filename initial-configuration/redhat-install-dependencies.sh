@@ -59,6 +59,11 @@ podman network reload --all
 firewall-offline-cmd --reload
 systemctl daemon-reload
 
+# test docker network
+#docker run -it --rm hello-world
+#docker run -it --rm --name test1 --network=picsure hello-world
+#docker run -it --rm --name test2 --network=hpdsNet hello-world && docker rmi hello-world
+
 ##Installing Configuring MariaDB/Mysql configuration
 
 echo "Installing MySQL/MariaDB"
@@ -158,12 +163,6 @@ sed -i 's/jdbc:mysql*.*auth/jdbc:mysql:\/\/'$MYSQL_HOST_NAME':'$MYSQL_PORT'\/aut
 sed -i 's/jdbc:mysql*.*picsure/jdbc:mysql:\/\/'$MYSQL_HOST_NAME':'$MYSQL_PORT'\/picsure/g' /usr/local/docker-config/wildfly/standalone.xml
 cd $CWD
 echo "Mysql/MariaDB setup completed"
-
-
-# test docker network
-docker run -it --rm hello-world
-docker run -it --rm --name test1 --network=picsure hello-world
-docker run -it --rm --name test2 --network=hpdsNet hello-world && docker rmi hello-world
 
 ###############################
 echo "Building and installing Jenkins"

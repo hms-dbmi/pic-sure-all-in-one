@@ -53,10 +53,10 @@ docker network inspect podman --format "{{.Name}}: {{.Id}}" 2>/dev/null || docke
 docker network inspect picsure --format "{{.Name}}: {{.Id}}" 2>/dev/null || docker network create picsure
 docker network inspect hpdsNet --format "{{.Name}}: {{.Id}}" 2>/dev/null || docker network create hpdsNet
 
-firewall-cmd --add-port=8080/tcp
-firewall-cmd --runtime-to-permanent
+firewall-offline-cmd --add-port=8080/tcp
+firewall-offline-cmd --runtime-to-permanent
 podman network reload --all
-firewall-cmd --reload
+firewall-offline-cmd --reload
 systemctl daemon-reload
 
 ##Installing Configuring MariaDB/Mysql configuration

@@ -52,9 +52,7 @@ docker network inspect podman --format "{{.Name}}: {{.Id}}" 2>&1  ||  docker net
 docker network inspect picsure --format "{{.Name}}: {{.Id}}" 2>&1  ||  docker network create picsure
 docker network inspect hpdsNet --format "{{.Name}}: {{.Id}}" 2>&1  ||  docker network create hpdsNet
 
-#podman network create podman
-#podman network create picsure
-#podman network create hpdsNet
+sleep 3s
 
 docker run -it --rm hello-world
 docker run -it --rm  --name test1 --network=picsure hello-world

@@ -53,10 +53,6 @@ docker network inspect podman --format "{{.Name}}: {{.Id}}" 2>/dev/null || docke
 docker network inspect picsure --format "{{.Name}}: {{.Id}}" 2>/dev/null || docker network create picsure
 docker network inspect hpdsNet --format "{{.Name}}: {{.Id}}" 2>/dev/null || docker network create hpdsNet
 
-docker run -it --rm hello-world
-docker run -it --rm --name test1 --network=picsure hello-world
-docker run -it --rm --name test2 --network=hpdsNet hello-world && docker rmi hello-world
-
 firewall-cmd --add-port=8080/tcp
 firewall-cmd --runtime-to-permanent
 podman network reload --all
@@ -162,6 +158,12 @@ sed -i 's/jdbc:mysql*.*auth/jdbc:mysql:\/\/'$MYSQL_HOST_NAME':'$MYSQL_PORT'\/aut
 sed -i 's/jdbc:mysql*.*picsure/jdbc:mysql:\/\/'$MYSQL_HOST_NAME':'$MYSQL_PORT'\/picsure/g' /usr/local/docker-config/wildfly/standalone.xml
 cd $CWD
 echo "Mysql/MariaDB setup completed"
+
+
+# test docker network
+docker run -it --rm hello-world
+docker run -it --rm --name test1 --network=picsure hello-world
+docker run -it --rm --name test2 --network=hpdsNet hello-world && docker rmi hello-world
 
 ###############################
 echo "Building and installing Jenkins"

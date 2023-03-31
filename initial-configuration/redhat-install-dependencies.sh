@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-set -xv
-
 CWD=`pwd`
 
 mkdir -p /usr/local/docker-config

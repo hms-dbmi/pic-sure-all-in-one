@@ -78,7 +78,8 @@ systemctl enable --now  mariadb.service
 systemctl start mariadb.service
 
 echo "` < /dev/urandom tr -dc @^=+$*%_A-Z-a-z-0-9 | head -c${1:-24}`%4cA" > pass.tmp
-mysql -u root --connect-expired-password -e "ALTER USER root@localhost IDENTIFIED BY '`cat pass.tmp`';flush privileges;"
+mysql -u root --connect-expired-password -e "SET PASSWORD FOR 'root'@'localhost' = PASSWORD('`cat pass.tmp`');flush privileges;"
+
 
 echo "[mysql]" > ~/.my.cnf
 echo "user = root" >> ~/.my.cnf

@@ -22,7 +22,7 @@ In general, we follow the !["fork-and-pull" Git workflow](https://github.com/sus
 6. Push changes to your fork
 7. Open a PR in our repository and follow the PR template so that we can efficiently review the changes.
 
-Anyone can submit a pull request for PIC-SURE applications. Each pull request should include a unit test for any new code, as well as pass any available CircleCI tests on the relevant repo before it can be submitted to the PIC-SURE development team. If you believe there to be an issue with the CircleCI tests, you can raise a bug report issue with the details so we know to take a look.
+Anyone can submit a pull request for PIC-SURE applications. Each pull request should include a unit test for any new code, as well as pass any available Github Action tests on the relevant repo before it can be submitted to the PIC-SURE development team. If you believe there to be an issue with the Github tests, you can raise a bug report issue with the details so we know to take a look.
 
 We ask that if submitting changes for multiple repositories for one connected issue, that you make sure the tests pass for all repos before submitting to avoid confusion.
 

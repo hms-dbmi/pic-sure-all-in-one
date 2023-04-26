@@ -2,9 +2,6 @@
 ____________________________________________________________________________________
 **Prerequisites to setup pic-sure-all-in-one**
 - Minimum system requirements for EC2 instance:
-    - 32 GB of RAM
-    - 8 core
-    - 100 GB of hard drive space enough to hold your data
     - RHEL 8.4 or RHEL 8.6 operating system
 - EC2 instance need to have access to internet to download yum packages, docker images, maven packages
 - EC2 instance Need root access to run the redhat-install-dependencies.sh script for following reasons

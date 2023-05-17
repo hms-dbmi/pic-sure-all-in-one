@@ -60,8 +60,8 @@ Examples:
 export http_proxy="http://internal.proxy.com:8080/"
 export https_proxy="http://internal.proxy.com:8080/"
 export no_proxy="localhost,127.0.0.1,localaddress"
-export $http_proxy_ip="123.123.123.123"
-export $proxy_port="8080"
+export http_proxy_ip="123.123.123.123"
+export proxy_port="8080"
 ```  
 
 1. Install Git

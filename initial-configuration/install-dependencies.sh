@@ -93,6 +93,7 @@ rm -f auth.tmp
 echo "Building and installing Jenkins"
 docker build --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_proxy --build-arg no_proxy="$no_proxy" \
   --build-arg HTTP_PROXY=$http_proxy --build-arg HTTPS_PROXY=$http_proxy --build-arg NO_PROXY="$no_proxy" \
+  --build-arg MAVEN_OPTS="-Dhttp.proxyHost=$http_proxy_ip -Dhttp.proxyPort=$proxy_port -Dhttps.proxyHost=$http_proxy_ip -Dhttps.proxyPort=$proxy_port"
   -t pic-sure-jenkins:`git log -n 1 | grep commit | cut -d ' ' -f 2 | cut -c 1-7` jenkins/jenkins-docker
 docker tag pic-sure-jenkins:`git log -n 1 | grep commit | cut -d ' ' -f 2 | cut -c 1-7` pic-sure-jenkins:LATEST
 

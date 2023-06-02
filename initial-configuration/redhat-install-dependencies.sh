@@ -52,10 +52,10 @@ docker network inspect podman --format "{{.Name}}: {{.Id}}" 2>/dev/null || docke
 docker network inspect picsure --format "{{.Name}}: {{.Id}}" 2>/dev/null || docker network create picsure
 docker network inspect hpdsNet --format "{{.Name}}: {{.Id}}" 2>/dev/null || docker network create hpdsNet
 
-firewall-offline-cmd --add-port=8080/tcp
-firewall-offline-cmd --runtime-to-permanent
+firewall-cmd --add-port=8080/tcp
+firewall-cmd --runtime-to-permanent
 podman network reload --all
-firewall-offline-cmd --reload
+firewall-cmd --reload
 systemctl daemon-reload
 
 # Run docker using networks to ensure their network interface is up and can be added to the mysql database by interface ip

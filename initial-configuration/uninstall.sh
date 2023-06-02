@@ -33,7 +33,7 @@ rm -f /root/configure_docker_networking.sh
 
 # MySQL
 systemctl stop mysqld
-yum -y remove mysql-community-server mysql-community-client mysql-community-release
+yum -y remove mysql-community-server mysql-community-client mysql-community-release mariadb-server
 rm -f /etc/my.cnf
 rm -f ~/.my.cnf
 rm -rf /var/lib/mysql

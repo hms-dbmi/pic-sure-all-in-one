@@ -37,10 +37,10 @@ rm -rf /opt/apache-maven-3.6.3-bin.tar.gz
 ##Installing continer tools, podman services to build and run containers.
 
 echo "install container-tools podman podman-docker podman-plugins"
-yum module reset -y container-tools
-yum module enable -y container-tools:rhel8
-yum module install -y container-tools:rhel8
-yum install -y podman-compose
+dnf module reset -y container-tools
+dnf module install -y container-tools:4.0
+yum install -y podman-docker podman-plugins
+yum install -y podman-compose-0.1.7
 echo "Finished podman install, enabling and starting podman required service"
 
 ln -s "$(which podman)" /bin/docker
@@ -57,6 +57,11 @@ firewall-offline-cmd --runtime-to-permanent
 podman network reload --all
 firewall-offline-cmd --reload
 systemctl daemon-reload
+
+# Run docker using networks to ensure their network interface is up and can be added to the mysql database by interface ip
+docker run -it --rm  --name test1 --network=podman hello-world
+docker run -it --rm  --name test2 --network=picsure hello-world
+docker run -it --rm  --name test3 --network=hpdsNet hello-world
 
 ##Installing Configuring MariaDB/Mysql configuration
 
@@ -80,10 +85,9 @@ echo "password = `cat pass.tmp`" >> ~/.my.cnf
 echo "port = 3306" >> ~/.my.cnf
 echo "host = 0.0.0.0" >> ~/.my.cnf
 
-for addr in $(ifconfig | grep netmask | sed 's/  */ /g'| cut -d ' ' -f 3);
-do
-newaddr=$(awk -F"." '{print $1"."$2"."$3".%"}'<<<$addr)
- mysql -u root -e "grant all privileges on *.* to 'root'@'$newaddr' identified by '`cat pass.tmp`'  WITH GRANT OPTION;flush privileges;";
+for addr in $(ifconfig | grep netmask | sed 's/  */ /g' | cut -d ' ' -f 3); do
+  newaddr=$(awk -F"." '{print $1"."$2"."$3".%"}' <<< $addr)
+  mysql -u root -e "grant all privileges on *.* to 'root'@'$newaddr' identified by '`cat pass.tmp`'  WITH GRANT OPTION;flush privileges;";
 done
 
 MYSQL_PASSWORD=`cat pass.tmp`
@@ -162,7 +166,7 @@ echo "Building and installing Jenkins"
 #docker tag pic-sure-jenkins:`git log -n 1 | grep commit | cut -d ' ' -f 2 | cut -c 1-7` pic-sure-jenkins:LATEST
 
 ##Configuring Jenkins on local host downloading,Jenkins war and creating necessary directories 
-wget https://get.jenkins.io/war-stable/2.387.1/jenkins.war
+wget https://get.jenkins.io/war-stable/2.375.4/jenkins.war
 echo "Creating Jenkins Log Path"
 mkdir -p /usr/share/jenkins
 mkdir -p /var/log/jenkins-docker-logs
@@ -198,25 +202,29 @@ cp plugins.txt /usr/share/jenkins/ref/plugins.txt
 cd $CWD
 echo "Downloading jenkins Plugins"
 #wget https://github.com/jenkinsci/plugin-installation-manager-tool/releases/download/2.12.6/jenkins-plugin-manager-2.12.6.jar
-java -jar $CWD/jenkins-plugin-manager-2.12.6.jar --war /usr/share/jenkins/jenkins.war -d /var/jenkins_home/plugins  --plugin-file $CWD/jenkins/jenkins-docker/plugins.txt --verbose
+java -jar $CWD/jenkins-plugin-manager-2.12.6.jar \
+  --war /usr/share/jenkins/jenkins.war \
+  -d /var/jenkins_home/plugins  \
+  --plugin-file $CWD/jenkins/jenkins-docker/plugins.txt \
+  --verbose
 echo "Starting Jenkins Locally"
 
 systemctl stop jenkins
 systemctl start jenkins
 echo "Jenkins Startup completed checking jenkins process"
-ps -aef|grep jenkins
+ps -aef | grep jenkins
 
 ##########################################################
 
 cd $CWD
 
 export APP_ID=`uuidgen -r`
-export APP_ID_HEX=`echo $APP_ID | awk '{ print toupper($0) }'|sed 's/-//g'`
+export APP_ID_HEX=`echo $APP_ID | awk '{ print toupper($0) }' | sed 's/-//g'`
 sed -i "s/__STACK_SPECIFIC_APPLICATION_ID__/$APP_ID/g" /usr/local/docker-config/httpd/picsureui_settings.json
 sed -i "s/__STACK_SPECIFIC_APPLICATION_ID__/$APP_ID/g" /usr/local/docker-config/wildfly/standalone.xml
 
 export RESOURCE_ID=`uuidgen -r`
-export RESOURCE_ID_HEX=`echo $RESOURCE_ID | awk '{ print toupper($0) }'|sed 's/-//g'`
+export RESOURCE_ID_HEX=`echo $RESOURCE_ID | awk '{ print toupper($0) }' | sed 's/-//g'`
 sed -i "s/__STACK_SPECIFIC_RESOURCE_UUID__/$RESOURCE_ID/g" /usr/local/docker-config/httpd/picsureui_settings.json
 
 echo $APP_ID > /usr/local/docker-config/APP_ID_RAW

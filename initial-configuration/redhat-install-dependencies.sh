@@ -162,7 +162,7 @@ echo "Building and installing Jenkins"
 #docker tag pic-sure-jenkins:`git log -n 1 | grep commit | cut -d ' ' -f 2 | cut -c 1-7` pic-sure-jenkins:LATEST
 
 ##Configuring Jenkins on local host downloading,Jenkins war and creating necessary directories 
-wget https://get.jenkins.io/war-stable/2.375.4/jenkins.war
+wget https://get.jenkins.io/war-stable/2.387.1/jenkins.war
 echo "Creating Jenkins Log Path"
 mkdir -p /usr/share/jenkins
 mkdir -p /var/log/jenkins-docker-logs

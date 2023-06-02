@@ -73,7 +73,7 @@ echo "[mysqld]" >> /etc/my.cnf
 echo "bind-address=0.0.0.0" >> /etc/my.cnf
 echo "default-time-zone='-00:00'" >> /etc/my.cnf
 
-systemctl enable --now  mariadb.service
+systemctl enable --now mariadb.service
 systemctl start mariadb.service
 
 echo "` < /dev/urandom tr -dc @^=+$*%_A-Z-a-z-0-9 | head -c${1:-24}`%4cA" > pass.tmp

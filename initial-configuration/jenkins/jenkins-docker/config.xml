@@ -176,7 +176,7 @@
           <string>project_specific_override_repo</string>
           <string>__PROJECT_SPECIFIC_OVERRIDE_REPO__</string>
           <string>release_control_branch</string>
-          <string>feature/redhat</string>
+          <string>*/master</string>
           <string>release_control_repo</string>
           <string>__RELEASE_CONTROL_REPO__</string>
         </tree-map>

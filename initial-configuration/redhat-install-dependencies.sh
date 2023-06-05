@@ -59,7 +59,7 @@ docker network inspect picsure --format "{{.Name}}: {{.Id}}" 2>&1  ||  docker ne
 docker network inspect hpdsNet --format "{{.Name}}: {{.Id}}" 2>&1  ||  docker network create hpdsNet
 
 systemctl stop firewalld
-firewall-cmd --permanent --add-port=8080/tcp
+firewall-offline-cmd --permanent --add-port=8080/tcp
 systemctl start firewalld
 podman network reload --all
 firewall-cmd --reload

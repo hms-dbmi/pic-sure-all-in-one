@@ -49,7 +49,7 @@ echo "Finished podman install, enabling and starting podman required service"
 ln -s "$(which podman)" /bin/docker
 
 # Create /etc/containers/nodocker to quiet msg.
-#mkdir -p /etc/containers/nodocker
+mkdir -p /etc/containers/nodocker
 
 ## Creating Podman networks 
 
@@ -58,7 +58,7 @@ docker network inspect podman --format "{{.Name}}: {{.Id}}" 2>&1  ||  docker net
 docker network inspect picsure --format "{{.Name}}: {{.Id}}" 2>&1  ||  docker network create picsure
 docker network inspect hpdsNet --format "{{.Name}}: {{.Id}}" 2>&1  ||  docker network create hpdsNet
 
-firewall-cmd --add-port=8080/tcp
+firewall-offline-cmd --add-port=8080/tcp
 firewall-cmd --runtime-to-permanent
 podman network reload --all
 firewall-cmd --reload

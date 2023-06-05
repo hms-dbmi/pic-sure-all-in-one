@@ -58,8 +58,9 @@ docker network inspect podman --format "{{.Name}}: {{.Id}}" 2>&1  ||  docker net
 docker network inspect picsure --format "{{.Name}}: {{.Id}}" 2>&1  ||  docker network create picsure
 docker network inspect hpdsNet --format "{{.Name}}: {{.Id}}" 2>&1  ||  docker network create hpdsNet
 
-firewall-offline-cmd --add-port=8080/tcp
-firewall-cmd --runtime-to-permanent
+systemctl stop firewalld
+firewall-cmd --permanent --add-port=8080/tcp
+systemctl start firewalld
 podman network reload --all
 firewall-cmd --reload
 systemctl daemon-reload

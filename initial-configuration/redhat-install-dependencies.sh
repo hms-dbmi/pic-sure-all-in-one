@@ -34,8 +34,9 @@ wget https://www.apache.org/dist/maven/maven-3/3.6.3/binaries/apache-maven-3.6.3
 tar -xvzf /opt/apache-maven-3.6.3-bin.tar.gz -C /opt
 rm -rf /opt/apache-maven-3.6.3-bin.tar.gz
 
-##Installing continer tools, podman services to build and run containers.
+## Emulating Docker CLI using podman.
 
+# Installing continer tools, podman services to build and run containers.
 echo "install container-tools podman podman-docker podman-plugins"
 dnf module reset -y container-tools
 dnf module install -y container-tools:4.0
@@ -43,14 +44,19 @@ yum install -y podman-docker podman-plugins
 yum install -y podman-compose-0.1.7
 echo "Finished podman install, enabling and starting podman required service"
 
+# Symlink docker to podman so we can emultate system wide.
+# Sometimes, ~/.bash_profile nor ~/.bashrc aliases were getting sourced in jenkins shell processes.
 ln -s "$(which podman)" /bin/docker
+
+# Create /etc/containers/nodocker to quiet msg.
+#mkdir -p /etc/containers/nodocker
 
 ## Creating Podman networks 
 
 echo  "Creating picsure, hpdsNet podman network"
-docker network inspect podman --format "{{.Name}}: {{.Id}}" 2>/dev/null || docker network create podman
-docker network inspect picsure --format "{{.Name}}: {{.Id}}" 2>/dev/null || docker network create picsure
-docker network inspect hpdsNet --format "{{.Name}}: {{.Id}}" 2>/dev/null || docker network create hpdsNet
+docker network inspect podman --format "{{.Name}}: {{.Id}}" 2>&1  ||  docker network create podman
+docker network inspect picsure --format "{{.Name}}: {{.Id}}" 2>&1  ||  docker network create picsure
+docker network inspect hpdsNet --format "{{.Name}}: {{.Id}}" 2>&1  ||  docker network create hpdsNet
 
 firewall-cmd --add-port=8080/tcp
 firewall-cmd --runtime-to-permanent
@@ -166,7 +172,7 @@ echo "Building and installing Jenkins"
 #docker tag pic-sure-jenkins:`git log -n 1 | grep commit | cut -d ' ' -f 2 | cut -c 1-7` pic-sure-jenkins:LATEST
 
 ##Configuring Jenkins on local host downloading,Jenkins war and creating necessary directories 
-wget https://get.jenkins.io/war-stable/2.375.4/jenkins.war
+wget https://get.jenkins.io/war-stable/2.387.1/jenkins.war
 echo "Creating Jenkins Log Path"
 mkdir -p /usr/share/jenkins
 mkdir -p /var/log/jenkins-docker-logs

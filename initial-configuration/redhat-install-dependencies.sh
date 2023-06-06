@@ -58,17 +58,17 @@ docker network inspect podman --format "{{.Name}}: {{.Id}}" 2>&1  ||  docker net
 docker network inspect picsure --format "{{.Name}}: {{.Id}}" 2>&1  ||  docker network create picsure
 docker network inspect hpdsNet --format "{{.Name}}: {{.Id}}" 2>&1  ||  docker network create hpdsNet
 
+# Run docker using networks to ensure their network interface is up and can be added to the mysql database by interface ip
+docker run -it --rm  --name test1 --network=podman hello-world
+docker run -it --rm  --name test2 --network=picsure hello-world
+docker run -it --rm  --name test3 --network=hpdsNet hello-world
+
 systemctl start firewalld
 firewall-cmd --add-port=8080/tcp
 firewall-cmd --runtime-to-permanent
 podman network reload --all
 firewall-cmd --reload
 systemctl daemon-reload
-
-# Run docker using networks to ensure their network interface is up and can be added to the mysql database by interface ip
-docker run -it --rm  --name test1 --network=podman hello-world
-docker run -it --rm  --name test2 --network=picsure hello-world
-docker run -it --rm  --name test3 --network=hpdsNet hello-world
 
 ##Installing Configuring MariaDB/Mysql configuration
 

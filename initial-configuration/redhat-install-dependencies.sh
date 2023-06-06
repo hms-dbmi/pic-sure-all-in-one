@@ -24,8 +24,8 @@ yum clean -y  packages
 ## Installing and starting Firewalld service 
 
 yum install firewalld -y
-systemctl start firewalld
 systemctl enable --now firewalld
+systemctl start firewalld
 
 ##Instaling Maven
 
@@ -63,7 +63,7 @@ docker run -it --rm  --name test1 --network=podman hello-world
 docker run -it --rm  --name test2 --network=picsure hello-world
 docker run -it --rm  --name test3 --network=hpdsNet hello-world
 
-systemctl start firewalld
+service firewalld restart
 firewall-cmd --add-port=8080/tcp
 firewall-cmd --runtime-to-permanent
 podman network reload --all

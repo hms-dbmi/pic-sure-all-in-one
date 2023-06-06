@@ -63,12 +63,14 @@ docker run -it --rm  --name test1 --network=podman hello-world
 docker run -it --rm  --name test2 --network=picsure hello-world
 docker run -it --rm  --name test3 --network=hpdsNet hello-world
 
+setenforce 0
 systemctl restart firewalld
 firewall-cmd --add-port=8080/tcp
 firewall-cmd --runtime-to-permanent
 podman network reload --all
 firewall-cmd --reload
 systemctl daemon-reload
+setenforce 1
 
 ##Installing Configuring MariaDB/Mysql configuration
 

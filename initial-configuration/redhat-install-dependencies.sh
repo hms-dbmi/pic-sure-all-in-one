@@ -24,8 +24,8 @@ yum clean -y  packages
 ## Installing and starting Firewalld service 
 
 yum install firewalld -y
-systemctl start firewalld
 systemctl enable --now firewalld
+systemctl start firewalld
 
 ##Instaling Maven
 
@@ -34,8 +34,9 @@ wget https://www.apache.org/dist/maven/maven-3/3.6.3/binaries/apache-maven-3.6.3
 tar -xvzf /opt/apache-maven-3.6.3-bin.tar.gz -C /opt
 rm -rf /opt/apache-maven-3.6.3-bin.tar.gz
 
-##Installing continer tools, podman services to build and run containers.
+## Emulating Docker CLI using podman.
 
+# Installing continer tools, podman services to build and run containers.
 echo "install container-tools podman podman-docker podman-plugins"
 dnf module reset -y container-tools
 dnf module install -y container-tools:4.0
@@ -43,8 +44,12 @@ yum install -y podman-docker podman-plugins
 yum install -y podman-compose-0.1.7
 echo "Finished podman install, enabling and starting podman required service"
 
-echo "alias docker=podman" >> ~/.bash_profile
-source ~/.bash_profile
+# Symlink docker to podman so we can emultate system wide.
+# Sometimes, ~/.bash_profile nor ~/.bashrc aliases were getting sourced in jenkins shell processes.
+ln -s "$(which podman)" /bin/docker
+
+# Create /etc/containers/nodocker to quiet msg.
+mkdir -p /etc/containers/nodocker
 
 ## Creating Podman networks 
 
@@ -53,18 +58,18 @@ docker network inspect podman --format "{{.Name}}: {{.Id}}" 2>&1  ||  docker net
 docker network inspect picsure --format "{{.Name}}: {{.Id}}" 2>&1  ||  docker network create picsure
 docker network inspect hpdsNet --format "{{.Name}}: {{.Id}}" 2>&1  ||  docker network create hpdsNet
 
-#podman network create podman
-#podman network create picsure
-#podman network create hpdsNet
+# Run docker using networks to ensure their network interface is up and can be added to the mysql database by interface ip
+docker run -it --rm  --name test1 --network=podman hello-world
+docker run -it --rm  --name test2 --network=picsure hello-world
+docker run -it --rm  --name test3 --network=hpdsNet hello-world
 
-docker run -it --rm hello-world
-docker run -it --rm  --name test1 --network=picsure hello-world
-docker run -it --rm  --name test2 --network=hpdsNet hello-world && docker rmi hello-world
+setenforce 0
 firewall-cmd --add-port=8080/tcp
 firewall-cmd --runtime-to-permanent
 podman network reload --all
 firewall-cmd --reload
 systemctl daemon-reload
+setenforce 1
 
 ##Installing Configuring MariaDB/Mysql configuration
 
@@ -76,7 +81,7 @@ echo "[mysqld]" >> /etc/my.cnf
 echo "bind-address=0.0.0.0" >> /etc/my.cnf
 echo "default-time-zone='-00:00'" >> /etc/my.cnf
 
-systemctl enable --now  mariadb.service
+systemctl enable --now mariadb.service
 systemctl start mariadb.service
 
 echo "` < /dev/urandom tr -dc @^=+$*%_A-Z-a-z-0-9 | head -c${1:-24}`%4cA" > pass.tmp
@@ -85,17 +90,12 @@ mysql -u root --connect-expired-password -e "ALTER USER root@localhost IDENTIFIE
 echo "[mysql]" > ~/.my.cnf
 echo "user = root" >> ~/.my.cnf
 echo "password = `cat pass.tmp`" >> ~/.my.cnf
-#echo "password = `grep "temporary password" /var/log/mysqld.log | cut -d ' ' -f 11`" >> ~/.my.cnf
 echo "port = 3306" >> ~/.my.cnf
 echo "host = 0.0.0.0" >> ~/.my.cnf
-#echo "` < /dev/urandom tr -dc @^=+$*%_A-Z-a-z-0-9 | head -c${1:-24}`%4cA" > pass.tmp
-#mysql -u root --connect-expired-password -e "alter user 'root'@'localhost' identified by '`cat pass.tmp`';flush privileges;"
-#sed -i "s/password = .*/password = \"`cat pass.tmp`\"/g" ~/.my.cnf
 
-for addr in $(ifconfig | grep netmask | sed 's/  */ /g'| cut -d ' ' -f 3);
-do
-newaddr=$(awk -F"." '{print $1"."$2"."$3".%"}'<<<$addr)
- mysql -u root -e "grant all privileges on *.* to 'root'@'$newaddr' identified by '`cat pass.tmp`'  WITH GRANT OPTION;flush privileges;";
+for addr in $(ifconfig | grep netmask | sed 's/  */ /g' | cut -d ' ' -f 3); do
+  newaddr=$(awk -F"." '{print $1"."$2"."$3".%"}' <<< $addr)
+  mysql -u root -e "grant all privileges on *.* to 'root'@'$newaddr' identified by '`cat pass.tmp`'  WITH GRANT OPTION;flush privileges;";
 done
 
 MYSQL_PASSWORD=`cat pass.tmp`
@@ -165,6 +165,7 @@ sed -i 's/jdbc:mysql*.*auth/jdbc:mysql:\/\/'$MYSQL_HOST_NAME':'$MYSQL_PORT'\/aut
 sed -i 's/jdbc:mysql*.*picsure/jdbc:mysql:\/\/'$MYSQL_HOST_NAME':'$MYSQL_PORT'\/picsure/g' /usr/local/docker-config/wildfly/standalone.xml
 cd $CWD
 echo "Mysql/MariaDB setup completed"
+
 ###############################
 echo "Building and installing Jenkins"
 #docker build --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_proxy --build-arg no_proxy="$no_proxy" \
@@ -209,25 +210,29 @@ cp plugins.txt /usr/share/jenkins/ref/plugins.txt
 cd $CWD
 echo "Downloading jenkins Plugins"
 #wget https://github.com/jenkinsci/plugin-installation-manager-tool/releases/download/2.12.6/jenkins-plugin-manager-2.12.6.jar
-java -jar $CWD/jenkins-plugin-manager-2.12.6.jar --war /usr/share/jenkins/jenkins.war -d /var/jenkins_home/plugins  --plugin-file $CWD/jenkins/jenkins-docker/plugins.txt --verbose
+java -jar $CWD/jenkins-plugin-manager-2.12.6.jar \
+  --war /usr/share/jenkins/jenkins.war \
+  -d /var/jenkins_home/plugins  \
+  --plugin-file $CWD/jenkins/jenkins-docker/plugins.txt \
+  --verbose
 echo "Starting Jenkins Locally"
 
 systemctl stop jenkins
 systemctl start jenkins
 echo "Jenkins Startup completed checking jenkins process"
-ps -aef|grep jenkins
+ps -aef | grep jenkins
 
 ##########################################################
 
 cd $CWD
 
 export APP_ID=`uuidgen -r`
-export APP_ID_HEX=`echo $APP_ID | awk '{ print toupper($0) }'|sed 's/-//g'`
+export APP_ID_HEX=`echo $APP_ID | awk '{ print toupper($0) }' | sed 's/-//g'`
 sed -i "s/__STACK_SPECIFIC_APPLICATION_ID__/$APP_ID/g" /usr/local/docker-config/httpd/picsureui_settings.json
 sed -i "s/__STACK_SPECIFIC_APPLICATION_ID__/$APP_ID/g" /usr/local/docker-config/wildfly/standalone.xml
 
 export RESOURCE_ID=`uuidgen -r`
-export RESOURCE_ID_HEX=`echo $RESOURCE_ID | awk '{ print toupper($0) }'|sed 's/-//g'`
+export RESOURCE_ID_HEX=`echo $RESOURCE_ID | awk '{ print toupper($0) }' | sed 's/-//g'`
 sed -i "s/__STACK_SPECIFIC_RESOURCE_UUID__/$RESOURCE_ID/g" /usr/local/docker-config/httpd/picsureui_settings.json
 
 echo $APP_ID > /usr/local/docker-config/APP_ID_RAW
@@ -242,5 +247,3 @@ cd /usr/local/docker-config/hpds_csv/
 tar -xvzf allConcepts.csv.tgz
 
 echo "Installation script complete.  Started Jenkins."
-
-#../start-jenkins.sh

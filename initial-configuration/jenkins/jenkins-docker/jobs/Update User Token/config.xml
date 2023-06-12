@@ -15,7 +15,7 @@
         <hudson.model.StringParameterDefinition>
           <name>DAYSUNTILEXPIRATION</name>
           <description>How long should this token be valid</description>
-          <defaultValue>30</defaultValue>
+          <defaultValue>365</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
       </parameterDefinitions>

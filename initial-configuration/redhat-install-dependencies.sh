@@ -30,9 +30,9 @@ systemctl start firewalld
 ##Instaling Maven
 
 echo "installaing maven"
-wget https://www.apache.org/dist/maven/maven-3/3.6.3/binaries/apache-maven-3.6.3-bin.tar.gz -P /opt
-tar -xvzf /opt/apache-maven-3.6.3-bin.tar.gz -C /opt
-rm -rf /opt/apache-maven-3.6.3-bin.tar.gz
+RUN wget https://downloads.apache.org/maven/maven-3/3.9.2/binaries/apache-maven-3.9.2-bin.tar.gz -P /opt
+tar -xvzf /opt/apache-maven-3.9.2-bin.tar.gz -C /opt
+rm -rf /opt/apache-maven-3.9.2-bin.tar.gz
 
 ## Emulating Docker CLI using podman.
 

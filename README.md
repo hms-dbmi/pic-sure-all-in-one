@@ -50,7 +50,8 @@ Examples:
 
 - If the resources required to load your data exceed the minimum system requirements, you can spin up an additional VM dedicated to loading the data. After you are finished loading the data, then that VM can be shut off. 
 - Additionally if your dataset is sufficiently large that loading it would cause disruptions in query processing for your production environment, it is advised to use a separate environment to conduct loading.
-- Since a precise calculation to determine the resources required for loading data takes a prohibitive effort, a trial and error approach is the most practical way to determine what the loading resource environment is for any set of data. 
+- Since a precise calculation to determine the resources required for loading data takes a prohibitive effort, a trial and error approach is the most practical way to determine what the loading resource environment is for any set of data.
+- After loading the data into a development environment, you can transfer the javabin files from the development environment to a production environment, but copying the following files: 1.) encryption_key 2.) columnMeta.javabin 3.) allObservationsStore.javabin. Then run the “Start PIC-SURE” Jenkins job, which will stop and start the containers.
 
 
 ## Steps to install on a fresh Centos 7 installation:

@@ -47,6 +47,7 @@ Examples:
         - Allele frequency in GNOMAD
         - Variant_severity from VEP
         - Variant_consequence from VEP
+    - After the data is loaded, running the UI only requires m5.large ec2 (2 vCPU and 8gb ram). This can range depending on the size of the data. 
 
 - If the resources required to load your data exceed the minimum system requirements, you can spin up an additional VM dedicated to loading the data. After you are finished loading the data, then that VM can be shut off. 
 - Additionally if your dataset is sufficiently large that loading it would cause disruptions in query processing for your production environment, it is advised to use a separate environment to conduct loading.

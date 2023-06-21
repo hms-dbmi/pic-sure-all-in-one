@@ -30,7 +30,7 @@ systemctl start firewalld
 ##Instaling Maven
 
 echo "installaing maven"
-RUN wget https://downloads.apache.org/maven/maven-3/3.9.2/binaries/apache-maven-3.9.2-bin.tar.gz -P /opt
+wget https://downloads.apache.org/maven/maven-3/3.9.2/binaries/apache-maven-3.9.2-bin.tar.gz -P /opt
 tar -xvzf /opt/apache-maven-3.9.2-bin.tar.gz -C /opt
 rm -rf /opt/apache-maven-3.9.2-bin.tar.gz
 

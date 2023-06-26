@@ -22,11 +22,11 @@ RUN yum install -y podman-docker
 
 RUN alias docker=podman
 
-RUN wget https://downloads.apache.org/maven/maven-3/3.9.2/binaries/apache-maven-3.9.2-bin.tar.gz -P /opt
+RUN wget https://downloads.apache.org/maven/maven-3/3.9.3/binaries/apache-maven-3.9.3-bin.tar.gz -P /opt
 
-RUN tar -xvzf /opt/apache-maven-3.9.2-bin.tar.gz -C /opt
+RUN tar -xvzf /opt/apache-maven-3.9.3-bin.tar.gz -C /opt
 
-RUN rm /opt/apache-maven-3.9.2-bin.tar.gz
+RUN rm /opt/apache-maven-3.9.3-bin.tar.gz
 
 RUN /usr/local/bin/install-plugins.sh < /usr/share/jenkins/ref/plugins.txt || echo "Some errors occurred during plugin installation."
 

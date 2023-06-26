@@ -76,6 +76,7 @@ setenforce 1
 echo "Installing MySQL/MariaDB"
 yum -y install mariadb-server
 
+echo "Support MySQL command references"
 echo "alias mysql=mariadb" >> ~/.bash_profile
 source ~/.bash_profile
 
@@ -88,7 +89,7 @@ systemctl enable --now mariadb.service
 systemctl start mariadb.service
 
 echo "` < /dev/urandom tr -dc @^=+$*%_A-Z-a-z-0-9 | head -c${1:-24}`%4cA" > pass.tmp
-mysql -u root --connect-expired-password -e "ALTER USER root@localhost IDENTIFIED BY '`cat pass.tmp`';flush privileges;"
+mariadb -u root --connect-expired-password -e "ALTER USER root@localhost IDENTIFIED BY '`cat pass.tmp`';flush privileges;"
 
 echo "[mysql]" > ~/.my.cnf
 echo "user = root" >> ~/.my.cnf
@@ -98,19 +99,19 @@ echo "host = 0.0.0.0" >> ~/.my.cnf
 
 for addr in $(ifconfig | grep netmask | sed 's/  */ /g' | cut -d ' ' -f 3); do
   newaddr=$(awk -F"." '{print $1"."$2"."$3".%"}' <<< $addr)
-  mysql -u root -e "grant all privileges on *.* to 'root'@'$newaddr' identified by '`cat pass.tmp`'  WITH GRANT OPTION;flush privileges;";
+  mariadb -u root -e "grant all privileges on *.* to 'root'@'$newaddr' identified by '`cat pass.tmp`'  WITH GRANT OPTION;flush privileges;";
 done
 
 MYSQL_PASSWORD=`cat pass.tmp`
 
 rm -f pass.tmp
 
-mysql -u root -e "create database picsure"
-mysql -u root -e "create database auth"
+mariadb -u root -e "create database picsure"
+mariadb -u root -e "create database auth"
 
 echo "` < /dev/urandom tr -dc @^=+$*%_A-Z-a-z-0-9 | head -c${1:-24}`%4cA" > airflow.tmp
-mysql -u root -e "grant all privileges on auth.* to 'airflow'@'%' identified by '`cat airflow.tmp`';flush privileges;";
-mysql -u root -e "grant all privileges on picsure.* to 'airflow'@'%' identified by '`cat airflow.tmp`';flush privileges;";
+mariadb -u root -e "grant all privileges on auth.* to 'airflow'@'%' identified by '`cat airflow.tmp`';flush privileges;";
+mariadb -u root -e "grant all privileges on picsure.* to 'airflow'@'%' identified by '`cat airflow.tmp`';flush privileges;";
 sed -i s/__AIRFLOW_MYSQL_PASSWORD__/`cat airflow.tmp`/g /usr/local/docker-config/flyway/auth/flyway-auth.conf
 sed -i s/__AIRFLOW_MYSQL_PASSWORD__/`cat airflow.tmp`/g /usr/local/docker-config/flyway/auth/sql.properties
 sed -i s/__AIRFLOW_MYSQL_PASSWORD__/`cat airflow.tmp`/g /usr/local/docker-config/flyway/picsure/flyway-picsure.conf
@@ -118,12 +119,12 @@ sed -i s/__AIRFLOW_MYSQL_PASSWORD__/`cat airflow.tmp`/g /usr/local/docker-config
 rm -f airflow.tmp
 
 echo "` < /dev/urandom tr -dc @^=+$*%_A-Z-a-z-0-9 | head -c${1:-24}`%4cA" > picsure.tmp
-mysql -u root -e "grant all privileges on picsure.* to 'picsure'@'%' identified by '`cat picsure.tmp`';flush privileges;";
+mariadb -u root -e "grant all privileges on picsure.* to 'picsure'@'%' identified by '`cat picsure.tmp`';flush privileges;";
 sed -i s/__PIC_SURE_MYSQL_PASSWORD__/`cat picsure.tmp`/g /usr/local/docker-config/wildfly/standalone.xml
 rm -f picsure.tmp
 
 echo "` < /dev/urandom tr -dc @^=+$*%_A-Z-a-z-0-9 | head -c${1:-24}`%4cA" > auth.tmp
-mysql -u root -e "grant all privileges on auth.* to 'auth'@'%' identified by '`cat auth.tmp`';flush privileges;";
+mariadb -u root -e "grant all privileges on auth.* to 'auth'@'%' identified by '`cat auth.tmp`';flush privileges;";
 sed -i s/__AUTH_MYSQL_PASSWORD__/`cat auth.tmp`/g /usr/local/docker-config/wildfly/standalone.xml
 rm -f auth.tmp
 ## Configuring picsure-specif network and replacing docker specific ip address configurations in standaolne.xml #########################

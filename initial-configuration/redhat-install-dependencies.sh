@@ -76,6 +76,9 @@ setenforce 1
 echo "Installing MySQL/MariaDB"
 yum -y install mariadb-server
 
+echo "alias mysql=mariadb" >> ~/.bash_profile
+source ~/.bash_profile
+
 echo "Configuring mysql cnf file"
 echo "[mysqld]" >> /etc/my.cnf
 echo "bind-address=0.0.0.0" >> /etc/my.cnf

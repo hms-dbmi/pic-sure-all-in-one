@@ -18,9 +18,9 @@ RUN apt-get -y install apt-transport-https wget
 
 RUN curl -fsSL https://get.docker.com | sh
 
-RUN docker --version 
+RUN docker --version
 
-RUN wget https://downloads.apache.org/maven/maven-3/3.9.2/binaries/apache-maven-3.9.2-bin.tar.gz -P /opt
+RUN wget https://repo1.maven.org/maven2/org/apache/maven/apache-maven/3.9.2/apache-maven-3.9.2-bin.tar.gz -P /opt
 
 RUN apt-get -y -t stretch-backports install openjdk-11-jdk-headless
 

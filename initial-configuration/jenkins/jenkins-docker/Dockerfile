@@ -22,7 +22,7 @@ RUN yum install -y podman-docker
 
 RUN alias docker=podman
 
-RUN wget https://downloads.apache.org/maven/maven-3/3.9.3/binaries/apache-maven-3.9.3-bin.tar.gz -P /opt
+RUN wget https://repo1.maven.org/maven2/org/apache/maven/apache-maven/3.9.3/apache-maven-3.9.3-bin.tar.gz -P /opt
 
 RUN tar -xvzf /opt/apache-maven-3.9.3-bin.tar.gz -C /opt
 

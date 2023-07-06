@@ -25,7 +25,7 @@
     <configVersion>2</configVersion>
     <userRemoteConfigs>
       <hudson.plugins.git.UserRemoteConfig>
-        <url>https://github.com/hms-dbmi/pic-sure-hpds-ui.git</url>
+        <url>https://github.com/hms-dbmi/pic-sure-core-frontend.git</url>
       </hudson.plugins.git.UserRemoteConfig>
     </userRemoteConfigs>
     <branches>
@@ -64,8 +64,8 @@ GIT_COMMIT_SHORT=`echo ${GIT_COMMIT} | cut -c1-7`
 cd pic-sure-hpds-ui
 docker build --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_proxy --build-arg no_proxy=&quot;$no_proxy&quot; \
 --build-arg HTTP_PROXY=$http_proxy --build-arg HTTPS_PROXY=$http_proxy --build-arg NO_PROXY=&quot;$no_proxy&quot; \
--t hms-dbmi/pic-sure-hpds-ui:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} .
-docker tag hms-dbmi/pic-sure-hpds-ui:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} hms-dbmi/pic-sure-hpds-ui:LATEST
+-t hms-dbmi/pic-sure-core-frontend:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} .
+docker tag hms-dbmi/pic-sure-core-frontend:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} hms-dbmi/pic-sure-core-frontend:LATEST
 
 </command>
     </hudson.tasks.Shell>

@@ -49,7 +49,7 @@
         <string>PIC-SURE Wildfly Image Build</string>
         <string>PIC-SURE-API Build</string>
         <string>PIC-SURE-HPDS Build</string>
-        <string>PIC-SURE-HPDS-UI Docker Build</string>
+        <string>PIC-SURE-CORE-FRONTEND Docker Build</string>
         <string>Project Specific PIC-SURE Overrides</string>
       </jobNames>
       <jobFilters/>

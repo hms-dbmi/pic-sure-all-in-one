@@ -10,7 +10,7 @@ echo "Starting update"
 yum -y update 
 yum -y install net-tools
 echo "Update yum to get correct version of MariaDB"
-curl -sS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash
+curl -sS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash -s -- --mariadb-server-version="mariadb-10.11.4"
 
 echo "Finished update, adding epel, docker-ce, mysql-community-release repositories and installing wget and yum-utils"
 yum -y install epel-release wget yum-utils

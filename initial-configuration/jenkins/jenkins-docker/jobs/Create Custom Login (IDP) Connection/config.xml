@@ -1,0 +1,57 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description></description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>CONNECTION_LABEL</name>
+          <description>The name of your connection, examples include &quot;Google&quot; or &quot;BCH&quot;</description>
+          <trim>true</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>ID</name>
+          <description>Name of the connection in auth0, generally the same as the label. (ask the Avillach Lab representative you are working with if you are unsure)</description>
+          <trim>true</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>SUBPREFIX</name>
+          <description>The connection name that matches to Auth0 (ask an Avillach Lab representative). It is usually the type of connection in Auth0, and then the id surounded by pipes (|). For an ADFS type with the id of BCH it would look like: adfs|BCH|</description>
+          <trim>true</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>requiredFields</name>
+          <description>A json array of strings that includes the required fields of your idp. Generally something like: [{&quot;label&quot;:&quot;SITENAME Email&quot;, &quot;id&quot;:&quot;email&quot;}]</description>
+          <defaultValue>[{&quot;label&quot;:&quot;Email&quot;, &quot;id&quot;:&quot;email&quot;}]</defaultValue>
+          <trim>true</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.scm.NullSCM"/>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>CONNECTION_ID=`uuidgen -r`
+CONNECTION_ID_HEX=`echo $CONNECTION_ID | awk &apos;{ print toupper($0) }&apos;|sed &apos;s/-//g&apos;;`
+docker run -i -v /root/.my.cnf:/root/.my.cnf --network=host mysql mysql -e \
+&quot;INSERT INTO auth.connection (uuid, label, id, subprefix, requiredFields) VALUES (unhex(&apos;$CONNECTION_ID_HEX&apos;), &apos;$CONNECTION_LABEL&apos;, &apos;$ID&apos;, &apos;$SUBPREFIX&apos;, &apos;$requiredFields&apos;);&quot; auth
+USER_MAPPING_ID=`uuidgen -r`
+USER_MAPPING_ID_HEX=`echo $USER_MAPPING_ID | awk &apos;{ print toupper($0) }&apos;|sed &apos;s/-//g&apos;;`
+docker run -i -v /root/.my.cnf:/root/.my.cnf --network=host mysql mysql -e \
+&quot;INSERT INTO auth.userMetadataMapping (uuid, auth0MetadataJsonPath, connectionId, generalMetadataJsonPath) VALUES (unhex(&apos;$USER_MAPPING_ID_HEX&apos;), &apos;\$.email&apos;, unhex(&apos;$CONNECTION_ID_HEX&apos;), &apos;\$.email&apos;);&quot; auth</command>
+
+echo &quot;Please now edit the connections.json file in the httpd container and add your IDP button there. For more instructions see: https://pic-sure.gitbook.io/pic-sure/&quot;
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

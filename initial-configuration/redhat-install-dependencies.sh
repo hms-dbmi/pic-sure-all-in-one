@@ -11,7 +11,7 @@ yum -y update
 echo "Update yum to get correct version of MariaDB"
 curl -sS https://downloads.mariadb.com/MariaDB/mariadb_repo_setup | sudo bash -s -- --mariadb-server-version="mariadb-10.11.4"
 
-yum -y install dnf-utils wget openssl java-11-openjdk-devel net-tools zip
+yum -y install dnf-utils wget openssl tzdata-java java-11-openjdk-devel net-tools zip
 rpm --import https://repo.mysql.com/RPM-GPG-KEY-mysql-2022
 wget http://repo.mysql.com/mysql57-community-release-el7-9.noarch.rpm
 rpm -ivh mysql57-community-release-el7-9.noarch.rpm

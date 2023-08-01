@@ -76,7 +76,7 @@
   <builders>
     <hudson.tasks.Maven>
       <targets>clean package -DskipTests -Dwildfly.skip=true</targets>
-      <mavenName>Maven 3.9.3</mavenName>
+      <mavenName>Maven Home</mavenName>
       <usePrivateRepository>false</usePrivateRepository>
       <settings class="jenkins.mvn.DefaultSettingsProvider"/>
       <globalSettings class="jenkins.mvn.DefaultGlobalSettingsProvider"/>

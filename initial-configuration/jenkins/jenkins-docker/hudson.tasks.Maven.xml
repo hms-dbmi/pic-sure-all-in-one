@@ -2,8 +2,8 @@
 <hudson.tasks.Maven_-DescriptorImpl>
   <installations>
     <hudson.tasks.Maven_-MavenInstallation>
-      <name>Maven 3.9.3</name>
-      <home>/opt/apache-maven-3.9.3/</home>
+      <name>Maven Home</name>
+      <home>/opt/apache-maven/</home>
       <properties/>
     </hudson.tasks.Maven_-MavenInstallation>
   </installations>

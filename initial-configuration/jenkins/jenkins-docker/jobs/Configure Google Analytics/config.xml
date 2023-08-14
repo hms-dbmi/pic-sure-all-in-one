@@ -8,7 +8,7 @@
             <parameterDefinitions>
                 <hudson.model.StringParameterDefinition>
                     <name>ANALYTICS_ID</name>
-                    <description>Google Analytics ID.</description>
+                    <description>Google Analytics id. Reset to default to remove.</description>
                     <defaultValue>__ANALYTICS_ID__</defaultValue>
                     <trim>false</trim>
                 </hudson.model.StringParameterDefinition>

@@ -23,7 +23,7 @@
     <concurrentBuild>false</concurrentBuild>
     <builders>
         <hudson.tasks.Shell>
-            <command>export old_analytics_id=`cat /usr/local/docker-config/httpd/picsureui_settings.json | grep old_analytics_id | cut -d &apos;:&apos; -f 2 | sed &apos;s/\&quot;,*//g&apos;`
+            <command>export old_analytics_id=`cat /usr/local/docker-config/httpd/picsureui_settings.json | grep analytics_id | cut -d &apos;:&apos; -f 2 | sed &apos;s/\&quot;,*//g&apos;`
 
                 sed -i &quot;s/$old_analytics_id/ANALYTICS_ID/g&quot; /usr/local/docker-config/httpd/picsureui_settings.json
             </command>

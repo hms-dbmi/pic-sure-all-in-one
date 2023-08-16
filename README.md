@@ -95,6 +95,8 @@ In Jenkins you will see 5 tabs: All, Configuration, Deployment, PIC-SURE Builds,
 
     - RELEASE_CONTROL_REPOSITORY: This is the repo that contains the build-spec.json file for your project. This file controls what code is built and deployed. If you just want the default PIC-SURE behavior use this repo : https://github.com/hms-dbmi/baseline-pic-sure-release-control
 
+    - ANALYTICS_ID: This is the Google Analytics ID for your project. If you do not have one, you can leave this blank.
+    
 Note: Ensure none of these fields contain leading or trailing whitespace, the values must be exact. Once you have entered the information,
 
 7. Click the "Build" button.

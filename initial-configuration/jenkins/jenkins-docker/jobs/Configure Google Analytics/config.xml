@@ -35,10 +35,10 @@
                 # Check if the key is missing
                 if [[ -z $value ]]; then
                 # Add the analytics_id key with value of $ANALYTICS_ID
-                jq --arg ANALYTICS_ID "$ANALYTICS_ID" '. + {"analytics_id": $ANALYTICS_ID}' /usr/local/docker-config/httpd/picsureui_settings.json > /tmp/temp.json && mv /tmp/temp.json /usr/local/docker-config/httpd/picsureui_settings.json
+                jq --arg ANALYTICS_ID "$ANALYTICS_ID" '. + {"analytics_id": $ANALYTICS_ID}' /usr/local/docker-config/httpd/picsureui_settings.json > /tmp/temp.json &amp;&amp; mv /tmp/temp.json /usr/local/docker-config/httpd/picsureui_settings.json
                 else
                 # Replace the old value with the value of $ANALYTICS_ID
-                jq --arg ANALYTICS_ID "$ANALYTICS_ID" '.analytics_id = $ANALYTICS_ID' /usr/local/docker-config/httpd/picsureui_settings.json > /tmp/temp.json && mv /tmp/temp.json /usr/local/docker-config/httpd/picsureui_settings.json
+                jq --arg ANALYTICS_ID "$ANALYTICS_ID" '.analytics_id = $ANALYTICS_ID' /usr/local/docker-config/httpd/picsureui_settings.json > /tmp/temp.json &amp;&amp; mv /tmp/temp.json /usr/local/docker-config/httpd/picsureui_settings.json
                 fi
             </command>
         </hudson.tasks.Shell>

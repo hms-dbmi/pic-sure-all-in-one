@@ -70,4 +70,4 @@ plugins:
       version: 686.v6fd37018d7c2
   - artifactId: docker-workflow
     source:
-      version: lat563.vd5d2e5c4007f
+      version: 563.vd5d2e5c4007f

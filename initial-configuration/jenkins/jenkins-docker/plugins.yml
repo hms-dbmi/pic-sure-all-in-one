@@ -7,7 +7,7 @@ plugins:
       version: 1.22
   - artifactId: credentials-binding
     source:
-      version: 523.vd859a_4b_122e6
+      version: 604.vb_64480b_c56ca_
   - artifactId: email-ext
     source:
       version: 2.94

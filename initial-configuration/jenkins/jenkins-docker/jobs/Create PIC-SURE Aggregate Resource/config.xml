@@ -21,7 +21,7 @@
         <hudson.model.StringParameterDefinition>
           <name>TARGET_OBFUSCATION_THRESHOLD</name>
           <description>Configure the aggregate resource to obfuscate results fewer than this threshold</description>
-          <defaultValue>10</defaultValue>
+          <defaultValue>0</defaultValue>
           <trim>true</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>

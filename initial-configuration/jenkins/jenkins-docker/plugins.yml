@@ -1,0 +1,73 @@
+plugins:
+  - artifactId: groovy
+    source:
+      version: 453.vcdb_a_c5c99890
+  - artifactId: timestamper
+    source:
+      version: 1.26
+  - artifactId: credentials-binding
+    source:
+      version: 626.v8d9034b_8ea_cc
+  - artifactId: email-ext
+    source:
+      version: 2.99
+  - artifactId: build-timeout
+    source:
+      version: 1.31
+  - artifactId: workflow-aggregator
+    source:
+      version: 596.v8c21c963d92d
+  - artifactId: pipeline-stage-view
+    source:
+      version: 2.33
+  - artifactId: ant
+    source:
+      version: 487.vd79d090d4ea_e
+  - artifactId: github-branch-source
+    source:
+      version: 1728.v859147241f49
+  - artifactId: ssh-slaves
+    source:
+      version: 2.877.v365f5eb_a_b_eec
+  - artifactId: pipeline-github-lib
+    source:
+      version: 42.v0739460cda_c4
+  - artifactId: matrix-auth
+    source:
+      version: 3.2
+  - artifactId: mailer
+    source:
+      version: 457.v3f72cb_e015e5
+  - artifactId: antisamy-markup-formatter
+    source:
+      version: 159.v25b_c67cd35fb_
+  - artifactId: gradle
+    source:
+      version: 2.8.2
+  - artifactId: pam-auth
+    source:
+      version: 1.10
+  - artifactId: git
+    source:
+      version: 5.2.0
+  - artifactId: ws-cleanup
+    source:
+      version: 0.45
+  - artifactId: subversion
+    source:
+      version: 2.17.3
+  - artifactId: ldap
+    source:
+      version: 694.vc02a_69c9787f
+  - artifactId: cloudbees-folder
+    source:
+      version: 6.848.ve3b_fd7839a_81
+  - artifactId: list-git-branches-parameter
+    source:
+      version: 0.0.13
+  - artifactId: copyartifact
+    source:
+      version: 714.v28a_34f8c563f
+  - artifactId: docker-workflow
+    source:
+      version: 572.v950f58993843

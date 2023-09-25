@@ -49,7 +49,7 @@ docker run --name=hpds --restart always --network=hpdsNet \
   -v /usr/local/docker-config/hpds:/opt/local/hpds \
   -v /usr/local/docker-config/hpds/all:/opt/local/hpds/all \
   -v /var/log/hpds-logs/:/var/log/ \
-  --entrypoint=java \
+  -e CATALINA_OPTS=" $HPDS_OPTS " \
   -d hms-dbmi/pic-sure-hpds:LATEST $HPDS_OPTS
 
 

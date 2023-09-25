@@ -32,8 +32,8 @@ docker run --name=hpds --restart always --network=picsure \
   -v /usr/local/docker-config/hpds:/opt/local/hpds \
   -v /usr/local/docker-config/hpds/all:/opt/local/hpds/all \
   -v /var/log/hpds-logs/:/var/log/ \
-  --entrypoint=java \
-  -d hms-dbmi/pic-sure-hpds:LATEST $HPDS_OPTS
+  -e CATALINA_OPTS=" $HPDS_OPTS " \
+  -d hms-dbmi/pic-sure-hpds:LATEST
 
 if [ -f /usr/local/docker-config/httpd/custom_httpd_volumes ]; then
 	export CUSTOM_HTTPD_VOLUMES=`cat /usr/local/docker-config/httpd/custom_httpd_volumes`

@@ -125,6 +125,14 @@ cp allConcepts.csv.tgz /usr/local/docker-config/hpds_csv/
 cd /usr/local/docker-config/hpds_csv/
 tar -xvzf allConcepts.csv.tgz
 
-echo "Installation script complete.  Staring Jenkins."
 cd $CWD
+if [ -n "$1" ]; then
+  echo "Configuring jenkins for https:"
+  # Just making a random password. This is just for the cert, not jenkins admin
+  # If the user somehow nukes this, they can just regen from the crt and key
+  password=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 13 ; echo '')
+  ./convert-cert.sh $1 $2 $password
+fi
+
+echo "Installation script complete.  Staring Jenkins."
 ../start-jenkins.sh

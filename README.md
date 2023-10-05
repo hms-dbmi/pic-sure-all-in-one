@@ -71,6 +71,11 @@ Examples:
 
 `sudo ./install-dependencies.sh`
 
+If you need Jenkins to use https, you can configure that by passing a key, and cert to the 
+install script:
+
+`sudo ./install-dependencies.sh path/to/cert.key path/to/cert.crt`
+
 4. Browse to Jenkins server
 Point your browser at your server's IP on port `8080`. 
 

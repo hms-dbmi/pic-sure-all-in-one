@@ -1,6 +1,20 @@
 #!/bin/bash
 ./stop-jenkins.sh
 git pull
+
+echo "Sometimes we have to update not just the Jenkins jobs, but also the docker image itself."
+echo "If you want to update that image. Rerun this command with the --rebuild flag added."
+
+if [ "$1" = "--rebuild" ]; then
+  #  Rebuild the docker image. This matches the initial dep script. The proxy args are generally empty, but you might
+  # run into bugs if you have an http proxy, but don't set it somewhere clever like your bash profile
+  echo "Rebuilding the Jenkins container:"
+  docker build --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_proxy --build-arg no_proxy="$no_proxy" \
+    --build-arg HTTP_PROXY=$http_proxy --build-arg HTTPS_PROXY=$http_proxy --build-arg NO_PROXY="$no_proxy" \
+    -t pic-sure-jenkins:`git log -n 1 | grep commit | cut -d ' ' -f 2 | cut -c 1-7` jenkins/jenkins-docker
+  docker tag pic-sure-jenkins:`git log -n 1 | grep commit | cut -d ' ' -f 2 | cut -c 1-7` pic-sure-jenkins:LATEST
+fi
+
 mkdir -p /var/jenkins_home_bak
 cp -r /var/jenkins_home/* /var/jenkins_home_bak/
 rm -rf /var/jenkins_home/*

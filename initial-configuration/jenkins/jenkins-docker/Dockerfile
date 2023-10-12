@@ -1,6 +1,6 @@
-FROM jenkins/jenkins:latest
+FROM jenkins/jenkins:2.421-jdk11
 
-COPY plugins.txt /usr/share/jenkins/ref/plugins.txt
+COPY plugins.yml /usr/share/jenkins/ref/plugins.yml
 
 COPY config.xml /var/jenkins_home/config.xml
 
@@ -26,4 +26,4 @@ RUN apt-get install jq -y
 
 RUN apt-get -y install uuid-runtime
 
-RUN jenkins-plugin-cli --plugin-file /usr/share/jenkins/ref/plugins.txt
+RUN jenkins-plugin-cli --plugin-file /usr/share/jenkins/ref/plugins.yml

@@ -29,16 +29,16 @@
                 # If the $ANALYTICS_ID variable is blank, set it to __ANALYTICS_ID__
                 : ${ANALYTICS_ID:="__ANALYTICS_ID__"}
 
-                # Check for the presence of the analytics_id key and fetch its value
-                value=$(jq -r 'select(.analytics_id != null) | .analytics_id' /usr/local/docker-config/httpd/picsureui_settings.json)
+                # Check for the presence of the analyticsId key and fetch its value
+                value=$(jq -r 'select(.analyticsId != null) | .analyticsId' /usr/local/docker-config/httpd/picsureui_settings.json)
 
                 # Check if the key is missing
                 if [[ -z $value ]]; then
-                # Add the analytics_id key with value of $ANALYTICS_ID
-                jq --arg ANALYTICS_ID &quot;$ANALYTICS_ID&quot; '. + {&quot;analytics_id&quot;: $ANALYTICS_ID}' /usr/local/docker-config/httpd/picsureui_settings.json > /tmp/temp.json &amp;&amp; mv /tmp/temp.json /usr/local/docker-config/httpd/picsureui_settings.json
+                # Add the analyticsId key with value of $ANALYTICS_ID
+                jq --arg ANALYTICS_ID "$ANALYTICS_ID" '. + {"analyticsId": $ANALYTICS_ID}' /usr/local/docker-config/httpd/picsureui_settings.json > /tmp/temp.json &amp;&amp; mv /tmp/temp.json /usr/local/docker-config/httpd/picsureui_settings.json
                 else
                 # Replace the old value with the value of $ANALYTICS_ID
-                jq --arg ANALYTICS_ID &quot;$ANALYTICS_ID&quot; '.analytics_id = $ANALYTICS_ID' /usr/local/docker-config/httpd/picsureui_settings.json > /tmp/temp.json &amp;&amp; mv /tmp/temp.json /usr/local/docker-config/httpd/picsureui_settings.json
+                jq --arg ANALYTICS_ID "$ANALYTICS_ID" '.analyticsId = $ANALYTICS_ID' /usr/local/docker-config/httpd/picsureui_settings.json > /tmp/temp.json &amp;&amp; mv /tmp/temp.json /usr/local/docker-config/httpd/picsureui_settings.json
                 fi
             </command>
         </hudson.tasks.Shell>

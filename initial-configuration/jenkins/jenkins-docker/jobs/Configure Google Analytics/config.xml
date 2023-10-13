@@ -8,8 +8,14 @@
             <parameterDefinitions>
                 <hudson.model.StringParameterDefinition>
                     <name>ANALYTICS_ID</name>
-                    <description>Google Analytics id. Reset to default to remove.</description>
+                    <description>Google Analytics ID. Reset to default to remove.</description>
                     <defaultValue>__ANALYTICS_ID__</defaultValue>
+                    <trim>false</trim>
+                </hudson.model.StringParameterDefinition>
+                <hudson.model.StringParameterDefinition>
+                    <name>TAG_MANAGER_ID</name>
+                    <description>Google Tag Manager ID. Reset to default to remove.</description>
+                    <defaultValue>__TAG_MANAGER_ID__</defaultValue>
                     <trim>false</trim>
                 </hudson.model.StringParameterDefinition>
             </parameterDefinitions>
@@ -29,16 +35,31 @@
                 # If the $ANALYTICS_ID variable is blank, set it to __ANALYTICS_ID__
                 : ${ANALYTICS_ID:="__ANALYTICS_ID__"}
 
-                # Check for the presence of the analyticsId key and fetch its value
-                value=$(jq -r 'select(.analyticsId != null) | .analyticsId' /usr/local/docker-config/httpd/picsureui_settings.json)
+                # If the $TAG_MANAGER_ID variable is blank, set it to __TAG_MANAGER_ID__
+                : ${TAG_MANAGER_ID:="__TAG_MANAGER_ID__"}
+
+                # Check for the presence of the analytics_id key and fetch its value
+                analytics_value=$(jq -r 'select(.analyticsId != null) | .analyticsId' /usr/local/docker-config/httpd/picsureui_settings.json)
 
                 # Check if the key is missing
-                if [[ -z $value ]]; then
-                # Add the analyticsId key with value of $ANALYTICS_ID
+                if [[ -z $analytics_value ]]; then
+                # Add the analyticsId key with the value of $ANALYTICS_ID
                 jq --arg ANALYTICS_ID "$ANALYTICS_ID" '. + {"analyticsId": $ANALYTICS_ID}' /usr/local/docker-config/httpd/picsureui_settings.json > /tmp/temp.json &amp;&amp; mv /tmp/temp.json /usr/local/docker-config/httpd/picsureui_settings.json
                 else
                 # Replace the old value with the value of $ANALYTICS_ID
                 jq --arg ANALYTICS_ID "$ANALYTICS_ID" '.analyticsId = $ANALYTICS_ID' /usr/local/docker-config/httpd/picsureui_settings.json > /tmp/temp.json &amp;&amp; mv /tmp/temp.json /usr/local/docker-config/httpd/picsureui_settings.json
+                fi
+
+                # Check for the presence of the tagManagerId key and fetch its value
+                tag_manager_value=$(jq -r 'select(.tagManagerId != null) | .tagManagerId' /usr/local/docker-config/httpd/picsureui_settings.json)
+
+                # Check if the key is missing
+                if [[ -z $tag_manager_value ]]; then
+                # Add the tagManagerId key with the value of $TAG_MANAGER_ID
+                jq --arg TAG_MANAGER_ID "$TAG_MANAGER_ID" '. + {"tagManagerId": $TAG_MANAGER_ID}' /usr/local/docker-config/httpd/picsureui_settings.json > /tmp/temp.json &amp;&amp; mv /tmp/temp.json /usr/local/docker-config/httpd/picsureui_settings.json
+                else
+                # Replace the old value with the value of $TAG_MANAGER_ID
+                jq --arg TAG_MANAGER_ID "$TAG_MANAGER_ID" '.tagManagerId = $TAG_MANAGER_ID' /usr/local/docker-config/httpd/picsureui_settings.json > /tmp/temp.json &amp;&amp; mv /tmp/temp.json /usr/local/docker-config/httpd/picsureui_settings.json
                 fi
             </command>
         </hudson.tasks.Shell>

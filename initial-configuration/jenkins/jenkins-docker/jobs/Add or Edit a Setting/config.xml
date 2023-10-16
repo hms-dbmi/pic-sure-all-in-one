@@ -14,7 +14,7 @@
                 </hudson.model.StringParameterDefinition>
                 <hudson.model.StringParameterDefinition>
                     <name>SETTING_VALUE</name>
-                    <description>The value of the setting. This can be a string or json object. For more complex values you may need run it through a json linter. Example: mailto:example@example.com OR {"hello": "world", "arrayName": ["array", "test"]}</description>
+                    <description>The value of the setting. This can be a string or json object. NOTE: If it is a string is should be in quotes. For more complex values you may need run it through a json linter. Example: "mailto:example@example.com" OR {"hello": "world", "arrayName": ["array", "test"]}</description>
                     <defaultValue></defaultValue>
                     <trim>false</trim>
                 </hudson.model.StringParameterDefinition>

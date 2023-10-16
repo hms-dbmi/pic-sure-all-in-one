@@ -1,0 +1,52 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+    <actions/>
+    <description>Edit the values in picsureui_settings.json file. You can find the current file in either your Network tab of your browser's developer tools by searching for "settings.json" or in this location: /usr/local/docker-config/httpd/picsureui_settings.json</description>
+    <keepDependencies>false</keepDependencies>
+    <properties>
+        <hudson.model.ParametersDefinitionProperty>
+            <parameterDefinitions>
+                <hudson.model.StringParameterDefinition>
+                    <name>SETTING_FIELD_NAME</name>
+                    <description>The field name of the setting you would like to edit. Example: helpLink</description>
+                    <defaultValue></defaultValue>
+                    <trim>false</trim>
+                </hudson.model.StringParameterDefinition>
+                <hudson.model.StringParameterDefinition>
+                    <name>SETTING_VALUE</name>
+                    <description>The value of the setting. This can be a string or json object. For more complex values you may need run it through a json linter. Example: mailto:example@example.com OR {"hello": "world", "arrayName": ["array", "test"]}</description>
+                    <defaultValue></defaultValue>
+                    <trim>false</trim>
+                </hudson.model.StringParameterDefinition>
+            </parameterDefinitions>
+        </hudson.model.ParametersDefinitionProperty>
+    </properties>
+    <scm class="hudson.scm.NullSCM"/>
+    <canRoam>true</canRoam>
+    <disabled>false</disabled>
+    <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+    <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+    <triggers/>
+    <concurrentBuild>false</concurrentBuild>
+    <builders>
+        <hudson.tasks.Shell>
+            <command>
+            #!/bin/bash
+            # Check for the presence
+            current_field_name=$(jq -r --arg field_name "$SETTING_FIELD_NAME" 'select(.[$field_name] != null) | .[$field_name]' /usr/local/docker-config/httpd/picsureui_settings.json)
+            echo $current_field_name
+
+            # Check if the key is missing
+            if [[ -z $current_field_name ]]; then
+                # Add the key with the value
+                jq --arg field_name "$SETTING_FIELD_NAME" --argjson value "$SETTING_VALUE" '. + {($field_name): $value}' /usr/local/docker-config/httpd/picsureui_settings.json > /tmp/temp.json &amp;&amp; mv /tmp/temp.json /usr/local/docker-config/httpd/picsureui_settings.json
+            else
+                # Replace the old value
+                jq --arg field_name "$SETTING_FIELD_NAME" --argjson value "$SETTING_VALUE" '.[$field_name] = $value' /usr/local/docker-config/httpd/picsureui_settings.json > /tmp/temp.json &amp;&amp; mv /tmp/temp.json /usr/local/docker-config/httpd/picsureui_settings.json
+            fi
+            </command>
+        </hudson.tasks.Shell>
+    </builders>
+    <publishers/>
+    <buildWrappers/>
+</project>

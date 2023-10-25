@@ -1,8 +1,9 @@
 
 #!/usr/bin/env bash
 
-CWD=`pwd`
 
+CWD=`pwd`
+{
 mkdir -p /usr/local/docker-config
 cp -r config/* /usr/local/docker-config/
 
@@ -136,3 +137,5 @@ fi
 
 echo "Installation script complete.  Staring Jenkins."
 ../start-jenkins.sh
+} 2>&1 | tee .initial-installation.log
+

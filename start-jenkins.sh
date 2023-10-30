@@ -10,6 +10,8 @@ docker run -d \
   -e no_proxy=$no_proxy \
   -v /var/jenkins_cert:/var/jenkins_cert \
   -v /var/jenkins_home:/var/jenkins_home \
+  -v ./start-picsure.sh:/var/jenkins_home/workspace/Start\ PIC-SURE/start-picsure.sh \
+  -v ./stop-picsure.sh:/var/jenkins_home/workspace/Stop\ PIC-SURE/stop-picsure.sh \
   -v /usr/local/docker-config:/usr/local/docker-config \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v /root/.my.cnf:/root/.my.cnf \

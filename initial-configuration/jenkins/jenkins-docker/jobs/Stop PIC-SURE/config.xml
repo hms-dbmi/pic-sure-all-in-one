@@ -13,12 +13,11 @@
   <concurrentBuild>false</concurrentBuild>
   <builders>
     <hudson.tasks.Shell>
-      <command>docker stop hpds &amp;&amp; docker rm hpds
-
-docker stop httpd &amp;&amp; docker rm httpd
-
-docker stop wildfly &amp;&amp; docker rm wildfly
-</command>
+      <command>
+        # This stop-picsure script is volume mounted from the stop-picsure.sh in the pic-sure-all-in-one cloned on this machine.
+        # Modify that script rather than adding changes here.
+        ./stop-picsure.sh
+  </command>
     </hudson.tasks.Shell>
   </builders>
   <publishers/>

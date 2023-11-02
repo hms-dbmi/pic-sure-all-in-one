@@ -14,7 +14,7 @@
   <builders>
     <hudson.tasks.Shell>
       <command>
-# This start-picsure script is volume mounted from the start-picsure.sh in the pic-sure-all-in-one cloned on this machine.
+# This start-picsure script is copied from the start-picsure.sh in the pic-sure-all-in-one cloned on this machine.
 # Modify that script rather than adding changes here.
 ./start-picsure.sh
 </command>

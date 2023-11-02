@@ -14,7 +14,7 @@
   <builders>
     <hudson.tasks.Shell>
       <command>
-        # This stop-picsure script is volume mounted from the stop-picsure.sh in the pic-sure-all-in-one cloned on this machine.
+        # This stop-picsure script is copied from the stop-picsure.sh in the pic-sure-all-in-one cloned on this machine.
         # Modify that script rather than adding changes here.
         ./stop-picsure.sh
   </command>

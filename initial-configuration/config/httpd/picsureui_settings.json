@@ -18,6 +18,10 @@
   "categorySearchResultList" : [
     "ACT" 
   ],
+  "enableTour": true,
+  "idsToWaitFor": [
+    "search-results-container"
+  ],
   "customizeAuth0Login": true,
   "queryButtonLabel": "Export for analysis",
   "maxVariantCount": 10000,

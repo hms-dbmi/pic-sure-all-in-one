@@ -1,0 +1,106 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description>Build and deploy a microservice. The microservice must live in a directory in
+  https://github.com/hms-dbmi/pic-sure-services/
+  </description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>git_hash</name>
+          <defaultValue>*/main</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>service_name</name>
+          <description>The name of the directory for your service in the pic-sure-services repo</description>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>service_description</name>
+          <description>Describe it</description>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.FileParameterDefinition>
+          <name>.env</name>
+          <description>The .env file needed to run this service. The UUID will be added to the end of this env</description>
+        </hudson.model.FileParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@5.2.1">
+    <configVersion>2</configVersion>
+    <userRemoteConfigs>
+      <hudson.plugins.git.UserRemoteConfig>
+        <url>https://github.com/hms-dbmi/pic-sure-services.git</url>
+      </hudson.plugins.git.UserRemoteConfig>
+    </userRemoteConfigs>
+    <branches>
+      <hudson.plugins.git.BranchSpec>
+        <name>${git_hash}</name>
+      </hudson.plugins.git.BranchSpec>
+    </branches>
+    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+    <submoduleCfg class="empty-list"/>
+    <extensions/>
+  </scm>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command># Get the resource from the db if it exists
+export SQL=&quot;SELECT LOWER(CONCAT(SUBSTR(HEX(uuid), 1, 8), &apos;-&apos;, SUBSTR(HEX(uuid), 9, 4), &apos;-&apos;, SUBSTR(HEX(uuid), 13, 4), &apos;-&apos;, SUBSTR(HEX(uuid), 17, 4), &apos;-&apos;, SUBSTR(HEX(uuid), 21))) from picsure.resource where name = &apos;$service_name&apos;&quot;;
+export resource_uuid=$(docker run -i -v /root/.my.cnf:/root/.my.cnf --network=host mysql mysql -se &quot;$SQL&quot; picsure);
+
+# Add the resource to the database if it doesn&apos;t already exist
+if [ -z &quot;$resource_uuid&quot; ]; then
+	echo &apos;This is the first time building this resource. Adding to db&apos;
+    echo &apos;&apos;
+	export SQL=&quot;INSERT IGNORE INTO picsure.resource (uuid, name, resourceRSPath, description) \
+	VALUES (UUID(), &apos;$service_name&apos;, &apos;http://$service_name/&apos;, &apos;$service_description&apos;)&quot;;
+	docker run -i -v /root/.my.cnf:/root/.my.cnf --network=host mysql mysql -e &quot;$SQL&quot; picsure
+fi
+
+# Get the resource from the db 
+export SQL=&quot;SELECT LOWER(CONCAT(SUBSTR(HEX(uuid), 1, 8), &apos;-&apos;, SUBSTR(HEX(uuid), 9, 4), &apos;-&apos;, SUBSTR(HEX(uuid), 13, 4), &apos;-&apos;, SUBSTR(HEX(uuid), 17, 4), &apos;-&apos;, SUBSTR(HEX(uuid), 21))) from picsure.resource where name = &apos;$service_name&apos;&quot;;
+export resource_uuid=$(docker run -i -v /root/.my.cnf:/root/.my.cnf --network=host mysql mysql -se &quot;$SQL&quot; picsure);
+echo &apos;&apos;
+echo &quot;Done adding to db. Using $resource_uuid as uuid&quot;; 
+
+# Add the resource to our env file
+if grep -q &apos;RESOURCE_UUID&apos; .env; then
+	echo &apos;&apos;
+	echo &apos;RESOURCE_UUID exists in .env. Replacing with our value&apos;
+	sed -i~ &apos;/^RESOURCE_UUID=/s/=.*/=&quot;$resource_uuid&quot;/&apos; .env
+else
+	echo &apos;&apos;
+	echo &apos;RESOURCE_UUID does NOT exist in .env. Appending our to eof&apos;
+	echo RESOURCE_UUID=$resource_uuid &gt;&gt; .env
+fi
+
+
+# Copy over all the things
+echo &apos;&apos;
+echo &apos;Copying source code, partial compose file and .env&apos;
+cp -r $service_name /pic-sure-services/
+mv .env /pic-sure-services/$service_name/
+cp docker-compose.yml /pic-sure-services/
+cd /pic-sure-services/
+
+# This find command just gets all the docker-compose files in this dir and the child dirs
+# All those files get merged together into one compose file
+echo &apos;&apos;
+echo &apos;Building and starting container. Good luck!&apos;
+docker compose -f docker-compose.yml $(find ./* -maxdepth 2 -name &apos;*docker-compose.yml&apos; | sed -e &apos;s/^/-f /&apos; | xargs) up --build -d </command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

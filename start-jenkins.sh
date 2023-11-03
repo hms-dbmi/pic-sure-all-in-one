@@ -14,6 +14,7 @@ docker run -d \
   -v /root/.my.cnf:/root/.my.cnf \
   -v /root/.m2:/root/.m2 \
   -v /etc/hosts:/etc/hosts \
+  -v /usr/local/pic-sure-services:/pic-sure-services \
   -e JENKINS_OPTS="$JENKINS_OPTS_STR" \
   -p 8080:8080 --name jenkins pic-sure-jenkins:LATEST
 

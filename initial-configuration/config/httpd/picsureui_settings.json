@@ -18,6 +18,11 @@
   "categorySearchResultList" : [
     "ACT" 
   ],
+  "enableTour": true,
+  "idsToWaitFor": [
+    "search-results-container"
+  ],
+  "tourSearchTerm": "age",
   "customizeAuth0Login": true,
   "queryButtonLabel": "Export for analysis",
   "maxVariantCount": 10000,

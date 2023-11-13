@@ -14,6 +14,7 @@ fi
 export WILDFLY_JAVA_OPTS="-Xms2g -Xmx4g -XX:MetaspaceSize=96M -XX:MaxMetaspaceSize=256m -Djava.net.preferIPv4Stack=true $PROXY_OPTS"
 export HPDS_OPTS="-XX:+UseParallelGC -XX:SurvivorRatio=250 -Xms1g -Xmx16g -DCACHE_SIZE=1500 -DSMALL_TASK_THREADS=1 -DLARGE_TASK_THREADS=1 -DSMALL_JOB_LIMIT=100 -DID_BATCH_SIZE=$EXPORT_SIZE -DALL_IDS_CONCEPT=NONE -DID_CUBE_NAME=NONE -Denable_file_sharing=true"
 export PICSURE_SETTINGS_VOLUME="-v /usr/local/docker-config/httpd/picsureui_settings.json:/usr/local/apache2/htdocs/picsureui/settings/settings.json"
+export PICSURE_BANNER_VOLUME="-v /usr/local/docker-config/httpd/banner_config.json:/usr/local/apache2/htdocs/picsureui/settings/banner_config.json"
 export PSAMA_SETTINGS_VOLUME="-v /usr/local/docker-config/httpd/psamaui_settings.json:/usr/local/apache2/htdocs/picsureui/psamaui/settings/settings.json"
 export EMAIL_TEMPLATE_VOUME="-v /usr/local/docker-config/wildfly/emailTemplates:/opt/jboss/wildfly/standalone/configuration/emailTemplates "
 
@@ -44,6 +45,7 @@ docker stop httpd && docker rm httpd
 docker run --name=httpd --restart always --network=picsure \
   -v /var/log/httpd-docker-logs/:/usr/local/apache2/logs/ \
   $PICSURE_SETTINGS_VOLUME \
+  $PICSURE_BANNER_VOLUME \
   $PSAMA_SETTINGS_VOLUME \
   -v /usr/local/docker-config/httpd/cert:/usr/local/apache2/cert/ \
   $CUSTOM_HTTPD_VOLUMES \

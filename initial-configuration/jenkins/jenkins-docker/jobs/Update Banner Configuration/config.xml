@@ -1,7 +1,10 @@
 <?xml version='1.1' encoding='UTF-8'?>
 <project>
     <actions/>
-    <description></description>
+    <description>
+        This job is used to update the banner_config.json file on the Jenkins server.
+        The file is used by the Jenkins Docker container to display the banner on the website.
+    </description>
     <keepDependencies>false</keepDependencies>
     <properties>
         <hudson.model.ParametersDefinitionProperty>
@@ -22,10 +25,9 @@
     <concurrentBuild>false</concurrentBuild>
     <builders>
         <hudson.tasks.Shell>
-            <command>
-                #!/bin/bash
+            <command>#!/bin/bash
                 # Replace /usr/local/docker-config with the actual path where you want to copy the file
-                cp ${WORKSPACE}/banner_config.json /usr/local/docker-config/banner_config.json
+                cp "${WORKSPACE}/banner_config.json" /usr/local/docker-config/banner_config.json
             </command>
         </hudson.tasks.Shell>
     </builders>

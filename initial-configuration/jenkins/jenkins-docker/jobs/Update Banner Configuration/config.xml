@@ -27,7 +27,7 @@
         <hudson.tasks.Shell>
             <command>#!/bin/bash
                 # Replace /usr/local/docker-config with the actual path where you want to copy the file
-                cp "${WORKSPACE}/banner_config.json" /usr/local/docker-config/banner_config.json
+                cp "${WORKSPACE}/banner_config.json" /usr/local/docker-config/httpd/banner_config.json
             </command>
         </hudson.tasks.Shell>
     </builders>

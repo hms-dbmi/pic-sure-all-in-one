@@ -139,7 +139,14 @@ For example, if your server has IP `10.109.190.146`, browse to https://10.109.19
 
 - As your project progresses you will run the "Check For Updates" job to pull and build the latest release of each component as the release control repository is updated. To deploy the latest updates after "Check For Updates" is run, execute the Start PIC-SURE job.
 
-- If you would like to connect to a remote database, then run the "Configure Remote MySQL Instance" Jenkins job. 
+- If you would like to connect to a remote database, then run the "Configure Remote MySQL Instance" Jenkins job.
+    - You need to provide remote database connection information to "Configure Remote MySQL Instance" Jenkins job
+        - Hostname, Port, Database username Database password.
+    - Remote Database can be on premise (you have to manage the backups other Database Administration tasks) or cloud such as AWS, GCP, Azure (these are fully managed services for Relational Databases)
+    - Cloud - AWS - RDS 
+    - Cloud - Azure - Azure SQL Database
+    - Cloud - GCP - Cloud SQL
+  
 
 ## Data Loading into HPDS
 - Genotype Data Load: [https://github.com/hms-dbmi/pic-sure-all-in-one/blob/master/hpds_geno_load.md](https://github.com/hms-dbmi/pic-sure-all-in-one/blob/master/hpds_geno_load.md)

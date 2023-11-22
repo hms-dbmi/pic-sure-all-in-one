@@ -55,13 +55,10 @@ plugins:
       version: 694.vc02a_69c9787f
   - artifactId: cloudbees-folder
     source:
-      version: 6.858.v898218f3609d
-  - artifactId: list-git-branches-parameter
-    source:
-      version: 0.0.13
+      version: 6.848.ve3b_fd7839a_81
   - artifactId: copyartifact
     source:
-      version: 714.v28a_34f8c563f
+      version: 722.v0662a_9b_e22a_c
   - artifactId: docker-workflow
     source:
       version: 572.v950f58993843

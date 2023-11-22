@@ -20,6 +20,7 @@ RUN docker --version
 
 RUN apt-get -y install maven
 
+
 RUN apt-get install jq -y
 
 RUN apt-get -y install uuid-runtime

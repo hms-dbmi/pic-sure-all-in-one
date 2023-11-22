@@ -20,7 +20,7 @@ docker run -d \
   -v /root/.m2:/root/.m2 \
   -v /etc/hosts:/etc/hosts \
   -v /usr/local/pic-sure-services:/pic-sure-services \
-  -e JENKINS_OPTS="$JENKINS_OPTS_STR" \
+  --env-file initial-configuration/mysql-docker/.env \
   --network selenium \
   -p 8080:8080 --name jenkins pic-sure-jenkins:LATEST
 

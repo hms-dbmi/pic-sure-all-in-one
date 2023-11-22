@@ -31,7 +31,7 @@ yum -y install mariadb-server
 echo  "Creating picsure docker network"
 export DOCKER_NETWORK_IF=br-`docker network create picsure | cut -c1-12`
 sysctl -w net.ipv4.conf.$DOCKER_NETWORK_IF.route_localnet=1
-iptables -t nat -I PREROUTING -i $DOCKER_NETWORK_IF -d 172.18.0.1 -p tcp --dport 3306 -j DNAT --to 127.0.0.1:3306
+iptables -t nat -I PREROUTING -i $DOCKER_NETWORK_IF -d picsure-db -p tcp --dport 3306 -j DNAT --to 127.0.0.1:3306
 iptables -t filter -I INPUT -i $DOCKER_NETWORK_IF -d 127.0.0.1 -p tcp --dport 3306 -j ACCEPT
 echo "[Unit]" > /etc/systemd/system/configure_docker_networks.service
 echo "After=docker.service" >> /etc/systemd/system/configure_docker_networks.service
@@ -71,7 +71,7 @@ rm -f pass.tmp
 mysql -u root -e "create database picsure"
 mysql -u root -e "create database auth"
 
-echo "` < /dev/urandom tr -dc @^=+$*%_A-Z-a-z-0-9 | head -c${1:-24}`%4cA" > airflow.tmp
+echo "` < /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c${1:-24}`%4cA" > airflow.tmp
 mysql -u root -e "grant all privileges on auth.* to 'airflow'@'%' identified by '`cat airflow.tmp`';flush privileges;";
 mysql -u root -e "grant all privileges on picsure.* to 'airflow'@'%' identified by '`cat airflow.tmp`';flush privileges;";
 sed -i s/__AIRFLOW_MYSQL_PASSWORD__/`cat airflow.tmp`/g /usr/local/docker-config/flyway/auth/flyway-auth.conf

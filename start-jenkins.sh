@@ -15,7 +15,7 @@ docker run -d \
   -v /root/.m2:/root/.m2 \
   -v /etc/hosts:/etc/hosts \
   -v /usr/local/pic-sure-services:/pic-sure-services \
-  -e JENKINS_OPTS="$JENKINS_OPTS_STR" \
+  --env-file initial-configuration/mysql-docker/.env \
   -p 8080:8080 --name jenkins pic-sure-jenkins:LATEST
 
 # These would normally be volume mounts, but mounting volumes in volumes is bad vibes

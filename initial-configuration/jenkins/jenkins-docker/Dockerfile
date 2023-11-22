@@ -12,18 +12,18 @@ USER root
 
 RUN echo deb http://archive.debian.org/debian stretch-backports main >> /etc/apt/sources.list
 
-RUN apt-get update
+RUN apt update
 
 RUN curl -fsSL https://get.docker.com | sh
 
 RUN docker --version
 
-RUN apt-get -y -t stretch-backports install openjdk-11-jdk-headless
+RUN apt -y -t stretch-backports install openjdk-11-jdk-headless
 
-RUN apt-get -y install maven
+RUN apt -y install maven
 
-RUN apt-get install jq -y
+RUN apt install jq -y
 
-RUN apt-get -y install uuid-runtime
+RUN apt -y install uuid-runtime
 
-RUN jenkins-plugin-cli --plugin-file /usr/share/jenkins/ref/plugins.yml
+RUN jenkins-plugin-cli --plugin-file /usr/share/jenkins/ref/plugins.yml; exit 0

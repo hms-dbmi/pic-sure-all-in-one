@@ -5,9 +5,6 @@ plugins:
   - artifactId: timestamper
     source:
       version: 1.26
-  - artifactId: credentials-binding
-    source:
-      version: 626.v8d9034b_8ea_cc
   - artifactId: email-ext
     source:
       version: 2.99
@@ -35,9 +32,6 @@ plugins:
   - artifactId: matrix-auth
     source:
       version: 3.2
-  - artifactId: mailer
-    source:
-      version: 457.v3f72cb_e015e5
   - artifactId: antisamy-markup-formatter
     source:
       version: 159.v25b_c67cd35fb_

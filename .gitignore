@@ -1,3 +1,5 @@
 .idea
 .project
 *.iml
+initial-configuration/mysql-docker/.env
+

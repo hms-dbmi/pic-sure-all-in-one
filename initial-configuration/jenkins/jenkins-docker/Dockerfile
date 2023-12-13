@@ -26,4 +26,12 @@ RUN apt-get install jq -y
 
 RUN apt-get -y install uuid-runtime
 
+#Installing chrome for running selenium test
+RUN apt-get -y install wget
+RUN wget https://dl-ssl.google.com/linux/linux_signing_key.pub -O /tmp/google.pub
+RUN gpg --no-default-keyring --keyring /etc/apt/keyrings/google-chrome.gpg --import /tmp/google.pub
+RUN echo 'deb [arch=amd64 signed-by=/etc/apt/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main' | tee /etc/apt/sources.list.d/google-chrome.list
+RUN apt-get update
+RUN apt-get -y install google-chrome-stable
+
 RUN jenkins-plugin-cli --plugin-file /usr/share/jenkins/ref/plugins.yml

@@ -169,13 +169,15 @@
           <default>
             <comparator class="hudson.util.CaseInsensitiveComparator" reference="../../../../../../views/listView/jobNames/comparator"/>
           </default>
-          <int>3</int>
+          <int>4</int>
           <string>project_specific_override_repo</string>
           <string>__PROJECT_SPECIFIC_OVERRIDE_REPO__</string>
           <string>release_control_branch</string>
           <string>*/master</string>
           <string>release_control_repo</string>
           <string>__RELEASE_CONTROL_REPO__</string>
+          <string>JAVA_HOME</string>
+          <string>/opt/java/openjdk</string>
         </tree-map>
       </envVars>
     </hudson.slaves.EnvironmentVariablesNodeProperty>

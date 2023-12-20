@@ -17,7 +17,7 @@ if [ -n "$(command -v yum)" ] && [ -z "$(command -v docker)" ]; then
   yum -y update
   # This repo can be removed after we move away from centos 7 I think
   yum-config-manager  --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-  yum install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  yum install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker compose-plugin
   sudo systemctl start docker
 fi
 
@@ -38,7 +38,7 @@ if [ -n "$(command -v apt-get)" ] && [ -z "$(command -v docker)" ]; then
   apt-get update
 
   # Install docker
-  apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker compose-plugin
 fi
 
 if [ -z "$(command -v docker)" ]; then
@@ -73,66 +73,7 @@ fi
 #                                           MySQL Start                                           #
 #                     Install Jenkins and configure jobs and DB connection                        #
 #-------------------------------------------------------------------------------------------------#
-if [ -z "$(docker ps --format '{{.Names}}' | grep picsure-db)" ]; then
-  echo "Starting mysql server"
-  echo "` < /dev/urandom tr -dc @^=+$*%_A-Z-a-z-0-9 | head -c${1:-24}`%4cA" > pass.tmp
-  echo "PICSURE_DB_ROOT_PASS=`cat pass.tmp`" >> mysql-docker/.env
-  echo "PICSURE_DB_PASS=`cat pass.tmp`" >> mysql-docker/.env
-  echo "PICSURE_DB_DATABASE=ignore" >> mysql-docker/.env
-  echo "PICSURE_DB_USER=ignore" >> mysql-docker/.env
-  cd mysql-docker
-  docker-compose up -d
-
-  echo "Waiting for MySQL to become healthy..."
-  SECONDS=0
-  TIMEOUT=180
-  while [ $SECONDS -lt $TIMEOUT ]; do
-      HEALTH=$(docker inspect --format='{{.State.Health.Status}}' picsure-db)
-      if [ "$HEALTH" = "healthy" ]; then
-          echo "MySQL is up and healthy."
-          break
-      fi
-      echo "Waiting for MySQL to become healthy..."
-      sleep 10
-  done
-
-  if [ "$HEALTH" != "healthy" ]; then
-      echo "MySQL did not become healthy within $TIMEOUT seconds."
-      exit
-  fi
-
-
-  docker exec -t picsure-db mysql -u root -p`cat ../pass.tmp` -e "CREATE DATABASE picsure;"
-  docker exec -t picsure-db mysql -u root -p`cat ../pass.tmp` -e "CREATE DATABASE auth;"
-
-  echo "` < /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c${1:-24}`%4cA" > airflow.tmp
-  docker exec -t picsure-db mysql -u root -p`cat ../pass.tmp` -e "CREATE USER 'airflow'@'%' IDENTIFIED BY '`cat airflow.tmp`';";
-  docker exec -t picsure-db mysql -u root -p`cat ../pass.tmp` -e "GRANT ALL PRIVILEGES ON auth.* TO 'airflow'@'%';FLUSH PRIVILEGES;";
-  docker exec -t picsure-db mysql -u root -p`cat ../pass.tmp` -e "GRANT ALL PRIVILEGES ON picsure.* TO 'airflow'@'%';FLUSH PRIVILEGES;";
-  sed -i s/__AIRFLOW_MYSQL_PASSWORD__/`cat airflow.tmp`/g /usr/local/docker-config/flyway/auth/flyway-auth.conf
-  sed -i s/__AIRFLOW_MYSQL_PASSWORD__/`cat airflow.tmp`/g /usr/local/docker-config/flyway/auth/sql.properties
-  sed -i s/__AIRFLOW_MYSQL_PASSWORD__/`cat airflow.tmp`/g /usr/local/docker-config/flyway/picsure/flyway-picsure.conf
-  sed -i s/__AIRFLOW_MYSQL_PASSWORD__/`cat airflow.tmp`/g /usr/local/docker-config/flyway/picsure/sql.properties
-  rm -f airflow.tmp
-
-  echo "` < /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c${1:-24}`%4cA" > picsure.tmp
-  docker exec -t picsure-db mysql -u root -p`cat ../pass.tmp` -e "CREATE USER 'picsure'@'%' IDENTIFIED BY '`cat picsure.tmp`';";
-  docker exec -t picsure-db mysql -u root -p`cat ../pass.tmp` -e "GRANT ALL PRIVILEGES ON picsure.* to 'picsure'@'%';FLUSH PRIVILEGES";
-  sed -i s/__PIC_SURE_MYSQL_PASSWORD__/`cat picsure.tmp`/g /usr/local/docker-config/wildfly/standalone.xml
-  rm -f picsure.tmp
-
-  echo "` < /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c${1:-24}`%4cA" > auth.tmp
-  docker exec -t picsure-db mysql -u root -p`cat ../pass.tmp` -e "CREATE USER 'auth'@'%' IDENTIFIED BY '`cat auth.tmp`';";
-  docker exec -t picsure-db mysql -u root -p`cat ../pass.tmp` -e "GRANT ALL PRIVILEGES ON auth.* to 'auth'@'%';FLUSH PRIVILEGES;";
-  sed -i s/__AUTH_MYSQL_PASSWORD__/`cat auth.tmp`/g /usr/local/docker-config/wildfly/standalone.xml
-  rm -f auth.tmp
-
-  cd $CWD
-  rm -f pass.tmp
-else
-  echo "You are already running a docker container named picsure-db. If you want to remove it, do so manually"
-  echo "Don't forget to rm the /usr/local/docker-config/picsure-db volume too"
-fi
+./mysql-docker/setup.sh
 
 #-------------------------------------------------------------------------------------------------#
 #                                         Jenkins Install                                         #

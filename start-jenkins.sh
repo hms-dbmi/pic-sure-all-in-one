@@ -11,12 +11,13 @@ docker run -d \
   -v /var/jenkins_home:/var/jenkins_home \
   -v /usr/local/docker-config:/usr/local/docker-config \
   -v /var/run/docker.sock:/var/run/docker.sock \
-  -v /root/.my.cnf:/root/.my.cnf \
-  -v /root/.m2:/root/.m2 \
-  -v /etc/hosts:/etc/hosts \
+  -v /Users/george/.m2:/root/.m2 \
   -v /usr/local/pic-sure-services:/pic-sure-services \
   --env-file initial-configuration/mysql-docker/.env \
   -p 8080:8080 --name jenkins pic-sure-jenkins:LATEST
+
+# -v /root/.my.cnf:/root/.my.cnf \
+# -v /etc/hosts:/etc/hosts \
 
 # These would normally be volume mounts, but mounting volumes in volumes is bad vibes
 # and it was breaking the backup logic in update-jenkins

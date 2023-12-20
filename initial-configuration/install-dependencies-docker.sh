@@ -1,5 +1,12 @@
-
 #!/usr/bin/env bash
+
+sed_inplace() {
+  if [ "$(uname)" = "Darwin" ]; then
+    sed -i '' "$@"
+  else
+    sed -i "$@"
+  fi
+}
 
 CWD=`pwd`
 
@@ -49,7 +56,7 @@ else
   echo "Looks like docker is installed! Attempting a simple docker command: "
 fi
 
-if ! docker run hello-world > /dev/null 2>&1; then
+if ! docker run --rm hello-world > /dev/null 2>&1; then
   echo "Docker hello-world failed. Exiting"
   exit
 else
@@ -97,12 +104,12 @@ mkdir -p /var/log/httpd-docker-logs/ssl_mutex
 
 export APP_ID=`uuidgen | tr '[:upper:]' '[:lower:]'`
 export APP_ID_HEX=`echo $APP_ID | awk '{ print toupper($0) }'|sed 's/-//g'`
-sed -i "s/__STACK_SPECIFIC_APPLICATION_ID__/$APP_ID/g" /usr/local/docker-config/httpd/picsureui_settings.json
-sed -i "s/__STACK_SPECIFIC_APPLICATION_ID__/$APP_ID/g" /usr/local/docker-config/wildfly/standalone.xml
+sed_inplace "s/__STACK_SPECIFIC_APPLICATION_ID__/$APP_ID/g" /usr/local/docker-config/httpd/picsureui_settings.json
+sed_inplace "s/__STACK_SPECIFIC_APPLICATION_ID__/$APP_ID/g" /usr/local/docker-config/wildfly/standalone.xml
 
 export RESOURCE_ID=`uuidgen | tr '[:upper:]' '[:lower:]'`
 export RESOURCE_ID_HEX=`echo $RESOURCE_ID | awk '{ print toupper($0) }'|sed 's/-//g'`
-sed -i "s/__STACK_SPECIFIC_RESOURCE_UUID__/$RESOURCE_ID/g" /usr/local/docker-config/httpd/picsureui_settings.json
+sed_inplace "s/__STACK_SPECIFIC_RESOURCE_UUID__/$RESOURCE_ID/g" /usr/local/docker-config/httpd/picsureui_settings.json
 
 echo $APP_ID > /usr/local/docker-config/APP_ID_RAW
 echo $APP_ID_HEX > /usr/local/docker-config/APP_ID_HEX

@@ -95,12 +95,12 @@ cp -r jenkins/jenkins-docker/hudson.tasks.Maven.xml /var/jenkins_home/hudson.tas
 cp -r jenkins/jenkins-docker/scriptApproval.xml /var/jenkins_home/scriptApproval.xml
 mkdir -p /var/log/httpd-docker-logs/ssl_mutex
 
-export APP_ID=`uuidgen -r`
+export APP_ID=`uuidgen | tr '[:upper:]' '[:lower:]'`
 export APP_ID_HEX=`echo $APP_ID | awk '{ print toupper($0) }'|sed 's/-//g'`
 sed -i "s/__STACK_SPECIFIC_APPLICATION_ID__/$APP_ID/g" /usr/local/docker-config/httpd/picsureui_settings.json
 sed -i "s/__STACK_SPECIFIC_APPLICATION_ID__/$APP_ID/g" /usr/local/docker-config/wildfly/standalone.xml
 
-export RESOURCE_ID=`uuidgen -r`
+export RESOURCE_ID=`uuidgen | tr '[:upper:]' '[:lower:]'`
 export RESOURCE_ID_HEX=`echo $RESOURCE_ID | awk '{ print toupper($0) }'|sed 's/-//g'`
 sed -i "s/__STACK_SPECIFIC_RESOURCE_UUID__/$RESOURCE_ID/g" /usr/local/docker-config/httpd/picsureui_settings.json
 

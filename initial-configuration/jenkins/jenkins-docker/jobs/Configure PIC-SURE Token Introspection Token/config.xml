@@ -49,7 +49,7 @@ export old_token_introspection_token=`cat /usr/local/docker-config/wildfly/stand
 
 sed -i &quot;s/$old_token_introspection_token/$new_token_introspection_token/g&quot; /usr/local/docker-config/wildfly/standalone.xml
 
-docker run -i -v /root/.my.cnf:/root/.my.cnf --network=host mysql mysql -e \
+docker exec -i picsure-db mysql -uroot -p$PICSURE_DB_ROOT_PASS -e \
 &quot;update application set token=&apos;$new_token_introspection_token&apos;;&quot; auth
 </command>
     </hudson.tasks.Shell>

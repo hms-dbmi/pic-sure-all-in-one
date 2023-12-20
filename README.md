@@ -76,6 +76,13 @@ install script:
 
 `sudo ./install-dependencies.sh path/to/cert.key path/to/cert.crt`
 
+If you want to run MySQL inside of docker, we have a modified installation script that enables that: 
+
+```shell
+cd pic-sure-all-in-one/initial-configuration
+sudo ./install-dependencies-docker.sh
+```
+
 4. Browse to Jenkins server
 Point your browser at your server's IP on port `8080`. 
 

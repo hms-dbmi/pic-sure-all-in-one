@@ -16,7 +16,7 @@ else
 fi
 
 export WILDFLY_JAVA_OPTS="-Xms2g -Xmx4g -XX:MetaspaceSize=96M -XX:MaxMetaspaceSize=256m -Djava.net.preferIPv4Stack=true $PROXY_OPTS"
-export HPDS_OPTS="-XX:+UseParallelGC -XX:SurvivorRatio=250 -Xms1g -Xmx16g -DCACHE_SIZE=1500 -DSMALL_TASK_THREADS=1 -DLARGE_TASK_THREADS=1 -DSMALL_JOB_LIMIT=100 -DID_BATCH_SIZE=$EXPORT_SIZE -DALL_IDS_CONCEPT=NONE -DID_CUBE_NAME=NONE -Denable_file_sharing=true"
+export HPDS_OPTS="-XX:+UseParallelGC -XX:SurvivorRatio=250 -Xms1g -Xmx16g -DCACHE_SIZE=1500 -DSMALL_TASK_THREADS=1 -DLARGE_TASK_THREADS=1 -DSMALL_JOB_LIMIT=100 -DID_BATCH_SIZE=$EXPORT_SIZE -DALL_IDS_CONCEPT=NONE -DID_CUBE_NAME=NONE -Denable_file_sharing=true -DVCF_EXCERPT_ENABLED=TRUE -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5007"
 export PICSURE_SETTINGS_VOLUME="-v /usr/local/docker-config/httpd/picsureui_settings.json:/usr/local/apache2/htdocs/picsureui/settings/settings.json"
 export PICSURE_BANNER_VOLUME="-v /usr/local/docker-config/httpd/banner_config.json:/usr/local/apache2/htdocs/picsureui/settings/banner_config.json"
 export PSAMA_SETTINGS_VOLUME="-v /usr/local/docker-config/httpd/psamaui_settings.json:/usr/local/apache2/htdocs/picsureui/psamaui/settings/settings.json"
@@ -32,13 +32,16 @@ if [ -f /usr/local/docker-config/wildfly/application.truststore ]; then
    	export TRUSTSTORE_JAVA_OPTS="-Djavax.net.ssl.trustStore=/opt/jboss/wildfly/standalone/configuration/application.truststore -Djavax.net.ssl.trustStorePassword=password"
 fi
 
+
 docker stop hpds && docker rm hpds
 docker run --name=hpds --restart always --network=picsure \
   -v /usr/local/docker-config/hpds:/opt/local/hpds \
   -v /usr/local/docker-config/hpds/all:/opt/local/hpds/all \
   -v /var/log/hpds-logs/:/var/log/ \
+  -v /usr/local/docker-config/hpds_csv/:/usr/local/docker-config/hpds_csv/ \
   -v /usr/local/docker-config/aws_uploads/:/gic_query_results/ \
   -e CATALINA_OPTS=" $HPDS_OPTS " \
+  -p 5007:5007 \
   -d hms-dbmi/pic-sure-hpds:LATEST
 
 if [ -f /usr/local/docker-config/httpd/custom_httpd_volumes ]; then

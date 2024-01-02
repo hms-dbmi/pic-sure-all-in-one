@@ -8,6 +8,7 @@ docker run -d \
   -e https_proxy=$https_proxy \
   -e no_proxy=$no_proxy \
   -v /var/jenkins_cert:/var/jenkins_cert \
+  -v /usr/local/docker-config/hpds_csv/:/usr/local/docker-config/hpds_csv/ \
   -v /var/jenkins_home:/var/jenkins_home \
   -v /usr/local/docker-config:/usr/local/docker-config \
   -v /var/run/docker.sock:/var/run/docker.sock \

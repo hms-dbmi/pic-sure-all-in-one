@@ -1,0 +1,28 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description>Downloads and imports LetsEncrypt root certs to trust store.</description>
+  <keepDependencies>false</keepDependencies>
+  <scm class="hudson.scm.NullSCM"/>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>
+        <!--Download certs-->
+        curl https://letsencrypt.org/certs/isrgrootx1.der -o isrgrootx1.der
+        curl https://letsencrypt.org/certs/lets-encrypt-r3.der -o lets-encrypt-r3.der
+
+        <!--Import Certs to trust store-->
+        keytool -import -keystore /usr/local/docker-config/wildfly/application.truststore -storepass password -noprompt -trustcacerts -alias letsencryptauthority1 -file isrgrootx1.der
+        keytool -import -keystore /usr/local/docker-config/wildfly/application.truststore -storepass password -noprompt -trustcacerts -alias letsencryptauthority2 -file lets-encrypt-r3.der
+      </command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

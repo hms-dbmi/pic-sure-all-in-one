@@ -105,6 +105,11 @@ pipeline {
                                 [$class: &apos;StringParameterValue&apos;, name: &apos;AUTH0_CLIENT_SECRET&apos;, value: env.AUTH0_CLIENT_SECRET]]
                         }
                     },
+                    addRootCerts: {
+                        script {
+                            def result = build job: &apos;Create Root Certs in TrustStore&apos;
+                        }
+                    },
 		    emailConfig: {
                         script {
                             def result = build job: &apos;Configure Outbound Email Settings&apos;, parameters: [

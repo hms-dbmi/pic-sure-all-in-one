@@ -89,6 +89,11 @@ if [[ "$OSTYPE" =~ ^darwin ]]; then
     fi
 fi
 
+if [ -n "$(command -v apk)" ]; then
+  echo "apk detected. Assuming alpine. Install commands will use apk"
+  apk update && apk add --no-cache wget
+fi 
+
 if [ -z "$(command -v docker)" ]; then
   echo "You dont have docker installed and we cant detect a supported package manager."
   echo "Install docker and then rerun this script"

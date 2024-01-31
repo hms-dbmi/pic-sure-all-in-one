@@ -40,7 +40,7 @@
 
 cat /usr/local/docker-config/wildfly/standalone.xml | grep client_secret | cut -d &apos;=&apos; -f 3 | sed &apos;s/[\&quot;/\&gt;]//g&apos; &gt; secret.txt
 
-export appplication_uuid=`cat /usr/local/docker-config/httpd/picsureui_settings.json | grep applicationIdForBaseQuery | cut -d &apos;:&apos; -f 2| sed &apos;s/[&quot;,]*//g&apos;`
+export appplication_uuid=`cat /usr/local/docker-config/httpd/picsureui_settings.json | grep applicationIdForBaseQuery | cut -d &apos;:&apos; -f 2| sed &apos;s/[&quot;, ]*//g&apos;`
 
 # This UUID is currently a magic number of sorts, this will need to be parameterized to make this job portable
 export new_token_introspection_token=`java -jar generateJwt.jar secret.txt sub &quot;PSAMA_APPLICATION|${appplication_uuid}&quot; 365 day | grep -v &quot;Generating&quot;`

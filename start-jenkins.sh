@@ -3,6 +3,11 @@
 if [ -f $DOCKER_CONFIG_DIR/setProxy.sh ]; then
    . $DOCKER_CONFIG_DIR/setProxy.sh
 fi
+
+if ! docker network inspect selenium > /dev/null 2>&1; then
+  docker network create selenium
+fi
+
 docker run -d \
   -e http_proxy=$http_proxy \
   -e https_proxy=$https_proxy \
@@ -16,6 +21,8 @@ docker run -d \
   -v /root/.m2:/root/.m2 \
   -v /etc/hosts:/etc/hosts \
   -v /usr/local/pic-sure-services:/pic-sure-services \
+  -e JENKINS_OPTS="$JENKINS_OPTS_STR" \
+  --network selenium \
   --env-file initial-configuration/mysql-docker/.env \
   -p 8080:8080 --name jenkins pic-sure-jenkins:LATEST
 

@@ -3,7 +3,6 @@ if [ -z "$(docker ps --format '{{.Names}}' | grep picsure-db)" ]; then
   rm -rf $DOCKER_CONFIG_DIR/picsure-db
   rm -rf $DOCKER_CONFIG_DIR/flyway/*
   rm -rf $DOCKER_CONFIG_DIR/wildfly/standalone.xml
-  cp -r config/picsure-db $DOCKER_CONFIG_DIR/picsure-db
   cp -r config/flyway/* $DOCKER_CONFIG_DIR/flyway/
   cp -r config/wildfly/standalone.xml $DOCKER_CONFIG_DIR/wildfly/standalone.xml
 

@@ -173,7 +173,7 @@ if [ -n "$2" ]; then
   echo "Configuring jenkins for https:"
   # Just making a random password. This is just for the cert, not jenkins admin
   # If the user somehow nukes this, they can just regen from the crt and key
-  password=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 13 ; echo '')
+  password=$(`openssl rand -base64 12` | head -c 13 ; echo '')
   ./convert-cert.sh $2 $3 $password
 fi
 

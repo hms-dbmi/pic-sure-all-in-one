@@ -16,7 +16,7 @@ services:
       timeout: 20s
       retries: 10
     volumes:
-      - /usr/local/docker-config/picsure-db:/var/lib/mysql
+      - $DOCKER_CONFIG_DIR/picsure-db:/var/lib/mysql
     networks:
       - picsure
 networks:

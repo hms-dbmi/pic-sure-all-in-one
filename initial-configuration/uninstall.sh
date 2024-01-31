@@ -21,7 +21,7 @@ docker system prune -a
 
 systemctl stop docker
 
-rm -rf /usr/local/docker-config
+rm -rf $DOCKER_CONFIG_DIR
 
 yum -y remove docker-ce docker-ce-cli containerd.io
 

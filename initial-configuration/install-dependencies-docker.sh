@@ -3,26 +3,52 @@
 
 CWD=`pwd`
 
+# $1 is the path to the docker-config directory $2 is the path to the rc file
+function set_docker_config_dir {
+  local dir=$1
+  local file=$2
+  if [ -z "$dir" ]; then
+   dir="/var/local/docker-config"
+  fi
+  if [ -z "$file" ]; then
+   #TODO: make this dynamic
+   file="$HOME/.bashrc"
+  fi
+  #Check of $1 is a directory and exists
+  if [ ! -d "$dir" ]; then
+    echo "Creating directory $dir"
+    mkdir -p $dir
+    export DOCKER_CONFIG_DIR=$dir
+    echo "export DOCKER_CONFIG_DIR=$dir" >> $2
+  else 
+    export DOCKER_CONFIG_DIR=$1
+    grep 'DOCKER_CONFIG_DIR' $2 && sed -i '' '/DOCKER_CONFIG_DIR/d' $2
+    echo "export DOCKER_CONFIG_DIR=$dir" >> $2
+  fi
+}
+
 #-------------------------------------------------------------------------------------------------#
 #                                          Docker Install                                         #
 #    This section checks for docker, and if it cant find it, tries to install it via yum / apt.   #
 #-------------------------------------------------------------------------------------------------#
-mkdir -p /usr/local/docker-config
-cp -r config/* /usr/local/docker-config/
 
 echo "Starting update"
 echo "Installing docker"
 if [ -n "$(command -v yum)" ] && [ -z "$(command -v docker)" ]; then
   echo "Yum detected. Assuming RHEL. Install commands will use yum"
+  set_docker_config_dir $1  "$HOME/.zshrc"
   yum -y update
   # This repo can be removed after we move away from centos 7 I think
-  yum-config-manager  --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+  yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
   yum install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker compose-plugin
   sudo systemctl start docker
+  mkdir -p ../docker-config
+  cp -r config/* $DOCKER_CONFIG_DIR/
 fi
 
 if [ -n "$(command -v apt-get)" ] && [ -z "$(command -v docker)" ]; then
   echo "Apt detected. Assuming Debian. Install commands will use apt"
+  set_docker_config_dir $1  "$HOME/.zshrc"
   # Add Docker's official GPG key:
   apt-get update
   apt-get install ca-certificates curl gnupg
@@ -39,6 +65,28 @@ if [ -n "$(command -v apt-get)" ] && [ -z "$(command -v docker)" ]; then
 
   # Install docker
   apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker compose-plugin
+  mkdir -p ../docker-config
+  cp -r config/* $DOCKER_CONFIG_DIR
+fi
+
+if [[ "$OSTYPE" =~ ^darwin ]]; then
+    echo "Darwin detected. Assuming macOS. Install commands will use brew." 
+    #check for brew
+    if [ -z "$(command -v brew)" ]; then
+      echo "Brew not detected. Please install brew and rerun this script."
+      exit
+    fi
+    echo $1
+    #check for $1 arg
+    if [ -z "$1" ]; then
+      echo "No arguments supplied. Please provide the path to the docker-config directory."
+      echo "MacOS doesn't like the default docker-config dir Please supply a directory as an arguments."
+      exit
+    else
+      set_docker_config_dir $1  "$HOME/.zshrc"
+      echo "Copying config to $1"
+      cp -r config/* $1
+    fi
 fi
 
 if [ -n "$(command -v apk)" ]; then
@@ -102,31 +150,31 @@ mkdir -p /var/log/httpd-docker-logs/ssl_mutex
 
 export APP_ID=`uuidgen | tr '[:upper:]' '[:lower:]'`
 export APP_ID_HEX=`echo $APP_ID | awk '{ print toupper($0) }'|sed 's/-//g'`
-sed -i "s/__STACK_SPECIFIC_APPLICATION_ID__/$APP_ID/g" /usr/local/docker-config/httpd/picsureui_settings.json
-sed -i "s/__STACK_SPECIFIC_APPLICATION_ID__/$APP_ID/g" /usr/local/docker-config/wildfly/standalone.xml
+sed -i "s/__STACK_SPECIFIC_APPLICATION_ID__/$APP_ID/g" $DOCKER_CONFIG_DIR/httpd/picsureui_settings.json
+sed -i "s/__STACK_SPECIFIC_APPLICATION_ID__/$APP_ID/g" $DOCKER_CONFIG_DIR/wildfly/standalone.xml
 
 export RESOURCE_ID=`uuidgen | tr '[:upper:]' '[:lower:]'`
 export RESOURCE_ID_HEX=`echo $RESOURCE_ID | awk '{ print toupper($0) }'|sed 's/-//g'`
-sed -i "s/__STACK_SPECIFIC_RESOURCE_UUID__/$RESOURCE_ID/g" /usr/local/docker-config/httpd/picsureui_settings.json
+sed -i "s/__STACK_SPECIFIC_RESOURCE_UUID__/$RESOURCE_ID/g" $DOCKER_CONFIG_DIR/httpd/picsureui_settings.json
 
-echo $APP_ID > /usr/local/docker-config/APP_ID_RAW
-echo $APP_ID_HEX > /usr/local/docker-config/APP_ID_HEX
-echo $RESOURCE_ID > /usr/local/docker-config/RESOURCE_ID_RAW
-echo $RESOURCE_ID_HEX > /usr/local/docker-config/RESOURCE_ID_HEX
+echo $APP_ID > $DOCKER_CONFIG_DIR/APP_ID_RAW
+echo $APP_ID_HEX > $DOCKER_CONFIG_DIR/APP_ID_HEX
+echo $RESOURCE_ID > $DOCKER_CONFIG_DIR/RESOURCE_ID_RAW
+echo $RESOURCE_ID_HEX > $DOCKER_CONFIG_DIR/RESOURCE_ID_HEX
 
-mkdir -p /usr/local/docker-config/hpds_csv
-mkdir -p /usr/local/docker-config/hpds/all
-cp allConcepts.csv.tgz /usr/local/docker-config/hpds_csv/
-cd /usr/local/docker-config/hpds_csv/
+mkdir -p $DOCKER_CONFIG_DIR/hpds_csv
+mkdir -p $DOCKER_CONFIG_DIR/hpds/all
+cp allConcepts.csv.tgz $DOCKER_CONFIG_DIR/hpds_csv/
+cd $DOCKER_CONFIG_DIR/hpds_csv/
 tar -xvzf allConcepts.csv.tgz
 
 cd $CWD
-if [ -n "$1" ]; then
+if [ -n "$2" ]; then
   echo "Configuring jenkins for https:"
   # Just making a random password. This is just for the cert, not jenkins admin
   # If the user somehow nukes this, they can just regen from the crt and key
   password=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 13 ; echo '')
-  ./convert-cert.sh $1 $2 $password
+  ./convert-cert.sh $2 $3 $password
 fi
 
 echo "Installation script complete.  Staring Jenkins."

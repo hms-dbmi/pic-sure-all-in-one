@@ -1,0 +1,70 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description>Deletes users based on a list of emails passed to the job</description>
+  <keepDependencies>false</keepDependencies>
+  <properties/>
+  <scm class="hudson.scm.NullSCM"/>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.plugins.copyartifact.CopyArtifact plugin="copyartifact@714.v28a_34f8c563f">
+      <project>Create Test Users</project>
+      <filter>new_config.properties</filter>
+      <target></target>
+      <includeBuildNumberInTargetPath>false</includeBuildNumberInTargetPath>
+      <excludes></excludes>
+      <selector class="hudson.plugins.copyartifact.StatusBuildSelector"/>
+      <doNotFingerprintArtifacts>true</doNotFingerprintArtifacts>
+    </hudson.plugins.copyartifact.CopyArtifact>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash
+function delete_user_by_email() {
+    local user_email=&quot;$1&quot;
+
+    # SQL command to remove user from assoc
+    local remove_user_role=&quot;DELETE FROM auth.user_role WHERE user_id = (SELECT uuid FROM auth.user where email = &apos;$user_email&apos;);&quot;
+
+    docker run -i -v /root/.my.cnf:/root/.my.cnf --network=host mysql mysql -e \
+    &quot;$remove_user_role&quot; auth
+
+    # SQL command to delete a user based on their email
+    local remove_user=&quot;DELETE FROM auth.user WHERE email = &apos;$user_email&apos;;&quot;
+
+    # Run the command using Docker and MySQL client
+    docker run -i -v /root/.my.cnf:/root/.my.cnf --network=host mysql mysql -e \
+    &quot;$remove_user&quot; auth
+}
+
+# Define an empty array to hold the email addresses
+declare -a email_array
+
+# Loop over each line in the new_config.properties file
+while IFS=&apos;=&apos; read -r key value; do
+    # Check if the line contains an email
+    if [[ $key == *&quot;_email&quot; ]]; then
+        # Remove leading and trailing quotes
+        email=$(echo $value | tr -d &quot;&apos;&quot;)
+        # Add the email to the array
+        email_array+=(&quot;$email&quot;)
+    fi
+done &lt; new_config.properties
+
+for email in &quot;${email_array[@]}&quot;;
+do
+    # xargs with no params will just echo the value which will trim the leading and ending whitespace
+    email=$(echo &quot;$email&quot; | xargs)
+    echo &quot;$email&quot;
+
+    delete_user_by_email &quot;$email&quot;
+done</command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

@@ -1,0 +1,64 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<flow-definition plugin="workflow-job@1342.v046651d5b_dfe">
+  <actions>
+    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobAction plugin="pipeline-model-definition@2.2144.v077a_d1928a_40"/>
+    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction plugin="pipeline-model-definition@2.2144.v077a_d1928a_40">
+      <jobProperties/>
+      <triggers/>
+      <parameters/>
+      <options/>
+    </org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction>
+  </actions>
+  <description></description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.plugins.copyartifact.CopyArtifactPermissionProperty plugin="copyartifact@714.v28a_34f8c563f">
+      <projectNameList>
+        <string>Create Test Users</string>
+      </projectNameList>
+    </hudson.plugins.copyartifact.CopyArtifactPermissionProperty>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>USER_TYPES</name>
+          <description>Pass a list of user roles. Give the list of user roles it will create Test accounts with a valid user token.</description>
+          <defaultValue>PIC-SURE User,Admin,PIC-SURE Top Admin</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@3774.v4a_d648d409ce">
+    <script>pipeline {
+    agent any
+    stages {
+        stage(&apos;Create Test Users&apos;) {
+            steps {
+                script {
+                    def result = build job: &apos;Create Test Users&apos;, parameters: [
+                        [$class: &apos;StringParameterValue&apos;, name: &apos;USER_TYPES&apos;, value: USER_TYPES]
+                    ]
+                }
+            }
+        }
+        stage(&apos;Automation Test&apos;) {
+            steps {
+                script {
+                    def result = build job: &apos;Automation Test&apos;, parameters: [booleanParam(name: &apos;run_standalone&apos;, value: false)]
+                }
+            }
+        }
+    }
+    post {
+        always {
+            script {
+                def result = build job: &apos;Remove Test Users&apos;
+            }
+        }
+    }
+}</script>
+    <sandbox>true</sandbox>
+  </definition>
+  <triggers/>
+  <disabled>false</disabled>
+</flow-definition>

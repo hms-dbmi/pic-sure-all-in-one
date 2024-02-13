@@ -133,10 +133,10 @@ do
     user_token=$(update_user_token &quot;$email&quot;)
 
     # Write email=token as key-value pair to the end of a file
+
     echo &quot;${flat_user_type}_token=$user_token&quot; &gt;&gt; new_config.properties
     echo &quot;${flat_user_type}_email=$email&quot; &gt;&gt; new_config.properties
     echo &quot;${flat_user_type}_type=$user_type&quot; &gt;&gt; new_config.properties
-
 done</command>
       <configuredLocalRules/>
     </hudson.tasks.Shell>

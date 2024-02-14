@@ -60,7 +60,7 @@ function run_sql_procedure() {
     local user_email=&quot;$1&quot;
     local connection_id=&quot;$2&quot;
     local role_name=&quot;$3&quot;
-
+	echo &quot;$user_email&quot;
     docker run -i -v /root/.my.cnf:/root/.my.cnf --network=host mysql mysql -e \
     &quot;CALL CreateUserWithRole(&apos;$user_email&apos;, &apos;$connection_id&apos;, &apos;$role_name&apos;, &apos;{\&quot;email\&quot;: \&quot;$user_email\&quot;}&apos;);&quot; auth
 }
@@ -100,7 +100,7 @@ function convert_user_type_to_email() {
     local FLAT_USER_TYPE=&quot;$1&quot;
 
     # Transform userType to the email format
-    local email=&quot;$FLAT_USER_TYPE&quot;@pic-sure.org
+    local email=&quot;$FLAT_USER_TYPE&quot;test@pic-sure.org
     echo &quot;$email&quot;
 }
 
@@ -114,9 +114,6 @@ read -ra userTypes &lt;&lt;&lt; &quot;$USER_ROLES&quot;
 IFS=&quot;$old_ifs&quot;
 
 connection_id=&quot;google-oauth2&quot;
-# Create an array of user types
-# userTypes=(&quot;PIC-SURE User&quot; &quot;Admin&quot; &quot;PIC-SURE Top Admin&quot;)
-
 # Loop over the user types
 for user_type in &quot;${userTypes[@]}&quot;
 do
@@ -127,7 +124,7 @@ do
     email=$(convert_user_type_to_email &quot;$flat_user_type&quot;)
 
     # Run procedure to add user
-    run_sql_procedure &quot;$email&quot; &quot;$connection_id&quot; &quot;$userType&quot;
+    run_sql_procedure &quot;$email&quot; &quot;$connection_id&quot; &quot;$user_type&quot;
 
     # Generate new user&apos;s token
     user_token=$(update_user_token &quot;$email&quot;)

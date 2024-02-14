@@ -27,7 +27,7 @@ function delete_user_by_email() {
     local user_email=&quot;$1&quot;
 
     # SQL command to remove user from assoc
-    local remove_user_role=&quot;DELETE FROM auth.user_role WHERE user_id = (SELECT uuid FROM auth.user where email = &apos;$user_email&apos;);&quot;
+    local remove_user_role=&quot;DELETE FROM auth.user_role WHERE user_id in (SELECT uuid FROM auth.user where email = &apos;$user_email&apos;);&quot;
 
     docker run -i -v /root/.my.cnf:/root/.my.cnf --network=host mysql mysql -e \
     &quot;$remove_user_role&quot; auth

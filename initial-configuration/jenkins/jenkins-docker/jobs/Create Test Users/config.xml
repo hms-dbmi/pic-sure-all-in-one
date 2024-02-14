@@ -60,7 +60,7 @@ function run_sql_procedure() {
     local user_email=&quot;$1&quot;
     local connection_id=&quot;$2&quot;
     local role_name=&quot;$3&quot;
-	echo &quot;$user_email&quot;
+
     docker run -i -v /root/.my.cnf:/root/.my.cnf --network=host mysql mysql -e \
     &quot;CALL CreateUserWithRole(&apos;$user_email&apos;, &apos;$connection_id&apos;, &apos;$role_name&apos;, &apos;{\&quot;email\&quot;: \&quot;$user_email\&quot;}&apos;);&quot; auth
 }
@@ -130,6 +130,7 @@ do
     user_token=$(update_user_token &quot;$email&quot;)
 
     # Write email=token as key-value pair to the end of a file
+
     echo &quot;${flat_user_type}_token=$user_token&quot; &gt;&gt; new_config.properties
     echo &quot;${flat_user_type}_email=$email&quot; &gt;&gt; new_config.properties
     echo &quot;${flat_user_type}_type=$user_type&quot; &gt;&gt; new_config.properties

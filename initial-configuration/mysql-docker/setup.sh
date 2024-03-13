@@ -1,18 +1,24 @@
 if [ -z "$(docker ps --format '{{.Names}}' | grep picsure-db)" ]; then
   echo "Cleaning up old configs"
-  rm -rf $DOCKER_CONFIG_DIR/picsure-db
-  rm -rf $DOCKER_CONFIG_DIR/flyway/*
-  rm -rf $DOCKER_CONFIG_DIR/wildfly/standalone.xml
-  cp -r config/flyway/* $DOCKER_CONFIG_DIR/flyway/
-  cp -r config/wildfly/standalone.xml $DOCKER_CONFIG_DIR/wildfly/standalone.xml
+  rm -r "${DOCKER_CONFIG_DIR:?}"/*
+  cp -r config/* "$DOCKER_CONFIG_DIR"/
 
   echo "Starting mysql server"
-  echo "` < /dev/urandom tr -dc @^=+$*%_A-Z-a-z-0-9 | head -c${1:-24}`" > pass.tmp
+  echo "$( < /dev/urandom tr -dc @^=+$*%_A-Z-a-z-0-9 | head -c${1:-24})" > pass.tmp
   rm -f mysql-docker/.env
+  # shellcheck disable=SC2129
   echo "PICSURE_DB_ROOT_PASS=`cat pass.tmp`" >> mysql-docker/.env
   echo "PICSURE_DB_PASS=`cat pass.tmp`" >> mysql-docker/.env
   echo "PICSURE_DB_DATABASE=ignore" >> mysql-docker/.env
   echo "PICSURE_DB_USER=ignore" >> mysql-docker/.env
+
+  echo "Configuring .my.cnf"
+  # shellcheck disable=SC2129
+  echo "user=root" >> "$HOME"/.my.cnf
+  echo "password=\"$(cat pass.tmp)\"" >> "$HOME"/.my.cnf
+  echo "host=picsure-db" >> "$HOME"/.my.cnf
+  echo "port=3306" >> "$HOME"/.my.cnf
+
   cd mysql-docker
   docker compose up -d
 
@@ -39,9 +45,10 @@ if [ -z "$(docker ps --format '{{.Names}}' | grep picsure-db)" ]; then
   docker exec -t picsure-db mysql -u root -p`cat ../pass.tmp` -e "CREATE DATABASE auth;"
 
   echo "` < /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c${1:-24}`" > airflow.tmp
-  docker exec -t picsure-db mysql -u root -p`cat ../pass.tmp` -e "CREATE USER 'airflow'@'%' IDENTIFIED BY '`cat airflow.tmp`';";
-  docker exec -t picsure-db mysql -u root -p`cat ../pass.tmp` -e "GRANT ALL PRIVILEGES ON auth.* TO 'airflow'@'%';FLUSH PRIVILEGES;";
-  docker exec -t picsure-db mysql -u root -p`cat ../pass.tmp` -e "GRANT ALL PRIVILEGES ON picsure.* TO 'airflow'@'%';FLUSH PRIVILEGES;";
+  cat airflow.tmp
+  docker exec -t picsure-db mysql -u root -p$(cat ../pass.tmp) -e "CREATE USER 'airflow'@'%' IDENTIFIED BY '$(cat airflow.tmp)';";
+  docker exec -t picsure-db mysql -u root -p$(cat ../pass.tmp) -e "GRANT ALL PRIVILEGES ON auth.* TO 'airflow'@'%';FLUSH PRIVILEGES;";
+  docker exec -t picsure-db mysql -u root -p$(cat ../pass.tmp) -e "GRANT ALL PRIVILEGES ON picsure.* TO 'airflow'@'%';FLUSH PRIVILEGES;";
   sed -i s/__AIRFLOW_MYSQL_PASSWORD__/`cat airflow.tmp`/g $DOCKER_CONFIG_DIR/flyway/auth/flyway-auth.conf
   sed -i s/__AIRFLOW_MYSQL_PASSWORD__/`cat airflow.tmp`/g $DOCKER_CONFIG_DIR/flyway/auth/sql.properties
   sed -i s/__AIRFLOW_MYSQL_PASSWORD__/`cat airflow.tmp`/g $DOCKER_CONFIG_DIR/flyway/picsure/flyway-picsure.conf

@@ -1,7 +1,7 @@
 <?xml version='1.1' encoding='UTF-8'?>
 <project>
     <actions/>
-    <description>Edit the values in picsureui_settings.json file. You can find the current file in either your Network tab of your browser's developer tools by searching for "settings.json" or in this location: /usr/local/docker-config/httpd/picsureui_settings.json</description>
+    <description>Edit the values in picsureui_settings.json file. You can find the current file in either your Network tab of your browser's developer tools by searching for "settings.json" or in this location: $DOCKER_CONFIG_DIR/httpd/picsureui_settings.json</description>
     <keepDependencies>false</keepDependencies>
     <properties>
         <hudson.model.ParametersDefinitionProperty>

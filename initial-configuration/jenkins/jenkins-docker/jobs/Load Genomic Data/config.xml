@@ -1,7 +1,7 @@
 <?xml version='1.1' encoding='UTF-8'?>
 <project>
   <actions/>
-  <description>This job loads genomic (VCF) data into the HPDS format.  it expects the following elements to be loaded into the /usr/local/docker-config/vcfLoad directory on this machine:&#xd;
+  <description>This job loads genomic (VCF) data into the HPDS format.  it expects the following elements to be loaded into the $DOCKER_CONFIG_DIR/vcfLoad directory on this machine:&#xd;
 &#xd;
 vcfIndex.tsv - a file describing the VCF file(s) to be loaded&#xd;
 &#xd;

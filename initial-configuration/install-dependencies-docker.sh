@@ -3,29 +3,33 @@
 
 CWD=`pwd`
 
-# $1 is the path to the docker-config directory $2 is the path to the rc file
+# $1 is the path to the docker-config dir $2 is the path to the rc rc_file
 function set_docker_config_dir {
-  local dir=$1
-  local file=$2
-  if [ -z "$dir" ]; then
-   dir="/var/local/docker-config"
+  local docker_config_dir=$1
+  local rc_file=$2
+  if [ -z "$docker_config_dir" ]; then
+   docker_config_dir="/var/local/docker-config"
   fi
-  if [ -z "$file" ]; then
-   #TODO: make this dynamic
-   file="$HOME/.bashrc"
+  if [ -z "$rc_file" ]; then
+   rc_file="$HOME/.bashrc"
   fi
-  #Check of $1 is a directory and exists
-  if [ ! -d "$dir" ]; then
-    echo "Creating directory $dir"
-    mkdir -p $dir
-    export DOCKER_CONFIG_DIR=$dir
-    echo "export DOCKER_CONFIG_DIR=$dir" >> $2
-  else 
+  #Check if docker_config_dir is a dir and exists
+  if [ ! -d "$docker_config_dir" ]; then
+    echo "Creating dir $docker_config_dir and setting DOCKER_CONFIG_DIR in $rc_file"
+    mkdir -p $docker_config_dir
+    export DOCKER_CONFIG_DIR=$docker_config_dir
+    echo "export DOCKER_CONFIG_DIR=$docker_config_dir" >> "$rc_file"
+  else
+    echo "dir $docker_config_dir exists, just setting DOCKER_CONFIG_DIR in $rc_file"
+    # If the config dir exists, we still want to clean up old settings for it
     export DOCKER_CONFIG_DIR=$1
-    grep 'DOCKER_CONFIG_DIR' $2 && sed -i '' '/DOCKER_CONFIG_DIR/d' $2
-    echo "export DOCKER_CONFIG_DIR=$dir" >> $2
+    # delete any old config lines in bash config file
+    grep 'DOCKER_CONFIG_DIR' "$rc_file" && sed -i '/DOCKER_CONFIG_DIR/d' "$rc_file"
+    echo "export DOCKER_CONFIG_DIR=$docker_config_dir" >> "$rc_file"
   fi
 }
+
+set_docker_config_dir "$1"
 
 #-------------------------------------------------------------------------------------------------#
 #                                          Docker Install                                         #
@@ -79,8 +83,8 @@ if [[ "$OSTYPE" =~ ^darwin ]]; then
     echo $1
     #check for $1 arg
     if [ -z "$1" ]; then
-      echo "No arguments supplied. Please provide the path to the docker-config directory."
-      echo "MacOS doesn't like the default docker-config dir Please supply a directory as an arguments."
+      echo "No arguments supplied. Please provide the path to the docker-config dir."
+      echo "MacOS doesn't like the default docker-config dir Please supply a dir as an arguments."
       exit
     else
       set_docker_config_dir $1  "$HOME/.zshrc"
@@ -142,7 +146,7 @@ docker tag pic-sure-jenkins:`git log -n 1 | grep commit | cut -d ' ' -f 2 | cut 
 echo "Creating Jenkins Log Path"
 mkdir -p /var/log/jenkins-docker-logs
 mkdir -p /var/jenkins_home
-cp -r jenkins/jenkins-docker/jobs /var/jenkins_home/jobs
+cp -r jenkins/jenkins-docker/jobs /var/jenkins_home/
 cp -r jenkins/jenkins-docker/config.xml /var/jenkins_home/config.xml
 cp -r jenkins/jenkins-docker/hudson.tasks.Maven.xml /var/jenkins_home/hudson.tasks.Maven.xml
 cp -r jenkins/jenkins-docker/scriptApproval.xml /var/jenkins_home/scriptApproval.xml

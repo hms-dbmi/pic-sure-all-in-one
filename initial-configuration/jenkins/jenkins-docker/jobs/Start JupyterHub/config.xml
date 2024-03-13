@@ -46,7 +46,7 @@ docker build --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_pr
 docker stop jupyterhub | echo
 docker rm jupyterhub | echo
 
-docker run --network=picsure --expose=49152-65535 --restart always --name jupyterhub -v &quot;/usr/local/docker-config/jupyterhub_config.py:/srv/jupyterhub/jupyterhub_config.py&quot; -v &quot;/var/run/docker.sock:/var/run/docker.sock&quot; -v &quot;/usr/local/docker-config/jupyterhub/:/data/&quot; -d hms-dbmi/pic-sure-all-in-one-jupyterhub:LATEST jupyterhub -f /srv/jupyterhub/jupyterhub_config.py
+docker run --network=picsure --expose=49152-65535 --restart always --name jupyterhub -v &quot;$DOCKER_CONFIG_DIR/jupyterhub_config.py:/srv/jupyterhub/jupyterhub_config.py&quot; -v &quot;/var/run/docker.sock:/var/run/docker.sock&quot; -v &quot;$DOCKER_CONFIG_DIR/jupyterhub/:/data/&quot; -d hms-dbmi/pic-sure-all-in-one-jupyterhub:LATEST jupyterhub -f /srv/jupyterhub/jupyterhub_config.py
 
 </command>
     </hudson.tasks.Shell>

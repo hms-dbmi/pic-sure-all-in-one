@@ -169,7 +169,7 @@
           <default>
             <comparator class="hudson.util.CaseInsensitiveComparator" reference="../../../../../../views/listView/jobNames/comparator"/>
           </default>
-          <int>4</int>
+          <int>6</int>
           <string>project_specific_override_repo</string>
           <string>__PROJECT_SPECIFIC_OVERRIDE_REPO__</string>
           <string>release_control_branch</string>
@@ -178,6 +178,10 @@
           <string>__RELEASE_CONTROL_REPO__</string>
           <string>JAVA_HOME</string>
           <string>/opt/java/openjdk</string>
+          <string>DOCKER_CONFIG_DIR</string>
+          <string>/usr/local/docker-config/</string>
+          <string>MYSQL_NETWORK</string>
+          <string>host</string>
         </tree-map>
       </envVars>
     </hudson.slaves.EnvironmentVariablesNodeProperty>

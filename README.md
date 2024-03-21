@@ -83,6 +83,19 @@ cd pic-sure-all-in-one/initial-configuration
 sudo ./install-dependencies-docker.sh
 ```
 
+If you want to run your mysql in a docker container instead of on the
+server itself, you can instead run this:
+
+```shell
+./install-dependencies-docker.sh /path/to/config/dir 
+```
+
+If you choose to do this, you should set the following variables in Jenkins in step 4: 
+
+- `DOCKER_CONFIG_DIR`: `/path/to/config/dir`
+- `MYSQL_NETWORK`: `picsure`
+
+
 4. Browse to Jenkins server
 Point your browser at your server's IP on port `8080`. 
 

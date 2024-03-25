@@ -16,7 +16,7 @@ else
 fi
 
 export WILDFLY_JAVA_OPTS="-Xms2g -Xmx4g -XX:MetaspaceSize=96M -XX:MaxMetaspaceSize=256m -Djava.net.preferIPv4Stack=true $PROXY_OPTS"
-export HPDS_OPTS="-XX:+UseParallelGC -XX:SurvivorRatio=250 -Xms1g -Xmx16g -DCACHE_SIZE=1500 -DSMALL_TASK_THREADS=1 -DLARGE_TASK_THREADS=1 -DSMALL_JOB_LIMIT=100 -DID_BATCH_SIZE=$EXPORT_SIZE -DALL_IDS_CONCEPT=NONE -DID_CUBE_NAME=NONE -Denable_file_sharing=true -DVCF_EXCERPT_ENABLED=TRUE -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5007"
+export HPDS_OPTS="-XX:+UseParallelGC -XX:SurvivorRatio=250 -Xms1g -Xmx16g -DCACHE_SIZE=1500 -DSMALL_TASK_THREADS=1 -DLARGE_TASK_THREADS=1 -DSMALL_JOB_LIMIT=100 -DID_BATCH_SIZE=$EXPORT_SIZE -DALL_IDS_CONCEPT=NONE -DID_CUBE_NAME=NONE -Denable_file_sharing=true "
 export PICSURE_SETTINGS_VOLUME="-v $DOCKER_CONFIG_DIR/httpd/picsureui_settings.json:/usr/local/apache2/htdocs/picsureui/settings/settings.json"
 export PICSURE_BANNER_VOLUME="-v /usr/local/docker-config/httpd/banner_config.json:/usr/local/apache2/htdocs/picsureui/settings/banner_config.json"
 export PSAMA_SETTINGS_VOLUME="-v $DOCKER_CONFIG_DIR/httpd/psamaui_settings.json:/usr/local/apache2/htdocs/picsureui/psamaui/settings/settings.json"
@@ -25,7 +25,7 @@ export EMAIL_TEMPLATE_VOUME="-v $DOCKER_CONFIG_DIR/wildfly/emailTemplates:/opt/j
 # these debug options can be added to wildfly or hpds container startup to enable remote debugging or profiling.
 # Don't forget to add a port mapping too!
 export DEBUG_OPTS="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=0.0.0.0:8000"
-export PROFILING_OPTS="-Dcom.sun.management.jmxremote.port=9000 -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Djava.rmi.server.hostname=localhost"
+export PROFILING_OPTS=" -Dcom.sun.management.jmxremote=true -Dcom.sun.management.jmxremote.ssl=false -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.port=9000 -Djava.rmi.server.hostname=localhost -Dcom.sun.management.jmxremote.rmi.port=9000 "
 
 if [ -f $DOCKER_CONFIG_DIR/wildfly/application.truststore ]; then
 	export TRUSTSTORE_VOLUME="-v $DOCKER_CONFIG_DIR/wildfly/application.truststore:/opt/jboss/wildfly/standalone/configuration/application.truststore"

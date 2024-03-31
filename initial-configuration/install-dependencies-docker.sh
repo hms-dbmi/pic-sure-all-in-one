@@ -1,7 +1,18 @@
 
 #!/usr/bin/env bash
 
-CWD=`pwd`
+sed_inplace() {
+  if [ "$(uname)" = "Darwin" ]; then
+    sed -i '' "$@"
+  else
+    sed -i "$@"
+  fi
+}
+
+CWD=$(pwd)
+# this makes tr work on OSX
+export LC_CTYPE=C
+export LC_ALL=C
 
 # $1 is the path to the docker-config dir $2 is the path to the rc rc_file
 function set_docker_config_dir {
@@ -24,7 +35,7 @@ function set_docker_config_dir {
     # If the config dir exists, we still want to clean up old settings for it
     export DOCKER_CONFIG_DIR=$1
     # delete any old config lines in bash config file
-    grep 'DOCKER_CONFIG_DIR' "$rc_file" && sed -i '/DOCKER_CONFIG_DIR/d' "$rc_file"
+    grep 'DOCKER_CONFIG_DIR' "$rc_file" && sed_inplace '/DOCKER_CONFIG_DIR/d' "$rc_file"
     echo "export DOCKER_CONFIG_DIR=$docker_config_dir" >> "$rc_file"
   fi
 }
@@ -154,12 +165,12 @@ mkdir -p /var/log/httpd-docker-logs/ssl_mutex
 
 export APP_ID=`uuidgen | tr '[:upper:]' '[:lower:]'`
 export APP_ID_HEX=`echo $APP_ID | awk '{ print toupper($0) }'|sed 's/-//g'`
-sed -i "s/__STACK_SPECIFIC_APPLICATION_ID__/$APP_ID/g" $DOCKER_CONFIG_DIR/httpd/picsureui_settings.json
-sed -i "s/__STACK_SPECIFIC_APPLICATION_ID__/$APP_ID/g" $DOCKER_CONFIG_DIR/wildfly/standalone.xml
+sed_inplace "s/__STACK_SPECIFIC_APPLICATION_ID__/$APP_ID/g" $DOCKER_CONFIG_DIR/httpd/picsureui_settings.json
+sed_inplace "s/__STACK_SPECIFIC_APPLICATION_ID__/$APP_ID/g" $DOCKER_CONFIG_DIR/wildfly/standalone.xml
 
 export RESOURCE_ID=`uuidgen | tr '[:upper:]' '[:lower:]'`
 export RESOURCE_ID_HEX=`echo $RESOURCE_ID | awk '{ print toupper($0) }'|sed 's/-//g'`
-sed -i "s/__STACK_SPECIFIC_RESOURCE_UUID__/$RESOURCE_ID/g" $DOCKER_CONFIG_DIR/httpd/picsureui_settings.json
+sed_inplace "s/__STACK_SPECIFIC_RESOURCE_UUID__/$RESOURCE_ID/g" $DOCKER_CONFIG_DIR/httpd/picsureui_settings.json
 
 echo $APP_ID > $DOCKER_CONFIG_DIR/APP_ID_RAW
 echo $APP_ID_HEX > $DOCKER_CONFIG_DIR/APP_ID_HEX

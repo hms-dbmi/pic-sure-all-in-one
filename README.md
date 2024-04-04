@@ -26,7 +26,7 @@ See more at [pic-sure.org](https://pic-sure.org/about)
 
 ## Using the All-in-one
 
-Assumptions:
+### Assumptions:
 
 - This system will be maintained by someone with either a basic understanding of Docker or the will to learn and develop
   that understanding over time.
@@ -35,9 +35,9 @@ Assumptions:
 
 - You have `sudo` privileges or root account access on the server.
 
-Preparing to deploy:
+### Pre deployment preparation:
 
-- You will create an initial admin user tied to a Google account. Decide which google account you want to use.
+- Ensure that you have a Google or G-Suite account. You will create an initial admin user tied to a Google account.
 
 - You need an Auth0 Client Secret(`AUTH0_CLIENT_SECRET`), Client ID(`AUTH0_CLIENT_ID`), and an `AUTH0_TENANT` value for
   the Configure Auth0 Integration Jenkins job. Please contact us at http://avillachlabsupport.hms.harvard.edu and
@@ -48,19 +48,25 @@ Preparing to deploy:
   must have OpenID-Connect Compliance turned off in the Auth0 settings.
 
 - Before you can safely run the system in production you will need a SSL certificate, chain, and key that is compatible
-  with Apache HTTPD. If you are unable to obtain secure SSL certs and key, and are taking steps to keep your system from
-  being accessible to the public internet you can choose to accept the risk that someone may steal your data or hijack
-  your server by using the development certs and key that come installed by default. -- *USE THE DEFAULT CERTS AND KEY
-  AT YOUR OWN RISK* --
+  with Apache HTTPD. We bootstrap the PIC-SURE application with a self-signed cert. You can use that to evaluate the
+  software, but be sure to switch to a legitimate cert before loading real patient data or exposing your server to a
+  wider audience.
 
-Minimum System Requirements:
+### Minimum System Requirements:
 
-- 32 GB of RAM
+- 32 GB of RAM (We actually have servers running on as little as 8G, but those see very light loads)
 - 8 cores
 - 100 GB of hard drive space plus enough to hold your data
-- Only Centos 7 is supported for operating systems
 
-Data Loading Requirements: <p>
+### Operating System Requirements:
+
+We run PIC-SURE on AlmaLinux 8.x internally, but we aim to support more operating systems than that. If you have a *nix
+operating system with docker installed on it, we should be able to help you get PIC-SURE running. You might see some
+breakages in the bash scripts that run the initial configurations, but once you get things correctly configured, docker
+should provide enough environment normalization to keep you running.
+
+### Data Loading Requirements:
+
 The resources required to load the data are determined based on the attributes of the data (number of patients, metadata
 per patient, annotations, etc.) and the mechanism to load the data (CSV, RDS). <br>
 Examples:
@@ -89,48 +95,30 @@ Examples:
   environment to a production environment, but copying the following files: 1.) encryption_key 2.) columnMeta.javabin
   3.) allObservationsStore.javabin. Then run the “Start PIC-SURE” Jenkins job, which will stop and start the containers.
 
-## Steps to install on a fresh Centos 7 installation:
+## Steps to install on a fresh server:
 
-1. Install Git
+1. Install Docker. This process can vary widely depending on your OS of choice, so we're not going to attempt to give
+you exact instructions. If you're following the legacy install instructions, you can skip this.
 
-`sudo yum -y install git`
+2. Install Git
+`sudo yum -y install git` or `sudo apt install git`, etc. 
 
-2. Clone the PIC-SURE All-in-one repository
-
+3. Clone the PIC-SURE All-in-one repository
 `git clone https://github.com/hms-dbmi/pic-sure-all-in-one`
 
-3. Install the dependencies and build the Jenkins container
-
+4. Install the dependencies and build the Jenkins container
 `cd pic-sure-all-in-one/initial-configuration`
-
-`sudo ./install-dependencies.sh`
-
-If you need Jenkins to use https, you can configure that by passing a key, and cert to the
-install script:
-
-`sudo ./install-dependencies.sh path/to/cert.key path/to/cert.crt`
-
-If you want to run MySQL inside of docker, we have a modified installation script that enables that:
-
+Choose one of the following use cases:
+- *Fully dockerized install.* Our current happy path.
+`sudo ./install-dependencies-docker.sh /path/to/desired/config/dir/ && source ~/.bashrc`
+- *Legacy install.* I know what I'm doing. `sudo ./install-dependencies.sh`
+- *Jenkins on https.* This is rare:
 ```shell
-cd pic-sure-all-in-one/initial-configuration
-sudo ./install-dependencies-docker.sh
+sudo ./install-dependencies-docker.sh /path/to/desired/config/dir/
+./convert-cert.sh path/to/cert.key path/to/cert.crt password-for-created-key
 ```
 
-If you want to run your mysql in a docker container instead of on the
-server itself, you can instead run this:
-
-```shell
-./install-dependencies-docker.sh /path/to/config/dir 
-```
-
-If you choose to do this, you should set the following variables in Jenkins in step 4:
-
-- `DOCKER_CONFIG_DIR`: `/path/to/config/dir`
-- `MYSQL_NETWORK`: `picsure`
-
-
-4. Browse to Jenkins server
+5. Browse to Jenkins server
    Point your browser at your server's IP on port `8080`.
 
 For example, if your server has IP `10.109.190.146`, please browse to http://10.109.190.146:8080
@@ -139,55 +127,61 @@ Note: Work with your local IT department to ensure that this port is not availab
 accessible to you on your intranet or VPN. Anyone with access to this port can launch any application they wish on your
 server.
 
-5. Run the Initial Configuration Pipeline job.
+Once you have logged into Jenkins and have set up your admin account, you need to update a few Jenkins
+system variables:
+
+- `DOCKER_CONFIG_DIR`: `/path/to/config/dir` This is the path you passed to `install-dependencies-docker`
+- `MYSQL_NETWORK`: `picsure` If you plan to switch to a remote database, this needs to be changed back to `host`
+
+6. Run the Initial Configuration Pipeline job.
    In Jenkins you will see 5 tabs: All, Configuration, Deployment, PIC-SURE Builds, Supporting Jobs. Click the
    Configuration tab, then click the button to the right of the Initial Configuration Pipeline job. It resembles a clock
    with a green triangle on it. See Additional Information below for how to connect to a remote SQL instance.
 
-6. Provide the following information:
+7. Provide the following information:
 
-    - AUTH0_CLIENT_ID: This is the client_id of your Auth0 Application
+    - `AUTH0_CLIENT_ID`: This is the client_id of your Auth0 Application
 
-    - AUTH0_CLIENT_SECRET: This is the client_secret of your Auth0 Application
+    - `AUTH0_CLIENT_SECRET`: This is the client_secret of your Auth0 Application
 
-    - AUTH0_TENANT: This is the first part of your Auth0 domain, for example if your domain is avillachlab.auth0.com you
+    - `AUTH0_TENANT`: This is the first part of your Auth0 domain, for example if your domain is avillachlab.auth0.com you
       would enter avillachlab in this field.
 
-    - EMAIL: This is the Google account that will be the initial admin user.
+    - `EMAIL`: This is the Google account that will be the initial admin user.
 
-    - PROJECT_SPECIFIC_OVERRIDE_REPOSITORY: This is the repo that contains the project specific overrides for your
+    - `PROJECT_SPECIFIC_OVERRIDE_REPOSITORY`: This is the repo that contains the project specific overrides for your
       project. If you just want the default PIC-SURE behavior use this
       repo : https://github.com/hms-dbmi/baseline-pic-sure
 
-    - RELEASE_CONTROL_REPOSITORY: This is the repo that contains the build-spec.json file for your project. This file
+    - `RELEASE_CONTROL_REPOSITORY`: This is the repo that contains the build-spec.json file for your project. This file
       controls what code is built and deployed. If you just want the default PIC-SURE behavior use this
       repo : https://github.com/hms-dbmi/baseline-pic-sure-release-control
 
-    - ANALYTICS_ID: This is the Google Analytics ID for your project. If you do not have one, you can leave this blank.
+    - `ANALYTICS_ID`: This is the Google Analytics ID for your project. If you do not have one, you can leave this blank.
 
 Note: Ensure none of these fields contain leading or trailing whitespace, the values must be exact. Once you have
 entered the information,
 
-7. Click the "Build" button.
+8. Click the `Build` button.
 
 Wait until all jobs complete. This may take several minutes. When nothing displays in the Build Queue or Build Executor
 Status to the left of the page, all jobs will have completed.
 
-8. Click the All tab to ensure nothing displays with a red dot next to it. If you see any red dots, please try
-   restarting with a fresh Centos7 install. If you consistently have one or more jobs fail and display red dots, please
+9. Click the `All` tab to ensure nothing displays with a red dot next to it. If you see any red dots, please try
+   restarting with a fresh install. If you consistently have one or more jobs fail and display red dots, please
    reach out to http://avillachlabsupport.hms.harvard.edu for help.
 
 If all jobs have blue dots except the Check For Updates and Configure SSL Certificates job, which should be gray, you
 can log into the UI for the first time.
 
-9. Browse to the same domain or IP address as your Jenkins server without the `8080` port.
+10. Browse to the same domain or IP address as your Jenkins server without the `8080` port.
 
 For example, if your server has IP `10.109.190.146`, you would browse to https://10.109.190.146
 
-10. Log in using your Google account that you previously configured.
+11. Log in using your Google account that you previously configured.
 
-11. Once you have confirmed that you can access the PIC-SURE UI using your admin user, stop the jenkins server by
-    runnning the following stop-jenkins.sh script:
+12. Once you have confirmed that you can access the PIC-SURE UI using your admin user, stop the jenkins server by
+    running the following stop-jenkins.sh script:
 
 sudo ./stop-jenkins.sh
 

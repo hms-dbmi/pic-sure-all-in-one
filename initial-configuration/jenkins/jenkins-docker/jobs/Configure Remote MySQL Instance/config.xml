@@ -65,7 +65,6 @@ echo &quot;&quot;
 flyway_auth_url=jdbc:mysql://$MYSQL_HOST_NAME:$MYSQL_PORT/auth?serverTimezone=UTC
 flyway_picsure_url=jdbc:mysql://$MYSQL_HOST_NAME:$MYSQL_PORT/picsure?serverTimezone=UTC
 
-
 cd /usr/local/docker-config/flyway/auth
 sed -i &apos;/flyway.url/d&apos; ./flyway-auth.conf
 sed -i &quot;1iflyway.url=$flyway_auth_url&quot; ./flyway-auth.conf
@@ -82,6 +81,8 @@ sed -i &quot;1ihost=$MYSQL_HOST_NAME&quot; ./sql.properties
 sed -i &apos;/port/d&apos; ./sql.properties
 sed -i &quot;2iport=$MYSQL_PORT&quot; ./sql.properties
 
+sed -i &apos;s/jdbc:mysql*.*auth/jdbc:mysql:\/\/&apos;$MYSQL_HOST_NAME&apos;:&apos;$MYSQL_PORT&apos;\/auth/g&apos; /usr/local/docker-config/psama/.env
+sed -i &apos;s/jdbc:mysql*.*picsure/jdbc:mysql:\/\/&apos;$MYSQL_HOST_NAME&apos;:&apos;$MYSQL_PORT&apos;\/picsure/g&apos; /usr/local/docker-config/psama/.env
 
 cd /usr/local/docker-config/wildfly
 sed -i &apos;s/jdbc:mysql*.*auth/jdbc:mysql:\/\/&apos;$MYSQL_HOST_NAME&apos;:&apos;$MYSQL_PORT&apos;\/auth/g&apos; /usr/local/docker-config/wildfly/standalone.xml
@@ -94,7 +95,6 @@ sed -n -e &apos;/&lt;user-name&gt;picsure/{n;p}&apos; ./standalone.xml &gt; pics
 AIRFLOW_PASSWORD=`grep &quot;password&quot; /usr/local/docker-config/flyway/auth/sql.properties | cut -d &quot;=&quot; -f2-`
 PICSURE_PASSWORD=`sed -n &apos;s/&lt;password&gt;\(.*\)&lt;\/password&gt;/\1/p&apos; picsure.tmp | xargs` 
 AUTH_PASSWORD=`sed -n &apos;s/&lt;password&gt;\(.*\)&lt;\/password&gt;/\1/p&apos; auth.tmp | xargs` 
-
 
 docker run -i -v /root/.my.cnf:/root/.my.cnf mysql mysql -e  &quot;grant all privileges on auth.* to &apos;airflow&apos;@&apos;%&apos; identified by &apos;$AIRFLOW_PASSWORD&apos;;flush privileges;&quot; mysql
 docker run -i -v /root/.my.cnf:/root/.my.cnf mysql mysql -e  &quot;grant all privileges on picsure.* to &apos;airflow&apos;@&apos;%&apos; identified by &apos;$AIRFLOW_PASSWORD&apos;;flush privileges;&quot; mysql

@@ -441,7 +441,8 @@
                 <simple name="java:global/roles_claim" value="privileges"/>
                 <!-- Used in IRCT as well -->
                 <simple name="java:global/verify_user_method" value="tokenIntrospection"/>
-                <simple name="java:global/token_introspection_url" value="http://wildfly:8080/pic-sure-auth-services/auth/token/inspect"/>
+                <simple name="java:global/token_introspection_url" value="http://psama:8090/pic-sure-auth-services/auth/token/inspect"/>
+
                 <simple name="java:global/token_introspection_token" value="__PIC_SURE_TOKEN_INTROSPECTION_TOKEN__"/>
                <!-- psama configuration-->
                 <simple name="java:global/client_secret" value="__PIC_SURE_CLIENT_SECRET__"/>

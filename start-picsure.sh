@@ -15,6 +15,7 @@ else
 	export EXPORT_SIZE="0";
 fi
 
+export PSAMA_OPTS="-Xms2g -Xmx4g -XX:MetaspaceSize=96M -XX:MaxMetaspaceSize=256m -Djava.net.preferIPv4Stack=true $PROXY_OPTS"
 export WILDFLY_JAVA_OPTS="-Xms2g -Xmx4g -XX:MetaspaceSize=96M -XX:MaxMetaspaceSize=256m -Djava.net.preferIPv4Stack=true $PROXY_OPTS"
 export HPDS_OPTS="-XX:+UseParallelGC -XX:SurvivorRatio=250 -Xms1g -Xmx16g -DCACHE_SIZE=1500 -DSMALL_TASK_THREADS=1 -DLARGE_TASK_THREADS=1 -DSMALL_JOB_LIMIT=100 -DID_BATCH_SIZE=$EXPORT_SIZE -DALL_IDS_CONCEPT=NONE -DID_CUBE_NAME=NONE -Denable_file_sharing=true "
 export PICSURE_SETTINGS_VOLUME="-v $DOCKER_CONFIG_DIR/httpd/picsureui_settings.json:/usr/local/apache2/htdocs/picsureui/settings/settings.json"
@@ -29,9 +30,8 @@ export PROFILING_OPTS=" -Dcom.sun.management.jmxremote=true -Dcom.sun.management
 
 if [ -f $DOCKER_CONFIG_DIR/wildfly/application.truststore ]; then
 	export TRUSTSTORE_VOLUME="-v $DOCKER_CONFIG_DIR/wildfly/application.truststore:/opt/jboss/wildfly/standalone/configuration/application.truststore"
-   	export TRUSTSTORE_JAVA_OPTS="-Djavax.net.ssl.trustStore=/opt/jboss/wildfly/standalone/configuration/application.truststore -Djavax.net.ssl.trustStorePassword=password"
+  export TRUSTSTORE_JAVA_OPTS="-Djavax.net.ssl.trustStore=/opt/jboss/wildfly/standalone/configuration/application.truststore -Djavax.net.ssl.trustStorePassword=password"
 fi
-
 
 docker stop hpds && docker rm hpds
 docker run --name=hpds --restart always --network=picsure \
@@ -62,6 +62,15 @@ docker run --name=httpd --restart always --network=picsure \
 docker network connect selenium httpd
 docker exec httpd sed -i '/^#LoadModule proxy_wstunnel_module/s/^#//' conf/httpd.conf
 docker restart httpd
+
+docker stop psama && docker rm psama
+docker run --name=psama --restart always \
+  --network=picsure \
+  --env-file $DOCKER_CONFIG_DIR/psama/.env \
+  $EMAIL_TEMPLATE_VOUME \
+  $TRUSTSTORE_VOLUME \
+  -e JAVA_OPTS="$PSAMA_OPTS $TRUSTSTORE_JAVA_OPTS" \
+  -d hms-dbmi/psama:LATEST
 
 docker stop wildfly && docker rm wildfly
 docker run --name=wildfly --restart always --network=picsure -u root \

@@ -38,6 +38,10 @@ function set_docker_config_dir {
     grep 'DOCKER_CONFIG_DIR' "$rc_file" && sed_inplace '/DOCKER_CONFIG_DIR/d' "$rc_file"
     echo "export DOCKER_CONFIG_DIR=$docker_config_dir" >> "$rc_file"
   fi
+
+  # Add mysql alias to rc file while we're here
+  echo "Aliasing mysql command so you can connect by typing 'mysql'"
+  echo 'alias picsure-db="docker exec -ti picsure-db bash -c '\''mysql -uroot -p\$MYSQL_ROOT_PASSWORD'\''"' >> "$rc_file"
 }
 
 set_docker_config_dir "$1"

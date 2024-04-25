@@ -66,7 +66,7 @@ docker restart httpd
 docker stop psama && docker rm psama
 docker run --name=psama --restart always \
   --network=picsure \
-  --env-file $DOCKER_CONFIG_DIR/psama/.env \
+  --env-file /usr/local/docker-config/psama/.env \
   $EMAIL_TEMPLATE_VOUME \
   $TRUSTSTORE_VOLUME \
   -e JAVA_OPTS="$PSAMA_OPTS $TRUSTSTORE_JAVA_OPTS" \

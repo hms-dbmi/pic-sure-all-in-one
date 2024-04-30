@@ -135,4 +135,7 @@ if [ -n "$1" ]; then
 fi
 
 echo "Installation script complete.  Staring Jenkins."
-../start-jenkins.sh
+
+cd ..
+./start-jenkins.sh
+cd $CWD

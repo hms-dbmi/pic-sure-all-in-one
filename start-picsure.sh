@@ -33,6 +33,7 @@ if [ -f $DOCKER_CONFIG_DIR/wildfly/application.truststore ]; then
   export TRUSTSTORE_JAVA_OPTS="-Djavax.net.ssl.trustStore=/opt/jboss/wildfly/standalone/configuration/application.truststore -Djavax.net.ssl.trustStorePassword=password"
 fi
 
+
 docker stop hpds && docker rm hpds
 docker run --name=hpds --restart always --network=picsure \
   -v $DOCKER_CONFIG_DIR/hpds:/opt/local/hpds \

@@ -46,9 +46,6 @@ sed -i &quot;s/$old_client_id/$AUTH0_CLIENT_ID/g&quot; /usr/local/docker-config/
 sed -i &quot;s/$old_tenant/$AUTH0_TENANT/g&quot; /usr/local/docker-config/httpd/picsureui_settings.json
 sed -i &quot;s/$old_tenant/$AUTH0_TENANT/g&quot; /usr/local/docker-config/wildfly/standalone.xml
 
-sed -i &quot;s/$old_client_secret/$AUTH0_CLIENT_SECRET/g&quot; /usr/local/docker-config/psama/.env
-sed -i &quot;s/$old_client_id/$AUTH0_CLIENT_ID/g&quot; /usr/local/docker-config/psama/.env
-sed -i &quot;s/$old_tenant/$AUTH0_TENANT/g&quot; /usr/local/docker-config/psama/.env
 </command>
     </hudson.tasks.Shell>
   </builders>

@@ -44,14 +44,6 @@
   <triggers/>
   <concurrentBuild>false</concurrentBuild>
   <builders>
-    <hudson.tasks.Maven>
-      <targets>clean install -DskipTests</targets>
-      <mavenName>Maven Home</mavenName>
-      <usePrivateRepository>false</usePrivateRepository>
-      <settings class="jenkins.mvn.DefaultSettingsProvider"/>
-      <globalSettings class="jenkins.mvn.DefaultGlobalSettingsProvider"/>
-      <injectBuildVariables>false</injectBuildVariables>
-    </hudson.tasks.Maven>
     <hudson.tasks.Shell>
       <command>
 if [ -f &quot;/usr/local/docker-config/setProxy.sh&quot; ]; then
@@ -61,13 +53,10 @@ fi
 GIT_BRANCH_SHORT=`echo ${GIT_BRANCH} | cut -d &quot;/&quot; -f 2` 
 GIT_COMMIT_SHORT=`echo ${GIT_COMMIT} | cut -c1-7`
 
-cd pic-sure-auth-services
-docker build --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_proxy --build-arg no_proxy=&quot;$no_proxy&quot; \
+docker build -f ./pic-sure-auth-services/Dockerfile --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_proxy --build-arg no_proxy=&quot;$no_proxy&quot; \
   --build-arg HTTP_PROXY=$http_proxy --build-arg HTTPS_PROXY=$http_proxy --build-arg NO_PROXY=&quot;$no_proxy&quot; \
-  -t hms-dbmi/pic-sure-auth-microapp:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} .
-docker tag hms-dbmi/pic-sure-auth-microapp:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} hms-dbmi/pic-sure-auth-microapp:LATEST
-mkdir -p /usr/local/docker-config/wildfly/deployments/
-cp target/pic-sure-auth-services.war /usr/local/docker-config/wildfly/deployments/
+  -t hms-dbmi/psama:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} .
+docker tag hms-dbmi/psama:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} hms-dbmi/psama:LATEST
 </command>
     </hudson.tasks.Shell>
   </builders>

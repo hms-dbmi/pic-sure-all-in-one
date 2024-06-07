@@ -48,6 +48,16 @@ fi
 if [ -n &quot;$EMAIL_FROM&quot; ] &amp;&amp; [ -n &quot;$oldfrom&quot; ] ; then
 	sed -i &quot;s/$oldfrom/$EMAIL_FROM/g&quot; /usr/local/docker-config/wildfly/standalone.xml
 fi
+
+if [ -n &quot;$OUTBOUND_EMAIL_USER_PASSWORD&quot; ] &amp;&amp; [ -n &quot;$oldpassword&quot; ] ; then
+	sed -i &quot;s/$oldpassword/$OUTBOUND_EMAIL_USER_PASSWORD/g&quot; /usr/local/docker-config/psama/.env
+fi
+if [ -n &quot;$OUTBOUND_EMAIL_USER&quot; ] &amp;&amp; [ -n &quot;$olduser&quot; ] ; then
+	sed -i &quot;s/$olduser/$OUTBOUND_EMAIL_USER/g&quot; /usr/local/docker-config/psama/.env
+fi
+if [ -n &quot;$EMAIL_FROM&quot; ] &amp;&amp; [ -n &quot;$oldfrom&quot; ] ; then
+	sed -i &quot;s/$oldfrom/$EMAIL_FROM/g&quot; /usr/local/docker-config/psama/.env
+fi
 </command>
     </hudson.tasks.Shell>
   </builders>

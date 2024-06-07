@@ -46,8 +46,9 @@ export appplication_uuid=`cat /usr/local/docker-config/httpd/picsureui_settings.
 export new_token_introspection_token=`java -jar generateJwt.jar secret.txt sub &quot;PSAMA_APPLICATION|${appplication_uuid}&quot; 365 day | grep -v &quot;Generating&quot;`
 
 export old_token_introspection_token=`cat /usr/local/docker-config/wildfly/standalone.xml | grep token_introspection_token | cut -d &apos;=&apos; -f 3 | sed &apos;s/[\&quot;/\&gt;]//&apos;g`
-
 sed -i &quot;s/$old_token_introspection_token/$new_token_introspection_token/g&quot; /usr/local/docker-config/wildfly/standalone.xml
+
+sed -i &quot;s/$old_token_introspection_token/$new_token_introspection_token/g&quot; /usr/local/docker-config/psama/.env
 
 docker run -i -v /root/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e \
 &quot;update application set token=&apos;$new_token_introspection_token&apos;;&quot; auth

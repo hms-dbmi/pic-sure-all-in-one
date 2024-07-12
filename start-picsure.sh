@@ -1,5 +1,11 @@
 #!/usr/bin/env bash
 
+# A note to developers: if you use /usr/local/docker-config to refer to a place on the host file system
+# 99 times out of 100 you are WRONG and you have just made a bug. Please:
+# - Consider using $DOCKER_CONFIG_DIR instead
+# - Challenge your own understanding of where files are located in docker and on the host file system and
+# how that does or doesn't change the commands you run when inside Jenkins
+
 if [ -f "$DOCKER_CONFIG_DIR/setProxy.sh" ]; then
    . $DOCKER_CONFIG_DIR/setProxy.sh
 fi
@@ -19,7 +25,7 @@ export PSAMA_OPTS="-Xms2g -Xmx4g -XX:MetaspaceSize=96M -XX:MaxMetaspaceSize=256m
 export WILDFLY_JAVA_OPTS="-Xms2g -Xmx4g -XX:MetaspaceSize=96M -XX:MaxMetaspaceSize=256m -Djava.net.preferIPv4Stack=true $PROXY_OPTS"
 export HPDS_OPTS="-XX:+UseParallelGC -XX:SurvivorRatio=250 -Xms1g -Xmx16g -DCACHE_SIZE=1500 -DSMALL_TASK_THREADS=1 -DLARGE_TASK_THREADS=1 -DSMALL_JOB_LIMIT=100 -DID_BATCH_SIZE=$EXPORT_SIZE -DALL_IDS_CONCEPT=NONE -DID_CUBE_NAME=NONE -Denable_file_sharing=true "
 export PICSURE_SETTINGS_VOLUME="-v $DOCKER_CONFIG_DIR/httpd/picsureui_settings.json:/usr/local/apache2/htdocs/picsureui/settings/settings.json"
-export PICSURE_BANNER_VOLUME="-v /usr/local/docker-config/httpd/banner_config.json:/usr/local/apache2/htdocs/picsureui/settings/banner_config.json"
+export PICSURE_BANNER_VOLUME="-v $DOCKER_CONFIG_DIR/httpd/banner_config.json:/usr/local/apache2/htdocs/picsureui/settings/banner_config.json"
 export PSAMA_SETTINGS_VOLUME="-v $DOCKER_CONFIG_DIR/httpd/psamaui_settings.json:/usr/local/apache2/htdocs/picsureui/psamaui/settings/settings.json"
 export EMAIL_TEMPLATE_VOUME="-v $DOCKER_CONFIG_DIR/wildfly/emailTemplates:/opt/jboss/wildfly/standalone/configuration/emailTemplates "
 
@@ -67,7 +73,7 @@ docker restart httpd
 docker stop psama && docker rm psama
 docker run --name=psama --restart always \
   --network=picsure \
-  --env-file /usr/local/docker-config/psama/.env \
+  --env-file $DOCKER_CONFIG_DIR/psama/.env \
   $EMAIL_TEMPLATE_VOUME \
   $TRUSTSTORE_VOLUME \
   -e JAVA_OPTS="$PSAMA_OPTS $TRUSTSTORE_JAVA_OPTS" \

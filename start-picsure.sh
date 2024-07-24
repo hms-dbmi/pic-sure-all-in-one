@@ -6,6 +6,8 @@
 # - Challenge your own understanding of where files are located in docker and on the host file system and
 # how that does or doesn't change the commands you run when inside Jenkins
 
+DOCKER_CONFIG_DIR="${DOCKER_CONFIG_DIR:-/usr/local/docker-config}"
+
 if [ -f "$DOCKER_CONFIG_DIR/setProxy.sh" ]; then
    . $DOCKER_CONFIG_DIR/setProxy.sh
 fi

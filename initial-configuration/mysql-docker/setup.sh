@@ -1,3 +1,10 @@
+sed_inplace() {
+  if [ "$(uname)" = "Darwin" ]; then
+    sed -i '' "$@"
+  else
+    sed -i "$@"
+  fi
+}
 if [ -z "$(docker ps --format '{{.Names}}' | grep picsure-db)" ]; then
   echo "Cleaning up old configs"
   rm -r "${DOCKER_CONFIG_DIR:?}"/*

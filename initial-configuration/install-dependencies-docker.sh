@@ -8,7 +8,6 @@ sed_inplace() {
     sed -i "$@"
   fi
 }
-export -f sed_inplace
 
 CWD=$(pwd)
 # this makes tr work on OSX

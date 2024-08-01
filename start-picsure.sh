@@ -3,7 +3,7 @@
 # A note to developers: if you use /usr/local/docker-config to refer to a place on the host file system
 # 99 times out of 100 you are WRONG and you have just made a bug. Please:
 # - Consider using $DOCKER_CONFIG_DIR instead
-# - Challenge your own understanding of where files are located in docker and on the host file system and
+# - In docker-in-docker, it is a challege to understand where files are located in docker and on the host file system and
 # how that does or doesn't change the commands you run when inside Jenkins
 
 DOCKER_CONFIG_DIR="${DOCKER_CONFIG_DIR:-/usr/local/docker-config}"
@@ -12,23 +12,9 @@ if [ -f "$DOCKER_CONFIG_DIR/setProxy.sh" ]; then
    . $DOCKER_CONFIG_DIR/setProxy.sh
 fi
 
-if ! docker network inspect selenium > /dev/null 2>&1; then
-  docker network create selenium
-fi
-
-
-if [ -z "$(grep queryExportType $DOCKER_CONFIG_DIR/httpd/picsureui_settings.json | grep DISABLED)" ]; then
-	export EXPORT_SIZE="2000";
-else
-	export EXPORT_SIZE="0";
-fi
-
 export PSAMA_OPTS="-Xms2g -Xmx4g -XX:MetaspaceSize=96M -XX:MaxMetaspaceSize=256m -Djava.net.preferIPv4Stack=true $PROXY_OPTS"
 export WILDFLY_JAVA_OPTS="-Xms2g -Xmx4g -XX:MetaspaceSize=96M -XX:MaxMetaspaceSize=256m -Djava.net.preferIPv4Stack=true $PROXY_OPTS"
 export HPDS_OPTS="-XX:+UseParallelGC -XX:SurvivorRatio=250 -Xms1g -Xmx16g -DCACHE_SIZE=1500 -DSMALL_TASK_THREADS=1 -DLARGE_TASK_THREADS=1 -DSMALL_JOB_LIMIT=100 -DID_BATCH_SIZE=$EXPORT_SIZE -DALL_IDS_CONCEPT=NONE -DID_CUBE_NAME=NONE -Denable_file_sharing=true "
-export PICSURE_SETTINGS_VOLUME="-v $DOCKER_CONFIG_DIR/httpd/picsureui_settings.json:/usr/local/apache2/htdocs/picsureui/settings/settings.json"
-export PICSURE_BANNER_VOLUME="-v $DOCKER_CONFIG_DIR/httpd/banner_config.json:/usr/local/apache2/htdocs/picsureui/settings/banner_config.json"
-export PSAMA_SETTINGS_VOLUME="-v $DOCKER_CONFIG_DIR/httpd/psamaui_settings.json:/usr/local/apache2/htdocs/picsureui/psamaui/settings/settings.json"
 export EMAIL_TEMPLATE_VOUME="-v $DOCKER_CONFIG_DIR/wildfly/emailTemplates:/opt/jboss/wildfly/standalone/configuration/emailTemplates "
 
 # these debug options can be added to wildfly or hpds container startup to enable remote debugging or profiling.
@@ -59,16 +45,13 @@ fi
 
 docker stop httpd && docker rm httpd
 docker run --name=httpd --restart always --network=picsure \
-  -v /var/log/httpd-docker-logs/:/usr/local/apache2/logs/ \
-  $PICSURE_SETTINGS_VOLUME \
-  $PICSURE_BANNER_VOLUME \
-  $PSAMA_SETTINGS_VOLUME \
+  -v /var/log/httpd-docker-logs/:/app/logs/ \
+  -v $DOCKER_CONFIG_DIR/httpd/.env:/app/.env \
   -v $DOCKER_CONFIG_DIR/httpd/cert:/usr/local/apache2/cert/ \
   $CUSTOM_HTTPD_VOLUMES \
   -p 80:80 \
   -p 443:443 \
-  -d hms-dbmi/pic-sure-ui-overrides:LATEST
-docker network connect selenium httpd
+  -d hms-dbmi/PIC-SURE-Frontend:LATEST
 docker exec httpd sed -i '/^#LoadModule proxy_wstunnel_module/s/^#//' conf/httpd.conf
 docker restart httpd
 

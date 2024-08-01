@@ -36,14 +36,14 @@
   <concurrentBuild>false</concurrentBuild>
   <builders>
     <hudson.tasks.Shell>
-      <command>export old_client_id=`cat /usr/local/docker-config/httpd/picsureui_settings.json | grep client_id | cut -d &apos;:&apos; -f 2 | sed &apos;s/\&quot;,*//g&apos;`
-export old_client_secret=`cat /usr/local/docker-config/wildfly/standalone.xml | grep client_secret | cut -d &apos;=&apos; -f 3 | sed &apos;s/[\&quot;/\&gt;]//g&apos;`
-export old_tenant=`cat /usr/local/docker-config/httpd/picsureui_settings.json | grep auth0domain | cut -d &apos;:&apos; -f 2 | sed &apos;s/\&quot;,*//g&apos;`
+      <command>export old_client_id=`cat /usr/local/docker-config/httpd/.env | grep client_id | cut -d &apos;=&apos; -f1 | sed &apos;s/\&quot;,*//g&apos;`
+export old_client_secret=`cat /usr/local/docker-config/wildfly/standalone.xml | grep client_secret | cut -d &apos;=&apos; -f 1 | sed &apos;s/[\&quot;/\&gt;]//g&apos;`
+export old_tenant=`cat /usr/local/docker-config/httpd/.env | grep auth0domain | cut -d &apos;=&apos; -f 1 | sed &apos;s/\&quot;,*//g&apos;`
 
 sed -i &quot;s/$old_client_secret/$AUTH0_CLIENT_SECRET/g&quot; /usr/local/docker-config/wildfly/standalone.xml
 sed -i &quot;s/$old_client_id/$AUTH0_CLIENT_ID/g&quot; /usr/local/docker-config/wildfly/standalone.xml
-sed -i &quot;s/$old_client_id/$AUTH0_CLIENT_ID/g&quot; /usr/local/docker-config/httpd/picsureui_settings.json
-sed -i &quot;s/$old_tenant/$AUTH0_TENANT/g&quot; /usr/local/docker-config/httpd/picsureui_settings.json
+sed -i &quot;s/$old_client_id/$AUTH0_CLIENT_ID/g&quot; /usr/local/docker-config/httpd/.env
+sed -i &quot;s/$old_tenant/$AUTH0_TENANT/g&quot; /usr/local/docker-config/httpd/.env
 sed -i &quot;s/$old_tenant/$AUTH0_TENANT/g&quot; /usr/local/docker-config/wildfly/standalone.xml
 
 </command>

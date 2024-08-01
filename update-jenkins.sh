@@ -33,7 +33,6 @@ if [ ! -f $DOCKER_CONFIG_DIR/wildfly/mysql-connector-java-5.1.49.jar ]; then
 fi
 
 # Pull through previous PICSURE configurations
-sed -i "s|__PROJECT_SPECIFIC_OVERRIDE_REPO__|`cat /var/jenkins_home_bak/config.xml | grep -A1 project_specific_override_repo | tail -1 | sed 's/<\/*string>//g' | sed 's/ //g' `|g" /var/jenkins_home/config.xml
 sed -i "s|__RELEASE_CONTROL_REPO__|`cat /var/jenkins_home_bak/config.xml | grep -A1 release_control_repo | tail -1 | sed 's/<\/*string>//g' | sed 's/ //g' `|g" /var/jenkins_home/config.xml
 sed -i "s|*/master|`cat /var/jenkins_home_bak/config.xml | grep -A1 release_control_branch | tail -1 | sed 's/<\/*string>//g' | sed 's/ //g' `|g" /var/jenkins_home/config.xml
 

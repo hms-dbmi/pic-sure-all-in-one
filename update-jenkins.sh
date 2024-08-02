@@ -34,6 +34,7 @@ fi
 
 # Pull through previous PICSURE configurations
 sed -i "s|__RELEASE_CONTROL_REPO__|`cat /var/jenkins_home_bak/config.xml | grep -A1 release_control_repo | tail -1 | sed 's/<\/*string>//g' | sed 's/ //g' `|g" /var/jenkins_home/config.xml
+sed -i "s|__PROJECT_SPECIFIC_MIGRATION_NAME__|`cat /var/jenkins_home_bak/config.xml | grep -A1 migration_name | tail -1 | sed 's/<\/*string>//g' | sed 's/ //g' `|g" /var/jenkins_home/config.xml
 sed -i "s|*/master|`cat /var/jenkins_home_bak/config.xml | grep -A1 release_control_branch | tail -1 | sed 's/<\/*string>//g' | sed 's/ //g' `|g" /var/jenkins_home/config.xml
 
 

@@ -168,11 +168,13 @@
           <default>
             <comparator class="hudson.util.CaseInsensitiveComparator" reference="../../../../../../views/listView/jobNames/comparator"/>
           </default>
-          <int>5</int>
+          <int>6</int>
           <string>release_control_branch</string>
           <string>*/master</string>
           <string>release_control_repo</string>
           <string>__RELEASE_CONTROL_REPO__</string>
+          <string>migration_name</string>
+          <string>__PROJECT_SPECIFIC_MIGRATION_NAME__</string>
           <string>JAVA_HOME</string>
           <string>/opt/java/openjdk</string>
           <string>DOCKER_CONFIG_DIR</string>

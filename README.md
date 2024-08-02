@@ -153,6 +153,9 @@ system variables:
       controls what code is built and deployed. If you just want the default PIC-SURE behavior use this
       repo : https://github.com/hms-dbmi/baseline-pic-sure-release-control
 
+    - `MIGRATION_NAME`: This is the name of the migration that will be run. If you just want the default PIC-SURE behavior use this
+      repo : https://github.com/hms-dbmi/pic-sure-migrations or fork it and add your migration. 
+
     - `ANALYTICS_ID`: This is the Google Analytics ID for your project. If you do not have one, you can leave this blank.
 
 Note: Ensure none of these fields contain leading or trailing whitespace, the values must be exact. Once you have

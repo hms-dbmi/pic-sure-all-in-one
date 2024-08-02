@@ -35,9 +35,10 @@
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
-          <name>PROJECT_SPECIFIC_OVERRIDE_REPOSITORY</name>
-          <description>This must be the project specific git repository that contains the project specific database migrations and UI overrides in the standard PIC-SURE Override Repository Structure.</description>
-          <trim>false</trim>
+          <name>MIGRATION_NAME</name>
+          <description>Name of the migration to run, see https://github.com/hms-dbmi/PIC-SURE-Migrations or fork it and add your migration</description>
+          <defaultValue>Baseline</defaultValue>
+          <trim>true</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>RELEASE_CONTROL_REPOSITORY</name>

@@ -31,6 +31,7 @@
     <builders>
         <hudson.tasks.Shell>
             <command>#!/bin/bash
+                #NEW_UI_TODO: rewrite this whole thing...
 
                 # If the $ANALYTICS_ID variable is blank, set it to __ANALYTICS_ID__
                 : ${ANALYTICS_ID:="__ANALYTICS_ID__"}

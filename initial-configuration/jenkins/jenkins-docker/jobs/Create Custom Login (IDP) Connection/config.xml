@@ -48,7 +48,9 @@ USER_MAPPING_ID_HEX=`echo $USER_MAPPING_ID | awk &apos;{ print toupper($0) }&apo
 docker run -i -v /root/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e \
 &quot;INSERT INTO auth.userMetadataMapping (uuid, auth0MetadataJsonPath, connectionId, generalMetadataJsonPath) VALUES (unhex(&apos;$USER_MAPPING_ID_HEX&apos;), &apos;\$.email&apos;, unhex(&apos;$CONNECTION_ID_HEX&apos;), &apos;\$.email&apos;);&quot; auth</command>
 
-echo &quot;Please now edit the connections.json file in the httpd container and add your IDP button there. For more instructions see: https://pic-sure.gitbook.io/pic-sure/&quot;
+TODO: Add idp info to the .env file.
+
+echo &quot;Please now edit the .env file in the httpd directory and add your IDP button there. For more instructions see: https://pic-sure.gitbook.io/pic-sure/&quot;
       <configuredLocalRules/>
     </hudson.tasks.Shell>
   </builders>

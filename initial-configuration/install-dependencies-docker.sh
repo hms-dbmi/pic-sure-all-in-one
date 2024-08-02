@@ -43,6 +43,7 @@ function set_docker_config_dir {
   echo "Aliasing mysql command so you can connect by typing 'mysql'"
   echo 'alias picsure-db="docker exec -ti picsure-db bash -c '\''mysql -uroot -p\$MYSQL_ROOT_PASSWORD'\''"' >> "$rc_file"
 }
+docker exec -ti picsure-db bash -c mysql -uroot -p ''
 
 set_docker_config_dir "$1"
 
@@ -169,12 +170,10 @@ mkdir -p /var/log/httpd-docker-logs/ssl_mutex
 
 export APP_ID=`uuidgen | tr '[:upper:]' '[:lower:]'`
 export APP_ID_HEX=`echo $APP_ID | awk '{ print toupper($0) }'|sed 's/-//g'`
-sed_inplace "s/__STACK_SPECIFIC_APPLICATION_ID__/$APP_ID/g" $DOCKER_CONFIG_DIR/httpd/picsureui_settings.json
 sed_inplace "s/__STACK_SPECIFIC_APPLICATION_ID__/$APP_ID/g" $DOCKER_CONFIG_DIR/wildfly/standalone.xml
 
 export RESOURCE_ID=`uuidgen | tr '[:upper:]' '[:lower:]'`
 export RESOURCE_ID_HEX=`echo $RESOURCE_ID | awk '{ print toupper($0) }'|sed 's/-//g'`
-sed_inplace "s/__STACK_SPECIFIC_RESOURCE_UUID__/$RESOURCE_ID/g" $DOCKER_CONFIG_DIR/httpd/picsureui_settings.json
 
 echo $APP_ID > $DOCKER_CONFIG_DIR/APP_ID_RAW
 echo $APP_ID_HEX > $DOCKER_CONFIG_DIR/APP_ID_HEX

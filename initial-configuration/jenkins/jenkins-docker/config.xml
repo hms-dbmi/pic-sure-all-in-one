@@ -49,8 +49,7 @@
         <string>PIC-SURE Wildfly Image Build</string>
         <string>PIC-SURE-API Build</string>
         <string>PIC-SURE-HPDS Build</string>
-        <string>PIC-SURE-HPDS-UI Docker Build</string>
-        <string>Project Specific PIC-SURE Overrides</string>
+        <string>PIC-SURE-HPDS-Frontend Docker Build</string>
       </jobNames>
       <jobFilters/>
       <columns>
@@ -170,12 +169,12 @@
             <comparator class="hudson.util.CaseInsensitiveComparator" reference="../../../../../../views/listView/jobNames/comparator"/>
           </default>
           <int>6</int>
-          <string>project_specific_override_repo</string>
-          <string>__PROJECT_SPECIFIC_OVERRIDE_REPO__</string>
           <string>release_control_branch</string>
           <string>*/master</string>
           <string>release_control_repo</string>
           <string>__RELEASE_CONTROL_REPO__</string>
+          <string>migration_name</string>
+          <string>__PROJECT_SPECIFIC_MIGRATION_NAME__</string>
           <string>JAVA_HOME</string>
           <string>/opt/java/openjdk</string>
           <string>DOCKER_CONFIG_DIR</string>

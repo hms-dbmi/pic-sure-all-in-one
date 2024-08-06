@@ -163,6 +163,7 @@
         <comparator class="java.lang.String$CaseInsensitiveComparator"/>
         <string>Build Dictionary API</string>
         <string>Deploy Dictionary API</string>
+        <string>Upload Dictionary .env File</string>
       </jobNames>
       <jobFilters/>
       <columns>

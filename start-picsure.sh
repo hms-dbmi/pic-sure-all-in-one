@@ -96,3 +96,7 @@ docker run --name=wildfly --restart always --network=picsure -u root \
   -v $DOCKER_CONFIG_DIR/wildfly/mysql-connector-java-5.1.49.jar:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/mysql-connector-java-5.1.49.jar  \
   -e JAVA_OPTS="$WILDFLY_JAVA_OPTS $TRUSTSTORE_JAVA_OPTS" \
   -d hms-dbmi/pic-sure-wildfly:LATEST
+
+if test -d $DOCKER_CONFIG_DIR/dictionary then
+  docker compose -f $DOCKER_CONFIG_DIR/dictionary/docker-compose.yml --env-file $DOCKER_CONFIG_DIR/dictionary/.env up -d
+fi

@@ -20,7 +20,7 @@ fi
 
 export PSAMA_OPTS="-Xms2g -Xmx4g -XX:MetaspaceSize=96M -XX:MaxMetaspaceSize=256m -Djava.net.preferIPv4Stack=true $PROXY_OPTS"
 export WILDFLY_JAVA_OPTS="-Xms2g -Xmx4g -XX:MetaspaceSize=96M -XX:MaxMetaspaceSize=256m -Djava.net.preferIPv4Stack=true $PROXY_OPTS"
-export HPDS_OPTS="-XX:+UseParallelGC -XX:SurvivorRatio=250 -Xms1g -Xmx16g -DCACHE_SIZE=1500 -DSMALL_TASK_THREADS=1 -DLARGE_TASK_THREADS=1 -DSMALL_JOB_LIMIT=100 -DID_BATCH_SIZE=$EXPORT_SIZE -DALL_IDS_CONCEPT=NONE -DID_CUBE_NAME=NONE -Denable_file_sharing=true "
+export HPDS_OPTS="-XX:+UseParallelGC -XX:SurvivorRatio=250 -Xms1g -Xmx16g -Dspring.profiles.active=bch-dev -DCACHE_SIZE=1500 -DSMALL_TASK_THREADS=1 -DLARGE_TASK_THREADS=1 -DSMALL_JOB_LIMIT=100 -DID_BATCH_SIZE=$EXPORT_SIZE -DALL_IDS_CONCEPT=NONE -DID_CUBE_NAME=NONE -Denable_file_sharing=true "
 export PICSURE_SETTINGS_VOLUME="-v $DOCKER_CONFIG_DIR/httpd/picsureui_settings.json:/usr/local/apache2/htdocs/picsureui/settings/settings.json"
 export PICSURE_BANNER_VOLUME="-v $DOCKER_CONFIG_DIR/httpd/banner_config.json:/usr/local/apache2/htdocs/picsureui/settings/banner_config.json"
 export PSAMA_SETTINGS_VOLUME="-v $DOCKER_CONFIG_DIR/httpd/psamaui_settings.json:/usr/local/apache2/htdocs/picsureui/psamaui/settings/settings.json"
@@ -54,7 +54,7 @@ docker run --name=hpds --restart always --network=picsure \
   -v /var/log/hpds-logs/:/var/log/ \
   -v $DOCKER_CONFIG_DIR/hpds_csv/:/usr/local/docker-config/hpds_csv/ \
   -v $DOCKER_CONFIG_DIR/aws_uploads/:/gic_query_results/ \
-  -e CATALINA_OPTS=" $HPDS_OPTS " \
+  -e JAVA_OPTS=" $HPDS_OPTS " \
   -p 5007:5007 \
   -d hms-dbmi/pic-sure-hpds:LATEST
 

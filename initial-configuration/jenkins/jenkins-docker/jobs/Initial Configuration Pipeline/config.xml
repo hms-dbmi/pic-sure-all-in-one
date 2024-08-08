@@ -18,49 +18,55 @@
           <name>AUTH0_CLIENT_ID</name>
           <description></description>
           <defaultValue>__PIC_SURE_CLIENT_ID__</defaultValue>
-          <trim>false</trim>
+          <trim>true</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>AUTH0_CLIENT_SECRET</name>
           <description></description>
           <defaultValue>__PIC_SURE_CLIENT_SECRET__</defaultValue>
-          <trim>false</trim>
+          <trim>true</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>AUTH0_TENANT</name>
           <description></description>
           <defaultValue>avillachlab</defaultValue>
-          <trim>false</trim>
+          <trim>true</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>ADMIN_USER_EMAIL</name>
           <description>The email address for the initial admin user.  This should be a Google account.</description>
           <defaultValue></defaultValue>
-          <trim>false</trim>
+          <trim>true</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>MIGRATION_NAME</name>
+          <description>Name of the migration to run, see https://github.com/hms-dbmi/PIC-SURE-Migrations or fork it and add your migration</description>
+          <defaultValue>GIC-Institution</defaultValue>
+          <trim>true</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>PROJECT_SPECIFIC_OVERRIDE_REPOSITORY</name>
-          <description>This must be the project specific git repository that contains the project specific database migrations and UI overrides in the standard PIC-SURE Override Repository Structure.</description>
+          <description>Depricated: PIC-SURE is now using a unified frontend with feture flags. See README. This must be the project specific git repository that contains the project specific database migrations and UI overrides in the standard PIC-SURE Override Repository Structure.</description>
           <defaultValue></defaultValue>
-          <trim>false</trim>
+          <trim>true</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>RELEASE_CONTROL_REPOSITORY</name>
           <description>This must be the project specific release control git repository that contains the git commit hashes that will be built and deployed.</description>
           <defaultValue></defaultValue>
-          <trim>false</trim>
+          <trim>true</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>OUTBOUND_EMAIL_USER</name>
           <description>The email account name that should be used to send outbound email.  The default server is Google's SMTP, so this should be a GMail account.  This field is optional</description>
           <defaultValue>__user@email.com__</defaultValue>
-          <trim>false</trim>
+          <trim>true</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>OUTBOUND_EMAIL_USER_PASSWORD</name>
           <description>The password for the account used to send outbound.  This field is optional</description>
           <defaultValue>__YOUR_EMAIL_PASSWORD__</defaultValue>
-          <trim>false</trim>
+          <trim>true</trim>
         </hudson.model.StringParameterDefinition>
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
@@ -83,6 +89,7 @@ pipeline {
                     sh &quot;&quot;&quot;
                         sed -i &quot;s|__PROJECT_SPECIFIC_OVERRIDE_REPO__|$env.PROJECT_SPECIFIC_OVERRIDE_REPOSITORY|g&quot; /var/jenkins_home/config.xml
                         sed -i &quot;s|__RELEASE_CONTROL_REPO__|$env.RELEASE_CONTROL_REPOSITORY|g&quot; /var/jenkins_home/config.xml
+                        sed -i &quot;s|__PROJECT_SPECIFIC_MIGRATION_NAME__|$env.MIGRATION_NAME|g&quot; /var/jenkins_home/config.xml
                     &quot;&quot;&quot;
                     Jenkins.instance.doReload()
                 }

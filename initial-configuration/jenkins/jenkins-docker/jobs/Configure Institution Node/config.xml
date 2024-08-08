@@ -18,55 +18,61 @@
           <name>AUTH0_CLIENT_ID</name>
           <description></description>
           <defaultValue>__PIC_SURE_CLIENT_ID__</defaultValue>
-          <trim>false</trim>
+          <trim>true</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>AUTH0_CLIENT_SECRET</name>
           <description></description>
           <defaultValue>__PIC_SURE_CLIENT_SECRET__</defaultValue>
-          <trim>false</trim>
+          <trim>true</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>AUTH0_TENANT</name>
           <description></description>
           <defaultValue>avillachlab</defaultValue>
-          <trim>false</trim>
+          <trim>true</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>ADMIN_USER_EMAIL</name>
           <description>The email address for the initial admin user.  This should be a Google account.</description>
           <defaultValue></defaultValue>
-          <trim>false</trim>
+          <trim>true</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>MIGRATION_NAME</name>
+          <description>Name of the migration to run, see https://github.com/hms-dbmi/PIC-SURE-Migrations or fork it and add your migration</description>
+          <defaultValue>GIC-Institution</defaultValue>
+          <trim>true</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>PROJECT_SPECIFIC_OVERRIDE_REPOSITORY</name>
-          <description>This must be the project specific git repository that contains the project specific database migrations and UI overrides in the standard PIC-SURE Override Repository Structure.</description>
+          <description>Depricated: PIC-SURE is now using a unified frontend with feture flags. See README. This must be the project specific git repository that contains the project specific database migrations and UI overrides in the standard PIC-SURE Override Repository Structure.</description>
           <defaultValue></defaultValue>
-          <trim>false</trim>
+          <trim>true</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>RELEASE_CONTROL_REPOSITORY</name>
           <description>This must be the project specific release control git repository that contains the git commit hashes that will be built and deployed.</description>
           <defaultValue></defaultValue>
-          <trim>false</trim>
+          <trim>true</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>OUTBOUND_EMAIL_USER</name>
           <description>The email account name that should be used to send outbound email.  The default server is Google's SMTP, so this should be a GMail account.  This field is optional</description>
           <defaultValue>__user@email.com__</defaultValue>
-          <trim>false</trim>
+          <trim>true</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>OUTBOUND_EMAIL_USER_PASSWORD</name>
           <description>The password for the account used to send outbound.  This field is optional</description>
           <defaultValue>__YOUR_EMAIL_PASSWORD__</defaultValue>
-          <trim>false</trim>
+          <trim>true</trim>
         </hudson.model.StringParameterDefinition>
          <hudson.model.StringParameterDefinition>
           <name>TARGET_OBFUSCATION_THRESHOLD</name>
           <description>The aggregate resource will be configured to obfuscate result counts lower than this threshold</description>
           <defaultValue>0</defaultValue>
-          <trim>false</trim>
+          <trim>true</trim>
         </hudson.model.StringParameterDefinition>
         
         
@@ -84,6 +90,8 @@ def pipelineBuildId;
 def micro_app_ref = &apos;&apos;
 def pic_sure_ref = &apos;&apos;
 def psu_ref = &apos;&apos;
+def psm_ref = &apos;&apos;
+def psf_ref = &apos;&apos;
 
 
 pipeline {
@@ -95,6 +103,7 @@ pipeline {
                     sh &quot;&quot;&quot;
                         sed -i &quot;s|__PROJECT_SPECIFIC_OVERRIDE_REPO__|$env.PROJECT_SPECIFIC_OVERRIDE_REPOSITORY|g&quot; /var/jenkins_home/config.xml
                         sed -i &quot;s|__RELEASE_CONTROL_REPO__|$env.RELEASE_CONTROL_REPOSITORY|g&quot; /var/jenkins_home/config.xml
+                        sed -i &quot;s|__PROJECT_SPECIFIC_MIGRATION_NAME__|$env.MIGRATION_NAME|g&quot; /var/jenkins_home/config.xml
                     &quot;&quot;&quot;
                     Jenkins.instance.doReload()
                 }
@@ -158,12 +167,25 @@ pipeline {
 	                   pic_sure_ref = build.git_hash
 	                   echo &apos;pic_sure_ref &apos; + pic_sure_ref
 	                }
+                    if(build.project_job_git_key.equalsIgnoreCase(&quot;PSF&quot;)) {
+	                   psf_ref = build.git_hash
+	                   echo &apos;psf_ref &apos; + psf_ref
+	                }
+                    if(build.project_job_git_key.equalsIgnoreCase(&quot;PSM&quot;)) {
+	                   psm_ref = build.git_hash
+	                   echo &apos;psm_ref &apos; + psm_ref
+	                }
 	            }
-	            if(micro_app_ref.isEmpty() || pic_sure_ref.isEmpty() || psu_ref.isEmpty()) {
+	            if(micro_app_ref.isEmpty() || pic_sure_ref.isEmpty() ||
+                   (psm_ref.isEmpty() &amp;&amp; !psf_ref.isEmpty()) ||
+                   (psu_ref.isEmpty() &amp;&amp; !psf_ref.isEmpty()) ||
+                   (!psf_ref.isEmpty() &amp;&amp; psm_ref.isEmpty())) {   
 	                currentBuild.result = &apos;ABORTED&apos;
 	                echo &apos;micro_app_ref = &apos; + micro_app_ref
 	                echo &apos;psu_ref = &apos; + psu_ref
 	                echo &apos;pic_sure_ref = &apos; + pic_sure_ref
+                    echo &apos;psf_ref = &apos; + psf_ref
+                    echo &apos;psm_ref = &apos; + psm_ref
 	                error(&apos;Build Spec Not configured correctly!&apos;)
 	            }
 	        }
@@ -191,6 +213,7 @@ pipeline {
 	     steps {
 	     	node("master") {   
 	 			script {
+                    if 
 			        checkout([$class: &apos;GitSCM&apos;, branches: [[name: pic_sure_ref ]],
 			            userRemoteConfigs: [[url: &apos;https://github.com/hms-dbmi/pic-sure&apos;]]])
 			        //git url: &apos;https://github.com/hms-dbmi/pic-sure&apos;
@@ -222,25 +245,46 @@ pipeline {
 	    steps {
 	    	node("master") {   
 	 			script {
-			        checkout([$class: &apos;GitSCM&apos;, branches: [[name: psu_ref ]],
-			            userRemoteConfigs: [[url: env.project_specific_override_repo]]])
-			        //git url: env.project_specific_override_repo
-			        sh &quot;&quot;&quot;
-			            sed -i &quot;s/__APPLICATION_UUID__/`cat /usr/local/docker-config/APP_ID_HEX`/g&quot; ./custom-migrations/auth/*.sql
-			            sed -i &quot;s/__RESOURCE_UUID__/`cat /usr/local/docker-config/RESOURCE_ID_HEX`/g&quot; ./custom-migrations/picsure/*.sql
-			        &quot;&quot;&quot;
-			        docker.image(&apos;dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0&apos;).inside(&apos;--network=picsure -v $DOCKER_CONFIG_DIR/flyway/picsure:/opt/flyway-migrations/picsure &quot;--entrypoint=&quot; &apos;) {
-			            sh &quot;rm -rf /opt/flyway-migrations/picsure/sql&quot;
-			            sh &quot;cp -R ./custom-migrations/picsure /opt/flyway-migrations/picsure/sql&quot;
-			            sh &quot;/opt/flyway/flyway -X -baselineOnMigrate=true -configFiles=/opt/flyway-migrations/picsure/flyway-picsure.conf -table=flyway_custom_schema_history migrate&quot;
-			            sleep(time:10,unit:&quot;SECONDS&quot;) 
-			        }
-			        docker.image(&apos;dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0&apos;).inside(&apos;--network=picsure -v $DOCKER_CONFIG_DIR/flyway/auth:/opt/flyway-migrations/auth &quot;--entrypoint=&quot; &apos;) {
-			            sh &quot;rm -rf /opt/flyway-migrations/auth/sql&quot;
-			            sh &quot;cp -R ./custom-migrations/auth /opt/flyway-migrations/auth/sql&quot;
-			            sh &quot;/opt/flyway/flyway -X -baselineOnMigrate=true -configFiles=/opt/flyway-migrations/auth/flyway-auth.conf -table=flyway_custom_schema_history migrate&quot;
-			            sleep(time:10,unit:&quot;SECONDS&quot;) 
-			        }
+                    if (psm_ref.isEmpty()) {
+                        checkout([$class: &apos;GitSCM&apos;, branches: [[name: psu_ref ]],
+                            userRemoteConfigs: [[url: env.project_specific_override_repo]]])
+                        //git url: env.project_specific_override_repo
+                        sh &quot;&quot;&quot;
+                            sed -i &quot;s/__APPLICATION_UUID__/`cat /usr/local/docker-config/APP_ID_HEX`/g&quot; ./custom-migrations/auth/*.sql
+                            sed -i &quot;s/__RESOURCE_UUID__/`cat /usr/local/docker-config/RESOURCE_ID_HEX`/g&quot; ./custom-migrations/picsure/*.sql
+                        &quot;&quot;&quot;
+                        docker.image(&apos;dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0&apos;).inside(&apos;--network=picsure -v $DOCKER_CONFIG_DIR/flyway/picsure:/opt/flyway-migrations/picsure &quot;--entrypoint=&quot; &apos;) {
+                            sh &quot;rm -rf /opt/flyway-migrations/picsure/sql&quot;
+                            sh &quot;cp -R ./custom-migrations/picsure /opt/flyway-migrations/picsure/sql&quot;
+                            sh &quot;/opt/flyway/flyway -X -baselineOnMigrate=true -configFiles=/opt/flyway-migrations/picsure/flyway-picsure.conf -table=flyway_custom_schema_history migrate&quot;
+                            sleep(time:10,unit:&quot;SECONDS&quot;) 
+                        }
+                        docker.image(&apos;dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0&apos;).inside(&apos;--network=picsure -v $DOCKER_CONFIG_DIR/flyway/auth:/opt/flyway-migrations/auth &quot;--entrypoint=&quot; &apos;) {
+                            sh &quot;rm -rf /opt/flyway-migrations/auth/sql&quot;
+                            sh &quot;cp -R ./custom-migrations/auth /opt/flyway-migrations/auth/sql&quot;
+                            sh &quot;/opt/flyway/flyway -X -baselineOnMigrate=true -configFiles=/opt/flyway-migrations/auth/flyway-auth.conf -table=flyway_custom_schema_history migrate&quot;
+                            sleep(time:10,unit:&quot;SECONDS&quot;) 
+                        }
+                    } else {
+                        checkout([$class: &apos;GitSCM&apos;, branches: [[name: psm_ref ]],
+                            userRemoteConfigs: [[url: https://github.com/hms-dbmi/PIC-SURE-Migrations]]])
+                        sh &quot;&quot;&quot;
+                            sed -i &quot;s/__APPLICATION_UUID__/`cat /usr/local/docker-config/APP_ID_HEX`/g&quot; ./$env.MIGRATION_NAME/auth/*.sql
+                            sed -i &quot;s/__RESOURCE_UUID__/`cat /usr/local/docker-config/RESOURCE_ID_HEX`/g&quot; ./$env.MIGRATION_NAME/picsure/*.sql
+                        &quot;&quot;&quot;
+                        docker.image(&apos;dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0&apos;).inside(&apos;--network=picsure -v $DOCKER_CONFIG_DIR/flyway/picsure:/opt/flyway-migrations/picsure &quot;--entrypoint=&quot; &apos;) {
+                            sh &quot;rm -rf /opt/flyway-migrations/picsure/sql&quot;
+                            sh &quot;cp -R ./$env.MIGRATION_NAME/picsure /opt/flyway-migrations/picsure/sql&quot;
+                            sh &quot;/opt/flyway/flyway -X -baselineOnMigrate=true -configFiles=/opt/flyway-migrations/picsure/flyway-picsure.conf -table=flyway_custom_schema_history migrate&quot;
+                            sleep(time:10,unit:&quot;SECONDS&quot;) 
+                        }
+                        docker.image(&apos;dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0&apos;).inside(&apos;--network=picsure -v $DOCKER_CONFIG_DIR/flyway/auth:/opt/flyway-migrations/auth &quot;--entrypoint=&quot; &apos;) {
+                            sh &quot;rm -rf /opt/flyway-migrations/auth/sql&quot;
+                            sh &quot;cp -R ./$env.MIGRATION_NAME/auth /opt/flyway-migrations/auth/sql&quot;
+                            sh &quot;/opt/flyway/flyway -X -baselineOnMigrate=true -configFiles=/opt/flyway-migrations/auth/flyway-auth.conf -table=flyway_custom_schema_history migrate&quot;
+                            sleep(time:10,unit:&quot;SECONDS&quot;) 
+                        }
+                    }
 		        }
 	        }
         }

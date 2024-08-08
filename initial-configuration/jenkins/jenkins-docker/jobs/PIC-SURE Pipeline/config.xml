@@ -43,28 +43,12 @@ pipeline {
                 }
             }
         }
-        stage(&apos;PIC-SURE API, PIC-SURE-HPDS UI&apos;) {
+        stage(&apos;PIC-SURE API and PSAMA&apos;) {
             steps {
                 parallel (
                         picsureapi:{
                             script {
                                 def result = build job: &apos;PIC-SURE-API Build&apos;, parameters: [[$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],[$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSA&apos;]]]
-                            }
-                        },
-                        picsurehpdsui:{
-                            script{
-                                def result = build job: &apos;PIC-SURE-HPDS-UI Docker Build&apos;, parameters: [[$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],[$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSHU&apos;]]]
-                            }
-                        }
-                )
-            }
-        }
-        stage(&apos;PSAMA, Project UI Overrides and PIC-SURE HPDS&apos;){
-            steps {
-                parallel (
-                        picsurehpds:{
-                            script {
-                                def result = build job: &apos;PIC-SURE-HPDS Build&apos;, parameters: [[$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],[$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSH&apos;]]]
                             }
                         },
                         picsureauth:{
@@ -75,21 +59,44 @@ pipeline {
                 )
             }
         }
-        stage(&apos;Wildfly Build&apos;){
+        stage(&apos;PIC-SURE HPDS and Wildfly&apos;){
             steps {
                 parallel (
-                        wildfly:{
-                            script {
-                                def result = build job: &apos;PIC-SURE Wildfly Image Build&apos;, parameters: [[$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId]]
-                            }
-                        },
-                        projectSpecificUI:{
-                            script {
-                                def result = build job: &apos;Project Specific PIC-SURE Overrides&apos;, parameters: [[$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],[$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSU&apos;]]]
-                            }
+                    picsurehpds:{
+                        script {
+                            def result = build job: &apos;PIC-SURE-HPDS Build&apos;, parameters: [[$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],[$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSH&apos;]]]
                         }
+                    },
+                    wildfly:{
+                        script {
+                            def result = build job: &apos;PIC-SURE Wildfly Image Build&apos;, parameters: [[$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId]]
+                        }
+                    }
                 )
             }
+        }
+        stage(&apos;Frontend Builds&apos;) {
+             if (build_hashes[&apos;PSF&apos;]) {
+                steps {
+                    script {
+                        echo &quot;Building PIC-SURE Frontend&quot;
+                        def result = build job: &apos;PIC-SURE Frontend Build&apos;, parameters: [[$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],[$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSF&apos;]]]
+                    }
+                }
+             } else if (build_hashes[&apos;PSHU&apos;]) {
+                steps {
+                    picsurehpdsui:{
+                        script{
+                            def result = build job: &apos;PIC-SURE-HPDS-UI Docker Build&apos;, parameters: [[$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],[$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSHU&apos;]]]
+                        }
+                    }, 
+                    projectSpecificUI:{
+                        script {
+                            def result = build job: &apos;Project Specific PIC-SURE Overrides&apos;, parameters: [[$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],[$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSU&apos;]]]
+                        }
+                    }
+                }
+             }
         }
         stage(&apos;Dictionary Build&apos;) {
             steps {

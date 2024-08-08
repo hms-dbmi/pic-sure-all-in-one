@@ -18,6 +18,8 @@
 def micro_app_ref = &apos;&apos;
 def pic_sure_ref = &apos;&apos;
 def psu_ref = &apos;&apos;
+def psm_ref = &apos;&apos;
+def psf_ref = &apos;&apos;
 
 node {   
     stage(&apos;Retrieve Build Spec&apos;) { 
@@ -49,12 +51,25 @@ node {
                    pic_sure_ref = build.git_hash
                    echo &apos;pic_sure_ref &apos; + pic_sure_ref
                 }
+                if(build.project_job_git_key.equalsIgnoreCase(&quot;PSF&quot;)) {
+                    psf_ref = build.git_hash
+                    echo &apos;psf_ref &apos; + psf_ref
+                }
+                if(build.project_job_git_key.equalsIgnoreCase(&quot;PSM&quot;)) {
+                    psm_ref = build.git_hash
+                    echo &apos;psm_ref &apos; + psm_ref
+                }
             }
-            if(micro_app_ref.isEmpty() || pic_sure_ref.isEmpty() || psu_ref.isEmpty()) {
+            if(micro_app_ref.isEmpty() || pic_sure_ref.isEmpty() ||
+                (psm_ref.isEmpty() &amp;&amp; !psf_ref.isEmpty()) ||
+                (psu_ref.isEmpty() &amp;&amp; !psf_ref.isEmpty()) ||
+                (!psf_ref.isEmpty() &amp;&amp; psm_ref.isEmpty())) {
                 currentBuild.result = &apos;ABORTED&apos;
                 echo &apos;micro_app_ref = &apos; + micro_app_ref
                 echo &apos;psu_ref = &apos; + psu_ref
                 echo &apos;pic_sure_ref = &apos; + pic_sure_ref
+                echo &apos;psf_ref = &apos; + psf_ref
+                echo &apos;psm_ref = &apos; + psm_ref
                 error(&apos;Build Spec Not configured correctly!&apos;)
             }
         }
@@ -82,6 +97,7 @@ node {
         }
     }
     stage(&apos;Project Specific Migrations&apos;) {
+        if (psm_ref.isEmpty()) {
         checkout([$class: &apos;GitSCM&apos;, branches: [[name: psu_ref ]],
             userRemoteConfigs: [[url: env.project_specific_override_repo]]])
         //git url: env.project_specific_override_repo
@@ -100,6 +116,26 @@ node {
             sh &quot;cp -R ./custom-migrations/auth /opt/flyway-migrations/auth/sql&quot;
             sh &quot;/opt/flyway/flyway -X -baselineOnMigrate=true -configFiles=/opt/flyway-migrations/auth/flyway-auth.conf -table=flyway_custom_schema_history migrate&quot;
             sleep(time:10,unit:&quot;SECONDS&quot;) 
+        }
+        } else {
+            checkout([$class: &apos;GitSCM&apos;, branches: [[name: psm_ref ]],
+                userRemoteConfigs: [[url: https://github.com/hms-dbmi/PIC-SURE-Migrations]]])
+            sh &quot;&quot;&quot;
+                sed -i &quot;s/__APPLICATION_UUID__/`cat /usr/local/docker-config/APP_ID_HEX`/g&quot; ./$env.MIGRATION_NAME/auth/*.sql
+                sed -i &quot;s/__RESOURCE_UUID__/`cat /usr/local/docker-config/RESOURCE_ID_HEX`/g&quot; ./$env.MIGRATION_NAME/picsure/*.sql
+            &quot;&quot;&quot;
+            docker.image(&apos;dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0&apos;).inside(&apos;--network=picsure -v $DOCKER_CONFIG_DIR/flyway/picsure:/opt/flyway-migrations/picsure &quot;--entrypoint=&quot; &apos;) {
+                sh &quot;rm -rf /opt/flyway-migrations/picsure/sql&quot;
+                sh &quot;cp -R ./$env.MIGRATION_NAME/picsure /opt/flyway-migrations/picsure/sql&quot;
+                sh &quot;/opt/flyway/flyway -X -baselineOnMigrate=true -configFiles=/opt/flyway-migrations/picsure/flyway-picsure.conf -table=flyway_custom_schema_history migrate&quot;
+                sleep(time:10,unit:&quot;SECONDS&quot;) 
+            }
+            docker.image(&apos;dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0&apos;).inside(&apos;--network=picsure -v $DOCKER_CONFIG_DIR/flyway/auth:/opt/flyway-migrations/auth &quot;--entrypoint=&quot; &apos;) {
+                sh &quot;rm -rf /opt/flyway-migrations/auth/sql&quot;
+                sh &quot;cp -R ./$env.MIGRATION_NAME/auth /opt/flyway-migrations/auth/sql&quot;
+                sh &quot;/opt/flyway/flyway -X -baselineOnMigrate=true -configFiles=/opt/flyway-migrations/auth/flyway-auth.conf -table=flyway_custom_schema_history migrate&quot;
+                sleep(time:10,unit:&quot;SECONDS&quot;) 
+            }
         }
     }
     stage(&apos;Clean Workspace&apos;){ 

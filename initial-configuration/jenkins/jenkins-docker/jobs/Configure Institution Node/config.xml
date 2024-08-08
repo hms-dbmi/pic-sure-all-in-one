@@ -74,9 +74,89 @@
           <defaultValue>0</defaultValue>
           <trim>true</trim>
         </hudson.model.StringParameterDefinition>
-        
-        
-        
+        <hudson.model.BooleanParameterDefinition>
+          <name>OPEN</name>
+          <description>PIC-SURE can be used without forcing the user log in. Unauthorized users will have a limited feature set.  See more information on Gitbook: TODO_GITBOOK</description>
+          <defaultValue>true</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>GENOMIC_FILTER</name>
+          <description>Enable the genomic filtering UI which guides users creating genomic queries. Enable if HPDS has been loaded with Genomic data. </description>
+          <defaultValue>true</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>API</name>
+          <description>Shows the user information on how to use the API and allows them to access their LONG_TERM_TOKEN.</description>
+          <defaultValue>true</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>ALLOW_EXPORT</name>
+          <description>This enables the prepare for analysis button which guides the user through your export process. There are a few different settings below to control how the user may receive their data in the end.</description>
+          <defaultValue>true</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>DOWNLOAD_AS_CSV</name>
+          <description>Allows the user to download their data at the end of the export process as a CSV file.</description>
+          <defaultValue>true</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>SHOW_VARIABLE_EXPORT</name>
+          <description>Allow adding export variables via the search results UI.</description>
+          <defaultValue>true</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>SHOW_VARIABLE_HIERARCHY</name>
+          <description>Shows the hierarchy button for each search result and enables the hierarchy screen in the export process.</description>
+          <defaultValue>true</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>DOWNLOAD_AS_PFB</name>
+          <description>Allows the user to download their data at the end of the export process as a PFB file.</description>
+          <defaultValue>false</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>DATA_REQUESTS</name>
+          <description>Enables data request functionality.</description>
+          <defaultValue>false</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>VARIANT_EXPLORER</name>
+          <description>Enable the variant explorer. Only enable if HPDS has been loaded with Genomic data. </description>
+          <defaultValue>true</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.ChoiceParameterDefinition>
+          <name>VARIANT_EXPLORER_TYPE</name>
+          <description>Aggregate is recommended.</description>
+          <choices class="java.util.Arrays$ArrayList">
+            <a class="string-array">
+              <string>aggregate</string>
+              <string>full</string>
+            </a>
+          </choices>
+        </hudson.model.ChoiceParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>EXPLORER_MAX_COUNT</name>
+          <description>Max amount of data point for the variant explorer.</description>
+          <defaultValue>10000</defaultValue>
+          <trim>true</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>VARIANT_EXPLORER_EXCLUDE_COLUMNS</name>
+          <description>Advanced: An array of columns to exclude in the variant explorer. 
+The value must be in an array format, for example: [&quot;AN&quot;]  </description>
+          <trim>true</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>TOUR</name>
+          <description>Enable the tour feature which guides the user through the application.</description>
+          <defaultValue>true</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>TOUR_SEARCH_TERM</name>
+          <description>The tour preforms a search. You can specify the search term here.</description>
+          <defaultValue>age</defaultValue>
+          <trim>true</trim>
+        </hudson.model.StringParameterDefinition>
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
   </properties>
@@ -106,7 +186,43 @@ pipeline {
                         sed -i &quot;s|__PROJECT_SPECIFIC_MIGRATION_NAME__|$env.MIGRATION_NAME|g&quot; /var/jenkins_home/config.xml
                     &quot;&quot;&quot;
                     Jenkins.instance.doReload()
-                }
+                },
+                createFrontendEnvFile: {
+                        script {
+                            touch .env
+                            echo &quot;VITE_AUTH0_CLIENT_SECRET=$env.AUTH0_CLIENT_SECRET&quot; &gt;&gt; .env
+                            echo &quot;VITE_AUTH0_TENANT=$env.AUTH0_TENANT&quot; &gt;&gt; .env
+                            echo &quot;VITE_ADMIN_USER_EMAIL=$env.ADMIN_USER_EMAIL&quot; &gt;&gt; .env
+                            echo &quot;VITE_MIGRATION_NAME=$env.MIGRATION_NAME&quot; &gt;&gt; .env
+                            echo &quot;VITE_PROJECT_SPECIFIC_OVERRIDE_REPOSITORY=$env.PROJECT_SPECIFIC_OVERRIDE_REPOSITORY&quot; &gt;&gt; .env
+                            echo &quot;VITE_RELEASE_CONTROL_REPOSITORY=$env.RELEASE_CONTROL_REPOSITORY&quot; &gt;&gt; .env
+                            echo &quot;VITE_OUTBOUND_EMAIL_USER=$env.OUTBOUND_EMAIL_USER&quot; &gt;&gt; .env
+                            echo &quot;VITE_OUTBOUND_EMAIL_USER_PASSWORD=$env.OUTBOUND_EMAIL_USER_PASSWORD&quot; &gt;&gt; .env
+                            echo &quot;VITE_OPEN=$env.OPEN&quot; &gt;&gt; .env
+                            echo &quot;VITE_GENOMIC_FILTER=$env.GENOMIC_FILTER&quot; &gt;&gt; .env
+                            echo &quot;VITE_API=$env.API&quot; &gt;&gt; .env
+                            echo &quot;VITE_ALLOW_EXPORT=$env.ALLOW_EXPORT&quot; &gt;&gt; .env
+                            echo &quot;VITE_DOWNLOAD_AS_CSV=$env.DOWNLOAD_AS_CSV&quot; &gt;&gt; .env
+                            echo &quot;VITE_SHOW_VARIABLE_EXPORT=$env.SHOW_VARIABLE_EXPORT&quot; &gt;&gt; .env
+                            echo &quot;VITE_SHOW_VARIABLE_HIERARCHY=$env.SHOW_VARIABLE_HIERARCHY&quot; &gt;&gt; .env
+                            echo &quot;VITE_DOWNLOAD_AS_PFB=$env.DOWNLOAD_AS_PFB&quot; &gt;&gt; .env
+                            echo &quot;VITE_DATA_REQUESTS=$env.DATA_REQUESTS&quot; &gt;&gt; .env
+                            echo &quot;VITE_VARIANT_EXPLORER=$env.VARIANT_EXPLORER&quot; &gt;&gt; .env
+                            echo &quot;VITE_VARIANT_EXPLORER_TYPE=$env.VARIANT_EXPLORER_TYPE&quot; &gt;&gt; .env
+                            echo &quot;VITE_EXPLORER_MAX_COUNT=$env.EXPLORER_MAX_COUNT&quot; &gt;&gt; .env
+                            echo &quot;VITE_VARIANT_EXPLORER_EXCLUDE_COLUMNS=$env.VARIANT_EXPLORER_EXCLUDE_COLUMNS&quot; &gt;&gt; .env
+                            echo &quot;VITE_TOUR=$env.TOUR&quot; &gt;&gt; .env
+                            echo &quot;VITE_TOUR_SEARCH_TERM=$env.TOUR_SEARCH_TERM&quot; &gt;&gt; .env
+                            echo &quot;#Login Provider (You may add as many as you would like):&quot; &gt;&gt; .env
+                            echo &quot;VITE_AUTH_PROVIDER_MODULE_GOOGLE=true&quot; &gt;&gt; .env
+                            echo &quot;VITE_AUTH_PROVIDER_MODULE_GOOGLE_TYPE=AUTH0&quot; &gt;&gt; .env
+                            echo &quot;VITE_AUTH_PROVIDER_MODULE_GOOGLE_CLIENTID=$env.AUTH0_CLIENT_ID&quot; &gt;&gt; .env
+                            echo &quot;VITE_AUTH_PROVIDER_MODULE_GOOGLE_CONNECTION=google-oauth2&quot; &gt;&gt; .env
+                            echo &quot;VITE_AUTH_PROVIDER_MODULE_GOOGLE_DESCRIPTION=&apos;Login&apos;&quot; &gt;&gt; .env
+                            chmod +wr .env
+                            cp .env /usr/local/docker-config/httpd/.env
+                        }
+                    }
             }
         }
         stage(&apos;Initial Config and Build&apos;) { 

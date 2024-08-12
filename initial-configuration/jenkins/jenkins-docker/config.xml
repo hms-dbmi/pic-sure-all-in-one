@@ -139,6 +139,7 @@
         <string>Backup Jenkins Home</string>
         <string>Create PIC-SURE PassThrough Resource</string>
         <string>Create PIC-SURE Aggregate Resource</string>
+        <string>Create PIC-SURE Visualization Build</string>
         <string>Retrieve Build Spec</string>
       </jobNames>
       <jobFilters/>

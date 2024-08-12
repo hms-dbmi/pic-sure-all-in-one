@@ -193,7 +193,6 @@ pipeline {
                             echo &quot;VITE_AUTH0_CLIENT_SECRET=$env.AUTH0_CLIENT_SECRET&quot; &gt;&gt; .env
                             echo &quot;VITE_AUTH0_TENANT=$env.AUTH0_TENANT&quot; &gt;&gt; .env
                             echo &quot;VITE_ADMIN_USER_EMAIL=$env.ADMIN_USER_EMAIL&quot; &gt;&gt; .env
-                            echo &quot;VITE_MIGRATION_NAME=$env.MIGRATION_NAME&quot; &gt;&gt; .env
                             echo &quot;VITE_PROJECT_SPECIFIC_OVERRIDE_REPOSITORY=$env.PROJECT_SPECIFIC_OVERRIDE_REPOSITORY&quot; &gt;&gt; .env
                             echo &quot;VITE_RELEASE_CONTROL_REPOSITORY=$env.RELEASE_CONTROL_REPOSITORY&quot; &gt;&gt; .env
                             echo &quot;VITE_OUTBOUND_EMAIL_USER=$env.OUTBOUND_EMAIL_USER&quot; &gt;&gt; .env

@@ -119,20 +119,20 @@ node {
         }
         } else {
             checkout([$class: &apos;GitSCM&apos;, branches: [[name: psm_ref ]],
-                userRemoteConfigs: [[url: https://github.com/hms-dbmi/PIC-SURE-Migrations]]])
+                userRemoteConfigs: [[url: &apos;https://github.com/hms-dbmi/PIC-SURE-Migrations&apos;]]])
             sh &quot;&quot;&quot;
-                sed -i &quot;s/__APPLICATION_UUID__/`cat /usr/local/docker-config/APP_ID_HEX`/g&quot; ./$env.MIGRATION_NAME/auth/*.sql
-                sed -i &quot;s/__RESOURCE_UUID__/`cat /usr/local/docker-config/RESOURCE_ID_HEX`/g&quot; ./$env.MIGRATION_NAME/picsure/*.sql
+                sed -i &quot;s/__APPLICATION_UUID__/`cat /usr/local/docker-config/APP_ID_HEX`/g&quot; ./${MIGRATION_NAME}/auth/*.sql
+                sed -i &quot;s/__RESOURCE_UUID__/`cat /usr/local/docker-config/RESOURCE_ID_HEX`/g&quot; ./${MIGRATION_NAME}/picsure/*.sql
             &quot;&quot;&quot;
             docker.image(&apos;dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0&apos;).inside(&apos;--network=picsure -v $DOCKER_CONFIG_DIR/flyway/picsure:/opt/flyway-migrations/picsure &quot;--entrypoint=&quot; &apos;) {
                 sh &quot;rm -rf /opt/flyway-migrations/picsure/sql&quot;
-                sh &quot;cp -R ./$env.MIGRATION_NAME/picsure /opt/flyway-migrations/picsure/sql&quot;
+                sh &quot;cp -R ./${MIGRATION_NAME}/picsure /opt/flyway-migrations/picsure/sql&quot;
                 sh &quot;/opt/flyway/flyway -X -baselineOnMigrate=true -configFiles=/opt/flyway-migrations/picsure/flyway-picsure.conf -table=flyway_custom_schema_history migrate&quot;
                 sleep(time:10,unit:&quot;SECONDS&quot;) 
             }
             docker.image(&apos;dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0&apos;).inside(&apos;--network=picsure -v $DOCKER_CONFIG_DIR/flyway/auth:/opt/flyway-migrations/auth &quot;--entrypoint=&quot; &apos;) {
                 sh &quot;rm -rf /opt/flyway-migrations/auth/sql&quot;
-                sh &quot;cp -R ./$env.MIGRATION_NAME/auth /opt/flyway-migrations/auth/sql&quot;
+                sh &quot;cp -R ./${MIGRATION_NAME}/auth /opt/flyway-migrations/auth/sql&quot;
                 sh &quot;/opt/flyway/flyway -X -baselineOnMigrate=true -configFiles=/opt/flyway-migrations/auth/flyway-auth.conf -table=flyway_custom_schema_history migrate&quot;
                 sleep(time:10,unit:&quot;SECONDS&quot;) 
             }

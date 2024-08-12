@@ -12,11 +12,6 @@ if [ -f "$DOCKER_CONFIG_DIR/setProxy.sh" ]; then
    . $DOCKER_CONFIG_DIR/setProxy.sh
 fi
 
-if ! docker network inspect selenium > /dev/null 2>&1; then
-  docker network create selenium
-fi
-
-
 if [ -z "$(grep queryExportType $DOCKER_CONFIG_DIR/httpd/picsureui_settings.json | grep DISABLED)" ]; then
 	export EXPORT_SIZE="2000";
 else
@@ -68,7 +63,6 @@ docker run --name=httpd --restart always --network=picsure \
   -p 80:80 \
   -p 443:443 \
   -d hms-dbmi/pic-sure-ui-overrides:LATEST
-docker network connect selenium httpd
 docker exec httpd sed -i '/^#LoadModule proxy_wstunnel_module/s/^#//' conf/httpd.conf
 docker restart httpd
 

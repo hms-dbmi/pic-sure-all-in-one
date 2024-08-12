@@ -165,6 +165,7 @@
         <string>Build Dictionary API</string>
         <string>Deploy Dictionary API</string>
         <string>Upload Dictionary .env File</string>
+        <string>Edit Dictionary .env</string>
       </jobNames>
       <jobFilters/>
       <columns>

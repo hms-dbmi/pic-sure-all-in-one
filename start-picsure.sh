@@ -88,6 +88,7 @@ docker run --name=wildfly --restart always --network=picsure -u root \
   -v /var/log/wildfly-docker-os-logs/:/var/log/ \
   -v $DOCKER_CONFIG_DIR/wildfly/passthru/:/opt/jboss/wildfly/standalone/configuration/passthru/ \
   -v $DOCKER_CONFIG_DIR/wildfly/aggregate-data-sharing/:/opt/jboss/wildfly/standalone/configuration/aggregate-data-sharing/ \
+  -v $DOCKER_CONFIG_DIR/wildfly/visualization/:/opt/jboss/wildfly/standalone/configuration/visualization/ \
   -v $DOCKER_CONFIG_DIR/wildfly/deployments/:/opt/jboss/wildfly/standalone/deployments/ \
   -v $DOCKER_CONFIG_DIR/wildfly/standalone.xml:/opt/jboss/wildfly/standalone/configuration/standalone.xml \
   $TRUSTSTORE_VOLUME \

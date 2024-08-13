@@ -39,7 +39,7 @@
           <trim>true</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
-          <name>MIGRATION_NAME</name>
+          <name>PROJECT_MIGRATION_NAME</name>
           <description>Name of the migration to run, see https://github.com/hms-dbmi/PIC-SURE-Migrations or fork it and add your migration</description>
           <defaultValue>GIC-Institution</defaultValue>
           <trim>true</trim>
@@ -177,129 +177,131 @@ pipeline {
                     Jenkins.instance.doReload()
                 }
             }
-        }
-        stage(&apos;Initial Config and Build&apos;) { 
-            steps {
-                parallel (
-                    dbMigrate: {
-                        script {
-                            def result = build job: &apos;PIC-SURE Database Migrations&apos;
-                        }
-                    },
-                    picsureBuild: {
-                        script {
-                            def result = build job: &apos;PIC-SURE Pipeline&apos;
-                        }
-                    },
-                    auth0Config: {
-                        script {
-                            def result = build job: &apos;Configure Auth0 Integration&apos;, parameters: [
-                                [$class: &apos;StringParameterValue&apos;, name: &apos;AUTH0_CLIENT_ID&apos;, value:env.AUTH0_CLIENT_ID],
-                                [$class: &apos;StringParameterValue&apos;, name: &apos;AUTH0_CLIENT_SECRET&apos;, value: env.AUTH0_CLIENT_SECRET]]
-                        }
-                    },
-                    addRootCerts: {
-                        script {
-                            def result = build job: &apos;Create Root Certs in TrustStore&apos;
-                        }
-                    },
-                    createFrontendEnvFile: {
-                        script {
-                            touch .env
-                            echo &quot;VITE_AUTH0_CLIENT_SECRET=$env.AUTH0_CLIENT_SECRET&quot; &gt;&gt; .env
-                            echo &quot;VITE_AUTH0_TENANT=$env.AUTH0_TENANT&quot; &gt;&gt; .env
-                            echo &quot;VITE_ADMIN_USER_EMAIL=$env.ADMIN_USER_EMAIL&quot; &gt;&gt; .env
-                            echo &quot;VITE_PROJECT_SPECIFIC_OVERRIDE_REPOSITORY=$env.PROJECT_SPECIFIC_OVERRIDE_REPOSITORY&quot; &gt;&gt; .env
-                            echo &quot;VITE_RELEASE_CONTROL_REPOSITORY=$env.RELEASE_CONTROL_REPOSITORY&quot; &gt;&gt; .env
-                            echo &quot;VITE_OUTBOUND_EMAIL_USER=$env.OUTBOUND_EMAIL_USER&quot; &gt;&gt; .env
-                            echo &quot;VITE_OUTBOUND_EMAIL_USER_PASSWORD=$env.OUTBOUND_EMAIL_USER_PASSWORD&quot; &gt;&gt; .env
-                            echo &quot;VITE_OPEN=$env.OPEN&quot; &gt;&gt; .env
-                            echo &quot;VITE_GENOMIC_FILTER=$env.GENOMIC_FILTER&quot; &gt;&gt; .env
-                            echo &quot;VITE_API=$env.API&quot; &gt;&gt; .env
-                            echo &quot;VITE_ALLOW_EXPORT=$env.ALLOW_EXPORT&quot; &gt;&gt; .env
-                            echo &quot;VITE_DOWNLOAD_AS_CSV=$env.DOWNLOAD_AS_CSV&quot; &gt;&gt; .env
-                            echo &quot;VITE_SHOW_VARIABLE_EXPORT=$env.SHOW_VARIABLE_EXPORT&quot; &gt;&gt; .env
-                            echo &quot;VITE_SHOW_VARIABLE_HIERARCHY=$env.SHOW_VARIABLE_HIERARCHY&quot; &gt;&gt; .env
-                            echo &quot;VITE_DOWNLOAD_AS_PFB=$env.DOWNLOAD_AS_PFB&quot; &gt;&gt; .env
-                            echo &quot;VITE_DATA_REQUESTS=$env.DATA_REQUESTS&quot; &gt;&gt; .env
-                            echo &quot;VITE_VARIANT_EXPLORER=$env.VARIANT_EXPLORER&quot; &gt;&gt; .env
-                            echo &quot;VITE_VARIANT_EXPLORER_TYPE=$env.VARIANT_EXPLORER_TYPE&quot; &gt;&gt; .env
-                            echo &quot;VITE_EXPLORER_MAX_COUNT=$env.EXPLORER_MAX_COUNT&quot; &gt;&gt; .env
-                            echo &quot;VITE_VARIANT_EXPLORER_EXCLUDE_COLUMNS=$env.VARIANT_EXPLORER_EXCLUDE_COLUMNS&quot; &gt;&gt; .env
-                            echo &quot;VITE_TOUR=$env.TOUR&quot; &gt;&gt; .env
-                            echo &quot;VITE_TOUR_SEARCH_TERM=$env.TOUR_SEARCH_TERM&quot; &gt;&gt; .env
-                            echo &quot;#Login Provider (You may add as many as you would like):&quot; &gt;&gt; .env
-                            echo &quot;VITE_AUTH_PROVIDER_MODULE_GOOGLE=true&quot; &gt;&gt; .env
-                            echo &quot;VITE_AUTH_PROVIDER_MODULE_GOOGLE_TYPE=AUTH0&quot; &gt;&gt; .env
-                            echo &quot;VITE_AUTH_PROVIDER_MODULE_GOOGLE_CLIENTID=$env.AUTH0_CLIENT_ID&quot; &gt;&gt; .env
-                            echo &quot;VITE_AUTH_PROVIDER_MODULE_GOOGLE_CONNECTION=google-oauth2&quot; &gt;&gt; .env
-                            echo &quot;VITE_AUTH_PROVIDER_MODULE_GOOGLE_DESCRIPTION=&apos;Login&apos;&quot; &gt;&gt; .env
-                            chmod +wr .env
-                            cp .env /usr/local/docker-config/httpd/.env
-                        }
-                    },
-		    emailConfig: {
-                        script {
-                            def result = build job: &apos;Configure Outbound Email Settings&apos;, parameters: [
-                                [$class: &apos;StringParameterValue&apos;, name: &apos;OUTBOUND_EMAIL_USER&apos;, value:env.OUTBOUND_EMAIL_USER],
-                                [$class: &apos;StringParameterValue&apos;, name: &apos;EMAIL_FROM&apos;, value: env.OUTBOUND_EMAIL_USER],
-                                [$class: &apos;StringParameterValue&apos;, name: &apos;OUTBOUND_EMAIL_USER_PASSWORD&apos;, value: env.OUTBOUND_EMAIL_USER_PASSWORD]]
+            stage(&apos;Initial Config and Build&apos;) { 
+                steps {
+                    parallel (
+                        dbMigrate: {
+                            script {
+                                def result = build job: &apos;PIC-SURE Database Migrations&apos;
+                            }
+                        },
+                        picsureBuild: {
+                            script {
+                                def result = build job: &apos;PIC-SURE Pipeline&apos;
+                            }
+                        },
+                        auth0Config: {
+                            script {
+                                def result = build job: &apos;Configure Auth0 Integration&apos;, parameters: [
+                                    [$class: &apos;StringParameterValue&apos;, name: &apos;AUTH0_CLIENT_ID&apos;, value:env.AUTH0_CLIENT_ID],
+                                    [$class: &apos;StringParameterValue&apos;, name: &apos;AUTH0_CLIENT_SECRET&apos;, value: env.AUTH0_CLIENT_SECRET]]
+                            }
+                        },
+                        addRootCerts: {
+                            script {
+                                catchError(buildResult: &apos;SUCCESS&apos;, stageResult: &apos;UNSTABLE&apos;) {
+                                    def result = build job: &apos;Create Root Certs in TrustStore&apos;
+                                }
+                            }
+                        },
+                        createFrontendEnvFile: {
+                            script {
+                                sh &quot;touch .env&quot;
+                                sh &quot;chmod +wr .env&quot;
+                                sh &quot;echo &apos;VITE_AUTH0_CLIENT_SECRET=$env.AUTH0_CLIENT_SECRET&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_AUTH0_TENANT=$env.AUTH0_TENANT&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_ADMIN_USER_EMAIL=$env.ADMIN_USER_EMAIL&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_MIGRATION_NAME=$env.MIGRATION_NAME&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_PROJECT_SPECIFIC_OVERRIDE_REPOSITORY=$env.PROJECT_SPECIFIC_OVERRIDE_REPOSITORY&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_RELEASE_CONTROL_REPOSITORY=$env.RELEASE_CONTROL_REPOSITORY&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_OUTBOUND_EMAIL_USER=$env.OUTBOUND_EMAIL_USER&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_OUTBOUND_EMAIL_USER_PASSWORD=$env.OUTBOUND_EMAIL_USER_PASSWORD&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_OPEN=$env.OPEN&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_GENOMIC_FILTER=$env.GENOMIC_FILTER&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_API=$env.API&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_ALLOW_EXPORT=$env.ALLOW_EXPORT&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_DOWNLOAD_AS_CSV=$env.DOWNLOAD_AS_CSV&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_SHOW_VARIABLE_EXPORT=$env.SHOW_VARIABLE_EXPORT&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_SHOW_VARIABLE_HIERARCHY=$env.SHOW_VARIABLE_HIERARCHY&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_DOWNLOAD_AS_PFB=$env.DOWNLOAD_AS_PFB&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_DATA_REQUESTS=$env.DATA_REQUESTS&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_VARIANT_EXPLORER=$env.VARIANT_EXPLORER&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_VARIANT_EXPLORER_TYPE=$env.VARIANT_EXPLORER_TYPE&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_EXPLORER_MAX_COUNT=$env.EXPLORER_MAX_COUNT&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_VARIANT_EXPLORER_EXCLUDE_COLUMNS=$env.VARIANT_EXPLORER_EXCLUDE_COLUMNS&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_TOUR=$env.TOUR&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_TOUR_SEARCH_TERM=$env.TOUR_SEARCH_TERM&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;#Login Provider (You may add as many as you would like):&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_AUTH_PROVIDER_MODULE_GOOGLE=true&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_AUTH_PROVIDER_MODULE_GOOGLE_TYPE=AUTH0&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_AUTH_PROVIDER_MODULE_GOOGLE_CLIENTID=$env.AUTH0_CLIENT_ID&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_AUTH_PROVIDER_MODULE_GOOGLE_CONNECTION=google-oauth2&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_AUTH_PROVIDER_MODULE_GOOGLE_DESCRIPTION=&amp;apos;Login&amp;apos;&apos; &gt;&gt; .env&quot;
+                                sh &quot;cp .env &apos;/usr/local/docker-config/httpd/.env&apos;&quot;
+                            }
+                        },
+                emailConfig: {
+                            script {
+                                def result = build job: &apos;Configure Outbound Email Settings&apos;, parameters: [
+                                    [$class: &apos;StringParameterValue&apos;, name: &apos;OUTBOUND_EMAIL_USER&apos;, value:env.OUTBOUND_EMAIL_USER],
+                                    [$class: &apos;StringParameterValue&apos;, name: &apos;EMAIL_FROM&apos;, value: env.OUTBOUND_EMAIL_USER],
+                                    [$class: &apos;StringParameterValue&apos;, name: &apos;OUTBOUND_EMAIL_USER_PASSWORD&apos;, value: env.OUTBOUND_EMAIL_USER_PASSWORD]]
 
+                            }
                         }
-                    }
-                )
-            }
-        }
-        stage(&apos;Post Migration Configs&apos;) { 
-            steps {
-                parallel (
-                    adminConfig: {
-                        script {
-                            def result = build job: &apos;Create Admin User&apos;, parameters: [
-                                [$class: &apos;StringParameterValue&apos;, name: &apos;EMAIL&apos;, value:env.ADMIN_USER_EMAIL],
-                                [$class: &apos;StringParameterValue&apos;, name: &apos;CONNECTION_LABEL&apos;, value: &quot;Google&quot;]]
-                        }
-                    },
-                    tokenIntroToken: {
-                        script {
-                            def result = build job: &apos;Configure PIC-SURE Token Introspection Token&apos;
-                        }
-                    },
-                    encryptionKey: {
-                        script {
-                            def result = build job: &apos;Create HPDS Encryption Key&apos;
-                        }
-                    }
-                )
-            }
-        }
-        stage(&apos;Load Demo Data and Deploy&apos;) { 
-            steps {
- 		script {
-                    def result = build job: &apos;Retrieve Build Spec&apos;
-                    retrieveBuildSpecId = result.number
-                }
-		script {
-                    copyArtifacts filter: &apos;*&apos;, projectName: &apos;Retrieve Build Spec&apos;, selector: specific(&quot;&quot;+retrieveBuildSpecId)
-                    sh &apos;cat build-spec.json&apos;
-                    sh &apos;cat pipeline_git_commit.txt&apos;
-                    sh &apos;pwd&apos;
-                    def buildSpec = new JsonSlurper().parse(new File(&apos;/var/jenkins_home/workspace/PIC-SURE Pipeline/build-spec.json&apos;))
-                    pipelineBuildId = new File(&apos;/var/jenkins_home/workspace/PIC-SURE Pipeline/pipeline_git_commit.txt&apos;).text.trim()
-                    for(def build : buildSpec.application){
-                        build_hashes[build.project_job_git_key] = build.git_hash
-                    }
-                }
-                script {
-                    def result = build job: &apos;Load HPDS Data From CSV&apos;
-                }
-                script {
-                    def result = build job: &apos;Start PIC-SURE&apos;, parameters: [[$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],[$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSU&apos;]]]
+                    )
                 }
             }
+            stage(&apos;Post Migration Configs&apos;) { 
+                steps {
+                    parallel (
+                        adminConfig: {
+                            script {
+                                def result = build job: &apos;Create Admin User&apos;, parameters: [
+                                    [$class: &apos;StringParameterValue&apos;, name: &apos;EMAIL&apos;, value:env.ADMIN_USER_EMAIL],
+                                    [$class: &apos;StringParameterValue&apos;, name: &apos;CONNECTION_LABEL&apos;, value: &quot;Google&quot;]]
+                            }
+                        },
+                        tokenIntroToken: {
+                            script {
+                                def result = build job: &apos;Configure PIC-SURE Token Introspection Token&apos;
+                            }
+                        },
+                        encryptionKey: {
+                            script {
+                                def result = build job: &apos;Create HPDS Encryption Key&apos;
+                            }
+                        }
+                    )
+                }
+            }
+            stage(&apos;Load Demo Data and Deploy&apos;) { 
+                steps {
+            script {
+                        def result = build job: &apos;Retrieve Build Spec&apos;
+                        retrieveBuildSpecId = result.number
+                    }
+            script {
+                        copyArtifacts filter: &apos;*&apos;, projectName: &apos;Retrieve Build Spec&apos;, selector: specific(&quot;&quot;+retrieveBuildSpecId)
+                        sh &apos;cat build-spec.json&apos;
+                        sh &apos;cat pipeline_git_commit.txt&apos;
+                        sh &apos;pwd&apos;
+                        def buildSpec = new JsonSlurper().parse(new File(&apos;/var/jenkins_home/workspace/PIC-SURE Pipeline/build-spec.json&apos;))
+                        pipelineBuildId = new File(&apos;/var/jenkins_home/workspace/PIC-SURE Pipeline/pipeline_git_commit.txt&apos;).text.trim()
+                        for(def build : buildSpec.application){
+                            build_hashes[build.project_job_git_key] = build.git_hash
+                        }
+                    }
+                    script {
+                        def result = build job: &apos;Load HPDS Data From CSV&apos;
+                    }
+                    script {
+                        def result = build job: &apos;Start PIC-SURE&apos;, parameters: [[$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId]]
+                    }
+                }
+            }
         }
-    }
-}</script>
+    }</script>
     <sandbox>true</sandbox>
   </definition>
   <triggers/>

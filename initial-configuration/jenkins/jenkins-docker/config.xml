@@ -166,6 +166,7 @@
         <string>Deploy Dictionary API</string>
         <string>Upload Dictionary .env File</string>
         <string>Edit Dictionary .env</string>
+        <string>Weight Dictionary Search Fields</string>
       </jobNames>
       <jobFilters/>
       <columns>

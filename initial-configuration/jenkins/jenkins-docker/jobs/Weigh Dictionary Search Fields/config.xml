@@ -1,0 +1,59 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description></description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.FileParameterDefinition>
+          <name>weights.csv</name>
+          <description>EXAMPLE:
+concept_node.DISPLAY,3
+concept_node.CONCEPT_PATH,2
+dataset.FULL_NAME,1
+dataset.DESCRIPTION,1
+concept_node_meta_str,1</description>
+        </hudson.model.FileParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@5.2.2">
+    <configVersion>2</configVersion>
+    <userRemoteConfigs>
+      <hudson.plugins.git.UserRemoteConfig>
+        <url>https://github.com/hms-dbmi/picsure-dictionary/</url>
+      </hudson.plugins.git.UserRemoteConfig>
+    </userRemoteConfigs>
+    <branches>
+      <hudson.plugins.git.BranchSpec>
+        <name>*/weights</name>
+      </hudson.plugins.git.BranchSpec>
+    </branches>
+    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+    <submoduleCfg class="empty-list"/>
+    <extensions/>
+  </scm>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command># These are bash commands, so use the internal location of the config volume
+mkdir -p /usr/local/docker-config/dictionary-weights/
+cp /usr/local/docker-config/dictionary/.env /usr/local/docker-config/dictionary-weights/
+cp weights.csv /usr/local/docker-config/dictionary-weights/weights.csv
+
+cd dictionaryweights
+# These are docker commands, so now we use the external location of the config volume
+docker build . -t dictionary-weights
+docker run --rm --env-file=/usr/local/docker-config/dictionary-weights/.env --network dictionary_dictionary -v $DOCKER_CONFIG_DIR/dictionary-weights/weights.csv:/weights.csv dictionary-weights</command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

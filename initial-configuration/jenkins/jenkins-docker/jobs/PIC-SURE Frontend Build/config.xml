@@ -8,20 +8,18 @@
       <parameterDefinitions>
         <hudson.model.StringParameterDefinition>
           <name>pipeline_build_id</name>
-          <description></description>
           <defaultValue>MANUAL_RUN</defaultValue>
           <trim>true</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>git_hash</name>
-          <description></description>
           <defaultValue>*/main</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
   </properties>
-  <scm class="hudson.plugins.git.GitSCM" plugin="git@4.0.0">
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@5.2.2">
     <configVersion>2</configVersion>
     <userRemoteConfigs>
       <hudson.plugins.git.UserRemoteConfig>
@@ -34,7 +32,7 @@
       </hudson.plugins.git.BranchSpec>
     </branches>
     <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
-    <submoduleCfg class="list"/>
+    <submoduleCfg class="empty-list"/>
     <extensions/>
   </scm>
   <canRoam>true</canRoam>
@@ -44,14 +42,6 @@
   <triggers/>
   <concurrentBuild>false</concurrentBuild>
   <builders>
-    <hudson.tasks.Maven>
-      <targets>clean install -DskipTests</targets>
-      <mavenName>Maven Home</mavenName>
-      <usePrivateRepository>false</usePrivateRepository>
-      <settings class="jenkins.mvn.DefaultSettingsProvider"/>
-      <globalSettings class="jenkins.mvn.DefaultGlobalSettingsProvider"/>
-      <injectBuildVariables>false</injectBuildVariables>
-    </hudson.tasks.Maven>
     <hudson.tasks.Shell>
       <command>
 if [ -f &quot;/usr/local/docker-config/setProxy.sh&quot; ]; then
@@ -71,6 +61,7 @@ docker build --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_pr
 docker tag hms-dbmi/pic-sure-frontend:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} hms-dbmi/pic-sure-frontend:LATEST
 
 </command>
+      <configuredLocalRules/>
     </hudson.tasks.Shell>
   </builders>
   <publishers/>

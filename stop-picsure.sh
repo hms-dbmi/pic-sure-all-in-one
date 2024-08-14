@@ -4,6 +4,6 @@ docker stop httpd && docker rm httpd
 docker stop wildfly && docker rm wildfly
 docker stop psama && docker rm psama
 
-if test -d $DOCKER_CONFIG_DIR/dictionary then
+if [ -d $DOCKER_CONFIG_DIR/dictionary ]; then
   docker compose -f $DOCKER_CONFIG_DIR/dictionary/docker-compose.yml --env-file $DOCKER_CONFIG_DIR/dictionary/.env down
 fi

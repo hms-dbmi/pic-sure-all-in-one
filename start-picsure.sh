@@ -92,6 +92,6 @@ docker run --name=wildfly --restart always --network=picsure -u root \
   -e JAVA_OPTS="$WILDFLY_JAVA_OPTS $TRUSTSTORE_JAVA_OPTS" \
   -d hms-dbmi/pic-sure-wildfly:LATEST
 
-if test -d $DOCKER_CONFIG_DIR/dictionary then
+if [ -d $DOCKER_CONFIG_DIR/dictionary ]; then
   docker compose -f $DOCKER_CONFIG_DIR/dictionary/docker-compose.yml --env-file $DOCKER_CONFIG_DIR/dictionary/.env up -d
 fi

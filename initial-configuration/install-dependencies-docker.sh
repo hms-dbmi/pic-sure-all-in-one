@@ -89,7 +89,7 @@ if [ -n "$(command -v apt-get)" ] && [ -z "$(command -v docker)" ]; then
 fi
 
 if [[ "$OSTYPE" =~ ^darwin ]]; then
-    echo "Darwin detected. Assuming macOS. Install commands will use brew." 
+    echo "Darwin detected. Assuming macOS. Install commands will use brew."
     #check for brew
     if [ -z "$(command -v brew)" ]; then
       echo "Brew not detected. Please install brew and rerun this script."
@@ -111,7 +111,7 @@ fi
 if [ -n "$(command -v apk)" ]; then
   echo "apk detected. Assuming alpine. Install commands will use apk"
   apk update && apk add --no-cache wget
-fi 
+fi
 
 if [ -z "$(command -v docker)" ]; then
   echo "You dont have docker installed and we cant detect a supported package manager."
@@ -171,10 +171,12 @@ export APP_ID=`uuidgen | tr '[:upper:]' '[:lower:]'`
 export APP_ID_HEX=`echo $APP_ID | awk '{ print toupper($0) }'|sed 's/-//g'`
 sed_inplace "s/__STACK_SPECIFIC_APPLICATION_ID__/$APP_ID/g" $DOCKER_CONFIG_DIR/httpd/picsureui_settings.json
 sed_inplace "s/__STACK_SPECIFIC_APPLICATION_ID__/$APP_ID/g" $DOCKER_CONFIG_DIR/wildfly/standalone.xml
+sed_inplace "s/__STACK_SPECIFIC_APPLICATION_ID__/$APP_ID/g" $DOCKER_CONFIG_DIR/psama/.env
 
 export RESOURCE_ID=`uuidgen | tr '[:upper:]' '[:lower:]'`
 export RESOURCE_ID_HEX=`echo $RESOURCE_ID | awk '{ print toupper($0) }'|sed 's/-//g'`
 sed_inplace "s/__STACK_SPECIFIC_RESOURCE_UUID__/$RESOURCE_ID/g" $DOCKER_CONFIG_DIR/httpd/picsureui_settings.json
+
 
 echo $APP_ID > $DOCKER_CONFIG_DIR/APP_ID_RAW
 echo $APP_ID_HEX > $DOCKER_CONFIG_DIR/APP_ID_HEX

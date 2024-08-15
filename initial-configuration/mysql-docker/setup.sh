@@ -18,6 +18,7 @@ if [ -z "$(docker ps --format '{{.Names}}' | grep picsure-db)" ]; then
   echo "PICSURE_DB_PASS=`cat pass.tmp`" >> mysql-docker/.env
   echo "PICSURE_DB_DATABASE=ignore" >> mysql-docker/.env
   echo "PICSURE_DB_USER=ignore" >> mysql-docker/.env
+  echo "DOCKER_CONFIG_DIR=$DOCKER_CONFIG_DIR" >> mysql-docker/.env
 
   echo "Configuring .my.cnf"
   # shellcheck disable=SC2129

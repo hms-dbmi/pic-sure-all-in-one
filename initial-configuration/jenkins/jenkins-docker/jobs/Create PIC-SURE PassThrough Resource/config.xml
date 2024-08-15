@@ -102,7 +102,7 @@ RESOURCE_ID_HEX=`echo $RESOURCE_ID | awk &apos;{ print toupper($0) }&apos;|sed &
 export SQL=&quot;INSERT INTO resource (uuid, targetURL, resourceRSPath, description, name, token) \
  VALUES (unhex(&apos;$RESOURCE_ID_HEX&apos;), NULL, &apos;http://wildfly:8080/$RESOURCE_PATH/pic-sure/passthru/&apos;, &apos;$RESOURCE_DESC&apos;, &apos;$RESOURCE_NAME&apos;, NULL);&quot;
 
-docker run -i -v /root/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e &quot;$SQL&quot; picsure</command>
+docker run -i -v $DOCKER_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e &quot;$SQL&quot; picsure</command>
     </hudson.tasks.Shell>
   </builders>
   <publishers/>

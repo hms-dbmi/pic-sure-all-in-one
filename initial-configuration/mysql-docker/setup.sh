@@ -9,10 +9,12 @@ if [ -z "$(docker ps --format '{{.Names}}' | grep picsure-db)" ]; then
   echo "Cleaning up old configs"
   rm -r "${DOCKER_CONFIG_DIR:?}"/*
   cp -r config/* "$DOCKER_CONFIG_DIR"/
+  rm -f "$MYSQL_CONFIG_DIR"/.my.cnf
 
   echo "Starting mysql server"
   echo "$( < /dev/urandom tr -dc @^=+$*%_A-Z-a-z-0-9 | head -c${1:-24})" > pass.tmp
   rm -f mysql-docker/.env
+
   # shellcheck disable=SC2129
   echo "PICSURE_DB_ROOT_PASS=`cat pass.tmp`" >> mysql-docker/.env
   echo "PICSURE_DB_PASS=`cat pass.tmp`" >> mysql-docker/.env
@@ -22,11 +24,11 @@ if [ -z "$(docker ps --format '{{.Names}}' | grep picsure-db)" ]; then
 
   echo "Configuring .my.cnf"
   # shellcheck disable=SC2129
-  echo "[mysql]" >> "$HOME"/.my.cnf
-  echo "user=root" >> "$HOME"/.my.cnf
-  echo "password=\"$(cat pass.tmp)\"" >> "$HOME"/.my.cnf
-  echo "host=picsure-db" >> "$HOME"/.my.cnf
-  echo "port=3306" >> "$HOME"/.my.cnf
+  echo "[mysql]" >> "$MYSQL_CONFIG_DIR"/.my.cnf
+  echo "user=root" >> "$MYSQL_CONFIG_DIR"/.my.cnf
+  echo "password=\"$(cat pass.tmp)\"" >> "$MYSQL_CONFIG_DIR"/.my.cnf
+  echo "host=picsure-db" >> "$MYSQL_CONFIG_DIR"/.my.cnf
+  echo "port=3306" >> "$MYSQL_CONFIG_DIR"/.my.cnf
 
   cd mysql-docker
   docker compose up -d

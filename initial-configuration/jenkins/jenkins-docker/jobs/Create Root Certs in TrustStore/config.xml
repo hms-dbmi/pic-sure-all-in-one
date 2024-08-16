@@ -13,6 +13,8 @@
   <builders>
     <hudson.tasks.Shell>
       <command>
+        rm -f /usr/local/docker-config/wildfly/application.truststore
+
         <!--Download certs-->
         curl https://letsencrypt.org/certs/isrgrootx1.der -o isrgrootx1.der
         curl https://letsencrypt.org/certs/lets-encrypt-r3.der -o lets-encrypt-r3.der

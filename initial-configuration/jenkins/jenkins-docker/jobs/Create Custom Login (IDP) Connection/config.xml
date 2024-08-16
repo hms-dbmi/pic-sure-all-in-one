@@ -41,11 +41,11 @@
     <hudson.tasks.Shell>
       <command>CONNECTION_ID=`uuidgen -r`
 CONNECTION_ID_HEX=`echo $CONNECTION_ID | awk &apos;{ print toupper($0) }&apos;|sed &apos;s/-//g&apos;;`
-docker run -i -v $DOCKER_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e \
+docker run -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e \
 &quot;INSERT INTO auth.connection (uuid, label, id, subprefix, requiredFields) VALUES (unhex(&apos;$CONNECTION_ID_HEX&apos;), &apos;$CONNECTION_LABEL&apos;, &apos;$ID&apos;, &apos;$SUBPREFIX&apos;, &apos;$requiredFields&apos;);&quot; auth
 USER_MAPPING_ID=`uuidgen -r`
 USER_MAPPING_ID_HEX=`echo $USER_MAPPING_ID | awk &apos;{ print toupper($0) }&apos;|sed &apos;s/-//g&apos;;`
-docker run -i -v $DOCKER_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e \
+docker run -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e \
 &quot;INSERT INTO auth.userMetadataMapping (uuid, auth0MetadataJsonPath, connectionId, generalMetadataJsonPath) VALUES (unhex(&apos;$USER_MAPPING_ID_HEX&apos;), &apos;\$.email&apos;, unhex(&apos;$CONNECTION_ID_HEX&apos;), &apos;\$.email&apos;);&quot; auth</command>
 
 echo &quot;Please now edit the connections.json file in the httpd container and add your IDP button there. For more instructions see: https://pic-sure.gitbook.io/pic-sure/&quot;

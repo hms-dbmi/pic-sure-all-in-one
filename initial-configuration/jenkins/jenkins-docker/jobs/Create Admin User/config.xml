@@ -32,11 +32,11 @@
     <hudson.tasks.Shell>
       <command>export USER_ID=`uuidgen -r`
 export USER_ID_HEX=`echo $USER_ID | awk &apos;{ print toupper($0) }&apos;|sed &apos;s/-//g&apos;`
-docker run -i -v $DOCKER_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e \
+docker run -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e \
 &quot;INSERT INTO auth.user VALUES (unhex(&apos;$USER_ID_HEX&apos;), null, &apos;{\&quot;email\&quot;:\&quot;$EMAIL\&quot;}&apos;, null, (select uuid from connection where label=&apos;$CONNECTION_LABEL&apos;),&apos;$EMAIL&apos;,0,null,1,null);&quot; auth
-docker run -i -v $DOCKER_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e \
+docker run -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e \
 &quot;INSERT INTO auth.user_role VALUES (unhex(&apos;$USER_ID_HEX&apos;), unhex(&apos;002DC366B0D8420F998F885D0ED797FD&apos;));&quot; auth
-docker run -i -v $DOCKER_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e \
+docker run -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e \
 &quot;INSERT INTO auth.user_role VALUES (unhex(&apos;$USER_ID_HEX&apos;), unhex(&apos;797FD002DC366B0D8420F998F885D0ED&apos;));&quot; auth
 </command>
     </hudson.tasks.Shell>

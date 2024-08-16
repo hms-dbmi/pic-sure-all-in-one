@@ -58,10 +58,10 @@
 
 def retrieveBuildSpecId;
 def pipelineBuildId;
-def build_hashes = {
+def build_hashes = [
     DICTIONARY: false
     UPLOADER: false
-};
+];
 def resourceURL = "https://${SERVERNAME}/picsure/"
  
 pipeline {

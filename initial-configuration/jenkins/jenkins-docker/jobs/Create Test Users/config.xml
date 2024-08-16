@@ -61,7 +61,7 @@ function run_sql_procedure() {
     local connection_id=&quot;$2&quot;
     local role_name=&quot;$3&quot;
 
-    docker run -i -v $DOCKER_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e \
+    docker run -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e \
     &quot;CALL CreateUserWithRole(&apos;$user_email&apos;, &apos;$connection_id&apos;, &apos;$role_name&apos;, &apos;{\&quot;email\&quot;: \&quot;$user_email\&quot;}&apos;);&quot; auth
 }
 
@@ -74,14 +74,14 @@ function update_user_token() {
     grep client_secret /usr/local/docker-config/wildfly/standalone.xml | cut -d &apos;=&apos; -f 3 | sed &apos;s/[\&quot;/\&gt;]//g&apos; &gt; secret.txt
 
     # Get the user subject by email
-    USER_SUBJECT=$(docker run -i -v $DOCKER_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=host mysql mysql -N -e \
+    USER_SUBJECT=$(docker run -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=host mysql mysql -N -e \
     &quot;SELECT subject FROM auth.user where email=&apos;$USERNAME&apos;;&quot;)
 
     # Create a new user token by subject and expiry
     user_token=$(java -jar target/generateJwt.jar secret.txt sub &quot;${USER_SUBJECT}&quot; ${DAYSUNTILEXPIRATION} day | grep -v &quot;Generating&quot;)
 
     # Update user with the new token
-    docker run -i -v $DOCKER_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e \
+    docker run -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e \
     &quot;update auth.user set long_term_token=&apos;$user_token&apos; where email=&apos;$USERNAME&apos;;&quot;
 
     # Return the newly generated user token

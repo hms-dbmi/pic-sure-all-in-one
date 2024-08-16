@@ -96,18 +96,18 @@ AIRFLOW_PASSWORD=`grep &quot;password&quot; /usr/local/docker-config/flyway/auth
 PICSURE_PASSWORD=`sed -n &apos;s/&lt;password&gt;\(.*\)&lt;\/password&gt;/\1/p&apos; picsure.tmp | xargs` 
 AUTH_PASSWORD=`sed -n &apos;s/&lt;password&gt;\(.*\)&lt;\/password&gt;/\1/p&apos; auth.tmp | xargs` 
 
-docker run -i -v $DOCKER_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  &quot;grant all privileges on auth.* to &apos;airflow&apos;@&apos;%&apos; identified by &apos;$AIRFLOW_PASSWORD&apos;;flush privileges;&quot; mysql
-docker run -i -v $DOCKER_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  &quot;grant all privileges on picsure.* to &apos;airflow&apos;@&apos;%&apos; identified by &apos;$AIRFLOW_PASSWORD&apos;;flush privileges;&quot; mysql
-docker run -i -v $DOCKER_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  &quot;grant all privileges on picsure.* to &apos;picsure&apos;@&apos;%&apos; identified by &apos;$PICSURE_PASSWORD&apos;;flush privileges;&quot; mysql
-docker run -i -v $DOCKER_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  &quot;grant all privileges on auth.* to &apos;auth&apos;@&apos;%&apos; identified by &apos;$AUTH_PASSWORD&apos;;flush privileges;&quot; mysql
+docker run -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  &quot;grant all privileges on auth.* to &apos;airflow&apos;@&apos;%&apos; identified by &apos;$AIRFLOW_PASSWORD&apos;;flush privileges;&quot; mysql
+docker run -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  &quot;grant all privileges on picsure.* to &apos;airflow&apos;@&apos;%&apos; identified by &apos;$AIRFLOW_PASSWORD&apos;;flush privileges;&quot; mysql
+docker run -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  &quot;grant all privileges on picsure.* to &apos;picsure&apos;@&apos;%&apos; identified by &apos;$PICSURE_PASSWORD&apos;;flush privileges;&quot; mysql
+docker run -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  &quot;grant all privileges on auth.* to &apos;auth&apos;@&apos;%&apos; identified by &apos;$AUTH_PASSWORD&apos;;flush privileges;&quot; mysql
 
 if [ &quot;$DROP_EXISTING_TABLES&quot; = &quot;TRUE&quot;]; then
-  docker run -i -v $DOCKER_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  &amp;quot;drop database IF EXISTS auth;&amp;quot; mysql
-  docker run -i -v $DOCKER_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  &amp;quot;drop database IF EXISTS picsure;&amp;quot; mysql
+  docker run -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  &amp;quot;drop database IF EXISTS auth;&amp;quot; mysql
+  docker run -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  &amp;quot;drop database IF EXISTS picsure;&amp;quot; mysql
 fi
 
-docker run -i -v $DOCKER_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  &quot;create database auth;&quot; mysql
-docker run -i -v $DOCKER_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  &quot;create database picsure;&quot; mysql
+docker run -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  &quot;create database auth;&quot; mysql
+docker run -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  &quot;create database picsure;&quot; mysql
       </command>
       <configuredLocalRules/>
     </hudson.tasks.Shell>

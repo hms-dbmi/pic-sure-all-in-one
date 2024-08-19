@@ -18,7 +18,7 @@
 def retrieveBuildSpecId;
 def pipelineBuildId;
 def build_hashes = [
-    DICTIONARY: false
+    DICTIONARY: false,
     UPLOADER: false
 ];
 pipeline {

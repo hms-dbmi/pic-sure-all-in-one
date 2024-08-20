@@ -51,7 +51,7 @@ if [ -f &quot;/usr/local/docker-config/setProxy.sh&quot; ]; then
 fi
 
 # Copy global maven settings to be used in container build
-rm -rf .m2 &amp;&amp; mkdir .m2 &amp;&amp; cp -f /usr/local/docker-config/.m2/*.xml .m2/ 2&lt;/dev/null
+mkdir -p .m2 &amp;&amp; cp /usr/local/docker-config/.m2/*.xml .m2/ 2&lt;/dev/null
 
 GIT_BRANCH_SHORT=`echo ${GIT_BRANCH} | cut -d &quot;/&quot; -f 2`
 GIT_COMMIT_SHORT=`echo ${GIT_COMMIT} | cut -c1-7`

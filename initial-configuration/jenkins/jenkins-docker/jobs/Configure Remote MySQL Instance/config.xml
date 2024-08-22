@@ -82,10 +82,8 @@ sed -i &apos;/port/d&apos; ./sql.properties
 sed -i &quot;2iport=$MYSQL_PORT&quot; ./sql.properties
 
 sed -i &apos;s/jdbc:mysql*.*auth/jdbc:mysql:\/\/&apos;$MYSQL_HOST_NAME&apos;:&apos;$MYSQL_PORT&apos;\/auth/g&apos; /usr/local/docker-config/psama/.env
-sed -i &apos;s/jdbc:mysql*.*picsure/jdbc:mysql:\/\/&apos;$MYSQL_HOST_NAME&apos;:&apos;$MYSQL_PORT&apos;\/picsure/g&apos; /usr/local/docker-config/psama/.env
 
 cd /usr/local/docker-config/wildfly
-sed -i &apos;s/jdbc:mysql*.*auth/jdbc:mysql:\/\/&apos;$MYSQL_HOST_NAME&apos;:&apos;$MYSQL_PORT&apos;\/auth/g&apos; /usr/local/docker-config/wildfly/standalone.xml
 sed -i &apos;s/jdbc:mysql*.*picsure/jdbc:mysql:\/\/&apos;$MYSQL_HOST_NAME&apos;:&apos;$MYSQL_PORT&apos;\/picsure/g&apos; /usr/local/docker-config/wildfly/standalone.xml
 
 echo `grep &quot;password&quot; /usr/local/docker-config/flyway/auth/sql.properties | cut -d &quot;=&quot; -f2-` &gt;  airflow.tmp

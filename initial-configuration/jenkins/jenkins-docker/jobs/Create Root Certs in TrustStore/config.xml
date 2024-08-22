@@ -13,6 +13,7 @@
   <builders>
     <hudson.tasks.Shell>
       <command>
+        <!--Remove existing wildfly trust store so it doesn't break-->
         rm -f /usr/local/docker-config/wildfly/application.truststore
 
         <!--Download certs-->
@@ -22,6 +23,15 @@
         <!--Import Certs to trust store-->
         keytool -import -keystore /usr/local/docker-config/wildfly/application.truststore -storepass password -noprompt -trustcacerts -alias letsencryptauthority1 -file isrgrootx1.der -storetype JKS
         keytool -import -keystore /usr/local/docker-config/wildfly/application.truststore -storepass password -noprompt -trustcacerts -alias letsencryptauthority2 -file lets-encrypt-r3.der -storetype JKS
+
+        <!--Remove existing psama trust store so it doesn't break-->
+        rm -rf /usr/local/docker-config/psama/application.truststore
+
+        curl https://letsencrypt.org/certs/isrgrootx1.der -o isrgrootx1.der
+        curl https://letsencrypt.org/certs/lets-encrypt-r3.der -o lets-encrypt-r3.der
+
+        keytool -import -keystore /usr/local/docker-config/psama/application.truststore -storepass password -noprompt -trustcacerts -alias letsencryptauthority1 -file isrgrootx1.der -storetype JKS
+        keytool -import -keystore /usr/local/docker-config/psama/application.truststore -storepass password -noprompt -trustcacerts -alias letsencryptauthority2 -file lets-encrypt-r3.der -storetype JKS
       </command>
     </hudson.tasks.Shell>
   </builders>

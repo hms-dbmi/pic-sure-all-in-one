@@ -210,7 +210,7 @@
           <string>MYSQL_NETWORK</string>
           <string>host</string>
           <string>MYSQL_CONFIG_DIR</string>
-          <string>/root/</string>
+          <string>/usr/local/docker-config/picsure-db/</string>
         </tree-map>
       </envVars>
     </hudson.slaves.EnvironmentVariablesNodeProperty>

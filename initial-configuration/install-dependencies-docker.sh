@@ -46,7 +46,7 @@ function set_docker_config_dir {
 function set_mysql_config_dir() {
   local mysql_config_dir=$1
   if [ -z "$mysql_config_dir" ]; then
-    mysql_config_dir="/root"
+    mysql_config_dir="$DOCKER_CONFIG_DIR/picsure-db/"
   fi
   #Check if mysql_config_dir is a dir and exists
   if [ ! -d "$mysql_config_dir" ]; then

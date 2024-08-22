@@ -17,10 +17,10 @@
 
 def retrieveBuildSpecId;
 def pipelineBuildId;
-def build_hashes = {
-    DICTIONARY: false
+def build_hashes = [
+    DICTIONARY: false,
     UPLOADER: false
-};
+];
 pipeline {
     agent any
     stages {

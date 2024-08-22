@@ -110,7 +110,7 @@ you exact instructions. If you're following the legacy install instructions, you
 `cd pic-sure-all-in-one/initial-configuration`
 Choose one of the following use cases:
 - *Fully dockerized install.* Our current happy path.
-`sudo ./install-dependencies-docker.sh /path/to/desired/config/dir/ && source ~/.bashrc`
+`sudo ./install-dependencies-docker.sh /path/to/desired/config/dir/ /path/to/desired/mysql/cnf/dir && source ~/.bashrc`
 - *Legacy install.* I know what I'm doing. `sudo ./install-dependencies.sh`
 - *Jenkins on https.* This is rare:
 ```shell
@@ -131,6 +131,7 @@ Once you have logged into Jenkins and have set up your admin account, you need t
 system variables:
 
 - `DOCKER_CONFIG_DIR`: `/path/to/config/dir` This is the path you passed to `install-dependencies-docker`
+- `MYSQL_CONFIG_DIR`: `/path/to/mysql/cnf/dir` This is the path you passed to `install-dependencies-docker`
 - `MYSQL_NETWORK`: `picsure` If you plan to switch to a remote database, this needs to be changed back to `host`
 
 6. Run the Initial Configuration Pipeline job.

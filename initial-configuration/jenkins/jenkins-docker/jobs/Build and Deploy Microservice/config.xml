@@ -56,7 +56,7 @@
     <hudson.tasks.Shell>
       <command># Get the resource from the db if it exists
 export SQL=&quot;SELECT LOWER(CONCAT(SUBSTR(HEX(uuid), 1, 8), &apos;-&apos;, SUBSTR(HEX(uuid), 9, 4), &apos;-&apos;, SUBSTR(HEX(uuid), 13, 4), &apos;-&apos;, SUBSTR(HEX(uuid), 17, 4), &apos;-&apos;, SUBSTR(HEX(uuid), 21))) from picsure.resource where name = &apos;$service_name&apos;&quot;;
-export resource_uuid=$(docker run -i -v /root/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -se &quot;$SQL&quot; picsure);
+export resource_uuid=$(docker run -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -se &quot;$SQL&quot; picsure);
 
 # Add the resource to the database if it doesn&apos;t already exist
 if [ -z &quot;$resource_uuid&quot; ]; then
@@ -64,12 +64,12 @@ if [ -z &quot;$resource_uuid&quot; ]; then
     echo &apos;&apos;
 	export SQL=&quot;INSERT IGNORE INTO picsure.resource (uuid, name, resourceRSPath, description) \
 	VALUES (UUID(), &apos;$service_name&apos;, &apos;http://$service_name/&apos;, &apos;$service_description&apos;)&quot;;
-	docker run -i -v /root/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e &quot;$SQL&quot; picsure
+	docker run -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e &quot;$SQL&quot; picsure
 fi
 
 # Get the resource from the db 
 export SQL=&quot;SELECT LOWER(CONCAT(SUBSTR(HEX(uuid), 1, 8), &apos;-&apos;, SUBSTR(HEX(uuid), 9, 4), &apos;-&apos;, SUBSTR(HEX(uuid), 13, 4), &apos;-&apos;, SUBSTR(HEX(uuid), 17, 4), &apos;-&apos;, SUBSTR(HEX(uuid), 21))) from picsure.resource where name = &apos;$service_name&apos;&quot;;
-export resource_uuid=$(docker run -i -v /root/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -se &quot;$SQL&quot; picsure);
+export resource_uuid=$(docker run -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -se &quot;$SQL&quot; picsure);
 echo &apos;&apos;
 echo &quot;Done adding to db. Using $resource_uuid as uuid&quot;; 
 

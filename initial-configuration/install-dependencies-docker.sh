@@ -1,4 +1,3 @@
-
 #!/usr/bin/env bash
 
 sed_inplace() {
@@ -44,7 +43,28 @@ function set_docker_config_dir {
   echo 'alias picsure-db="docker exec -ti picsure-db bash -c '\''mysql -uroot -p\$MYSQL_ROOT_PASSWORD'\''"' >> "$rc_file"
 }
 
+function set_mysql_config_dir() {
+  local mysql_config_dir=$1
+  if [ -z "$mysql_config_dir" ]; then
+    mysql_config_dir="$DOCKER_CONFIG_DIR/picsure-db/"
+  fi
+  #Check if mysql_config_dir is a dir and exists
+  if [ ! -d "$mysql_config_dir" ]; then
+    echo "Creating dir $mysql_config_dir and setting MYSQL_CONFIG_DIR in $rc_file"
+    mkdir -p $mysql_config_dir
+    export MYSQL_CONFIG_DIR=$mysql_config_dir
+    echo "export MYSQL_CONFIG_DIR=$mysql_config_dir" >> "$rc_file"
+  else
+    echo "dir $mysql_config_dir exists, just setting MYSQL_CONFIG_DIR in $rc_file"
+    # If the config dir exists, we still want to clean up old settings for it
+    export MYSQL_CONFIG_DIR=$1
+    grep 'MYSQL_CONFIG_DIR' "$rc_file" && sed_inplace '/MYSQL_CONFIG_DIR/d' "$rc_file"
+    echo "export MYSQL_CONFIG_DIR=$mysql_config_dir" >> "$rc_file"
+  fi
+}
+
 set_docker_config_dir "$1"
+set_mysql_config_dir "$2"
 
 #-------------------------------------------------------------------------------------------------#
 #                                          Docker Install                                         #
@@ -55,7 +75,7 @@ echo "Starting update"
 echo "Installing docker"
 if [ -n "$(command -v yum)" ] && [ -z "$(command -v docker)" ]; then
   echo "Yum detected. Assuming RHEL. Install commands will use yum"
-  set_docker_config_dir $1  "$HOME/.zshrc"
+  set_docker_config_dir $1 "$HOME/.zshrc"
   yum -y update
   # This repo can be removed after we move away from centos 7 I think
   yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
@@ -89,7 +109,7 @@ if [ -n "$(command -v apt-get)" ] && [ -z "$(command -v docker)" ]; then
 fi
 
 if [[ "$OSTYPE" =~ ^darwin ]]; then
-    echo "Darwin detected. Assuming macOS. Install commands will use brew." 
+    echo "Darwin detected. Assuming macOS. Install commands will use brew."
     #check for brew
     if [ -z "$(command -v brew)" ]; then
       echo "Brew not detected. Please install brew and rerun this script."
@@ -111,7 +131,7 @@ fi
 if [ -n "$(command -v apk)" ]; then
   echo "apk detected. Assuming alpine. Install commands will use apk"
   apk update && apk add --no-cache wget
-fi 
+fi
 
 if [ -z "$(command -v docker)" ]; then
   echo "You dont have docker installed and we cant detect a supported package manager."
@@ -171,10 +191,12 @@ export APP_ID=`uuidgen | tr '[:upper:]' '[:lower:]'`
 export APP_ID_HEX=`echo $APP_ID | awk '{ print toupper($0) }'|sed 's/-//g'`
 sed_inplace "s/__STACK_SPECIFIC_APPLICATION_ID__/$APP_ID/g" $DOCKER_CONFIG_DIR/httpd/picsureui_settings.json
 sed_inplace "s/__STACK_SPECIFIC_APPLICATION_ID__/$APP_ID/g" $DOCKER_CONFIG_DIR/wildfly/standalone.xml
+sed_inplace "s/__STACK_SPECIFIC_APPLICATION_ID__/$APP_ID/g" $DOCKER_CONFIG_DIR/psama/.env
 
 export RESOURCE_ID=`uuidgen | tr '[:upper:]' '[:lower:]'`
 export RESOURCE_ID_HEX=`echo $RESOURCE_ID | awk '{ print toupper($0) }'|sed 's/-//g'`
 sed_inplace "s/__STACK_SPECIFIC_RESOURCE_UUID__/$RESOURCE_ID/g" $DOCKER_CONFIG_DIR/httpd/picsureui_settings.json
+
 
 echo $APP_ID > $DOCKER_CONFIG_DIR/APP_ID_RAW
 echo $APP_ID_HEX > $DOCKER_CONFIG_DIR/APP_ID_HEX

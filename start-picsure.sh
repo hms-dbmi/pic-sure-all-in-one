@@ -34,8 +34,18 @@ export PROFILING_OPTS=" -Dcom.sun.management.jmxremote=true -Dcom.sun.management
 if [ -f $DOCKER_CONFIG_DIR/wildfly/application.truststore ]; then
 	export TRUSTSTORE_VOLUME="-v $DOCKER_CONFIG_DIR/wildfly/application.truststore:/opt/jboss/wildfly/standalone/configuration/application.truststore"
   export TRUSTSTORE_JAVA_OPTS="-Djavax.net.ssl.trustStore=/opt/jboss/wildfly/standalone/configuration/application.truststore -Djavax.net.ssl.trustStorePassword=password"
+else
+  echo "wildfly truststore not found"
+  exit 2
 fi
 
+if [ -f $DOCKER_CONFIG_DIR/psama/application.truststore ]; then
+    export PSAMA_TRUSTSTORE_VOLUME="-v $DOCKER_CONFIG_DIR/psama/application.truststore:/usr/local/tomcat/conf/application.truststore"
+    export PSAMA_TRUSTSTORE_JAVA_OPTS="-Djavax.net.ssl.trustStore=/usr/local/tomcat/conf/application.truststore -Djavax.net.ssl.trustStorePassword=password"
+else
+    echo "pic-sure-auth-micro-app (psama) truststore not found"
+    exit 2
+fi
 
 docker stop hpds && docker rm hpds
 docker run --name=hpds --restart always --network=picsure \
@@ -71,8 +81,8 @@ docker run --name=psama --restart always \
   --network=picsure \
   --env-file $DOCKER_CONFIG_DIR/psama/.env \
   $EMAIL_TEMPLATE_VOUME \
-  $TRUSTSTORE_VOLUME \
-  -e JAVA_OPTS="$PSAMA_OPTS $TRUSTSTORE_JAVA_OPTS" \
+  $PSAMA_TRUSTSTORE_VOLUME \
+  -e JAVA_OPTS="$PSAMA_OPTS $PSAMA_TRUSTSTORE_JAVA_OPTS" \
   -d hms-dbmi/psama:LATEST
 
 docker stop wildfly && docker rm wildfly

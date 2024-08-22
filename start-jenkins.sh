@@ -17,7 +17,7 @@ docker run -d \
   -v "$DOCKER_CONFIG_DIR":/usr/local/docker-config \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v "$MYSQL_CONFIG_DIR"/.my.cnf:/root/.my.cnf \
-  -v "$MYSQL_CONFIG_DIR"/.m2:/root/.m2 \
+  -v "$HOME"/.m2:/root/.m2 \
   -v /etc/hosts:/etc/hosts \
   -v /usr/local/pic-sure-services:/pic-sure-services \
   -p 8080:8080 --name jenkins pic-sure-jenkins:LATEST

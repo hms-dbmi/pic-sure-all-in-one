@@ -293,7 +293,7 @@ pipeline {
 	            }
 	            if(micro_app_ref.isEmpty() || pic_sure_ref.isEmpty() ||
                    (psm_ref.isEmpty() &amp;&amp; !psf_ref.isEmpty()) ||
-                   (psu_ref.isEmpty() &amp;&amp; !psf_ref.isEmpty()) ||
+                   (psu_ref.isEmpty() &amp;&amp; psf_ref.isEmpty()) ||
                    (!psf_ref.isEmpty() &amp;&amp; psm_ref.isEmpty())) {   
 	                currentBuild.result = &apos;ABORTED&apos;
 	                echo &apos;micro_app_ref = &apos; + micro_app_ref

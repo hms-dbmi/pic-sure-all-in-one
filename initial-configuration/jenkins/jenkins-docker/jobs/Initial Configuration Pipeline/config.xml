@@ -177,6 +177,7 @@ pipeline {
                     Jenkins.instance.doReload()
                 }
             }
+        }
             stage(&apos;Initial Config and Build&apos;) { 
                 steps {
                     parallel (

@@ -5,6 +5,8 @@ git pull
 echo "Sometimes we have to update not just the Jenkins jobs, but also the docker image itself."
 echo "If you want to update that image. Rerun this command with the --rebuild flag added."
 
+DOCKER_CONFIG_DIR="${DOCKER_CONFIG_DIR:-/usr/local/docker-config}"
+
 if [ "$1" = "--rebuild" ]; then
   #  Rebuild the docker image. This matches the initial dep script. The proxy args are generally empty, but you might
   # run into bugs if you have an http proxy, but don't set it somewhere clever like your bash profile

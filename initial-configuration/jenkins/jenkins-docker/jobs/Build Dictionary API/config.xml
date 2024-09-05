@@ -1,34 +1,38 @@
 <?xml version='1.1' encoding='UTF-8'?>
 <project>
   <actions/>
-  <description></description>
+  <description>Build the Dictionary API Container</description>
   <keepDependencies>false</keepDependencies>
   <properties>
     <hudson.model.ParametersDefinitionProperty>
       <parameterDefinitions>
         <hudson.model.StringParameterDefinition>
           <name>pipeline_build_id</name>
-          <description></description>
-          <defaultValue></defaultValue>
+          <defaultValue>MANUAL_RUN</defaultValue>
           <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>git_hash</name>
+          <defaultValue>origin/main</defaultValue>
+          <trim>true</trim>
         </hudson.model.StringParameterDefinition>
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
   </properties>
-  <scm class="hudson.plugins.git.GitSCM" plugin="git@4.3.0">
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@5.2.2">
     <configVersion>2</configVersion>
     <userRemoteConfigs>
       <hudson.plugins.git.UserRemoteConfig>
-        <url>https://github.com/hms-dbmi/pic-sure-wildfly-docker</url>
+        <url>https://github.com/hms-dbmi/picsure-dictionary.git</url>
       </hudson.plugins.git.UserRemoteConfig>
     </userRemoteConfigs>
     <branches>
       <hudson.plugins.git.BranchSpec>
-        <name>*/master</name>
+        <name>${git_hash}</name>
       </hudson.plugins.git.BranchSpec>
     </branches>
     <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
-    <submoduleCfg class="list"/>
+    <submoduleCfg class="empty-list"/>
     <extensions/>
   </scm>
   <canRoam>true</canRoam>
@@ -39,18 +43,12 @@
   <concurrentBuild>false</concurrentBuild>
   <builders>
     <hudson.tasks.Shell>
-      <command>
-if [ -f &quot;/usr/local/docker-config/setProxy.sh&quot; ]; then
-   . /usr/local/docker-config/setProxy.sh
+      <command>current_git_tag=$(git tag --points-at HEAD)
+if [ -z &quot;${current_git_tag}&quot;]; then
+	current_git_tag=$(git log --pretty=format:&apos;%h&apos; -n 1)
 fi
-
-docker build --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_proxy --build-arg no_proxy=&quot;$no_proxy&quot; \
---build-arg HTTP_PROXY=$http_proxy --build-arg HTTPS_PROXY=$http_proxy --build-arg NO_PROXY=&quot;$no_proxy&quot; \
---build-arg PIC_SURE_API_VERSION=LATEST --build-arg PIC_SURE_PASSTHRU_RESOURCE_VERSION=LATEST \
--t hms-dbmi/pic-sure-wildfly:${pipeline_build_id} .
-docker tag hms-dbmi/pic-sure-wildfly:${pipeline_build_id} hms-dbmi/pic-sure-wildfly:LATEST
-
-</command>
+docker build . -t &quot;avillach/dictionary-api:$current_git_tag&quot;</command>
+      <configuredLocalRules/>
     </hudson.tasks.Shell>
   </builders>
   <publishers/>

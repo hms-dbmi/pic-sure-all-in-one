@@ -1,0 +1,84 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description></description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>RESOURCE_NAME</name>
+          <description>Resource Name</description>
+          <defaultValue>PIC-SURE Visualization Resource</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>RESOURCE_PATH</name>
+          <description>The path to be used in wildfly deployments</description>
+          <defaultValue>pic-sure-visualization-resource</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>git_hash</name>
+          <defaultValue>*/master</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@5.2.1">
+    <configVersion>2</configVersion>
+    <userRemoteConfigs>
+      <hudson.plugins.git.UserRemoteConfig>
+        <url>https://github.com/hms-dbmi/pic-sure.git</url>
+      </hudson.plugins.git.UserRemoteConfig>
+    </userRemoteConfigs>
+    <branches>
+      <hudson.plugins.git.BranchSpec>
+        <name>${git_hash}</name>
+      </hudson.plugins.git.BranchSpec>
+    </branches>
+    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+    <submoduleCfg class="empty-list"/>
+    <extensions/>
+  </scm>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command># Copy WAR file from PIC-SURE-API Build resources
+cd pic-sure-resources/pic-sure-visualization-resource
+mkdir -p /usr/local/docker-config/wildfly/deployments
+cp target/pic-sure-visualization-resource.war /usr/local/docker-config/wildfly/deployments/$RESOURCE_PATH.war
+
+# Make properties config file
+export SQL=&quot;SELECT LOWER(CONCAT(SUBSTR(HEX(uuid), 1, 8), &apos;-&apos;, SUBSTR(HEX(uuid), 9, 4), &apos;-&apos;, SUBSTR(HEX(uuid), 13, 4), &apos;-&apos;, SUBSTR(HEX(uuid), 17, 4), &apos;-&apos;, SUBSTR(HEX(uuid), 21))) from picsure.resource where name = &apos;hpds&apos;&quot;;
+HPDS_ID=$(docker run -i -v /root/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -se &quot;$SQL&quot; picsure);
+RESOURCE_ID=`uuidgen -r`
+
+mkdir -p /usr/local/docker-config/wildfly/visualization/$RESOURCE_PATH
+PROP_FILE=&quot;/usr/local/docker-config/wildfly/visualization/$RESOURCE_PATH/resource.properties&quot;
+cat &gt; $PROP_FILE &lt;&lt;-END
+target.origin.id=http://localhost:8080/pic-sure-api-2/PICSURE/
+visualization.resource.id=$RESOURCE_ID
+auth.hpds.resource.id=$HPDS_ID
+open.hpds.resource.id=$HPDS_ID
+END
+
+# Insert into DB
+RESOURCE_ID_HEX=`echo $RESOURCE_ID | awk &apos;{ print toupper($0) }&apos;|sed &apos;s/-//g&apos;;`
+export SQL=&quot;INSERT INTO resource (uuid, targetURL, resourceRSPath, description, name, token) \
+ VALUES (unhex(&apos;$RESOURCE_ID_HEX&apos;), NULL, &apos;http://wildfly:8080/$RESOURCE_PATH/pic-sure/visualization/&apos;, &apos;$RESOURCE_DESC&apos;, &apos;$RESOURCE_NAME&apos;, NULL);&quot;
+
+# Run with config
+docker run -i -v /root/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e &quot;$SQL&quot; picsure</command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

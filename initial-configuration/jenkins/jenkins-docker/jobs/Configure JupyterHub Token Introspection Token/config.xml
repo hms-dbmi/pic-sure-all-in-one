@@ -50,7 +50,7 @@ export old_token_introspection_token=`cat /usr/local/docker-config/jupyterhub_co
 
 sed -i &quot;s/$old_token_introspection_token/$new_token_introspection_token/g&quot; /usr/local/docker-config/jupyterhub_config.py
 
-docker run -i -v /root/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e \
+docker run -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e \
 &quot;update application set token=&apos;$new_token_introspection_token&apos; where uuid=$application_id;&quot; auth
 </command>
     </hudson.tasks.Shell>

@@ -139,7 +139,34 @@
         <string>Backup Jenkins Home</string>
         <string>Create PIC-SURE PassThrough Resource</string>
         <string>Create PIC-SURE Aggregate Resource</string>
+        <string>Create PIC-SURE Visualization Build</string>
         <string>Retrieve Build Spec</string>
+      </jobNames>
+      <jobFilters/>
+      <columns>
+        <hudson.views.StatusColumn/>
+        <hudson.views.WeatherColumn/>
+        <hudson.views.JobColumn/>
+        <hudson.views.LastSuccessColumn/>
+        <hudson.views.LastFailureColumn/>
+        <hudson.views.LastDurationColumn/>
+        <hudson.views.BuildButtonColumn/>
+      </columns>
+      <recurse>false</recurse>
+    </listView>
+    <listView>
+      <owner class="hudson" reference="../../.."/>
+      <name>Dictionary</name>
+      <filterExecutors>false</filterExecutors>
+      <filterQueue>false</filterQueue>
+      <properties class="hudson.model.View$PropertyList"/>
+      <jobNames>
+        <comparator class="java.lang.String$CaseInsensitiveComparator"/>
+        <string>Build Dictionary API</string>
+        <string>Deploy Dictionary API</string>
+        <string>Upload Dictionary .env File</string>
+        <string>Edit Dictionary .env</string>
+        <string>Weight Dictionary Search Fields</string>
       </jobNames>
       <jobFilters/>
       <columns>
@@ -169,7 +196,7 @@
           <default>
             <comparator class="hudson.util.CaseInsensitiveComparator" reference="../../../../../../views/listView/jobNames/comparator"/>
           </default>
-          <int>6</int>
+          <int>7</int>
           <string>project_specific_override_repo</string>
           <string>__PROJECT_SPECIFIC_OVERRIDE_REPO__</string>
           <string>release_control_branch</string>
@@ -182,6 +209,8 @@
           <string>/usr/local/docker-config/</string>
           <string>MYSQL_NETWORK</string>
           <string>host</string>
+          <string>MYSQL_CONFIG_DIR</string>
+          <string>/usr/local/docker-config/picsure-db/</string>
         </tree-map>
       </envVars>
     </hudson.slaves.EnvironmentVariablesNodeProperty>

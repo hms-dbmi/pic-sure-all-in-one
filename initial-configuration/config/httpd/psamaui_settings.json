@@ -6,7 +6,7 @@
   "basePath" : "/psama",
   "uiPath": "",
   "customizeAuth0Login": true,
-  "auth0domain":"__AUTH0_DOMAIN__",
+  "auth0domain":"__AUTH0_TENANT__",
   "client_id":"__PIC_SURE_CLIENT_ID__"
 }
 

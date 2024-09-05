@@ -18,6 +18,12 @@ if [ ! -f $DOCKER_CONFIG_DIR/httpd/.env ]; then
   else
     export EXPORT_SIZE="0";
   fi
+else 
+  if [ -z "$(grep "VITE_ALLOW_EXPORT" $DOCKER_CONFIG_DIR/httpd/.env | grep 'false')" ]; then
+    export EXPORT_SIZE="2000";
+  else
+    export EXPORT_SIZE="0";
+  fi
 fi
 
 export PSAMA_OPTS="-Xms2g -Xmx4g -XX:MetaspaceSize=96M -XX:MaxMetaspaceSize=256m -Djava.net.preferIPv4Stack=true $PROXY_OPTS"
@@ -65,7 +71,6 @@ if [ -f $DOCKER_CONFIG_DIR/httpd/custom_httpd_volumes ]; then
 fi
 
 docker stop httpd && docker rm httpd
-
 
 if [ -f $DOCKER_CONFIG_DIR/httpd/.env ]; then
   docker run --name=httpd --restart always --network=picsure \

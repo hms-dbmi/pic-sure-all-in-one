@@ -83,7 +83,7 @@ docker run --name=psama --restart always \
   $EMAIL_TEMPLATE_VOUME \
   $PSAMA_TRUSTSTORE_VOLUME \
   -e JAVA_OPTS="$PSAMA_OPTS $PSAMA_TRUSTSTORE_JAVA_OPTS" \
-  -d hms-dbmi/psama:LATEST
+  -d hms-dbmi/psama:latest
 
 docker stop wildfly && docker rm wildfly
 docker run --name=wildfly --restart always --network=picsure -u root \

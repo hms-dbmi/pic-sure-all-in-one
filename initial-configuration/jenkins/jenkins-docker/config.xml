@@ -208,6 +208,8 @@
           <string>*/master</string>
           <string>release_control_repo</string>
           <string>__RELEASE_CONTROL_REPO__</string>
+          <string>JAVA_HOME</string>
+          <string>/opt/java/openjdk</string>
           <string>DOCKER_CONFIG_DIR</string>
           <string>/usr/local/docker-config/</string>
           <string>MYSQL_NETWORK</string>

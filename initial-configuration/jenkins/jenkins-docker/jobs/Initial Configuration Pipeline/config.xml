@@ -207,6 +207,8 @@ pipeline {
                         },
                         createFrontendEnvFile: {
                             script {
+                                sh &quot;[ ! -f /usr/local/docker-config/httpd/.env ] || mv /usr/local/docker-config/httpd/.env /usr/local/docker-config/httpd/.env.bak&quot;
+                                sh &quot;rm .env&quot;
                                 sh &quot;touch .env&quot;
                                 sh &quot;chmod +wr .env&quot;
                                 sh &quot;echo &apos;VITE_AUTH0_TENANT=$env.AUTH0_TENANT&apos; &gt;&gt; .env&quot;
@@ -237,7 +239,6 @@ pipeline {
                                 sh &quot;echo &apos;VITE_AUTH_PROVIDER_MODULE_GOOGLE_CLIENTID=$env.AUTH0_CLIENT_ID&apos; &gt;&gt; .env&quot;
                                 sh &quot;echo &apos;VITE_AUTH_PROVIDER_MODULE_GOOGLE_CONNECTION=google-oauth2&apos; &gt;&gt; .env&quot;
                                 sh &quot;echo &apos;VITE_AUTH_PROVIDER_MODULE_GOOGLE_DESCRIPTION=Login&apos; &gt;&gt; .env&quot;
-                                sh &quot;mv /usr/local/docker-config/httpd/.env /usr/local/docker-config/httpd/.env.bak&quot;
                                 sh &quot;cp .env &apos;/usr/local/docker-config/httpd/.env&apos;&quot;
                             }
                         },

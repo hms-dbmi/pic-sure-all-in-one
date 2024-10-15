@@ -41,7 +41,7 @@
         <hudson.model.StringParameterDefinition>
           <name>PROJECT_MIGRATION_NAME</name>
           <description>Name of the migration to run, see https://github.com/hms-dbmi/PIC-SURE-Migrations or fork it and add your migration</description>
-          <defaultValue>GIC-Institution</defaultValue>
+          <defaultValue>Baseline</defaultValue>
           <trim>true</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
@@ -207,8 +207,7 @@ pipeline {
                         },
                         createFrontendEnvFile: {
                             script {
-                                sh &quot;[ ! -f /usr/local/docker-config/httpd/.env ] || mv /usr/local/docker-config/httpd/.env /usr/local/docker-config/httpd/.env.bak&quot;
-                                sh &quot;rm .env&quot;
+                                sh &quot;[ ! -f /usr/local/docker-config/httpd/.env ] || cp -rf /usr/local/docker-config/httpd/.env /usr/local/docker-config/httpd/.env.bak&quot;
                                 sh &quot;touch .env&quot;
                                 sh &quot;chmod +wr .env&quot;
                                 sh &quot;echo &apos;VITE_AUTH0_TENANT=$env.AUTH0_TENANT&apos; &gt;&gt; .env&quot;

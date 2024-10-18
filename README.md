@@ -150,9 +150,7 @@ system variables:
 
     - `EMAIL`: This is the Google account that will be the initial admin user.
 
-    - `PROJECT_SPECIFIC_OVERRIDE_REPOSITORY`: This is the repo that contains the project specific overrides for your
-      project. If you just want the default PIC-SURE behavior use this
-      repo : https://github.com/hms-dbmi/baseline-pic-sure
+    - `MIGRATION_NAME`: This is the name of the migration that will be run. If you just want the default PIC-SURE behavior use `Baseline` from the repo: https://github.com/hms-dbmi/pic-sure-migrations or fork it and add your migration. If you are a GIC Institution, use `GIC-Institution`.
 
     - `RELEASE_CONTROL_REPOSITORY`: This is the repo that contains the build-spec.json file for your project. This file
       controls what code is built and deployed. If you just want the default PIC-SURE behavior use this

@@ -196,7 +196,7 @@
           <default>
             <comparator class="hudson.util.CaseInsensitiveComparator" reference="../../../../../../views/listView/jobNames/comparator"/>
           </default>
-          <int>7</int>
+          <int>9</int>
           <string>project_specific_override_repo</string>
           <string>__PROJECT_SPECIFIC_OVERRIDE_REPO__</string>
           <string>release_control_branch</string>
@@ -211,6 +211,10 @@
           <string>host</string>
           <string>MYSQL_CONFIG_DIR</string>
           <string>/usr/local/docker-config/picsure-db/</string>
+          <string>MIGRATION_REPO</string>
+          <string>__PROJECT_SPECIFIC_MIGRATION_REPO__</string>
+          <string>MIGRATION_NAME</string>
+          <string>__PROJECT_SPECIFIC_MIGRATION_NAME__</string>
         </tree-map>
       </envVars>
     </hudson.slaves.EnvironmentVariablesNodeProperty>

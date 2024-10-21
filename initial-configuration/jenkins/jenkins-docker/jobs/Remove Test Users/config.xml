@@ -29,14 +29,14 @@ function delete_user_by_email() {
     # SQL command to remove user from assoc
     local remove_user_role=&quot;DELETE FROM auth.user_role WHERE user_id in (SELECT uuid FROM auth.user where email = &apos;$user_email&apos;);&quot;
 
-    docker run -i -v /root/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e \
+    docker run -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e \
     &quot;$remove_user_role&quot; auth
 
     # SQL command to delete a user based on their email
     local remove_user=&quot;DELETE FROM auth.user WHERE email = &apos;$user_email&apos;;&quot;
 
     # Run the command using Docker and MySQL client
-    docker run -i -v /root/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e \
+    docker run -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e \
     &quot;$remove_user&quot; auth
 }
 

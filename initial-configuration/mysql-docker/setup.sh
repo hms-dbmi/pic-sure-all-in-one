@@ -1,24 +1,34 @@
+sed_inplace() {
+  if [ "$(uname)" = "Darwin" ]; then
+    sed -i '' "$@"
+  else
+    sed -i "$@"
+  fi
+}
 if [ -z "$(docker ps --format '{{.Names}}' | grep picsure-db)" ]; then
   echo "Cleaning up old configs"
   rm -r "${DOCKER_CONFIG_DIR:?}"/*
   cp -r config/* "$DOCKER_CONFIG_DIR"/
+  rm -f "$MYSQL_CONFIG_DIR"/.my.cnf
 
   echo "Starting mysql server"
   echo "$( < /dev/urandom tr -dc @^=+$*%_A-Z-a-z-0-9 | head -c${1:-24})" > pass.tmp
   rm -f mysql-docker/.env
+
   # shellcheck disable=SC2129
   echo "PICSURE_DB_ROOT_PASS=`cat pass.tmp`" >> mysql-docker/.env
   echo "PICSURE_DB_PASS=`cat pass.tmp`" >> mysql-docker/.env
   echo "PICSURE_DB_DATABASE=ignore" >> mysql-docker/.env
   echo "PICSURE_DB_USER=ignore" >> mysql-docker/.env
+  echo "DOCKER_CONFIG_DIR=$DOCKER_CONFIG_DIR" >> mysql-docker/.env
 
   echo "Configuring .my.cnf"
   # shellcheck disable=SC2129
-  echo "[mysql]" >> "$HOME"/.my.cnf
-  echo "user=root" >> "$HOME"/.my.cnf
-  echo "password=\"$(cat pass.tmp)\"" >> "$HOME"/.my.cnf
-  echo "host=picsure-db" >> "$HOME"/.my.cnf
-  echo "port=3306" >> "$HOME"/.my.cnf
+  echo "[mysql]" >> "$MYSQL_CONFIG_DIR"/.my.cnf
+  echo "user=root" >> "$MYSQL_CONFIG_DIR"/.my.cnf
+  echo "password=\"$(cat pass.tmp)\"" >> "$MYSQL_CONFIG_DIR"/.my.cnf
+  echo "host=picsure-db" >> "$MYSQL_CONFIG_DIR"/.my.cnf
+  echo "port=3306" >> "$MYSQL_CONFIG_DIR"/.my.cnf
 
   cd mysql-docker
   docker compose up -d
@@ -65,7 +75,7 @@ if [ -z "$(docker ps --format '{{.Names}}' | grep picsure-db)" ]; then
   echo "` < /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c${1:-24}`" > auth.tmp
   docker exec -t picsure-db mysql -u root -p`cat ../pass.tmp` -e "CREATE USER 'auth'@'%' IDENTIFIED BY '`cat auth.tmp`';";
   docker exec -t picsure-db mysql -u root -p`cat ../pass.tmp` -e "GRANT ALL PRIVILEGES ON auth.* to 'auth'@'%';FLUSH PRIVILEGES;";
-  sed_inplace s/__AUTH_MYSQL_PASSWORD__/`cat auth.tmp`/g $DOCKER_CONFIG_DIR/wildfly/standalone.xml
+  sed_inplace s/__AUTH_MYSQL_PASSWORD__/`cat auth.tmp`/g $DOCKER_CONFIG_DIR/psama/.env
   rm -f auth.tmp
 
   cd $CWD

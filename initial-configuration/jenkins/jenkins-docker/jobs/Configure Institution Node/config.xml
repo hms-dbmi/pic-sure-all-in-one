@@ -273,7 +273,7 @@ pipeline {
                             sh &quot;echo &apos;#Google Analytics settings (leave blank to disable):&apos; &gt;&gt; .env&quot;
                             sh &quot;echo &apos;VITE_GOOGLE_ANALYTICS_ID=&apos; &gt;&gt; .env&quot;
                             sh &quot;echo &apos;VITE_GOOGLE_TAG_MANAGER_ID=&apos; &gt;&gt; .env&quot;
-                            sh &quot;cp .env &apos;/usr/local/docker-config/httpd/.env&apos;&quot;
+                            sh &quot;mv .env &apos;/usr/local/docker-config/httpd/.env&apos;&quot;
                         }
                     }
                 )

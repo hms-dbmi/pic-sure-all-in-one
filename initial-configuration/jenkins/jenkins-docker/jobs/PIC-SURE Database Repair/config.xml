@@ -50,10 +50,10 @@ node {
                    echo &apos;pic_sure_ref &apos; + pic_sure_ref
                 }
             }
-            if(micro_app_ref.isEmpty() || pic_sure_ref.isEmpty() || psu_ref.isEmpty()) {
+            if(micro_app_ref.isEmpty() || pic_sure_ref.isEmpty() || psm_ref.isEmpty()) {
                 currentBuild.result = &apos;ABORTED&apos;
                 echo &apos;micro_app_ref = &apos; + micro_app_ref
-                echo &apos;psu_ref = &apos; + psu_ref
+                echo &apos;psm_ref = &apos; + psm_ref
                 echo &apos;pic_sure_ref = &apos; + pic_sure_ref
                 error(&apos;Build Spec Not configured correctly!&apos;)
             }
@@ -83,8 +83,7 @@ node {
     }
     stage(&apos;Project Specific Migrations&apos;) {
         checkout([$class: &apos;GitSCM&apos;, branches: [[name: psu_ref ]],
-            userRemoteConfigs: [[url: env.project_specific_override_repo]]])
-        //git url: env.project_specific_override_repo
+            userRemoteConfigs: [[url: MIGRATION_REPO]]])
         sh &quot;&quot;&quot;
             sed -i &quot;s/__APPLICATION_UUID__/`cat /usr/local/docker-config/APP_ID_HEX`/g&quot; ./custom-migrations/auth/*.sql
             sed -i &quot;s/__RESOURCE_UUID__/`cat /usr/local/docker-config/RESOURCE_ID_HEX`/g&quot; ./custom-migrations/picsure/*.sql

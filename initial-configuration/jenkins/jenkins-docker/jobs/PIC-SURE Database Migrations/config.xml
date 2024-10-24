@@ -91,7 +91,7 @@ node {
     }
     stage(&apos;Project Specific Migrations&apos;) {
         checkout([$class: &apos;GitSCM&apos;, branches: [[name: psm_ref ]],
-                userRemoteConfigs: [[url: $env.MIGRATION_REPO]]])
+                userRemoteConfigs: [[url: MIGRATION_REPO]]])
         sh &quot;&quot;&quot;
             sed -i &quot;s/__APPLICATION_UUID__/`cat /usr/local/docker-config/APP_ID_HEX`/g&quot; ./${MIGRATION_NAME}/auth/*.sql
             sed -i &quot;s/__RESOURCE_UUID__/`cat /usr/local/docker-config/RESOURCE_ID_HEX`/g&quot; ./${MIGRATION_NAME}/picsure/*.sql

@@ -190,8 +190,7 @@ pipeline {
                 script {
                     sh &quot;&quot;&quot;
                         sed -i &quot;s|__RELEASE_CONTROL_REPO__|$env.RELEASE_CONTROL_REPOSITORY|g&quot; /var/jenkins_home/config.xml
-                        sed -i &quot;s|__PROJECT_SPECIFIC_MIGRATION_NAME__|$env.MIGRATION_NAME|g&quot; /var/jenkins_home/config.xml
-                        sed -i &quot;s|__PROJECT_SPECIFIC_MIGRATION_REPO__|$env.MIGRATION_REPO|g&quot; /var/jenkins_home/config.xml
+                        sed -i &quot;s|__PROJECT_SPECIFIC_MIGRATION_NAME__|$env.PROJECT_MIGRATION_NAME|g&quot; /var/jenkins_home/config.xml
                     &quot;&quot;&quot;
                     Jenkins.instance.doReload()
                 }

@@ -198,7 +198,6 @@ pipeline {
             steps {
                 script {
                     sh &quot;&quot;&quot;
-                        sed -i &quot;s|__PROJECT_SPECIFIC_OVERRIDE_REPO__|$env.PROJECT_SPECIFIC_OVERRIDE_REPOSITORY|g&quot; /var/jenkins_home/config.xml
                         sed -i &quot;s|__RELEASE_CONTROL_REPO__|$env.RELEASE_CONTROL_REPOSITORY|g&quot; /var/jenkins_home/config.xml
                     &quot;&quot;&quot;
                     Jenkins.instance.doReload()
@@ -383,7 +382,7 @@ pipeline {
 	    	node("master") {   
 	 			script {
 			        checkout([$class: &apos;GitSCM&apos;, branches: [[name: psm_ref ]],
-                            userRemoteConfigs: [[url: $env.MIGRATION_REPO]]])
+                            userRemoteConfigs: [[url: MIGRATION_REPO]]])
                     sh &quot;&quot;&quot;
                         sed -i &quot;s/__APPLICATION_UUID__/`cat /usr/local/docker-config/APP_ID_HEX`/g&quot; ./${MIGRATION_NAME}/auth/*.sql
                         sed -i &quot;s/__RESOURCE_UUID__/`cat /usr/local/docker-config/RESOURCE_ID_HEX`/g&quot; ./${MIGRATION_NAME}/picsure/*.sql

@@ -212,7 +212,7 @@
           <string>MYSQL_CONFIG_DIR</string>
           <string>/usr/local/docker-config/picsure-db/</string>
           <string>MIGRATION_REPO</string>
-          <string>__PROJECT_SPECIFIC_MIGRATION_REPO__</string>
+          <string>https://github.com/hms-dbmi/PIC-SURE-Migrations</string>
           <string>MIGRATION_NAME</string>
           <string>__PROJECT_SPECIFIC_MIGRATION_NAME__</string>
         </tree-map>

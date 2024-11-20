@@ -24,6 +24,8 @@ if [ -z "$(docker ps --format '{{.Names}}' | grep picsure-db)" ]; then
 
   echo "Configuring .my.cnf"
   # shellcheck disable=SC2129
+  mkdir -p "$MYSQL_CONFIG_DIR"
+  touch "$MYSQL_CONFIG_DIR"/.my.cnf
   echo "[mysql]" >> "$MYSQL_CONFIG_DIR"/.my.cnf
   echo "user=root" >> "$MYSQL_CONFIG_DIR"/.my.cnf
   echo "password=\"$(cat pass.tmp)\"" >> "$MYSQL_CONFIG_DIR"/.my.cnf

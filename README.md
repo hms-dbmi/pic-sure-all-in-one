@@ -110,7 +110,7 @@ you exact instructions. If you're following the legacy install instructions, you
 `cd pic-sure-all-in-one/initial-configuration`
 Choose one of the following use cases:
 - *Fully dockerized install.* Our current happy path.
-`sudo ./install-dependencies-docker.sh /path/to/desired/config/dir/ /path/to/desired/mysql/cnf/dir && source ~/.bashrc`
+`sudo ./install-dependencies-docker.sh /path/to/desired/config/dir/ && source ~/.bashrc`
 - *Legacy install.* I know what I'm doing. `sudo ./install-dependencies.sh`
 - *Jenkins on https.* This is rare:
 ```shell

@@ -14,8 +14,8 @@
   <builders>
     <hudson.tasks.Shell>
       <command>
-        # This stop-picsure script is copied from the stop-picsure.sh in the pic-sure-all-in-one cloned on this machine.
-        # Modify that script rather than adding changes here.
+        cp /scripts/stop-picsure.sh .
+        export CURRENT_FS_DOCKER_CONFIG_DIR=/usr/local/docker-config/
         ./stop-picsure.sh
   </command>
     </hudson.tasks.Shell>

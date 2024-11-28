@@ -7,16 +7,18 @@
 # how that does or doesn't change the commands you run when inside Jenkins
 
 DOCKER_CONFIG_DIR="${DOCKER_CONFIG_DIR:-/usr/local/docker-config}"
+# Use this for file system checks. Use DOCKER_CONFIG_DIR for docker commands.
+# Except for --env_file commands, which refer to the current file system, not the root fs
+CURRENT_FS_DOCKER_CONFIG_DIR="${CURRENT_FS_DOCKER_CONFIG_DIR:$-DOCKER_CONFIG_DIR}"
 
-if [ -f "$DOCKER_CONFIG_DIR/setProxy.sh" ]; then
-   . $DOCKER_CONFIG_DIR/setProxy.sh
+if [ -f "$CURRENT_FS_DOCKER_CONFIG_DIR/setProxy.sh" ]; then
+   . $CURRENT_FS_DOCKER_CONFIG_DIR/setProxy.sh
 fi
 
-if [ -z "$(grep "VITE_ALLOW_EXPORT" $DOCKER_CONFIG_DIR/httpd/.env | grep 'false')" ]; then
-    export EXPORT_SIZE="2000";
-  else
-    export EXPORT_SIZE="0";
-  fi
+if [ -z "$(grep "VITE_ALLOW_EXPORT" $CURRENT_FS_DOCKER_CONFIG_DIR/httpd/.env | grep 'false')" ]; then
+  export EXPORT_SIZE="2000";
+else
+  export EXPORT_SIZE="0";
 fi
 
 # Docker Volumes
@@ -38,8 +40,9 @@ docker run --name=hpds --restart always --network=picsure \
   -v /var/log/hpds-logs/:/var/log/ \
   -v $DOCKER_CONFIG_DIR/hpds_csv/:/usr/local/docker-config/hpds_csv/ \
   -v $DOCKER_CONFIG_DIR/aws_uploads/:/gic_query_results/ \
-  --env-file $DOCKER_CONFIG_DIR/hpds/hpds.env \
-  -d hms-dbmi/pic-sure-hpds:LATEST
+  --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/hpds/hpds.env \
+  -d hms-dbmi/pic-sure-hpds:LATEST \
+  || exit(2)
 
 docker stop httpd && docker rm httpd
 
@@ -48,20 +51,22 @@ docker run --name=httpd --restart always --network=picsure \
     -v $DOCKER_CONFIG_DIR/httpd/cert:/usr/local/apache2/cert/ \
     -v $DOCKER_CONFIG_DIR/httpd/httpd-vhosts.conf:/usr/local/apache2/conf/extra/httpd-vhosts.conf \
     $CUSTOM_HTTPD_VOLUMES \
-    --env-file $DOCKER_CONFIG_DIR/httpd/httpd.env \
+    --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/httpd/httpd.env \
     -p 80:80 \
     -p 443:443 \
-    -d hms-dbmi/pic-sure-frontend:LATEST
+    -d hms-dbmi/pic-sure-frontend:LATEST \
+    || exit(2)
 docker exec httpd sed -i '/^#LoadModule proxy_wstunnel_module/s/^#//' conf/httpd.conf
 docker restart httpd
 
 docker stop psama && docker rm psama
 docker run --name=psama --restart always \
   --network=picsure \
-  --env-file $DOCKER_CONFIG_DIR/psama/.env \
+  --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/psama/.env \
   $EMAIL_TEMPLATE_VOLUME \
   $PSAMA_TRUSTSTORE_VOLUME \
-  -d hms-dbmi/psama:LATEST
+  -d hms-dbmi/psama:LATEST \
+  || exit(2)
 
 docker stop wildfly && docker rm wildfly
 docker run --name=wildfly --restart always --network=picsure -u root \
@@ -77,9 +82,11 @@ docker run --name=wildfly --restart always --network=picsure -u root \
   $EMAIL_TEMPLATE_VOLUME \
   -v $DOCKER_CONFIG_DIR/wildfly/wildfly_mysql_module.xml:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/module.xml  \
   -v $DOCKER_CONFIG_DIR/wildfly/mysql-connector-java-5.1.49.jar:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/mysql-connector-java-5.1.49.jar  \
-  --env-file $DOCKER_CONFIG_DIR/wildfly/wildfly.env \
-  -d hms-dbmi/pic-sure-wildfly:LATEST
+  --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/wildfly/wildfly.env \
+  -d hms-dbmi/pic-sure-wildfly:LATEST \
+  || exit(2)
 
 if [ -d $DOCKER_CONFIG_DIR/dictionary ]; then
-  docker compose -f $DOCKER_CONFIG_DIR/dictionary/docker-compose.yml --env-file $DOCKER_CONFIG_DIR/dictionary/.env up -d
+  docker compose -f $DOCKER_CONFIG_DIR/dictionary/docker-compose.yml --env-file $DOCKER_CONFIG_DIR/dictionary/.env up -d || exit(2)
 fi
+

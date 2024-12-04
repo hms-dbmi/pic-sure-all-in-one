@@ -18,49 +18,157 @@
           <name>AUTH0_CLIENT_ID</name>
           <description></description>
           <defaultValue>__PIC_SURE_CLIENT_ID__</defaultValue>
-          <trim>false</trim>
+          <trim>true</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>AUTH0_CLIENT_SECRET</name>
           <description></description>
           <defaultValue>__PIC_SURE_CLIENT_SECRET__</defaultValue>
-          <trim>false</trim>
+          <trim>true</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>AUTH0_TENANT</name>
           <description></description>
           <defaultValue>avillachlab</defaultValue>
-          <trim>false</trim>
+          <trim>true</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>ADMIN_USER_EMAIL</name>
           <description>The email address for the initial admin user.  This should be a Google account.</description>
           <defaultValue></defaultValue>
-          <trim>false</trim>
+          <trim>true</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
-          <name>PROJECT_SPECIFIC_OVERRIDE_REPOSITORY</name>
-          <description>This must be the project specific git repository that contains the project specific database migrations and UI overrides in the standard PIC-SURE Override Repository Structure.</description>
-          <defaultValue></defaultValue>
-          <trim>false</trim>
+          <name>PROJECT_MIGRATION_NAME</name>
+          <description>Name of the migration to run, see https://github.com/hms-dbmi/PIC-SURE-Migrations or fork it and add your migration</description>
+          <defaultValue>Baseline</defaultValue>
+          <trim>true</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>RELEASE_CONTROL_REPOSITORY</name>
           <description>This must be the project specific release control git repository that contains the git commit hashes that will be built and deployed.</description>
           <defaultValue></defaultValue>
-          <trim>false</trim>
+          <trim>true</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>OUTBOUND_EMAIL_USER</name>
           <description>The email account name that should be used to send outbound email.  The default server is Google's SMTP, so this should be a GMail account.  This field is optional</description>
           <defaultValue>__user@email.com__</defaultValue>
-          <trim>false</trim>
+          <trim>true</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>OUTBOUND_EMAIL_USER_PASSWORD</name>
           <description>The password for the account used to send outbound.  This field is optional</description>
           <defaultValue>__YOUR_EMAIL_PASSWORD__</defaultValue>
-          <trim>false</trim>
+          <trim>true</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>OPEN</name>
+          <description>PIC-SURE can be used without forcing the user log in. Unauthorized users will have a limited feature set.  See more information on Gitbook: TODO_GITBOOK</description>
+          <defaultValue>true</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>DISCOVER</name>
+          <description>Enable the Discover page which allows users to search across all data in the project.</description>
+          <defaultValue>true</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>DASHBOARD</name>
+          <description>Enable the Dashboard page which allows users to search across all data in the project.</description>
+          <defaultValue>true</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>DIST_EXPLORER</name>
+          <description>Enable the distribution explorer page which creates visualizations of the data.</description>
+          <defaultValue>true</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>ENABLE_GENE_QUERY</name>
+          <description>Enable the genomic filtering UI which guides users creating genomic queries. Enable if HPDS has been loaded with Genomic data. </description>
+          <defaultValue>true</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>ENABLE_SNP_QUERY</name>
+          <description>Enable the genomic filtering UI which guides users creating genomic SNP queries. Enable if HPDS has been loaded with Genomic data. </description>
+          <defaultValue>true</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>VITE_ALLOW_EXPORT_ENABLED</name>
+          <description>Enables the export button on the search results page.</description>
+          <defaultValue>true</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>API</name>
+          <description>Shows the user information on how to use the API and allows them to access their LONG_TERM_TOKEN.</description>
+          <defaultValue>true</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>ALLOW_EXPORT</name>
+          <description>This enables the prepare for analysis button which guides the user through your export process. There are a few different settings below to control how the user may receive their data in the end.</description>
+          <defaultValue>true</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>DOWNLOAD_AS_CSV</name>
+          <description>Allows the user to download their data at the end of the export process as a CSV file.</description>
+          <defaultValue>true</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>SHOW_VARIABLE_EXPORT</name>
+          <description>Allow adding export variables via the search results UI.</description>
+          <defaultValue>true</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>SHOW_VARIABLE_HIERARCHY</name>
+          <description>Shows the hierarchy button for each search result and enables the hierarchy screen in the export process.</description>
+          <defaultValue>true</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>DOWNLOAD_AS_PFB</name>
+          <description>Allows the user to download their data at the end of the export process as a PFB file.</description>
+          <defaultValue>false</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>DATA_REQUESTS</name>
+          <description>Enables data request functionality.</description>
+          <defaultValue>false</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>VARIANT_EXPLORER</name>
+          <description>Enable the variant explorer. Only enable if HPDS has been loaded with Genomic data. </description>
+          <defaultValue>true</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.ChoiceParameterDefinition>
+          <name>VARIANT_EXPLORER_TYPE</name>
+          <description>Aggregate is recommended.</description>
+          <choices class="java.util.Arrays$ArrayList">
+            <a class="string-array">
+              <string>aggregate</string>
+              <string>full</string>
+            </a>
+          </choices>
+        </hudson.model.ChoiceParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>EXPLORER_MAX_COUNT</name>
+          <description>Max amount of data point for the variant explorer.</description>
+          <defaultValue>10000</defaultValue>
+          <trim>true</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>VARIANT_EXPLORER_EXCLUDE_COLUMNS</name>
+          <description>Advanced: An array of columns to exclude in the variant explorer. 
+The value must be in an array format, for example: [&quot;AN&quot;]  </description>
+          <trim>true</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>TOUR</name>
+          <description>Enable the tour feature which guides the user through the application.</description>
+          <defaultValue>true</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>TOUR_SEARCH_TERM</name>
+          <description>The tour preforms a search. You can specify the search term here.</description>
+          <defaultValue>age</defaultValue>
+          <trim>true</trim>
         </hudson.model.StringParameterDefinition>
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
@@ -81,100 +189,150 @@ pipeline {
             steps {
                 script {
                     sh &quot;&quot;&quot;
-                        sed -i &quot;s|__PROJECT_SPECIFIC_OVERRIDE_REPO__|$env.PROJECT_SPECIFIC_OVERRIDE_REPOSITORY|g&quot; /var/jenkins_home/config.xml
                         sed -i &quot;s|__RELEASE_CONTROL_REPO__|$env.RELEASE_CONTROL_REPOSITORY|g&quot; /var/jenkins_home/config.xml
+                        sed -i &quot;s|__PROJECT_SPECIFIC_MIGRATION_NAME__|$env.PROJECT_MIGRATION_NAME|g&quot; /var/jenkins_home/config.xml
                     &quot;&quot;&quot;
                     Jenkins.instance.doReload()
                 }
             }
         }
-        stage(&apos;Initial Config and Build&apos;) { 
-            steps {
-                parallel (
-                    dbMigrate: {
-                        script {
-                            def result = build job: &apos;PIC-SURE Database Migrations&apos;
-                        }
-                    },
-                    picsureBuild: {
-                        script {
-                            def result = build job: &apos;PIC-SURE Pipeline&apos;
-                        }
-                    },
-                    auth0Config: {
-                        script {
-                            def result = build job: &apos;Configure Auth0 Integration&apos;, parameters: [
-                                [$class: &apos;StringParameterValue&apos;, name: &apos;AUTH0_CLIENT_ID&apos;, value:env.AUTH0_CLIENT_ID],
-                                [$class: &apos;StringParameterValue&apos;, name: &apos;AUTH0_CLIENT_SECRET&apos;, value: env.AUTH0_CLIENT_SECRET]]
-                        }
-                    },
-                    addRootCerts: {
-                        script {
-                            def result = build job: &apos;Create Root Certs in TrustStore&apos;
-                        }
-                    },
-		    emailConfig: {
-                        script {
-                            def result = build job: &apos;Configure Outbound Email Settings&apos;, parameters: [
-                                [$class: &apos;StringParameterValue&apos;, name: &apos;OUTBOUND_EMAIL_USER&apos;, value:env.OUTBOUND_EMAIL_USER],
-                                [$class: &apos;StringParameterValue&apos;, name: &apos;EMAIL_FROM&apos;, value: env.OUTBOUND_EMAIL_USER],
-                                [$class: &apos;StringParameterValue&apos;, name: &apos;OUTBOUND_EMAIL_USER_PASSWORD&apos;, value: env.OUTBOUND_EMAIL_USER_PASSWORD]]
+            stage(&apos;Initial Config and Build&apos;) { 
+                steps {
+                    parallel (
+                        dbMigrate: {
+                            script {
+                                def result = build job: &apos;PIC-SURE Database Migrations&apos;
+                            }
+                        },
+                        picsureBuild: {
+                            script {
+                                def result = build job: &apos;PIC-SURE Pipeline&apos;
+                            }
+                        },
+                        auth0Config: {
+                            script {
+                                def result = build job: &apos;Configure Auth0 Integration&apos;, parameters: [
+                                    [$class: &apos;StringParameterValue&apos;, name: &apos;AUTH0_CLIENT_ID&apos;, value:env.AUTH0_CLIENT_ID],
+                                    [$class: &apos;StringParameterValue&apos;, name: &apos;AUTH0_CLIENT_SECRET&apos;, value: env.AUTH0_CLIENT_SECRET]]
+                            }
+                        },
+                        addRootCerts: {
+                            script {
+                                catchError(buildResult: &apos;SUCCESS&apos;, stageResult: &apos;UNSTABLE&apos;) {
+                                    def result = build job: &apos;Create Root Certs in TrustStore&apos;
+                                }
+                            }
+                        },
+                        createFrontendEnvFile: {
+                            script {
+                                sh &quot;[ ! -f /usr/local/docker-config/httpd/.env ] || cp -rf /usr/local/docker-config/httpd/.env /usr/local/docker-config/httpd/.env.bak&quot;
+                                sh &quot;touch .env&quot;
+                                sh &quot;chmod +wr .env&quot;
+                                sh &quot;echo &apos;VITE_PROJECT_HOSTNAME=&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_ORIGIN=&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_LOGO=&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_AUTH0_TENANT=$env.AUTH0_TENANT&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_OPEN=$env.OPEN&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_DISCOVER=$env.DISCOVER&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_DASHBOARD=$env.DASHBOARD&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_DIST_EXPLORER=$env.DIST_EXPLORER&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_API=$env.API&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_ALLOW_EXPORT=$env.ALLOW_EXPORT&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_ALLOW_EXPORT_ENABLED=$env.ALLOW_EXPORT_ENABLED&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_DOWNLOAD_AS_CSV=$env.DOWNLOAD_AS_CSV&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_ENABLE_GENE_QUERY=$env.ENABLE_GENE_QUERY&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_ENABLE_SNP_QUERY=$env.ENABLE_SNP_QUERY&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_SHOW_VARIABLE_EXPORT=$env.SHOW_VARIABLE_EXPORT&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_SHOW_VARIABLE_HIERARCHY=$env.SHOW_VARIABLE_HIERARCHY&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_DOWNLOAD_AS_PFB=$env.DOWNLOAD_AS_PFB&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_DATA_REQUESTS=$env.DATA_REQUESTS&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_VARIANT_EXPLORER=$env.VARIANT_EXPLORER&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_VARIANT_EXPLORER_TYPE=$env.VARIANT_EXPLORER_TYPE&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_EXPLORER_MAX_COUNT=$env.EXPLORER_MAX_COUNT&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_VARIANT_EXPLORER_EXCLUDE_COLUMNS=$env.VARIANT_EXPLORER_EXCLUDE_COLUMNS&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_TOUR=$env.TOUR&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_TOUR_SEARCH_TERM=$env.TOUR_SEARCH_TERM&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_REQUIRE_CONSENTS=false&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_USE_QUERY_TEMPLATE=false&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;#Login Provider (You may add as many as you would like):&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_AUTH_PROVIDER_MODULE_GOOGLE=true&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_AUTH_PROVIDER_MODULE_GOOGLE_TYPE=AUTH0&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_AUTH_PROVIDER_MODULE_GOOGLE_CLIENTID=$env.AUTH0_CLIENT_ID&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_AUTH_PROVIDER_MODULE_GOOGLE_CONNECTION=google-oauth2&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_AUTH_PROVIDER_MODULE_GOOGLE_DESCRIPTION=Login&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;#Resource UUIDs:&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_RESOURCE_HPDS=&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_RESOURCE_OPEN_HPDS=&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_RESOURCE_BASE_QUERY=&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_RESOURCE_VIZ=&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;#Google Analytics settings (leave blank to disable):&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_GOOGLE_ANALYTICS_ID=&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_GOOGLE_TAG_MANAGER_ID=&apos; &gt;&gt; .env&quot;
+                                sh &quot;mv .env &apos;/usr/local/docker-config/httpd/.env&apos;&quot;
+                            }
+                        },
+                emailConfig: {
+                            script {
+                                def result = build job: &apos;Configure Outbound Email Settings&apos;, parameters: [
+                                    [$class: &apos;StringParameterValue&apos;, name: &apos;OUTBOUND_EMAIL_USER&apos;, value:env.OUTBOUND_EMAIL_USER],
+                                    [$class: &apos;StringParameterValue&apos;, name: &apos;EMAIL_FROM&apos;, value: env.OUTBOUND_EMAIL_USER],
+                                    [$class: &apos;StringParameterValue&apos;, name: &apos;OUTBOUND_EMAIL_USER_PASSWORD&apos;, value: env.OUTBOUND_EMAIL_USER_PASSWORD]]
 
+                            }
                         }
-                    }
-                )
-            }
-        }
-        stage(&apos;Post Migration Configs&apos;) { 
-            steps {
-                parallel (
-                    adminConfig: {
-                        script {
-                            def result = build job: &apos;Create Admin User&apos;, parameters: [
-                                [$class: &apos;StringParameterValue&apos;, name: &apos;EMAIL&apos;, value:env.ADMIN_USER_EMAIL],
-                                [$class: &apos;StringParameterValue&apos;, name: &apos;CONNECTION_LABEL&apos;, value: &quot;Google&quot;]]
-                        }
-                    },
-                    tokenIntroToken: {
-                        script {
-                            def result = build job: &apos;Configure PIC-SURE Token Introspection Token&apos;
-                        }
-                    },
-                    encryptionKey: {
-                        script {
-                            def result = build job: &apos;Create HPDS Encryption Key&apos;
-                        }
-                    }
-                )
-            }
-        }
-        stage(&apos;Load Demo Data and Deploy&apos;) { 
-            steps {
- 		script {
-                    def result = build job: &apos;Retrieve Build Spec&apos;
-                    retrieveBuildSpecId = result.number
-                }
-		script {
-                    copyArtifacts filter: &apos;*&apos;, projectName: &apos;Retrieve Build Spec&apos;, selector: specific(&quot;&quot;+retrieveBuildSpecId)
-                    sh &apos;cat build-spec.json&apos;
-                    sh &apos;cat pipeline_git_commit.txt&apos;
-                    sh &apos;pwd&apos;
-                    def buildSpec = new JsonSlurper().parse(new File(&apos;/var/jenkins_home/workspace/PIC-SURE Pipeline/build-spec.json&apos;))
-                    pipelineBuildId = new File(&apos;/var/jenkins_home/workspace/PIC-SURE Pipeline/pipeline_git_commit.txt&apos;).text.trim()
-                    for(def build : buildSpec.application){
-                        build_hashes[build.project_job_git_key] = build.git_hash
-                    }
-                }
-                script {
-                    def result = build job: &apos;Load HPDS Data From CSV&apos;
-                }
-                script {
-                    def result = build job: &apos;Start PIC-SURE&apos;, parameters: [[$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],[$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSU&apos;]]]
+                    )
                 }
             }
+            stage(&apos;Post Migration Configs&apos;) { 
+                steps {
+                    parallel (
+                        adminConfig: {
+                            script {
+                                def result = build job: &apos;Create Admin User&apos;, parameters: [
+                                    [$class: &apos;StringParameterValue&apos;, name: &apos;EMAIL&apos;, value:env.ADMIN_USER_EMAIL],
+                                    [$class: &apos;StringParameterValue&apos;, name: &apos;CONNECTION_LABEL&apos;, value: &quot;Google&quot;]]
+                            }
+                        },
+                        tokenIntroToken: {
+                            script {
+                                def result = build job: &apos;Configure PIC-SURE Token Introspection Token&apos;
+                            }
+                        },
+                        encryptionKey: {
+                            script {
+                                def result = build job: &apos;Create HPDS Encryption Key&apos;
+                            }
+                        }
+                    )
+                }
+            }
+            stage(&apos;Load Demo Data and Deploy&apos;) { 
+                steps {
+            script {
+                        def result = build job: &apos;Retrieve Build Spec&apos;
+                        retrieveBuildSpecId = result.number
+                    }
+            script {
+                        copyArtifacts filter: &apos;*&apos;, projectName: &apos;Retrieve Build Spec&apos;, selector: specific(&quot;&quot;+retrieveBuildSpecId)
+                        sh &apos;cat build-spec.json&apos;
+                        sh &apos;cat pipeline_git_commit.txt&apos;
+                        sh &apos;pwd&apos;
+                        def buildSpec = new JsonSlurper().parse(new File(&apos;/var/jenkins_home/workspace/PIC-SURE Pipeline/build-spec.json&apos;))
+                        pipelineBuildId = new File(&apos;/var/jenkins_home/workspace/PIC-SURE Pipeline/pipeline_git_commit.txt&apos;).text.trim()
+                        for(def build : buildSpec.application){
+                            build_hashes[build.project_job_git_key] = build.git_hash
+                        }
+                    }
+                    script {
+                        def result = build job: &apos;Load HPDS Data From CSV&apos;
+                    }
+                    script {
+                        def result = build job: &apos;Start PIC-SURE&apos;, parameters: [[$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId]]
+                    }
+                }
+            }
         }
-    }
-}</script>
+    }</script>
     <sandbox>true</sandbox>
   </definition>
   <triggers/>

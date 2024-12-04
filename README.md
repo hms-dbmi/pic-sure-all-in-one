@@ -110,7 +110,7 @@ you exact instructions. If you're following the legacy install instructions, you
 `cd pic-sure-all-in-one/initial-configuration`
 Choose one of the following use cases:
 - *Fully dockerized install.* Our current happy path.
-`sudo ./install-dependencies-docker.sh /path/to/desired/config/dir/ /path/to/desired/mysql/cnf/dir && source ~/.bashrc`
+`sudo ./install-dependencies-docker.sh /path/to/desired/config/dir/ && source ~/.bashrc`
 - *Legacy install.* I know what I'm doing. `sudo ./install-dependencies.sh`
 - *Jenkins on https.* This is rare:
 ```shell
@@ -150,9 +150,7 @@ system variables:
 
     - `EMAIL`: This is the Google account that will be the initial admin user.
 
-    - `PROJECT_SPECIFIC_OVERRIDE_REPOSITORY`: This is the repo that contains the project specific overrides for your
-      project. If you just want the default PIC-SURE behavior use this
-      repo : https://github.com/hms-dbmi/baseline-pic-sure
+    - `MIGRATION_NAME`: This is the name of the migration that will be run. If you just want the default PIC-SURE behavior use `Baseline` from the repo: https://github.com/hms-dbmi/pic-sure-migrations or fork it and add your migration. If you are a GIC Institution, use `GIC-Institution`.
 
     - `RELEASE_CONTROL_REPOSITORY`: This is the repo that contains the build-spec.json file for your project. This file
       controls what code is built and deployed. If you just want the default PIC-SURE behavior use this

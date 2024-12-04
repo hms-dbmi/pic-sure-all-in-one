@@ -185,6 +185,29 @@
       </columns>
       <recurse>false</recurse>
     </listView>
+    <listView>
+      <owner class="hudson" reference="../../.."/>
+      <name>Uploader</name>
+      <filterExecutors>false</filterExecutors>
+      <filterQueue>false</filterQueue>
+      <properties class="hudson.model.View$PropertyList"/>
+      <jobNames>
+        <comparator class="java.lang.String$CaseInsensitiveComparator" reference="../../../listView[5]/jobNames/comparator"/>
+        <string>Build and Deploy Uploader</string>
+        <string>Upload Uploader .env File</string>
+      </jobNames>
+      <jobFilters/>
+      <columns>
+        <hudson.views.StatusColumn/>
+        <hudson.views.WeatherColumn/>
+        <hudson.views.JobColumn/>
+        <hudson.views.LastSuccessColumn/>
+        <hudson.views.LastFailureColumn/>
+        <hudson.views.LastDurationColumn/>
+        <hudson.views.BuildButtonColumn/>
+      </columns>
+      <recurse>false</recurse>
+    </listView>
   </views>
   <primaryView>Deployment</primaryView>
   <slaveAgentPort>50000</slaveAgentPort>
@@ -201,7 +224,7 @@
           <default>
             <comparator class="hudson.util.CaseInsensitiveComparator" reference="../../../../../../views/listView/jobNames/comparator"/>
           </default>
-          <int>6</int>
+          <int>8</int>
           <string>project_specific_override_repo</string>
           <string>__PROJECT_SPECIFIC_OVERRIDE_REPO__</string>
           <string>release_control_branch</string>
@@ -214,6 +237,10 @@
           <string>host</string>
           <string>MYSQL_CONFIG_DIR</string>
           <string>/usr/local/docker-config/picsure-db/</string>
+          <string>MIGRATION_REPO</string>
+          <string>https://github.com/hms-dbmi/PIC-SURE-Migrations</string>
+          <string>MIGRATION_NAME</string>
+          <string>__PROJECT_SPECIFIC_MIGRATION_NAME__</string>
         </tree-map>
       </envVars>
     </hudson.slaves.EnvironmentVariablesNodeProperty>

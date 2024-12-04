@@ -16,12 +16,12 @@ export LC_ALL=C
 # $1 is the path to the docker-config dir $2 is the path to the rc rc_file
 function set_docker_config_dir {
   local docker_config_dir=$1
-  local rc_file=$2
+  export rc_file=$2
   if [ -z "$docker_config_dir" ]; then
    docker_config_dir="/var/local/docker-config"
   fi
   if [ -z "$rc_file" ]; then
-   rc_file="$HOME/.bashrc"
+   export rc_file="$HOME/.bashrc"
   fi
   #Check if docker_config_dir is a dir and exists
   if [ ! -d "$docker_config_dir" ]; then
@@ -217,6 +217,9 @@ if [ -n "$2" ]; then
   password=$(tr -dc A-Za-z0-9 </dev/urandom | head -c 13 ; echo '')
   ./convert-cert.sh $2 $3 $password
 fi
+
+echo Deleting pass.tmp
+rm pass.tmp
 
 echo "Installation script complete.  Staring Jenkins."
 cd ..

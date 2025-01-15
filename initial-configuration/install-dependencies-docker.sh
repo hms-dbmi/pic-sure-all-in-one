@@ -1,68 +1,110 @@
-#!/usr/bin/env bash
+################################################################################
+#                           1) HELPER FUNCTIONS                                #
+################################################################################
 
-sed_inplace() {
-  if [ "$(uname)" = "Darwin" ]; then
-    sed -i '' "$@"
+# Detect a default rc file that we can safely edit and source.
+detect_default_rc_file() {
+  if [ -n "$ZSH_VERSION" ] && [ -f "$HOME/.zshrc" ]; then
+    echo "$HOME/.zshrc"
+  elif [ -f "$HOME/.bashrc" ]; then
+    echo "$HOME/.bashrc"
   else
-    sed -i "$@"
+    echo "$HOME/.bashrc"
   fi
 }
 
-CWD=$(pwd)
-# this makes tr work on OSX
+# sed_inplace: unify sed usage across macOS (BSD sed) and Linux (GNU sed).
+sed_inplace() {
+  if sed --version 2>/dev/null | grep -q "GNU sed"; then
+    sed -i "$@"
+  else
+    sed -i '' "$@"
+  fi
+}
+
+# For things like tr on macOS
 export LC_CTYPE=C
 export LC_ALL=C
 
-# $1 is the path to the docker-config dir $2 is the path to the rc rc_file
-function set_docker_config_dir {
-  local docker_config_dir=$1
-  export rc_file=$2
+################################################################################
+#                           2) CONFIG FUNCTIONS                                #
+################################################################################
+
+# Sets DOCKER_CONFIG_DIR in the rc file and aliases the mysql command.
+# Usage: set_docker_config_dir <docker_config_dir> [rc_file]
+#        If <docker_config_dir> is empty, defaults to /var/local/docker-config
+#        If [rc_file] is empty, auto-detect using detect_default_rc_file()
+set_docker_config_dir() {
+  local docker_config_dir="$1"
+  local rc_file="$2"
+
   if [ -z "$docker_config_dir" ]; then
-   docker_config_dir="/var/local/docker-config"
+    docker_config_dir="/var/local/docker-config"
   fi
   if [ -z "$rc_file" ]; then
-   export rc_file="$HOME/.bashrc"
+    rc_file="$(detect_default_rc_file)"
   fi
-  #Check if docker_config_dir is a dir and exists
+
+  # Check if docker_config_dir is a directory
   if [ ! -d "$docker_config_dir" ]; then
     echo "Creating dir $docker_config_dir and setting DOCKER_CONFIG_DIR in $rc_file"
-    mkdir -p $docker_config_dir
-    export DOCKER_CONFIG_DIR=$docker_config_dir
-    echo "export DOCKER_CONFIG_DIR=$docker_config_dir" >> "$rc_file"
+    mkdir -p "$docker_config_dir"
   else
-    echo "dir $docker_config_dir exists, just setting DOCKER_CONFIG_DIR in $rc_file"
-    # If the config dir exists, we still want to clean up old settings for it
-    export DOCKER_CONFIG_DIR=$1
-    # delete any old config lines in bash config file
+    echo "dir $docker_config_dir already exists, removing old DOCKER_CONFIG_DIR lines in $rc_file"
+    # If the config dir exists, we still want to clean up old settings
     grep 'DOCKER_CONFIG_DIR' "$rc_file" && sed_inplace '/DOCKER_CONFIG_DIR/d' "$rc_file"
-    echo "export DOCKER_CONFIG_DIR=$docker_config_dir" >> "$rc_file"
   fi
 
-  # Add mysql alias to rc file while we're here
-  echo "Aliasing mysql command so you can connect by typing 'mysql'"
+  # Export and append to the rc file
+  export DOCKER_CONFIG_DIR="$docker_config_dir"
+  echo "export DOCKER_CONFIG_DIR=$docker_config_dir" >> "$rc_file"
+
+  # Also add mysql alias
+  echo "Aliasing mysql command (picsure-db) in $rc_file"
   echo 'alias picsure-db="docker exec -ti picsure-db bash -c '\''mysql -uroot -p\$MYSQL_ROOT_PASSWORD'\''"' >> "$rc_file"
+
+  # shellcheck disable=SC1090
+  source "$rc_file"
 }
 
-function set_mysql_config_dir() {
-  local mysql_config_dir=$1
+# Sets MYSQL_CONFIG_DIR in the rc file.
+# Usage: set_mysql_config_dir <mysql_config_dir> [rc_file]
+set_mysql_config_dir() {
+  local mysql_config_dir="$1"
+  local rc_file="$2"
+
   if [ -z "$mysql_config_dir" ]; then
-    mysql_config_dir="$DOCKER_CONFIG_DIR/picsure-db/"
+    mysql_config_dir="$DOCKER_CONFIG_DIR/picsure-db"
   fi
-  #Check if mysql_config_dir is a dir and exists
+  if [ -z "$rc_file" ]; then
+    rc_file="$(detect_default_rc_file)"
+  fi
+
   if [ ! -d "$mysql_config_dir" ]; then
     echo "Creating dir $mysql_config_dir and setting MYSQL_CONFIG_DIR in $rc_file"
-    mkdir -p $mysql_config_dir
-    export MYSQL_CONFIG_DIR=$mysql_config_dir
-    echo "export MYSQL_CONFIG_DIR=$mysql_config_dir" >> "$rc_file"
+    mkdir -p "$mysql_config_dir"
   else
-    echo "dir $mysql_config_dir exists, just setting MYSQL_CONFIG_DIR in $rc_file"
-    # If the config dir exists, we still want to clean up old settings for it
-    export MYSQL_CONFIG_DIR=$1
+    echo "dir $mysql_config_dir exists, removing old MYSQL_CONFIG_DIR lines in $rc_file"
     grep 'MYSQL_CONFIG_DIR' "$rc_file" && sed_inplace '/MYSQL_CONFIG_DIR/d' "$rc_file"
-    echo "export MYSQL_CONFIG_DIR=$mysql_config_dir" >> "$rc_file"
   fi
+
+  export MYSQL_CONFIG_DIR="$mysql_config_dir"
+  echo "export MYSQL_CONFIG_DIR=$mysql_config_dir" >> "$rc_file"
+
+  # shellcheck disable=SC1090
+  source "$rc_file"
 }
 
+################################################################################
+#                           3) MAIN SCRIPT START                                #
+################################################################################
+
+# Remember current working directory
+CWD=$(pwd)
+
+# Set Docker and MySQL config directories (may or may not be passed in)
+#  - $1 => Docker config directory
+#  - $2 => MySQL config directory
 set_docker_config_dir "$1"
 set_mysql_config_dir "$2"
 
@@ -75,7 +117,6 @@ echo "Starting update"
 echo "Installing docker"
 if [ -n "$(command -v yum)" ] && [ -z "$(command -v docker)" ]; then
   echo "Yum detected. Assuming RHEL. Install commands will use yum"
-  set_docker_config_dir $1 "$HOME/.zshrc"
   yum -y update
   # This repo can be removed after we move away from centos 7 I think
   yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
@@ -87,7 +128,6 @@ fi
 
 if [ -n "$(command -v apt-get)" ] && [ -z "$(command -v docker)" ]; then
   echo "Apt detected. Assuming Debian. Install commands will use apt"
-  set_docker_config_dir $1  "$HOME/.zshrc"
   # Add Docker's official GPG key:
   apt-get update
   apt-get install ca-certificates curl gnupg
@@ -122,7 +162,6 @@ if [[ "$OSTYPE" =~ ^darwin ]]; then
       echo "MacOS doesn't like the default docker-config dir Please supply a dir as an arguments."
       exit
     else
-      set_docker_config_dir $1  "$HOME/.zshrc"
       echo "Copying config to $1"
       cp -r config/* $1
     fi
@@ -159,6 +198,11 @@ if [ -z "$(docker network ls --format '{{.Name}}' | grep ^hpdsNet$)" ]; then
 else
   echo "hpdsNet network already exists. Leaving it alone."
 fi
+if [ -z "$(docker network ls --format '{{.Name}}' | grep ^dictionary$)" ]; then
+  docker network create dictionary
+else
+  echo "dictionary network already exists. Leaving it alone."
+fi
 
 
 #-------------------------------------------------------------------------------------------------#
@@ -179,13 +223,13 @@ docker build --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_pr
 docker tag pic-sure-jenkins:`git log -n 1 | grep commit | cut -d ' ' -f 2 | cut -c 1-7` pic-sure-jenkins:LATEST
 
 echo "Creating Jenkins Log Path"
-mkdir -p /var/log/jenkins-docker-logs
-mkdir -p /var/jenkins_home
-cp -r jenkins/jenkins-docker/jobs /var/jenkins_home/
-cp -r jenkins/jenkins-docker/config.xml /var/jenkins_home/config.xml
-cp -r jenkins/jenkins-docker/hudson.tasks.Maven.xml /var/jenkins_home/hudson.tasks.Maven.xml
-cp -r jenkins/jenkins-docker/scriptApproval.xml /var/jenkins_home/scriptApproval.xml
-mkdir -p /var/log/httpd-docker-logs/ssl_mutex
+mkdir -p "$DOCKER_CONFIG_DIR"/log/jenkins-docker-logs
+mkdir -p "$DOCKER_CONFIG_DIR"/jenkins_home
+cp -r jenkins/jenkins-docker/jobs "$DOCKER_CONFIG_DIR"/jenkins_home/
+cp -r jenkins/jenkins-docker/config.xml "$DOCKER_CONFIG_DIR"/jenkins_home/config.xml
+cp -r jenkins/jenkins-docker/hudson.tasks.Maven.xml "$DOCKER_CONFIG_DIR"/jenkins_home/hudson.tasks.Maven.xml
+cp -r jenkins/jenkins-docker/scriptApproval.xml "$DOCKER_CONFIG_DIR"/jenkins_home/scriptApproval.xml
+mkdir -p "$DOCKER_CONFIG_DIR"/log/httpd-docker-logs/ssl_mutex
 
 export APP_ID=`uuidgen | tr '[:upper:]' '[:lower:]'`
 export APP_ID_HEX=`echo $APP_ID | awk '{ print toupper($0) }'|sed 's/-//g'`

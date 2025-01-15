@@ -1,0 +1,89 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description></description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>Dataset_Name</name>
+          <description>If this value is left blank the first node of each concept path will be used as the study name ( The dataset ref ).
+
+Example 1:
+Dataset_Name:
+Concept Path: \node 1\node 2\node 3\
+Study Name: node 1
+
+Example 2:
+Dataset_Name: Nhanes
+Concept Path: \node 1\node 2\node 3\
+Study Name: Nhanes</description>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>Clear_Dictionary_Database</name>
+          <description>Backup of the current database will be available in the &quot;$DOCKER_CONFIG_DIR/dictionary/csv/backup/&quot;</description>
+          <defaultValue>false</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.scm.NullSCM"/>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <jdk>(System)</jdk>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>cp /usr/local/docker-config/dictionary/dictionary.env .env
+
+docker stop dictionaryetl || true
+docker rm dictionaryetl || true
+docker run -d \
+  --name dictionaryetl \
+  --env-file .env \
+  -p 8086:8086 \
+  -v $DOCKER_CONFIG_DIR/hpds/:/opt/local/hpds/ \
+  --network dictionary \
+  --network picsure \
+  hms-dbmi/dictionary-etl:latest
+
+echo &quot;Waiting for DictionaryEtlApplication to start...&quot;
+MAX_ATTEMPTS=6
+SLEEP_INTERVAL=5
+ATTEMPT=1
+while ! docker logs dictionaryetl 2&gt;&amp;1 | grep -q &quot;Started DictionaryEtlApplication&quot;; do
+    if [ &quot;$ATTEMPT&quot; -ge &quot;$MAX_ATTEMPTS&quot; ]; then
+        echo &quot;DictionaryEtlApplication failed to start within $((MAX_ATTEMPTS * SLEEP_INTERVAL)) seconds.&quot;
+        docker logs dictionaryetl
+        docker stop dictionaryetl
+        docker rm dictionaryetl
+        exit 1
+    fi
+    echo &quot;Attempt $ATTEMPT: Application not started yet. Retrying in $SLEEP_INTERVAL seconds...&quot;
+    sleep $SLEEP_INTERVAL
+    ATTEMPT=$((ATTEMPT + 1))
+done
+echo &quot;DictionaryEtlApplication has started!&quot;
+
+#curl -s &quot;http://dictionaryetl:8086/load/initialize?datasetName=$Dataset_Name&amp;includeDefaultFacets=true&amp;clearDatabase=$Clear_Dictionary_Database&quot;
+curl -v -s -X POST -H &quot;Content-Type: application/json&quot; \
+     -d &apos;{
+           &quot;datasetName&quot;: &quot;&apos;&quot;$Dataset_Name&quot;&apos;&quot;,
+           &quot;includeDefaultFacets&quot;: &apos;true&apos;,
+           &quot;clearDatabase&quot;: &quot;&apos;&quot;$Clear_Dictionary_Database&quot;&apos;&quot;
+         }&apos; \
+     http://dictionaryetl:8086/load/initialize
+
+docker stop dictionaryetl
+docker rm dictionaryetl</command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

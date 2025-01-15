@@ -12,7 +12,7 @@
   <description></description>
   <keepDependencies>false</keepDependencies>
   <properties/>
-  <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@3993.v3e20a_37282f8">
+  <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@4000.v5198556e9cea_">
     <script>import groovy.json.JsonSlurper;
 
 def retrieveBuildSpecId;
@@ -82,11 +82,11 @@ pipeline {
                 }
             }
         }
-        stage(&apos;Dictionary Build&apos;) {
+        stage(&apos;Dictionary Build &amp; Deploy&apos;) {
             steps {
                 script {
                     if (build_hashes[&apos;DICTIONARY&apos;]) {
-                        def result = build job: &apos;Build Dictionary API&apos;, parameters: [
+                        def result = build job: &apos;PIC-SURE Dictionary API Build and Deploy&apos;, parameters: [
                                 [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],
                                 [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;DICTIONARY&apos;]]
                         ]

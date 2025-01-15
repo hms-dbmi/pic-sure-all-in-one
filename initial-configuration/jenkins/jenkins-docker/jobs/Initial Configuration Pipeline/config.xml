@@ -1,8 +1,8 @@
 <?xml version='1.1' encoding='UTF-8'?>
-<flow-definition plugin="workflow-job@2.38">
+<flow-definition plugin="workflow-job@1400.v7fd111b_ec82f">
   <actions>
-    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobAction plugin="pipeline-model-definition@1.6.0"/>
-    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction plugin="pipeline-model-definition@1.6.0">
+    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobAction plugin="pipeline-model-definition@2.2218.v56d0cda_37c72"/>
+    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction plugin="pipeline-model-definition@2.2218.v56d0cda_37c72">
       <jobProperties/>
       <triggers/>
       <parameters/>
@@ -16,26 +16,22 @@
       <parameterDefinitions>
         <hudson.model.StringParameterDefinition>
           <name>AUTH0_CLIENT_ID</name>
-          <description></description>
           <defaultValue>__PIC_SURE_CLIENT_ID__</defaultValue>
           <trim>true</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>AUTH0_CLIENT_SECRET</name>
-          <description></description>
           <defaultValue>__PIC_SURE_CLIENT_SECRET__</defaultValue>
           <trim>true</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>AUTH0_TENANT</name>
-          <description></description>
           <defaultValue>avillachlab</defaultValue>
           <trim>true</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>ADMIN_USER_EMAIL</name>
           <description>The email address for the initial admin user.  This should be a Google account.</description>
-          <defaultValue></defaultValue>
           <trim>true</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
@@ -47,12 +43,11 @@
         <hudson.model.StringParameterDefinition>
           <name>RELEASE_CONTROL_REPOSITORY</name>
           <description>This must be the project specific release control git repository that contains the git commit hashes that will be built and deployed.</description>
-          <defaultValue></defaultValue>
           <trim>true</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>OUTBOUND_EMAIL_USER</name>
-          <description>The email account name that should be used to send outbound email.  The default server is Google's SMTP, so this should be a GMail account.  This field is optional</description>
+          <description>The email account name that should be used to send outbound email.  The default server is Google&apos;s SMTP, so this should be a GMail account.  This field is optional</description>
           <defaultValue>__user@email.com__</defaultValue>
           <trim>true</trim>
         </hudson.model.StringParameterDefinition>
@@ -110,7 +105,7 @@
         <hudson.model.BooleanParameterDefinition>
           <name>DOWNLOAD_AS_CSV</name>
           <description>Allows the user to download their data at the end of the export process as a CSV file.</description>
-          <defaultValue>true</defaultValue>
+          <defaultValue>false</defaultValue>
         </hudson.model.BooleanParameterDefinition>
         <hudson.model.BooleanParameterDefinition>
           <name>SHOW_VARIABLE_EXPORT</name>
@@ -135,7 +130,7 @@
         <hudson.model.BooleanParameterDefinition>
           <name>VARIANT_EXPLORER</name>
           <description>Enable the variant explorer. Only enable if HPDS has been loaded with Genomic data. </description>
-          <defaultValue>true</defaultValue>
+          <defaultValue>false</defaultValue>
         </hudson.model.BooleanParameterDefinition>
         <hudson.model.ChoiceParameterDefinition>
           <name>VARIANT_EXPLORER_TYPE</name>
@@ -170,10 +165,52 @@ The value must be in an array format, for example: [&quot;AN&quot;]  </descripti
           <defaultValue>age</defaultValue>
           <trim>true</trim>
         </hudson.model.StringParameterDefinition>
+        <hudson.model.ChoiceParameterDefinition>
+          <name>Dataset</name>
+          <description>Select the dataset to download</description>
+          <choices class="java.util.Arrays$ArrayList">
+            <a class="string-array">
+              <string>Nhanes</string>
+              <string>Synthea_10k</string>
+              <string>1000_Genomes</string>
+              <string>Custom</string>
+            </a>
+          </choices>
+        </hudson.model.ChoiceParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>Dataset_Branch</name>
+          <defaultValue>main</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>Include_Genomic_Data</name>
+          <description>If set to true genomic data must be present or HPDS will fail to start.</description>
+          <defaultValue>false</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>Allow_HPDS_Data_Export</name>
+          <description>If set to true user will be able to download HPDS Data.</description>
+          <defaultValue>false</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>Dataset_Name</name>
+          <description>If this value is left blank the first node of each concept path will be used as the study name ( The dataset ref ).
+
+Example 1:
+Dataset_Name:
+Concept Path: \node 1\node 2\node 3\
+Study Name: node 1
+
+Example 2:
+Dataset_Name: Nhanes
+Concept Path: \node 1\node 2\node 3\
+Study Name: Nhanes</description>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
   </properties>
-  <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@2.80">
+  <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@4000.v5198556e9cea_">
     <script>import groovy.json.JsonSlurper;
 
 def retrieveBuildSpecId;
@@ -261,7 +298,7 @@ pipeline {
                                 sh &quot;echo &apos;VITE_AUTH_PROVIDER_MODULE_GOOGLE_CONNECTION=google-oauth2&apos; &gt;&gt; .env&quot;
                                 sh &quot;echo &apos;VITE_AUTH_PROVIDER_MODULE_GOOGLE_DESCRIPTION=Login&apos; &gt;&gt; .env&quot;
                                 sh &quot;echo &apos;#Resource UUIDs:&apos; &gt;&gt; .env&quot;
-                                sh &quot;echo &apos;VITE_RESOURCE_HPDS=&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo  VITE_RESOURCE_HPDS=`cat /usr/local/docker-config/RESOURCE_ID_RAW` &gt;&gt; .env&quot;
                                 sh &quot;echo &apos;VITE_RESOURCE_OPEN_HPDS=&apos; &gt;&gt; .env&quot;
                                 sh &quot;echo &apos;VITE_RESOURCE_BASE_QUERY=&apos; &gt;&gt; .env&quot;
                                 sh &quot;echo &apos;VITE_RESOURCE_VIZ=&apos; &gt;&gt; .env&quot;
@@ -269,6 +306,12 @@ pipeline {
                                 sh &quot;echo &apos;VITE_GOOGLE_ANALYTICS_ID=&apos; &gt;&gt; .env&quot;
                                 sh &quot;echo &apos;VITE_GOOGLE_TAG_MANAGER_ID=&apos; &gt;&gt; .env&quot;
                                 sh &quot;mv .env &apos;/usr/local/docker-config/httpd/.env&apos;&quot;
+                                
+                                if (env.OPEN?.asBoolean()) {
+                                    sh &quot;sed -i &apos;s/^OPEN_IDP_PROVIDER_IS_ENABLED=.*/OPEN_IDP_PROVIDER_IS_ENABLED=true/&apos; /usr/local/docker-config/psama/.env&quot;
+                                } else {
+                                    sh &quot;sed -i &apos;s/^OPEN_IDP_PROVIDER_IS_ENABLED=.*/OPEN_IDP_PROVIDER_IS_ENABLED=false/&apos; /usr/local/docker-config/psama/.env&quot;
+                                }
                             }
                         },
                 emailConfig: {
@@ -306,13 +349,30 @@ pipeline {
                     )
                 }
             }
-            stage(&apos;Load Demo Data and Deploy&apos;) { 
+            
+            stage(&apos;Load Demo Data&apos;) {
                 steps {
-            script {
+                    script {
+                        def result = build job: &apos;Load HPDS and Dictionary Data&apos;, parameters: [
+                            [$class: &apos;StringParameterValue&apos;, name: &apos;Dataset&apos;, value: env.Dataset],
+                            [$class: &apos;StringParameterValue&apos;, name: &apos;Dataset_Name&apos;, value: env.Dataset_Name],
+                            [$class: &apos;StringParameterValue&apos;, name: &apos;Dataset_Branch&apos;, value: env.Dataset_Branch],
+                            [$class: &apos;BooleanParameterValue&apos;, name: &apos;Include_Genomic_Data&apos;, value: env.Include_Genomic_Data],
+                            [$class: &apos;BooleanParameterValue&apos;, name: &apos;Allow_HPDS_Data_Export&apos;, value: env.Allow_HPDS_Data_Export],
+                            [$class: &apos;BooleanParameterValue&apos;, name: &apos;Clear_Dictionary_Database&apos;, value: true]
+                        ]
+                    }
+                }
+            }
+            
+            stage(&apos;Deploy&apos;) {
+                steps {
+                    script {
                         def result = build job: &apos;Retrieve Build Spec&apos;
                         retrieveBuildSpecId = result.number
                     }
-            script {
+                    
+                    script {
                         copyArtifacts filter: &apos;*&apos;, projectName: &apos;Retrieve Build Spec&apos;, selector: specific(&quot;&quot;+retrieveBuildSpecId)
                         sh &apos;cat build-spec.json&apos;
                         sh &apos;cat pipeline_git_commit.txt&apos;
@@ -323,9 +383,7 @@ pipeline {
                             build_hashes[build.project_job_git_key] = build.git_hash
                         }
                     }
-                    script {
-                        def result = build job: &apos;Load HPDS Data From CSV&apos;
-                    }
+                    
                     script {
                         def result = build job: &apos;Start PIC-SURE&apos;, parameters: [[$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId]]
                     }

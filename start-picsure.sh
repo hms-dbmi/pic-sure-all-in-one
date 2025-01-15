@@ -9,22 +9,14 @@
 DOCKER_CONFIG_DIR="${DOCKER_CONFIG_DIR:-/usr/local/docker-config}"
 # Use this for file system checks. Use DOCKER_CONFIG_DIR for docker commands.
 # Except for --env_file commands, which refer to the current file system, not the root fs
-CURRENT_FS_DOCKER_CONFIG_DIR="${CURRENT_FS_DOCKER_CONFIG_DIR:$-DOCKER_CONFIG_DIR}"
+CURRENT_FS_DOCKER_CONFIG_DIR="${CURRENT_FS_DOCKER_CONFIG_DIR:-$DOCKER_CONFIG_DIR}"
 
 if [ -f "$CURRENT_FS_DOCKER_CONFIG_DIR/setProxy.sh" ]; then
    . $CURRENT_FS_DOCKER_CONFIG_DIR/setProxy.sh
 fi
 
-if [ -z "$(grep "VITE_ALLOW_EXPORT" $CURRENT_FS_DOCKER_CONFIG_DIR/httpd/.env | grep 'false')" ]; then
-  export EXPORT_SIZE="2000";
-else
-  export EXPORT_SIZE="0";
-fi
-
 # Docker Volumes
-export PICSURE_SETTINGS_VOLUME="-v $DOCKER_CONFIG_DIR/httpd/picsureui_settings.json:/usr/local/apache2/htdocs/picsureui/settings/settings.json"
 export PICSURE_BANNER_VOLUME="-v $DOCKER_CONFIG_DIR/httpd/banner_config.json:/usr/local/apache2/htdocs/picsureui/settings/banner_config.json"
-export PSAMA_SETTINGS_VOLUME="-v $DOCKER_CONFIG_DIR/httpd/psamaui_settings.json:/usr/local/apache2/htdocs/picsureui/psamaui/settings/settings.json"
 export EMAIL_TEMPLATE_VOLUME="-v $DOCKER_CONFIG_DIR/wildfly/emailTemplates:/opt/jboss/wildfly/standalone/configuration/emailTemplates "
 export TRUSTSTORE_VOLUME="-v $DOCKER_CONFIG_DIR/wildfly/application.truststore:/opt/jboss/wildfly/standalone/configuration/application.truststore"
 export PSAMA_TRUSTSTORE_VOLUME="-v $DOCKER_CONFIG_DIR/psama/application.truststore:/usr/local/tomcat/conf/application.truststore"
@@ -37,17 +29,16 @@ docker stop hpds && docker rm hpds
 docker run --name=hpds --restart always --network=picsure \
   -v $DOCKER_CONFIG_DIR/hpds:/opt/local/hpds \
   -v $DOCKER_CONFIG_DIR/hpds/all:/opt/local/hpds/all \
-  -v /var/log/hpds-logs/:/var/log/ \
+  -v "$DOCKER_CONFIG_DIR"/g/hpds-logs/:/var/log/ \
   -v $DOCKER_CONFIG_DIR/hpds_csv/:/usr/local/docker-config/hpds_csv/ \
   -v $DOCKER_CONFIG_DIR/aws_uploads/:/gic_query_results/ \
   --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/hpds/hpds.env \
   -d hms-dbmi/pic-sure-hpds:LATEST \
-  || exit(2)
+  || exit 2
 
 docker stop httpd && docker rm httpd
-
 docker run --name=httpd --restart always --network=picsure \
-    -v /var/log/httpd-docker-logs/:/app/logs/ \
+    -v "$DOCKER_CONFIG_DIR"/g/httpd-docker-logs/:/app/logs/ \
     -v $DOCKER_CONFIG_DIR/httpd/cert:/usr/local/apache2/cert/ \
     -v $DOCKER_CONFIG_DIR/httpd/httpd-vhosts.conf:/usr/local/apache2/conf/extra/httpd-vhosts.conf \
     $CUSTOM_HTTPD_VOLUMES \
@@ -55,8 +46,7 @@ docker run --name=httpd --restart always --network=picsure \
     -p 80:80 \
     -p 443:443 \
     -d hms-dbmi/pic-sure-frontend:LATEST \
-    || exit(2)
-docker exec httpd sed -i '/^#LoadModule proxy_wstunnel_module/s/^#//' conf/httpd.conf
+    || exit 2
 docker restart httpd
 
 docker stop psama && docker rm psama
@@ -66,17 +56,16 @@ docker run --name=psama --restart always \
   $EMAIL_TEMPLATE_VOLUME \
   $PSAMA_TRUSTSTORE_VOLUME \
   -d hms-dbmi/psama:LATEST \
-  || exit(2)
+  || exit 2
 
 docker stop wildfly && docker rm wildfly
 docker run --name=wildfly --restart always --network=picsure -u root \
-  -v /var/log/wildfly-docker-logs/:/opt/jboss/wildfly/standalone/log/ \
+  -v "$DOCKER_CONFIG_DIR"/g/wildfly-docker-logs/:/opt/jboss/wildfly/standalone/log/ \
   -v /etc/hosts:/etc/hosts \
-  -v /var/log/wildfly-docker-os-logs/:/var/log/ \
+  -v "$DOCKER_CONFIG_DIR"/g/wildfly-docker-os-logs/:/var/log/ \
   -v $DOCKER_CONFIG_DIR/wildfly/passthru/:/opt/jboss/wildfly/standalone/configuration/passthru/ \
   -v $DOCKER_CONFIG_DIR/wildfly/aggregate-data-sharing/:/opt/jboss/wildfly/standalone/configuration/aggregate-data-sharing/ \
   -v $DOCKER_CONFIG_DIR/wildfly/visualization/:/opt/jboss/wildfly/standalone/configuration/visualization/ \
-  -v $DOCKER_CONFIG_DIR/wildfly/deployments/:/opt/jboss/wildfly/standalone/deployments/ \
   -v $DOCKER_CONFIG_DIR/wildfly/standalone.xml:/opt/jboss/wildfly/standalone/configuration/standalone.xml \
   $TRUSTSTORE_VOLUME \
   $EMAIL_TEMPLATE_VOLUME \
@@ -84,9 +73,11 @@ docker run --name=wildfly --restart always --network=picsure -u root \
   -v $DOCKER_CONFIG_DIR/wildfly/mysql-connector-java-5.1.49.jar:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/mysql-connector-java-5.1.49.jar  \
   --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/wildfly/wildfly.env \
   -d hms-dbmi/pic-sure-wildfly:LATEST \
-  || exit(2)
+  || exit 2
 
-if [ -d $DOCKER_CONFIG_DIR/dictionary ]; then
-  docker compose -f $DOCKER_CONFIG_DIR/dictionary/docker-compose.yml --env-file $DOCKER_CONFIG_DIR/dictionary/.env up -d || exit(2)
-fi
-
+docker stop dictionary-api && docker rm dictionary-api
+docker run --name dictionary-api --restart always \
+ --network=picsure --network=dictionary --network=hpdsNet \
+ --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/dictionary/dictionary.env \
+ -d avillach/dictionary-api:latest \
+ || exit 2

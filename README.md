@@ -83,6 +83,7 @@ Examples:
         - Variant_consequence from VEP
     - After the data is loaded, running the UI only requires m5.large ec2 (2 vCPU and 8gb ram). This can range depending
       on the size of the data.
+    - AWS cost estimates based on Boston Children’s Hospital: $1,600 - $1,700 monthly costs for hosting the application and data (depending on the size of the data). $2,000 - $3,000 quarterly costs to map, process, and stage the data (depending on the size of the data)
 
 - If the resources required to load your data exceed the minimum system requirements, you can spin up an additional VM
   dedicated to loading the data. After you are finished loading the data, then that VM can be shut off.
@@ -110,7 +111,7 @@ you exact instructions. If you're following the legacy install instructions, you
 `cd pic-sure-all-in-one/initial-configuration`
 Choose one of the following use cases:
 - *Fully dockerized install.* Our current happy path.
-`sudo ./install-dependencies-docker.sh /path/to/desired/config/dir/ && source ~/.bashrc`
+`./install-dependencies-docker.sh /path/to/desired/config/dir/`
 - *Legacy install.* I know what I'm doing. `sudo ./install-dependencies.sh`
 - *Jenkins on https.* This is rare:
 ```shell
@@ -121,14 +122,14 @@ sudo ./install-dependencies-docker.sh /path/to/desired/config/dir/
 5. Browse to Jenkins server
    Point your browser at your server's IP on port `8080`.
 
-For example, if your server has IP `10.109.190.146`, please browse to http://10.109.190.146:8080
+  For example, if your server has IP `10.109.190.146`, please browse to http://10.109.190.146:8080
 
-Note: Work with your local IT department to ensure that this port is not available to the public internet, but is
-accessible to you on your intranet or VPN. Anyone with access to this port can launch any application they wish on your
-server.
+  Note: Work with your local IT department to ensure that this port is not available to the public internet, but is
+  accessible to you on your intranet or VPN. Anyone with access to this port can launch any application they wish on your
+  server.
 
-Once you have logged into Jenkins and have set up your admin account, you need to update a few Jenkins
-system variables:
+  Once you have logged into Jenkins and have set up your admin account, you need to update a few Jenkins
+  system variables:
 
 - `DOCKER_CONFIG_DIR`: `/path/to/config/dir` This is the path you passed to `install-dependencies-docker`
 - `MYSQL_CONFIG_DIR`: `/path/to/mysql/cnf/dir` This is the path you passed to `install-dependencies-docker`
@@ -238,7 +239,7 @@ does migrate your initial configurations.  (Does not impact PIC-SURE users)
 1. If jenkins is not running run the start script `sudo ./start-jenkins.sh`
 1. Follow the jenkins set up steps again.
 
-A backup of your jenkins home can be found here: `/var/jenkins_home_bak/`
+A backup of your jenkins home can be found here: `"$DOCKER_CONFIG_DIR"/jenkins_home_bak/`
 
 ## Users
 

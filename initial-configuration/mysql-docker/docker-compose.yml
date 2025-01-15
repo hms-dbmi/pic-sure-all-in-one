@@ -1,11 +1,9 @@
----
-version: '3'
+version: '3.7'
 services:
   picsure-db:
     image: mysql:8.0
     container_name: picsure-db
-    env_file:
-      - .env
+    env_file: .env
     environment:
       MYSQL_ROOT_PASSWORD: $PICSURE_DB_ROOT_PASS
       MYSQL_PASSWORD: $PICSURE_DB_PASS
@@ -15,8 +13,10 @@ services:
       test: [ "CMD", "mysqladmin" ,"ping", "-uroot", "-p$PICSURE_DB_ROOT_PASS" ]
       timeout: 20s
       retries: 10
+      start_period: 15s
+    restart: 'always'
     volumes:
-      - $DOCKER_CONFIG_DIR/picsure-db:/var/lib/mysql
+      - $MYSQL_CONFIG_DIR:/var/lib/mysql
     networks:
       - picsure
 networks:

@@ -17,7 +17,8 @@ images=$(docker ps -a -q)
 if [ ! -z "$images" ]; then
 	docker rmi $(docker images -a -q)
 fi
-docker system prune -a
+docker system prune -a --volumes -f
+docker volume prune -a -f
 
 systemctl stop docker
 
@@ -38,10 +39,10 @@ rm -f /etc/my.cnf
 rm -f ~/.my.cnf
 rm -rf /var/lib/mysql
 
-rm -rf /var/jenkins_home
-rm -rf /var/jenkins_home_bak
-rm -rf /var/log/httpd-docker-logs
-rm -rf /var/log/jenkins-docker-logs
-rm -rf /var/log/wildfly-docker-logs
-rm -rf /var/log/wildfly-docker-os-logs
-rm -rf /var/log/mysqld.log
+rm -rf "$DOCKER_CONFIG_DIR"/jenkins_home
+rm -rf "$DOCKER_CONFIG_DIR"/jenkins_home_bak
+rm -rf "$DOCKER_CONFIG_DIR"/log/httpd-docker-logs
+rm -rf "$DOCKER_CONFIG_DIR"/log/jenkins-docker-logs
+rm -rf "$DOCKER_CONFIG_DIR"/log/wildfly-docker-logs
+rm -rf "$DOCKER_CONFIG_DIR"/log/wildfly-docker-os-logs
+rm -rf "$DOCKER_CONFIG_DIR"/log/mysqld.log

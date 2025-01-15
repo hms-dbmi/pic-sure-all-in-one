@@ -6,28 +6,29 @@
   <properties>
     <hudson.model.ParametersDefinitionProperty>
       <parameterDefinitions>
-        <hudson.model.FileParameterDefinition>
-          <name>weights.csv</name>
-          <description>EXAMPLE:
-concept_node.DISPLAY,3
-concept_node.CONCEPT_PATH,2
-dataset.FULL_NAME,1
-dataset.DESCRIPTION,1
-concept_node_meta_str,1</description>
-        </hudson.model.FileParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>git_hash</name>
+          <defaultValue>*/main</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>pipeline_build_id</name>
+          <defaultValue>MANUAL_RUN</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
   </properties>
-  <scm class="hudson.plugins.git.GitSCM" plugin="git@5.2.2">
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@5.5.2">
     <configVersion>2</configVersion>
     <userRemoteConfigs>
       <hudson.plugins.git.UserRemoteConfig>
-        <url>https://github.com/hms-dbmi/picsure-dictionary/</url>
+        <url>https://github.com/hms-dbmi/picsure-dictionary-etl.git</url>
       </hudson.plugins.git.UserRemoteConfig>
     </userRemoteConfigs>
     <branches>
       <hudson.plugins.git.BranchSpec>
-        <name>*/weights</name>
+        <name>${git_hash}</name>
       </hudson.plugins.git.BranchSpec>
     </branches>
     <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
@@ -38,19 +39,15 @@ concept_node_meta_str,1</description>
   <disabled>false</disabled>
   <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
   <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <jdk>(System)</jdk>
   <triggers/>
   <concurrentBuild>false</concurrentBuild>
   <builders>
     <hudson.tasks.Shell>
-      <command># These are bash commands, so use the internal location of the config volume
-mkdir -p /usr/local/docker-config/dictionary-weights/
-cp /usr/local/docker-config/dictionary/.env /usr/local/docker-config/dictionary-weights/
-cp weights.csv /usr/local/docker-config/dictionary-weights/weights.csv
+      <command>GIT_BRANCH_SHORT=`echo ${GIT_BRANCH} | cut -d &quot;/&quot; -f 2` 
+GIT_COMMIT_SHORT=`echo ${GIT_COMMIT} | cut -c1-7`
 
-cd dictionaryweights
-# These are docker commands, so now we use the external location of the config volume
-docker build . -t dictionary-weights
-docker run --rm --env-file=/usr/local/docker-config/dictionary-weights/.env --network dictionary_dictionary -v $DOCKER_CONFIG_DIR/dictionary-weights/weights.csv:/weights.csv dictionary-weights</command>
+docker build -t hms-dbmi/dictionary-etl:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} -t hms-dbmi/dictionary-etl:latest .</command>
       <configuredLocalRules/>
     </hudson.tasks.Shell>
   </builders>

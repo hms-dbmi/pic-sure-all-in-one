@@ -20,8 +20,16 @@ RUN docker --version
 
 RUN apt-get -y install maven
 
-
 RUN apt-get install jq -y
+
+# java 21
+RUN apt-get install wget -y
+
+RUN wget https://download.java.net/java/GA/jdk21.0.1/415e3f918a1f4062a0074a2794853d0d/12/GPL/openjdk-21.0.1_linux-x64_bin.tar.gz
+
+RUN tar -xvf openjdk-21.0.1_linux-x64_bin.tar.gz
+
+RUN mv jdk-21.0.1 /opt/java/
 
 RUN apt-get -y install uuid-runtime
 

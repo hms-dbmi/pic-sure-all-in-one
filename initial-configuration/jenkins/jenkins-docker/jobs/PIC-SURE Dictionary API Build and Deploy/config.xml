@@ -1,0 +1,105 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description>Deploy Dictionary API Container</description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.FileParameterDefinition>
+          <name>dictionary.env</name>
+        </hudson.model.FileParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>pipeline_build_id</name>
+          <defaultValue>MANUAL_RUN</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>git_hash</name>
+          <defaultValue>origin/main</defaultValue>
+          <trim>true</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@5.5.2">
+    <configVersion>2</configVersion>
+    <userRemoteConfigs>
+      <hudson.plugins.git.UserRemoteConfig>
+        <url>https://github.com/hms-dbmi/picsure-dictionary.git</url>
+      </hudson.plugins.git.UserRemoteConfig>
+    </userRemoteConfigs>
+    <branches>
+      <hudson.plugins.git.BranchSpec>
+        <name>${git_hash}</name>
+      </hudson.plugins.git.BranchSpec>
+    </branches>
+    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+    <submoduleCfg class="empty-list"/>
+    <extensions/>
+  </scm>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <jdk>(System)</jdk>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash
+
+CONFIG_DIR=&quot;/usr/local/docker-config/dictionary&quot;
+COMPOSE_FILE=&quot;docker-compose.yml&quot;
+
+mkdir -p &quot;$CONFIG_DIR&quot;
+mkdir -p &quot;$CONFIG_DIR/db/data&quot;
+
+cp ./db/schema.sql &quot;$CONFIG_DIR/db/schema.sql&quot;
+
+# Step 1: Handle the .env file logic
+if [ -f dictionary.env ]; then
+    echo &quot;A new dictionary.env was loaded.&quot;
+    cp dictionary.env &quot;$CONFIG_DIR/dictionary.env&quot;
+    mv dictionary.env .env
+elif [ -f &quot;$CONFIG_DIR/dictionary.env&quot; ]; then
+    echo &quot;Using existing dictionary.env&quot;
+    cp &quot;$CONFIG_DIR/dictionary.env&quot; .env
+else
+    echo &quot;Creating new dictionary.env file.&quot;
+
+    POSTGRES_PASSWORD=$(tr -dc A-Za-z0-9 &lt;/dev/urandom | head -c 24)
+
+    {
+        echo &quot;POSTGRES_PASSWORD=$POSTGRES_PASSWORD&quot;
+        echo &quot;POSTGRES_USER=picsure&quot;
+        echo &quot;POSTGRES_DB=dictionary&quot;
+        echo &quot;POSTGRES_HOST=dictionary-db&quot;
+    } &gt; .env
+
+    cp .env &quot;$CONFIG_DIR/dictionary.env&quot;
+fi
+
+# Step 2: Check if dictionary-db service is running
+if docker ps --filter &quot;name=dictionary-db&quot; --format &apos;{{.Names}}&apos; | grep -q &quot;dictionary-db&quot;; then
+    echo &quot;dictionary-db is already running. Rebuilding only the dictionary-api service.&quot;
+    docker stop dictionary-api
+    docker rm dictionary-api
+    docker compose up -d --no-deps --build dictionary-api
+else
+    echo &quot;dictionary-db is not running. Starting all services.&quot;
+    docker compose up -d --build
+fi</command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers>
+    <hudson.plugins.ws__cleanup.PreBuildCleanup plugin="ws-cleanup@0.47">
+      <deleteDirs>false</deleteDirs>
+      <cleanupParameter></cleanupParameter>
+      <externalDelete></externalDelete>
+      <disableDeferredWipeout>false</disableDeferredWipeout>
+    </hudson.plugins.ws__cleanup.PreBuildCleanup>
+  </buildWrappers>
+</project>

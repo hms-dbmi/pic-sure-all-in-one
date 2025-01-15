@@ -1,0 +1,284 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<flow-definition plugin="workflow-job@1400.v7fd111b_ec82f">
+  <actions>
+    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobAction plugin="pipeline-model-definition@2.2218.v56d0cda_37c72"/>
+    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction plugin="pipeline-model-definition@2.2218.v56d0cda_37c72">
+      <jobProperties/>
+      <triggers/>
+      <parameters>
+        <string>Dataset</string>
+      </parameters>
+      <options/>
+    </org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction>
+  </actions>
+  <description></description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.ChoiceParameterDefinition>
+          <name>Dataset</name>
+          <description>Select the dataset to download</description>
+          <choices class="java.util.Arrays$ArrayList">
+            <a class="string-array">
+              <string>Nhanes</string>
+              <string>Synthea_10k</string>
+              <string>1000_Genomes</string>
+              <string>Custom</string>
+            </a>
+          </choices>
+        </hudson.model.ChoiceParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>Dataset_Branch</name>
+          <description>The branch for pic-sure-public-datasets</description>
+          <defaultValue>main</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.ChoiceParameterDefinition>
+          <name>HPDS_DATA_LOAD</name>
+          <description>If &quot;Single File (CSV)&quot; is selected &quot;Load HPDS Data From CSV&quot; will be used to process the &quot;allConcepts.csv&quot;.
+If &quot;Multiple Files&quot; is selected &quot;Load HPDS Data From Multiple Files&quot; will be used to process the provided files.
+If &quot;RDBMS&quot; is selected &quot;Load HPDS Data From RDBMS&quot; will be used to load the data.</description>
+          <choices class="java.util.Arrays$ArrayList">
+            <a class="string-array">
+              <string>Single File (CSV)</string>
+              <string>Multiple Files</string>
+              <string>RDBMS</string>
+            </a>
+          </choices>
+        </hudson.model.ChoiceParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>Include_Genomic_Data</name>
+          <description>If set to true genomic data must be present or HPDS will fail to start.</description>
+          <defaultValue>false</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>Allow_HPDS_Data_Export</name>
+          <description>If set to true user will be able to download HPDS Data.</description>
+          <defaultValue>false</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>Dataset_Name</name>
+          <description>If this value is left blank the first node of each concept path will be used as the study name ( The dataset ref ).
+
+Example 1:
+Dataset_Name:
+Concept Path: \node 1\node 2\node 3\
+Study Name: node 1
+
+Example 2:
+Dataset_Name: Nhanes
+Concept Path: \node 1\node 2\node 3\
+Study Name: Nhanes</description>
+          <trim>true</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>Clear_Dictionary_Database</name>
+          <description>Backup of the current database will be available in the &quot;$DOCKER_CONFIG_DIR/dictionary/csv/backup/&quot;</description>
+          <defaultValue>false</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@4000.v5198556e9cea_">
+    <script>import groovy.json.JsonSlurper;
+
+def retrieveBuildSpecId;
+def pipelineBuildId;
+def build_hashes = [
+    DICTIONARY: false,
+    UPLOADER: false,
+    DICTIONARY_ETL: false
+];
+pipeline {
+    agent any
+
+    parameters {
+        choice(name: &apos;Dataset&apos;, 
+               choices: [&apos;Nhanes&apos;, &apos;Synthea_10k&apos;, &apos;1000_Genomes&apos;, &apos;Custom&apos;], 
+               description: &apos;Select the dataset to download&apos;)
+    }
+
+    environment {
+        GIT_REPOSITORY = &apos;https://github.com/hms-dbmi/pic-sure-public-datasets.git&apos;
+    }
+
+    stages {
+        stage(&apos;Cleanup&apos;) {
+            steps {
+                script {
+                    sh &quot;rm -rf allConcepts.csv&quot;
+                    echo &quot;Workspace cleaned up.&quot;
+                }
+            }
+        }
+        
+        stage(&apos;Retrieve Build Spec&apos;) {
+            steps {
+                script {
+                    def result = build job: &apos;Retrieve Build Spec&apos;
+                    retrieveBuildSpecId = result.number
+                }
+                script {
+                    copyArtifacts filter: &apos;*&apos;, projectName: &apos;Retrieve Build Spec&apos;, selector: specific(&quot;&quot;+retrieveBuildSpecId)
+                    sh &apos;cat build-spec.json&apos;
+                    sh &apos;cat pipeline_git_commit.txt&apos;
+                    sh &apos;pwd&apos;
+                    def buildSpec = new JsonSlurper().parse(new File(&apos;/var/jenkins_home/workspace/Load HPDS and Dictionary Data/build-spec.json&apos;))
+                    pipelineBuildId = new File(&apos;/var/jenkins_home/workspace/Load HPDS and Dictionary Data/pipeline_git_commit.txt&apos;).text.trim()
+                    for(def build : buildSpec.application){
+                        build_hashes[build.project_job_git_key] = build.git_hash
+                    }
+                }
+            }
+        }
+        
+        stage(&apos;Sparse Checkout with GitSCM&apos;) {
+            steps {
+                script {
+                    // Map dataset choice to file paths
+                    def fileMap = [
+                        &quot;Nhanes&quot;: &quot;NHANES abbreviated allConcepts.csv.tgz&quot;,
+                        &quot;Synthea_10k&quot;: &quot;synthea_10k_picsure_format.csv.zip&quot;,
+                        &quot;1000_Genomes&quot;: &quot;open_access-1000Genomes_allConcepts_new_search_with_data_analyzer.csv&quot;,
+                        &quot;Custom&quot;: &quot;&quot;
+                    ]
+
+                    def selectedFile = fileMap[params.Dataset]
+                    println &quot;Selected dataset: ${params.Dataset}, File: ${selectedFile}&quot;
+
+                    // Perform sparse checkout using the checkout plugin
+                    checkout([
+                        $class: &apos;GitSCM&apos;,
+                        branches: [[name: params.Dataset_Branch]],
+                        userRemoteConfigs: [[url: env.GIT_REPOSITORY]],
+                        extensions: [
+                            [$class: &apos;SparseCheckoutPaths&apos;, sparseCheckoutPaths: [[path: selectedFile]]]
+                        ]
+                    ])
+                }
+            }
+        }
+
+        stage(&apos;Process Files&apos;) {
+            steps {
+                script {
+                    // Remove existing allConcepts.csv in target directory
+                    sh &quot;&quot;&quot;
+                        rm -f /usr/local/docker-config/hpds_csv/allConcepts.csv
+                        echo &quot;Removed existing allConcepts.csv from /usr/local/docker-config/hpds_csv&quot;
+                    &quot;&quot;&quot;
+                    
+                    if (params.Dataset == &apos;Nhanes&apos;) {
+                        sh &quot;&quot;&quot;
+                            tar -xvzf &quot;NHANES abbreviated allConcepts.csv.tgz&quot; -C .
+                            echo &quot;Extracted TGZ file for Nhanes&quot;
+                        &quot;&quot;&quot;
+                    } else if (params.Dataset == &apos;Synthea_10k&apos;) {
+                        sh &quot;&quot;&quot;
+                            unzip -o &quot;synthea_10k_picsure_format.csv.zip&quot; -d .
+                            cp synthea_10k_picsure_format.csv ./allConcepts.csv
+                            echo &quot;Extracted ZIP file for Synthea_10k&quot;
+                        &quot;&quot;&quot;
+                    } else if (params.Dataset == &apos;1000_Genomes&apos;) {
+                        sh &quot;&quot;&quot;
+                            cp &quot;open_access-1000Genomes_allConcepts_new_search_with_data_analyzer.csv&quot; ./allConcepts.csv
+                            echo &quot;CSV file downloaded for 1000_Genomes&quot;
+                        &quot;&quot;&quot;
+                    } 
+                    
+                    if (params.Dataset == &apos;Custom&apos;) {
+                        sh &quot;&quot;&quot;
+                            echo &quot;Data has already been provided.&quot;
+                        &quot;&quot;&quot;
+                    } else {
+                        // Move new allConcepts.csv to the target directory
+                        sh &quot;&quot;&quot;
+                            mkdir -p /usr/local/docker-config/hpds_csv/
+                            mv ./allConcepts.csv /usr/local/docker-config/hpds_csv/allConcepts.csv
+                        &quot;&quot;&quot;
+                    }
+                }
+            }
+        }
+        
+        stage(&apos;Load HPDS Data From CSV&apos;) {
+            steps {
+                script {
+                    if (params.HPDS_DATA_LOAD == &quot;Single File (CSV)&quot;) {
+                        def result = build job: &apos;Load HPDS Data From CSV&apos;
+                    } else if(params.HPDS_DATA_LOAD == &quot;Multiple Files&quot;) {
+                        def result = build job: &apos;Load HPDS Data From Multiple Files&apos;
+                    }
+                }
+            }
+        }
+        
+        stage(&apos;Build Dictionary ETL&apos;) {
+            steps {
+                script {
+                    def dictEtlBranch = build_hashes[&apos;DICTIONARY_ETL&apos;] ?: &quot;main&quot;
+                    def result = build job: &apos;PIC-SURE Dictionary-ETL Build&apos;, parameters: [
+                        [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: dictEtlBranch],
+                    ]
+                }
+            }
+        }
+        
+        stage(&apos;Hydrate Dictionary Database&apos;) {
+            steps {
+                script {
+                    def result = build job: &apos;Hydrate Data Dictionary Database&apos;, parameters: [
+                        [$class: &apos;StringParameterValue&apos;, name: &apos;Dataset_Name&apos;, value: params.Dataset_Name],
+                        [$class: &apos;BooleanParameterValue&apos;, name: &apos;Clear_Dictionary_Database&apos;, value: params.Clear_Dictionary_Database]
+                    ]
+                }
+            }
+        }
+        
+        stage(&apos;Dictionary Weights&apos;) {
+            steps {
+                script {
+                    def result = build job: &apos;Run Dictionary Weights&apos;
+                }
+            }
+        }
+
+        
+        stage(&apos;Configure HPDS&apos;) {
+            steps {
+                script {
+                    
+                    echo &quot;Include_Genomic_Data: ${env.Include_Genomic_Data}&quot;
+                    echo &quot;Allow_HPDS_Data_Export: ${env.Allow_HPDS_Data_Export}&quot;
+                    
+                    if (env.Include_Genomic_Data == &quot;true&quot;) {
+                        sh &quot;sed -i &apos;s/^SPRING_PROFILES_ACTIVE=.*/SPRING_PROFILES_ACTIVE=bch-dev/&apos; /usr/local/docker-config/hpds/hpds.env&quot;
+                    } else {
+                        sh &quot;sed -i &apos;s/^SPRING_PROFILES_ACTIVE=.*/SPRING_PROFILES_ACTIVE=/&apos; /usr/local/docker-config/hpds/hpds.env&quot;
+                    }
+                    
+                    if (env.Allow_HPDS_Data_Export == &quot;true&quot;) {
+                        sh &quot;sed -i &apos;s/^ID_BATCH_SIZE=.*/ID_BATCH_SIZE=2000/&apos; /usr/local/docker-config/hpds/hpds.env&quot;
+                    } else {
+                        sh &quot;sed -i &apos;s/^ID_BATCH_SIZE=.*/ID_BATCH_SIZE=0/&apos; /usr/local/docker-config/hpds/hpds.env&quot;
+                    }
+                }
+            }
+        }
+        
+        stage(&apos;Restart HPDS &amp; Dictionary&apos;) {
+            steps {
+                script {
+                    sh &quot;docker restart hpds || true&quot;
+                    sh &quot;docker restart dictionary-api || true&quot;
+                }
+            }
+        }
+    }
+}</script>
+    <sandbox>true</sandbox>
+  </definition>
+  <triggers/>
+  <disabled>false</disabled>
+</flow-definition>

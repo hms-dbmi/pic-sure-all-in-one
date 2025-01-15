@@ -3,21 +3,12 @@
   <actions/>
   <description></description>
   <keepDependencies>false</keepDependencies>
-  <properties>
-    <hudson.model.ParametersDefinitionProperty>
-      <parameterDefinitions>
-        <hudson.model.StringParameterDefinition>
-          <name>pipeline_build_id</name>
-          <trim>false</trim>
-        </hudson.model.StringParameterDefinition>
-      </parameterDefinitions>
-    </hudson.model.ParametersDefinitionProperty>
-  </properties>
+  <properties/>
   <scm class="hudson.plugins.git.GitSCM" plugin="git@5.5.2">
     <configVersion>2</configVersion>
     <userRemoteConfigs>
       <hudson.plugins.git.UserRemoteConfig>
-        <url>https://github.com/hms-dbmi/pic-sure-wildfly-docker</url>
+        <url>https://github.com/hms-dbmi/picsure-dictionary</url>
       </hudson.plugins.git.UserRemoteConfig>
     </userRemoteConfigs>
     <branches>
@@ -38,18 +29,16 @@
   <concurrentBuild>false</concurrentBuild>
   <builders>
     <hudson.tasks.Shell>
-      <command>
-if [ -f &quot;/usr/local/docker-config/setProxy.sh&quot; ]; then
-   . /usr/local/docker-config/setProxy.sh
-fi
+      <command>cd dictionaryweights
 
-docker build --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_proxy --build-arg no_proxy=&quot;$no_proxy&quot; \
---build-arg HTTP_PROXY=$http_proxy --build-arg HTTPS_PROXY=$http_proxy --build-arg NO_PROXY=&quot;$no_proxy&quot; \
---build-arg PIC_SURE_API_VERSION=LATEST --build-arg PIC_SURE_PASSTHRU_RESOURCE_VERSION=LATEST \
--t hms-dbmi/pic-sure-wildfly:${pipeline_build_id} .
-docker tag hms-dbmi/pic-sure-wildfly:${pipeline_build_id} hms-dbmi/pic-sure-wildfly:LATEST
+docker build --no-cache -t weights:latest .
 
-</command>
+cp /usr/local/docker-config/dictionary/dictionary.env .env
+
+docker run --rm -t --name dictionary-weights \
+--network=dictionary -v $DOCKER_CONFIG_DIR/dictionary/weights.csv:/weights.csv \
+--env-file .env \
+weights:latest</command>
       <configuredLocalRules/>
     </hudson.tasks.Shell>
   </builders>

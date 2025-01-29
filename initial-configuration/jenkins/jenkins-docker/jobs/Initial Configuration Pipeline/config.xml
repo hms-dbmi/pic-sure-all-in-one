@@ -60,12 +60,12 @@
         <hudson.model.BooleanParameterDefinition>
           <name>OPEN</name>
           <description>PIC-SURE can be used without forcing the user log in. Unauthorized users will have a limited feature set.  See more information on Gitbook: TODO_GITBOOK</description>
-          <defaultValue>true</defaultValue>
+          <defaultValue>false</defaultValue>
         </hudson.model.BooleanParameterDefinition>
         <hudson.model.BooleanParameterDefinition>
           <name>DISCOVER</name>
           <description>Enable the Discover page which allows users to search across all data in the project.</description>
-          <defaultValue>true</defaultValue>
+          <defaultValue>false</defaultValue>
         </hudson.model.BooleanParameterDefinition>
         <hudson.model.BooleanParameterDefinition>
           <name>DASHBOARD</name>

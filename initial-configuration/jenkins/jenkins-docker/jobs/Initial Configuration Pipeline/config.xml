@@ -291,6 +291,7 @@ pipeline {
                                 sh &quot;echo &apos;VITE_TOUR_SEARCH_TERM=$env.TOUR_SEARCH_TERM&apos; &gt;&gt; .env&quot;
                                 sh &quot;echo &apos;VITE_REQUIRE_CONSENTS=false&apos; &gt;&gt; .env&quot;
                                 sh &quot;echo &apos;VITE_USE_QUERY_TEMPLATE=false&apos; &gt;&gt; .env&quot;
+                                sh &quot;echo &apos;VITE_ENABLE_TOS=false&apos; &gt;&gt; .env&quot;
                                 sh &quot;echo &apos;#Login Provider (You may add as many as you would like):&apos; &gt;&gt; .env&quot;
                                 sh &quot;echo &apos;VITE_AUTH_PROVIDER_MODULE_GOOGLE=true&apos; &gt;&gt; .env&quot;
                                 sh &quot;echo &apos;VITE_AUTH_PROVIDER_MODULE_GOOGLE_TYPE=AUTH0&apos; &gt;&gt; .env&quot;

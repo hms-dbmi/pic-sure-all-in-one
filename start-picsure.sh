@@ -62,7 +62,7 @@ docker stop wildfly && docker rm wildfly
 docker run --name=wildfly --restart always --network=picsure -u root \
   -v "$DOCKER_CONFIG_DIR"/g/wildfly-docker-logs/:/opt/jboss/wildfly/standalone/log/ \
   -v /etc/hosts:/etc/hosts \
-  -v "$DOCKER_CONFIG_DIR"/g/wildfly-docker-os-logs/:/var/log/ \
+  -v "$DOCKER_CONFIG_DIR"/log/wildfly-docker-os-logs/:/var/log/ \
   -v $DOCKER_CONFIG_DIR/wildfly/passthru/:/opt/jboss/wildfly/standalone/configuration/passthru/ \
   -v $DOCKER_CONFIG_DIR/wildfly/aggregate-data-sharing/:/opt/jboss/wildfly/standalone/configuration/aggregate-data-sharing/ \
   -v $DOCKER_CONFIG_DIR/wildfly/visualization/:/opt/jboss/wildfly/standalone/configuration/visualization/ \

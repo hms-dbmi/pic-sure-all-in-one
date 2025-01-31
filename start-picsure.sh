@@ -29,7 +29,7 @@ docker stop hpds && docker rm hpds
 docker run --name=hpds --restart always --network=picsure \
   -v $DOCKER_CONFIG_DIR/hpds:/opt/local/hpds \
   -v $DOCKER_CONFIG_DIR/hpds/all:/opt/local/hpds/all \
-  -v "$DOCKER_CONFIG_DIR"/g/hpds-logs/:/var/log/ \
+  -v "$DOCKER_CONFIG_DIR"/log/hpds-logs/:/var/log/ \
   -v $DOCKER_CONFIG_DIR/hpds_csv/:/usr/local/docker-config/hpds_csv/ \
   -v $DOCKER_CONFIG_DIR/aws_uploads/:/gic_query_results/ \
   --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/hpds/hpds.env \
@@ -38,7 +38,7 @@ docker run --name=hpds --restart always --network=picsure \
 
 docker stop httpd && docker rm httpd
 docker run --name=httpd --restart always --network=picsure \
-    -v "$DOCKER_CONFIG_DIR"/g/httpd-docker-logs/:/app/logs/ \
+    -v "$DOCKER_CONFIG_DIR"/log/httpd-docker-logs/:/app/logs/ \
     -v $DOCKER_CONFIG_DIR/httpd/cert:/usr/local/apache2/cert/ \
     -v $DOCKER_CONFIG_DIR/httpd/httpd-vhosts.conf:/usr/local/apache2/conf/extra/httpd-vhosts.conf \
     $CUSTOM_HTTPD_VOLUMES \
@@ -60,9 +60,9 @@ docker run --name=psama --restart always \
 
 docker stop wildfly && docker rm wildfly
 docker run --name=wildfly --restart always --network=picsure -u root \
-  -v "$DOCKER_CONFIG_DIR"/g/wildfly-docker-logs/:/opt/jboss/wildfly/standalone/log/ \
+  -v "$DOCKER_CONFIG_DIR"/log/wildfly-docker-logs/:/opt/jboss/wildfly/standalone/log/ \
   -v /etc/hosts:/etc/hosts \
-  -v "$DOCKER_CONFIG_DIR"/g/wildfly-docker-os-logs/:/var/log/ \
+  -v "$DOCKER_CONFIG_DIR"/log/wildfly-docker-os-logs/:/var/log/ \
   -v $DOCKER_CONFIG_DIR/wildfly/passthru/:/opt/jboss/wildfly/standalone/configuration/passthru/ \
   -v $DOCKER_CONFIG_DIR/wildfly/aggregate-data-sharing/:/opt/jboss/wildfly/standalone/configuration/aggregate-data-sharing/ \
   -v $DOCKER_CONFIG_DIR/wildfly/visualization/:/opt/jboss/wildfly/standalone/configuration/visualization/ \

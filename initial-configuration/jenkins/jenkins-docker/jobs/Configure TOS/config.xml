@@ -32,7 +32,10 @@
   <concurrentBuild>false</concurrentBuild>
   <builders>
     <hudson.tasks.Shell>
-      <command>sed -i &quot;s/^VITE_ENABLE_TOS=.*/VITE_ENABLE_TOS=$ENABLE_TOS/&quot; /usr/local/docker-config/httpd/.env</command>
+      <command>
+sed -i &quot;s/^VITE_ENABLE_TOS=.*/VITE_ENABLE_TOS=$ENABLE_TOS/&quot; /usr/local/docker-config/httpd/.env
+cp terms.html /usr/local/docker-config/httpd/terms.html
+      </command>
       <configuredLocalRules/>
     </hudson.tasks.Shell>
   </builders>

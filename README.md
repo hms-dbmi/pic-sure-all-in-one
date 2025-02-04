@@ -136,7 +136,7 @@ sudo ./install-dependencies-docker.sh /path/to/desired/config/dir/
 - `MYSQL_NETWORK`: `picsure` If you plan to switch to a remote database, this needs to be changed back to `host`
 
 6. Run the Initial Configuration Pipeline job.
-   In Jenkins you will see 5 tabs: All, Configuration, Deployment, PIC-SURE Builds, Supporting Jobs. Click the
+   In Jenkins, you will see 5 tabs: All, Configuration, Deployment, PIC-SURE Builds, Supporting Jobs. Click the
    Configuration tab, then click the button to the right of the Initial Configuration Pipeline job. It resembles a clock
    with a green triangle on it. See Additional Information below for how to connect to a remote SQL instance.
 
@@ -162,25 +162,29 @@ sudo ./install-dependencies-docker.sh /path/to/desired/config/dir/
 Note: Ensure none of these fields contain leading or trailing whitespace, the values must be exact. Once you have
 entered the information,
 
-8. Click the `Build` button.
+8. Select an initial data set or provide your own using the "Custom" option.
+    - If "Custom" is selected it is assumed you are providing your own data set via a single `allConcepts.csv` file. The
+   provided `allConcepts.csv` file should be placed in the $DOCKER_CONFIG_DIR/hpds
+
+9. Click the `Build` button.
 
 Wait until all jobs complete. This may take several minutes. When nothing displays in the Build Queue or Build Executor
 Status to the left of the page, all jobs will have completed.
 
-9. Click the `All` tab to ensure nothing displays with a red dot next to it. If you see any red dots, please try
+10. Click the `All` tab to ensure nothing displays with a red dot next to it. If you see any red dots, please try
    restarting with a fresh install. If you consistently have one or more jobs fail and display red dots, please
    reach out to http://avillachlabsupport.hms.harvard.edu for help.
 
 If all jobs have blue dots except the Check For Updates and Configure SSL Certificates job, which should be gray, you
 can log into the UI for the first time.
 
-10. Browse to the same domain or IP address as your Jenkins server without the `8080` port.
+11. Browse to the same domain or IP address as your Jenkins server without the `8080` port.
 
 For example, if your server has IP `10.109.190.146`, you would browse to https://10.109.190.146
 
-11. Log in using your Google account that you previously configured.
+12. Log in using your Google account that you previously configured.
 
-12. Once you have confirmed that you can access the PIC-SURE UI using your admin user, stop the jenkins server by
+13. Once you have confirmed that you can access the PIC-SURE UI using your admin user, stop the jenkins server by
     running the following stop-jenkins.sh script:
 
 sudo ./stop-jenkins.sh

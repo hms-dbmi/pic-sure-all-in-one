@@ -224,12 +224,26 @@ For example, if your server has IP `10.109.190.146`, browse to https://10.109.19
     - Cloud - Azure - Azure SQL Database
     - Cloud - GCP - Cloud SQL
 
-## Data Loading into HPDS
-
+## Data Loading
+### Manual load HPDS
 - Genotype Data
   Load: [https://github.com/hms-dbmi/pic-sure-all-in-one/blob/master/hpds_geno_load.md](https://github.com/hms-dbmi/pic-sure-all-in-one/blob/master/hpds_geno_load.md)
 - Phenotypic Data
   Load: [https://github.com/hms-dbmi/pic-sure-hpds-phenotype-load-example](https://github.com/hms-dbmi/pic-sure-hpds-phenotype-load-example)
+
+### Manually load Dictionary Database
+- **Job:** Hydrate Data Dictionary Database
+  **Prerequisite:**
+      - Completed the initial configuration pipeline.
+      - Run the "PIC-SURE Dictionary-ETL Build" job.
+      - Create a "columnMeta.csv" and place it in the "$DOCKER_CONFIG_DIR/hpds" directory.
+    **Execution:** Run the "Project Hydrate Data Dictionary Database" job selecting the desired parameters.
+
+### Load Dictionary and HPDS
+- **Job:** "Load HPDS and Dictionary Data"
+  **Prerequisite:**
+      - Completed the initial configuration pipeline.
+  **Execution:** Run the "Load HPDS and Dictionary Data" job selecting the desired parameters.
 
 ## Updating Jenkins
 

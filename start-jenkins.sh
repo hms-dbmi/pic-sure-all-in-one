@@ -15,7 +15,6 @@ docker run -d \
   -e no_proxy="$no_proxy" \
   -e DOCKER_CONFIG_DIR="$DOCKER_CONFIG_DIR" \
   -v /var/jenkins_cert:/var/jenkins_cert \
-  -v "$DOCKER_CONFIG_DIR"/hpds_csv/:/usr/local/docker-config/hpds_csv/ \
   -v /var/jenkins_home:/var/jenkins_home \
   -v "$DOCKER_CONFIG_DIR":/usr/local/docker-config \
   -v /var/run/docker.sock:/var/run/docker.sock \

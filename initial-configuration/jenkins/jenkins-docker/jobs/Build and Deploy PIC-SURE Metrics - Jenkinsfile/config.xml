@@ -1,0 +1,152 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<flow-definition plugin="workflow-job@1400.v7fd111b_ec82f">
+  <actions>
+    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobAction plugin="pipeline-model-definition@2.2218.v56d0cda_37c72"/>
+    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction plugin="pipeline-model-definition@2.2218.v56d0cda_37c72">
+      <jobProperties/>
+      <triggers/>
+      <parameters>
+        <string>PATH</string>
+        <string>MAX_FILE_SIZE</string>
+        <string>ERROR_MAX_FILE_SIZE</string>
+        <string>ERROR_FILE_NAME</string>
+        <string>SHOULD_ROLL_FILE</string>
+        <string>FILE_NAME</string>
+        <string>ERROR_PATH</string>
+        <string>RETENTION_TIME</string>
+        <string>REPOSITORY_NAME</string>
+        <string>DEPLOY</string>
+        <string>DOCKER_REGISTRY</string>
+        <string>ERROR_SHOULD_ROLL_FILE</string>
+        <string>ERROR_FILE</string>
+        <string>ERROR_RETENTION_TIME</string>
+      </parameters>
+      <options/>
+    </org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction>
+  </actions>
+  <description>This Jenkins job will build and deploy the PIC-SURE Metrics resource.</description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>DOCKER_REGISTRY</name>
+          <description>Docker registry URL (e.g., ECR URL)</description>
+          <defaultValue>hms-dbmi</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>REPOSITORY_NAME</name>
+          <description>Docker repository name</description>
+          <defaultValue>metrics</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>DEPLOY</name>
+          <description>Deploy the image to the registry</description>
+          <defaultValue>true</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>ERROR_FILE</name>
+          <description>Errors will be sent to a different file than standard metrics.</description>
+          <defaultValue>true</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>PATH</name>
+          <description>Log file location.</description>
+          <defaultValue>/home/logs/metrics</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>FILE_NAME</name>
+          <description>Log file name.</description>
+          <defaultValue>pic-sure-metrics.json</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.ChoiceParameterDefinition>
+          <name>SHOULD_ROLL_FILE</name>
+          <description>Choose log file mode</description>
+          <choices class="java.util.Arrays$ArrayList">
+            <a class="string-array">
+              <string>ROLLING_FILE</string>
+              <string>SINGLE_FILE</string>
+            </a>
+          </choices>
+        </hudson.model.ChoiceParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>MAX_FILE_SIZE</name>
+          <description>If rolling over, this is the size (in MB) each file should be at its max.</description>
+          <defaultValue>100</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>RETENTION_TIME</name>
+          <description>Log file retention time in days.</description>
+          <defaultValue>90</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>ERROR_PATH</name>
+          <description>Error log file location.</description>
+          <defaultValue>/home/logs/errors</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>ERROR_FILE_NAME</name>
+          <description>Error log file name.</description>
+          <defaultValue>pic-sure-errors.json</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.ChoiceParameterDefinition>
+          <name>ERROR_SHOULD_ROLL_FILE</name>
+          <description>Choose error log file mode</description>
+          <choices class="java.util.Arrays$ArrayList">
+            <a class="string-array">
+              <string>SINGLE_FILE</string>
+              <string>ROLLING_FILE</string>
+            </a>
+          </choices>
+        </hudson.model.ChoiceParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>ERROR_MAX_FILE_SIZE</name>
+          <description>If rolling over, this is the size (in MB) each error log file should be at its max.</description>
+          <defaultValue>100</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>ERROR_RETENTION_TIME</name>
+          <description>Error log file retention time in days.</description>
+          <defaultValue>90</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>git_hash</name>
+          <defaultValue>main</defaultValue>
+          <trim>true</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <definition class="org.jenkinsci.plugins.workflow.cps.CpsScmFlowDefinition" plugin="workflow-cps@4000.v5198556e9cea_">
+    <scm class="hudson.plugins.git.GitSCM" plugin="git@5.5.2">
+      <configVersion>2</configVersion>
+      <userRemoteConfigs>
+        <hudson.plugins.git.UserRemoteConfig>
+          <url>https://github.com/hms-dbmi/PIC-SURE-Metrics.git</url>
+        </hudson.plugins.git.UserRemoteConfig>
+      </userRemoteConfigs>
+      <branches>
+        <hudson.plugins.git.BranchSpec>
+          <name>${git_hash}</name>
+        </hudson.plugins.git.BranchSpec>
+      </branches>
+      <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+      <submoduleCfg class="empty-list"/>
+      <extensions/>
+    </scm>
+    <scriptPath>Jenkinsfile</scriptPath>
+    <lightweight>false</lightweight>
+  </definition>
+  <triggers/>
+  <disabled>false</disabled>
+</flow-definition>

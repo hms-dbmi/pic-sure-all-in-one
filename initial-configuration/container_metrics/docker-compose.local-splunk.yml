@@ -1,0 +1,38 @@
+version: '3.7'
+services:
+  splunk:
+    platform: linux/amd64
+    image: splunk/splunk:latest
+    container_name: splunk
+    ports:
+      - "8000:8000"
+      - "9997:9997"
+      - "8089:8089"
+    environment:
+      - SPLUNK_START_ARGS=--accept-license
+      - SPLUNK_STANDALONE_URL=splunk
+      - SPLUNK_PASSWORD=testPassword123
+    volumes:
+      - ./splunk/:/opt/splunk/etc/system/local/
+    networks:
+      - monitoring
+
+  splunkforwarder:
+    platform: linux/amd64
+    image: splunk/universalforwarder:latest
+    container_name: splunkforwarder
+    environment:
+      - SPLUNK_START_ARGS=--accept-license
+      - SPLUNK_STANDALONE_URL=splunk
+      - SPLUNK_ADD=udp 1514,monitor /var/log/*
+      - SPLUNK_PASSWORD=testPassword123
+    volumes:
+      - ./forwarder:/opt/splunkforwarder/etc/system/local
+    networks:
+      - monitoring
+    ports:
+      - "8089"
+
+networks:
+  monitoring:
+    driver: bridge

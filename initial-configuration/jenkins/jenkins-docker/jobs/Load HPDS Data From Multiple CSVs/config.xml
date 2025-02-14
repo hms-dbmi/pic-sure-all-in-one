@@ -1,0 +1,63 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description>This is a multi-CSV data loader optimized to conserve memory. It is currently configured to run on an 8G heap.&#xd;
+&#xd;
+This job will load data found in the local directory $DOCKER_CONFIG_DIR/hpds_input.  The loader will scan the directory, and load all CSV files.  When this job completes successfully, it will move any existing HPDS phenotype data to a backup directory &quot;$DOCKER_CONFIG_DIR/hpds_bak&quot;, and the new data will be placed in &quot;$DOCKER_CONFIG_DIR/hpds/&quot;.  The &quot;Start PIC-SURE&quot; job needs to be run after this job completes to refresh the HPDS data volume mount and allow PIC-SURE to access the new data.&#xd;
+&#xd;
+&#xd;
+Each CSV file must start with a header line, exactly matching this string:&#xd;
+&#xd;
+&quot;PATIENT_NUM&quot;,&quot;CONCEPT_PATH&quot;,&quot;NVAL_NUM&quot;,&quot;TVAL_CHAR&quot;,&quot;TIMESTAMP&quot;&#xd;
+&#xd;
+Each subsequent row in the data file or the SQL result must contain the following entries to match the header columns:&#xd;
+&#xd;
+PATIENT_NUM: This is an integer value identifying the subject of the recorded observation fact.&#xd;
+&#xd;
+CONCEPT_PATH: This is an identifier for the concept of the observation fact. For compatibility with the PIC-SURE UI this path should represent a location in a hierarchy where each level is separated by a backslash and with a leading and trailing backslash, e.g., &quot;\demographics\AGE\&quot;.&#xd;
+&#xd;
+NVAL_NUM: A numeric value if this is a numeric concept, otherwise blank.&#xd;
+&#xd;
+TVAL_CHAR: A text value if this is a categorical concept, otherwise blank.&#xd;
+&#xd;
+TIMESTAMP: A timestamp for the observation fact, this should be expressed as the number of milliseconds since January 1, 1970 GMT. &#xd;
+This is equivalent to the Unix Epoch time value for the time of the observation multiplied by 1000.&#xd;
+</description>
+  <keepDependencies>false</keepDependencies>
+  <properties/>
+  <scm class="hudson.scm.NullSCM"/>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <jdk>(System)</jdk>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>
+export PROFILING_OPTS=&quot;-Dcom.sun.management.jmxremote.port=9000 -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Djava.rmi.server.hostname=localhost&quot;
+
+docker stop hpds-etl &amp;&amp; docker rm hpds-etl
+
+rm -rf /usr/local/docker-config/hpds_temp
+rm -rf /usr/local/docker-config/hpds_bak
+mkdir -p /usr/local/docker-config/hpds_temp
+
+#generate a new encryption key
+openssl enc -aes-128-cbc -k secret -P | grep key | cut -d &apos;=&apos; -f2 &gt;  /usr/local/docker-config/hpds_temp/encryption_key
+
+docker run --name=hpds-etl \
+-v $DOCKER_CONFIG_DIR/hpds_temp:/opt/local/hpds \
+-v $DOCKER_CONFIG_DIR/hpds_input/:/opt/local/hpds_input/ \
+-e JAVA_OPTS=&quot;-Dlogback.log.level=INFO&quot; \
+-e HEAPSIZE=8000 -e LOADER_NAME=LowRAMMultiCSVLoader hms-dbmi/pic-sure-hpds-etl:LATEST &amp;&amp; \
+mv /usr/local/docker-config/hpds /usr/local/docker-config/hpds_bak &amp;&amp; \
+mv /usr/local/docker-config/hpds_temp /usr/local/docker-config/hpds
+</command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

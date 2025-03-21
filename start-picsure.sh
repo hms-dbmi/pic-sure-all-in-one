@@ -64,7 +64,6 @@ docker run --name=httpd --restart always --network=picsure \
   $PICSURE_BANNER_VOLUME \
   $PSAMA_SETTINGS_VOLUME \
   -v $DOCKER_CONFIG_DIR/httpd/cert:/usr/local/apache2/cert/ \
-  -v $DOCKER_CONFIG_DIR/httpd/connections.json:/usr/local/apache2/htdocs/picsureui/psamaui/login/connections.json \
   $CUSTOM_HTTPD_VOLUMES \
   -p 80:80 \
   -p 443:443 \

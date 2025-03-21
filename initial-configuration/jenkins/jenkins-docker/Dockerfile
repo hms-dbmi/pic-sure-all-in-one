@@ -1,4 +1,4 @@
-FROM jenkins/jenkins:2.442-jdk11
+FROM jenkins/jenkins:2.462.3-jdk11
 
 COPY plugins.yml /usr/share/jenkins/ref/plugins.yml
 

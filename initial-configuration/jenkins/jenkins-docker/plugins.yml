@@ -52,10 +52,10 @@ plugins:
       version: 2.17.3
   - artifactId: ldap
     source:
-      version: 6.989.v1070f3a_b_0752
+      version: 694.vc02a_69c9787f
   - artifactId: cloudbees-folder
     source:
-      version: 6.901.vb_4c7a_da_75da_3
+      version: 6.989.v1070f3a_b_0752
   - artifactId: list-git-branches-parameter
     source:
       version: 0.0.13

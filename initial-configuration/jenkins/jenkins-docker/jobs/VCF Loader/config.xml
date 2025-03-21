@@ -1,0 +1,62 @@
+
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+    <actions/>
+    <description></description>
+    <keepDependencies>false</keepDependencies>
+    <properties>
+        <hudson.model.ParametersDefinitionProperty>
+            <parameterDefinitions>
+                <hudson.model.StringParameterDefinition>
+                    <name>partition_name</name>
+                    <description>A unique identifier for this partition of genomic data. Patients cannot be in multiple partitions</description>
+                    <trim>true</trim>
+                </hudson.model.StringParameterDefinition>
+                <hudson.model.StringParameterDefinition>
+                    <name>vcf_index_file</name>
+                    <description>The location of the VCF index file</description>
+                    <defaultValue>$DOCKER_CONFIG_DIR/vcf-load/vcfIndex.tsv</defaultValue>
+                    <trim>true</trim>
+                </hudson.model.StringParameterDefinition>
+                <hudson.model.StringParameterDefinition>
+                    <name>heapsize_mb</name>
+                    <description>Heapsize, in megabytes</description>
+                    <defaultValue>16000</defaultValue>
+                    <trim>false</trim>
+                </hudson.model.StringParameterDefinition>
+            </parameterDefinitions>
+        </hudson.model.ParametersDefinitionProperty>
+    </properties>
+    <scm class="hudson.scm.NullSCM"/>
+    <canRoam>true</canRoam>
+    <disabled>false</disabled>
+    <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+    <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+    <triggers/>
+    <concurrentBuild>true</concurrentBuild>
+    <builders>
+        <hudson.tasks.Shell>
+            <command>rm -rf /usr/local/docker-config/vcf-load/genomic/$partition_name
+                rm -rf /usr/local/docker-config/vcf-load/genomic-merged/$partition_name
+
+                docker run --rm --name=hpds-new-vcf-loader-$partition_name \
+                -v $DOCKER_CONFIG_DIR/vcf-load:/opt/local/hpds \
+                -v $vcf_index_file:/opt/local/hpds/vcfIndex.tsv \
+                -v $DOCKER_CONFIG_DIR/vcf-load/genomic/$partition_name:/opt/local/hpds/all \
+                -v $DOCKER_CONFIG_DIR/vcf-load/genomic-merged/$partition_name:/opt/local/hpds/merged \
+                -e HEAPSIZE=$heapsize_mb -e LOADER_NAME=SplitChromosomeVcfLoader \
+                hms-dbmi/pic-sure-hpds-etl:LATEST
+
+                docker run --rm --name=hpds-vcf-metadata-loader-$partition_name \
+                -v $DOCKER_CONFIG_DIR/vcf-load:/opt/local/hpds \
+                -v $vcf_index_file:/opt/local/hpds/vcfIndex.tsv \
+                -v $DOCKER_CONFIG_DIR/vcf-load/genomic/$partition_name:/opt/local/hpds/all \
+                -e HEAPSIZE=$heapsize_mb -e LOADER_NAME=VariantMetadataLoader \
+                hms-dbmi/pic-sure-hpds-etl:LATEST
+            </command>
+            <configuredLocalRules/>
+        </hudson.tasks.Shell>
+    </builders>
+    <publishers/>
+    <buildWrappers/>
+</project>

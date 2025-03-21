@@ -55,7 +55,7 @@ plugins:
       version: 694.vc02a_69c9787f
   - artifactId: cloudbees-folder
     source:
-      version: 6.989.v1070f3a_b_0752
+      version: 6.942.vb_43318a_156b_2
   - artifactId: list-git-branches-parameter
     source:
       version: 0.0.13

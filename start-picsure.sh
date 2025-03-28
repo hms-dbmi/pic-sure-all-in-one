@@ -39,6 +39,7 @@ export PROFILING_OPTS=" -Dcom.sun.management.jmxremote=true -Dcom.sun.management
 if [ -f $DOCKER_CONFIG_DIR/wildfly/application.truststore ]; then
 	export TRUSTSTORE_VOLUME="-v $DOCKER_CONFIG_DIR/wildfly/application.truststore:/opt/jboss/wildfly/standalone/configuration/application.truststore"
   export TRUSTSTORE_JAVA_OPTS="-Djavax.net.ssl.trustStore=/opt/jboss/wildfly/standalone/configuration/application.truststore -Djavax.net.ssl.trustStorePassword=password"
+  export PSAMA_TRUSTSTORE_VOLUME="-v $DOCKER_CONFIG_DIR/psama/application.truststore:/usr/local/tomcat/conf/application.truststore"
 fi
 
 
@@ -77,7 +78,7 @@ docker run --name=psama --restart always \
   --network=picsure \
   --env-file $DOCKER_CONFIG_DIR/psama/.env \
   $EMAIL_TEMPLATE_VOUME \
-  $TRUSTSTORE_VOLUME \
+  $PSAMA_TRUSTSTORE_VOLUME \
   -e JAVA_OPTS="$PSAMA_OPTS $TRUSTSTORE_JAVA_OPTS" \
   -d hms-dbmi/psama:LATEST
 

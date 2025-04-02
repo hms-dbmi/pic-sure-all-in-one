@@ -24,6 +24,7 @@
               <string>Nhanes</string>
               <string>Synthea_10k</string>
               <string>1000_Genomes</string>
+              <string>All Public Studies</string>
               <string>Custom</string>
             </a>
           </choices>
@@ -57,21 +58,6 @@ If &quot;RDBMS&quot; is selected &quot;Load HPDS Data From RDBMS&quot; will be u
           <description>If set to true user will be able to download HPDS Data.</description>
           <defaultValue>false</defaultValue>
         </hudson.model.BooleanParameterDefinition>
-        <hudson.model.StringParameterDefinition>
-          <name>Dataset_Name</name>
-          <description>If this value is left blank the first node of each concept path will be used as the study name ( The dataset ref ).
-
-Example 1:
-Dataset_Name:
-Concept Path: \node 1\node 2\node 3\
-Study Name: node 1
-
-Example 2:
-Dataset_Name: Nhanes
-Concept Path: \node 1\node 2\node 3\
-Study Name: Nhanes</description>
-          <trim>true</trim>
-        </hudson.model.StringParameterDefinition>
         <hudson.model.BooleanParameterDefinition>
           <name>Clear_Dictionary_Database</name>
           <description>Backup of the current database will be available in the &quot;$DOCKER_CONFIG_DIR/dictionary/csv/backup/&quot;</description>
@@ -95,7 +81,7 @@ pipeline {
 
     parameters {
         choice(name: &apos;Dataset&apos;, 
-               choices: [&apos;Nhanes&apos;, &apos;Synthea_10k&apos;, &apos;1000_Genomes&apos;, &apos;Custom&apos;], 
+               choices: [&apos;Nhanes&apos;, &apos;Synthea_10k&apos;, &apos;1000_Genomes&apos;, &apos;All Public Studies&apos;, &apos;Custom&apos;], 
                description: &apos;Select the dataset to download&apos;)
     }
 
@@ -141,21 +127,32 @@ pipeline {
                         &quot;Nhanes&quot;: &quot;NHANES abbreviated allConcepts.csv.tgz&quot;,
                         &quot;Synthea_10k&quot;: &quot;synthea_10k_picsure_format.csv.zip&quot;,
                         &quot;1000_Genomes&quot;: &quot;open_access-1000Genomes_allConcepts_new_search_with_data_analyzer.csv&quot;,
+                        &quot;All Public Studies&quot;: &quot;All_Public_Studies&quot;,
                         &quot;Custom&quot;: &quot;&quot;
                     ]
 
                     def selectedFile = fileMap[params.Dataset]
                     println &quot;Selected dataset: ${params.Dataset}, File: ${selectedFile}&quot;
+                    
+                    if (selectedFile == &apos;All_Public_Studies&apos;) {
+                        checkout([
+                            $class: &apos;GitSCM&apos;,
+                            branches: [[name: params.Dataset_Branch]],
+                            userRemoteConfigs: [[url: env.GIT_REPOSITORY]],
+                        ])
+                    } else {
+                        // Perform sparse checkout using the checkout plugin
+                        checkout([
+                            $class: &apos;GitSCM&apos;,
+                            branches: [[name: params.Dataset_Branch]],
+                            userRemoteConfigs: [[url: env.GIT_REPOSITORY]],
+                            extensions: [
+                                [$class: &apos;SparseCheckoutPaths&apos;, sparseCheckoutPaths: [[path: selectedFile]]]
+                            ]
+                        ])    
+                    }
 
-                    // Perform sparse checkout using the checkout plugin
-                    checkout([
-                        $class: &apos;GitSCM&apos;,
-                        branches: [[name: params.Dataset_Branch]],
-                        userRemoteConfigs: [[url: env.GIT_REPOSITORY]],
-                        extensions: [
-                            [$class: &apos;SparseCheckoutPaths&apos;, sparseCheckoutPaths: [[path: selectedFile]]]
-                        ]
-                    ])
+                    
                 }
             }
         }
@@ -165,7 +162,8 @@ pipeline {
                 script {
                     // Remove existing allConcepts.csv in target directory
                     sh &quot;&quot;&quot;
-                        rm -f /usr/local/docker-config/hpds_csv/allConcepts.csv
+                        rm -rf /usr/local/docker-config/hpds_csv/allConcepts.csv
+                        rm -rf /usr/local/docker-config/hpds_input/*.csv
                         echo &quot;Removed existing allConcepts.csv from /usr/local/docker-config/hpds_csv&quot;
                     &quot;&quot;&quot;
                     
@@ -177,19 +175,37 @@ pipeline {
                     } else if (params.Dataset == &apos;Synthea_10k&apos;) {
                         sh &quot;&quot;&quot;
                             unzip -o &quot;synthea_10k_picsure_format.csv.zip&quot; -d .
-                            cp synthea_10k_picsure_format.csv ./allConcepts.csv
+                            mv synthea_10k_picsure_format.csv ./allConcepts.csv
                             echo &quot;Extracted ZIP file for Synthea_10k&quot;
                         &quot;&quot;&quot;
                     } else if (params.Dataset == &apos;1000_Genomes&apos;) {
                         sh &quot;&quot;&quot;
-                            cp &quot;open_access-1000Genomes_allConcepts_new_search_with_data_analyzer.csv&quot; ./allConcepts.csv
+                            mv &quot;open_access-1000Genomes_allConcepts_new_search_with_data_analyzer.csv&quot; ./allConcepts.csv
                             echo &quot;CSV file downloaded for 1000_Genomes&quot;
                         &quot;&quot;&quot;
-                    } 
+                    } else if(params.Dataset == &apos;All Public Studies&apos;) {
+                        sh &quot;&quot;&quot;
+                            tar -xvzf &quot;NHANES abbreviated allConcepts.csv.tgz&quot; -C .
+                            mv allConcepts.csv nhanesAllConcepts.csv
+                            echo &quot;Extracted TGZ file for Nhanes&quot;
+                            
+                            mv &quot;open_access-1000Genomes_allConcepts_new_search_with_data_analyzer.csv&quot; ./1000_genomes.csv
+                            echo &quot;CSV file downloaded for 1000 Genomes&quot;
+                            
+                            unzip -o &quot;synthea_10k_picsure_format.csv.zip&quot; -d .
+                            mv synthea_10k_picsure_format.csv ./synthea.csv
+                            echo &quot;Extracted ZIP file for Synthea 10k&quot;
+                        &quot;&quot;&quot;
+                    }
                     
                     if (params.Dataset == &apos;Custom&apos;) {
                         sh &quot;&quot;&quot;
                             echo &quot;Data has already been provided.&quot;
+                        &quot;&quot;&quot;
+                    } else if (params.Dataset == &apos;All Public Studies&apos;) {
+                         sh &quot;&quot;&quot;
+                            mkdir -p /usr/local/docker-config/hpds_input/
+                            mv ./*.csv /usr/local/docker-config/hpds_input/
                         &quot;&quot;&quot;
                     } else {
                         // Move new allConcepts.csv to the target directory
@@ -205,9 +221,9 @@ pipeline {
         stage(&apos;Load HPDS Data From CSV&apos;) {
             steps {
                 script {
-                    if (params.HPDS_DATA_LOAD == &quot;Single File (CSV)&quot;) {
+                    if (params.HPDS_DATA_LOAD == &quot;Single File (CSV)&quot; &amp;&amp; params.Dataset != &apos;All Public Studies&apos;) {
                         def result = build job: &apos;Load HPDS Data From CSV&apos;
-                    } else if(params.HPDS_DATA_LOAD == &quot;Multiple Files&quot;) {
+                    } else if(params.HPDS_DATA_LOAD == &quot;Multiple Files&quot; || params.Dataset == &apos;All Public Studies&apos;) {
                         def result = build job: &apos;Load HPDS Data From Multiple Files&apos;
                     }
                 }

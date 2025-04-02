@@ -1,0 +1,65 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description>This Jenkins job is used to upload the config.json file required by the HPDS-ETL process.&#xd;
+&#xd;
+**Purpose**&#xd;
+The configuration JSON defines how public dataset CSV files are interpreted and ingested. Each entry in the JSON corresponds to a specific CSV file, providing metadata for how its contents should be processed.&#xd;
+&#xd;
+Example config.json:&#xd;
+{&#xd;
+  &quot;nhanesAllConcepts&quot;: {&#xd;
+    &quot;dataset_name&quot;: &quot;Nhanes&quot;,&#xd;
+    &quot;dataset_name_as_root_node&quot;: true&#xd;
+  },&#xd;
+  &quot;1000_genomes&quot;: {&#xd;
+    &quot;dataset_name&quot;: &quot;1000Genomes&quot;,&#xd;
+    &quot;dataset_name_as_root_node&quot;: true&#xd;
+  },&#xd;
+  &quot;synthea&quot;: {&#xd;
+    &quot;dataset_name&quot;: &quot;Synthea&quot;,&#xd;
+    &quot;dataset_name_as_root_node&quot;: true&#xd;
+  }&#xd;
+}&#xd;
+&#xd;
+Configuration Details&#xd;
+	•	Each key in the JSON corresponds to the name of a CSV file (e.g., nhanesAllConcepts.csv).&#xd;
+	•	The associated object defines how the data should be handled:&#xd;
+	•	dataset_name: The name of the dataset this file belongs to (used in HPDS and the picsure dictionary-db).&#xd;
+	•	dataset_name_as_root_node: When set to true, the dataset name will be used as the root node for all concept paths within that file.&#xd;
+&#xd;
+Example Behavior&#xd;
+&#xd;
+For the file nhanesAllConcepts.csv:&#xd;
+	•	The configuration key is nhanesAllConcepts.&#xd;
+	•	The dataset name is Nhanes.&#xd;
+	•	All concept paths within the CSV will be rooted under \nhanes\.&#xd;
+	•	These concepts will be associated with the Nhanes dataset in both the picsure dictionary-db and the HPDS instance.</description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.FileParameterDefinition>
+          <name>config.json</name>
+        </hudson.model.FileParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.scm.NullSCM"/>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <jdk>(System)</jdk>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>rm -f /usr/local/docker-config/hpds_input/config.json
+cp -f config.json /usr/local/docker-config/hpds_input/config.json</command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

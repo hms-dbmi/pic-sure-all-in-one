@@ -36,22 +36,22 @@
     <builders>
         <hudson.tasks.Shell>
             <command>rm -rf /usr/local/docker-config/vcf-load/genomic/$partition_name
-                rm -rf /usr/local/docker-config/vcf-load/genomic-merged/$partition_name
+rm -rf /usr/local/docker-config/vcf-load/genomic-merged/$partition_name
 
-                docker run --rm --name=hpds-new-vcf-loader-$partition_name \
-                -v $DOCKER_CONFIG_DIR/vcf-load:/opt/local/hpds \
-                -v $vcf_index_file:/opt/local/hpds/vcfIndex.tsv \
-                -v $DOCKER_CONFIG_DIR/vcf-load/genomic/$partition_name:/opt/local/hpds/all \
-                -v $DOCKER_CONFIG_DIR/vcf-load/genomic-merged/$partition_name:/opt/local/hpds/merged \
-                -e HEAPSIZE=$heapsize_mb -e LOADER_NAME=SplitChromosomeVcfLoader \
-                hms-dbmi/pic-sure-hpds-etl:LATEST
+docker run --rm --name=hpds-new-vcf-loader-$partition_name \
+-v $DOCKER_CONFIG_DIR/vcf-load:/opt/local/hpds \
+-v $vcf_index_file:/opt/local/hpds/vcfIndex.tsv \
+-v $DOCKER_CONFIG_DIR/vcf-load/genomic/$partition_name:/opt/local/hpds/all \
+-v $DOCKER_CONFIG_DIR/vcf-load/genomic-merged/$partition_name:/opt/local/hpds/merged \
+-e HEAPSIZE=$heapsize_mb -e LOADER_NAME=SplitChromosomeVcfLoader \
+hms-dbmi/pic-sure-hpds-etl:LATEST
 
-                docker run --rm --name=hpds-vcf-metadata-loader-$partition_name \
-                -v $DOCKER_CONFIG_DIR/vcf-load:/opt/local/hpds \
-                -v $vcf_index_file:/opt/local/hpds/vcfIndex.tsv \
-                -v $DOCKER_CONFIG_DIR/vcf-load/genomic/$partition_name:/opt/local/hpds/all \
-                -e HEAPSIZE=$heapsize_mb -e LOADER_NAME=VariantMetadataLoader \
-                hms-dbmi/pic-sure-hpds-etl:LATEST
+docker run --rm --name=hpds-vcf-metadata-loader-$partition_name \
+-v $DOCKER_CONFIG_DIR/vcf-load:/opt/local/hpds \
+-v $vcf_index_file:/opt/local/hpds/vcfIndex.tsv \
+-v $DOCKER_CONFIG_DIR/vcf-load/genomic/$partition_name:/opt/local/hpds/all \
+-e HEAPSIZE=$heapsize_mb -e LOADER_NAME=VariantMetadataLoader \
+hms-dbmi/pic-sure-hpds-etl:LATEST
             </command>
             <configuredLocalRules/>
         </hudson.tasks.Shell>

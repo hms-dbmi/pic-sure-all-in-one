@@ -1,0 +1,91 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description></description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>SITE_NAME</name>
+          <description>Site name. Lower case, no spaces</description>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>SITE_REMOTE_UUID</name>
+          <description>UUID of the remote site&apos;s aggregate resource</description>
+          <defaultValue>01234567-89ab-cdef-0123-4567890abcde</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>SITE_BASE_URL</name>
+          <description>Base URL for the site. Ex: https://my-pic-sure.org/picsure/</description>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>SITE_TOKEN</name>
+          <description>Long term token for the CommonAreaUser</description>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>git_hash</name>
+          <description>https://github.com/hms-dbmi/pic-sure-gic-common-frontend/ branch or tag</description>
+          <defaultValue>origin/master</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@5.5.2">
+    <configVersion>2</configVersion>
+    <userRemoteConfigs>
+      <hudson.plugins.git.UserRemoteConfig>
+        <url>https://github.com/hms-dbmi/pic-sure-gic-common-frontend.git</url>
+      </hudson.plugins.git.UserRemoteConfig>
+    </userRemoteConfigs>
+    <branches>
+      <hudson.plugins.git.BranchSpec>
+        <name>${git_hash}</name>
+      </hudson.plugins.git.BranchSpec>
+    </branches>
+    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+    <submoduleCfg class="empty-list"/>
+    <extensions/>
+  </scm>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <jdk>(System)</jdk>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command># cd to relevant part of repo
+cd pic-sure-passthru-resource
+
+# Generate uuid
+RESOURCE_ID=`uuidgen -r`
+RESOURCE_ID_HEX=`echo $RESOURCE_ID | awk &apos;{ print toupper($0) }&apos;|sed &apos;s/-//g&apos;;`
+export SQL=&quot;INSERT INTO resource (uuid, targetURL, resourceRSPath, description, name, token) \
+ VALUES (unhex(&apos;$RESOURCE_ID_HEX&apos;), NULL, &apos;http://passthru/$RESOURCE_PATH/&apos;, &apos;Passthru for $SITE_NAME&apos;, &apos;$SITE_NAME&apos;, NULL);&quot;
+
+# Add generated uuid to database
+docker run -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e &quot;$SQL&quot; picsure
+
+# If there is no application.properties, make one
+mkdir -p /usr/local/docker-config/passthru/
+if [ ! -f &apos;/usr/local/docker-config/passthru/application.properties&apos; ]; then
+    cp src/main/resources/application.properties /usr/local/docker-config/passthru
+fi
+
+# Prepare the properties updater
+cd properties-updater
+docker build . -t properties-updater
+docker run --rm -i -v $DOCKER_CONFIG_DIR/passthru/application.properties:/application.properties properties-updater $SITE_NAME $SITE_REMOTE_UUID $RESOURCE_ID $SITE_BASE_URL $SITE_TOKEN</command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

@@ -22,7 +22,7 @@
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
   </properties>
-  <scm class="hudson.plugins.git.GitSCM" plugin="git@5.5.2">
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@5.2.2">
     <configVersion>2</configVersion>
     <userRemoteConfigs>
       <hudson.plugins.git.UserRemoteConfig>
@@ -83,11 +83,11 @@ fi
 # Step 2: Check if dictionary-db service is running
 if docker ps --filter &quot;name=dictionary-db&quot; --format &apos;{{.Names}}&apos; | grep -q &quot;dictionary-db&quot;; then
     echo &quot;dictionary-db is already running. Rebuilding only the dictionary-api service.&quot;
-    docker stop dictionary-api
-    docker rm dictionary-api
+    docker stop dictionary-api &amp;&amp; docker rm dictionary-api
     docker compose up -d --no-deps --build dictionary-api
 else
     echo &quot;dictionary-db is not running. Starting all services.&quot;
+    docker stop dictionary-api &amp;&amp; docker rm dictionary-api
     docker compose up -d --build
 fi</command>
       <configuredLocalRules/>
@@ -95,7 +95,7 @@ fi</command>
   </builders>
   <publishers/>
   <buildWrappers>
-    <hudson.plugins.ws__cleanup.PreBuildCleanup plugin="ws-cleanup@0.47">
+    <hudson.plugins.ws__cleanup.PreBuildCleanup plugin="ws-cleanup@0.46">
       <deleteDirs>false</deleteDirs>
       <cleanupParameter></cleanupParameter>
       <externalDelete></externalDelete>

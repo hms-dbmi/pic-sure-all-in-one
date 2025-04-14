@@ -309,9 +309,9 @@ pipeline {
                                 sh &quot;mv .env &apos;/usr/local/docker-config/httpd/.env&apos;&quot;
                                 
                                 if (env.OPEN?.asBoolean()) {
-                                    sh &quot;sed -i &apos;s/^OPEN_IDP_PROVIDER_IS_ENABLED=.*/OPEN_IDP_PROVIDER_IS_ENABLED=true/&apos; /usr/local/docker-config/psama/.env&quot;
+                                    sh &quot;sed -i &apos;s/^OPEN_IDP_PROVIDER_IS_ENABLED=.*/OPEN_IDP_PROVIDER_IS_ENABLED=true/&apos; /usr/local/docker-config/psama/psama.env&quot;
                                 } else {
-                                    sh &quot;sed -i &apos;s/^OPEN_IDP_PROVIDER_IS_ENABLED=.*/OPEN_IDP_PROVIDER_IS_ENABLED=false/&apos; /usr/local/docker-config/psama/.env&quot;
+                                    sh &quot;sed -i &apos;s/^OPEN_IDP_PROVIDER_IS_ENABLED=.*/OPEN_IDP_PROVIDER_IS_ENABLED=false/&apos; /usr/local/docker-config/psama/psama.env&quot;
                                 }
                             }
                         },

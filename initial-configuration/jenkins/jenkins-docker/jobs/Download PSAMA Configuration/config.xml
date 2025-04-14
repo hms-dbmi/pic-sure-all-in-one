@@ -19,7 +19,7 @@
   <builders>
     <hudson.tasks.Shell>
       <command># Just get the file so a user can download it.
-cp /usr/local/docker-config/psama/.env psama.env</command>
+cp /usr/local/docker-config/psama/psama.env psama.env</command>
       <configuredLocalRules/>
     </hudson.tasks.Shell>
   </builders>

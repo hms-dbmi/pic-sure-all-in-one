@@ -235,7 +235,7 @@ export APP_ID=`uuidgen | tr '[:upper:]' '[:lower:]'`
 export APP_ID_HEX=`echo $APP_ID | awk '{ print toupper($0) }'|sed 's/-//g'`
 sed_inplace "s/__STACK_SPECIFIC_APPLICATION_ID__/$APP_ID/g" $DOCKER_CONFIG_DIR/httpd/picsureui_settings.json
 sed_inplace "s/__STACK_SPECIFIC_APPLICATION_ID__/$APP_ID/g" $DOCKER_CONFIG_DIR/wildfly/standalone.xml
-sed_inplace "s/__STACK_SPECIFIC_APPLICATION_ID__/$APP_ID/g" $DOCKER_CONFIG_DIR/psama/.env
+sed_inplace "s/__STACK_SPECIFIC_APPLICATION_ID__/$APP_ID/g" $DOCKER_CONFIG_DIR/psama/psama.env
 
 export RESOURCE_ID=`uuidgen | tr '[:upper:]' '[:lower:]'`
 export RESOURCE_ID_HEX=`echo $RESOURCE_ID | awk '{ print toupper($0) }'|sed 's/-//g'`

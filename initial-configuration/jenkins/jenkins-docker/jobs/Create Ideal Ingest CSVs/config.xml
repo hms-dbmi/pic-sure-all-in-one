@@ -1,0 +1,62 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description>This Job will create the Ideal ingest CSVs. This is a CSV representation of the dictionary database. This provides the ability for non-technical users to look directly at the dictionary-db data.</description>
+  <keepDependencies>false</keepDependencies>
+  <properties/>
+  <scm class="hudson.scm.NullSCM"/>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <jdk>(System)</jdk>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>cp /usr/local/docker-config/dictionary/dictionary.env .env
+mkdir -p /usr/local/docker-config/dictionary/csv_export
+
+docker stop dictionaryetl || true
+docker rm dictionaryetl || true
+docker run -d \
+  --name dictionaryetl \
+  --env-file .env \
+  -p 8086:8086 \
+  -v $DOCKER_CONFIG_DIR/hpds/:/opt/local/hpds/ \
+  -v $DOCKER_CONFIG_DIR/dictionary/csv_export:/tmp \
+  --network dictionary \
+  --network picsure \
+  hms-dbmi/dictionary-etl:latest
+
+echo &quot;Waiting for DictionaryEtlApplication to start...&quot;
+MAX_ATTEMPTS=6
+SLEEP_INTERVAL=5
+ATTEMPT=1
+while ! docker logs dictionaryetl 2&gt;&amp;1 | grep -q &quot;Started DictionaryEtlApplication&quot;; do
+    if [ &quot;$ATTEMPT&quot; -ge &quot;$MAX_ATTEMPTS&quot; ]; then
+        echo &quot;DictionaryEtlApplication failed to start within $((MAX_ATTEMPTS * SLEEP_INTERVAL)) seconds.&quot;
+        docker logs dictionaryetl
+        docker stop dictionaryetl
+        docker rm dictionaryetl
+        exit 1
+    fi
+    echo &quot;Attempt $ATTEMPT: Application not started yet. Retrying in $SLEEP_INTERVAL seconds...&quot;
+    sleep $SLEEP_INTERVAL
+    ATTEMPT=$((ATTEMPT + 1))
+done
+echo &quot;DictionaryEtlApplication has started!&quot;
+DOWNLOAD_PATH=&quot;/tmp&quot;
+echo $DOWNLOAD_PATH
+ENCODED_PATH=$(jq -rn --arg v &quot;$DOWNLOAD_PATH&quot; &apos;$v|@uri&apos;)
+echo $ENCODED_PATH
+curl -s &quot;http://dictionaryetl:8086/export/fullIngest?downloadPath=$ENCODED_PATH&quot;
+
+#docker stop dictionaryetl
+#docker rm dictionaryetl</command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

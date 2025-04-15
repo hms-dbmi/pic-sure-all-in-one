@@ -186,7 +186,7 @@ pipeline {
                     } else if(params.Dataset == &apos;All Public Studies&apos;) {
                         sh &quot;&quot;&quot;
                             tar -xvzf &quot;NHANES abbreviated allConcepts.csv.tgz&quot; -C .
-                            mv allConcepts.csv nhanesAllConcepts.csv
+                            mv allConcepts.csv ./nhanes.csv
                             echo &quot;Extracted TGZ file for Nhanes&quot;
                             
                             mv &quot;open_access-1000Genomes_allConcepts_new_search_with_data_analyzer.csv&quot; ./1000_genomes.csv

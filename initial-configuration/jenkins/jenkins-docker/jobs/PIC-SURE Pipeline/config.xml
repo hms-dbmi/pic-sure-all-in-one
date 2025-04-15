@@ -19,7 +19,8 @@ def retrieveBuildSpecId;
 def pipelineBuildId;
 def build_hashes = [
     DICTIONARY: false,
-    UPLOADER: false
+    UPLOADER: false,
+    PASSTHRU: false
 ];
 pipeline {
     agent any
@@ -108,6 +109,23 @@ pipeline {
                         ]
                     } else {
                         echo &quot;No project_job_git_key UPLOADER found in build spec. Skipping Uploader Build&quot;
+                    }
+                }
+            }
+
+        }
+
+        stage(&apos;Passthru Build&apos;) {
+            steps {
+                script {
+                    if (build_hashes[&apos;PASSTHRU&apos;]) {
+                        echo &quot;Building Passthru Service&quot;
+                    def result = build job: &apos;Build Passthru Image&apos;, parameters: [
+                            [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],
+                            [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PASSTHRU&apos;]]
+                    ]
+                    } else {
+                        echo &quot;No project_job_git_key PASSTHRU found in build spec. Skipping Uploader Build&quot;
                     }
                 }
             }

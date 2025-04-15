@@ -81,3 +81,10 @@ docker run --name dictionary-api --restart always \
  --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/dictionary/dictionary.env \
  -d avillach/dictionary-api:latest \
  || exit 2
+
+if [ -f "$CURRENT_FS_DOCKER_CONFIG_DIR/passthru/application.properties" ]; then
+  docker stop passthru && docker rm passthru
+  docker run --restart always --name passthru --network picsure \
+    -v $DOCKER_CONFIG_DIR/passthru/application.properties:/application.properties \
+    -d hms-dbmi/pic-sure-passthru:LATEST
+fi

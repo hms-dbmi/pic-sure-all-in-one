@@ -27,7 +27,7 @@
   <builders>
     <hudson.tasks.Shell>
       <command># Replace psama&apos;s configuration file with the provided one.
-cp psama.env /usr/local/docker-config/psama/.env</command>
+cp psama.env /usr/local/docker-config/psama/psama.env</command>
       <configuredLocalRules/>
     </hudson.tasks.Shell>
   </builders>

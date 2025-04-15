@@ -36,11 +36,12 @@ This is equivalent to the Unix Epoch time value for the time of the observation 
   <concurrentBuild>false</concurrentBuild>
   <builders>
     <hudson.tasks.Shell>
-      <command>
+      <command>#!/bin/bash
 export PROFILING_OPTS=&quot;-Dcom.sun.management.jmxremote.port=9000 -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Djava.rmi.server.hostname=localhost&quot;
 
 docker stop hpds-etl &amp;&amp; docker rm hpds-etl
 
+cp /usr/local/docker-config/hpds/hpds.env ./hpds.env
 rm -rf /usr/local/docker-config/hpds_temp
 rm -rf /usr/local/docker-config/hpds_bak
 mkdir -p /usr/local/docker-config/hpds_temp
@@ -52,10 +53,13 @@ docker run --name=hpds-etl \
 -v $DOCKER_CONFIG_DIR/hpds_temp:/opt/local/hpds \
 -v $DOCKER_CONFIG_DIR/hpds_input/:/opt/local/hpds_input/ \
 -e JAVA_OPTS=&quot;-Dlogback.log.level=INFO&quot; \
--e HEAPSIZE=4096 -e LOADER_NAME=SequentialLoader hms-dbmi/pic-sure-hpds-etl:LATEST &amp;&amp; \
-mv /usr/local/docker-config/hpds /usr/local/docker-config/hpds_bak &amp;&amp; \
-mv /usr/local/docker-config/hpds_temp /usr/local/docker-config/hpds
-</command>
+-e HEAPSIZE=4096 -e LOADER_NAME=SequentialLoader hms-dbmi/pic-sure-hpds-etl:LATEST
+
+mkdir -p /usr/local/docker-config/hpds_bak/
+find /usr/local/docker-config/hpds/ -mindepth 1 -maxdepth 1 ! -name all -exec mv {} /usr/local/docker-config/hpds_bak/ \;
+mv /usr/local/docker-config/hpds_temp/* /usr/local/docker-config/hpds/
+
+cp ./hpds.env /usr/local/docker-config/hpds/hpds.env</command>
       <configuredLocalRules/>
     </hudson.tasks.Shell>
   </builders>

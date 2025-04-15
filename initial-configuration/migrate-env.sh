@@ -17,8 +17,8 @@ echo "Populating config files with env vars from old start script"
 echo "" >> $DOCKER_CONFIG_DIR/hpds/hpds.env
 echo "CATALINA_OPTS= $HPDS_OPTS" >> $DOCKER_CONFIG_DIR/hpds/hpds.env
 
-echo "" >> $DOCKER_CONFIG_DIR/psama/.env
-echo "JAVA_OPTS=$PSAMA_OPTS" >> $DOCKER_CONFIG_DIR/psama/.env
+echo "" >> $DOCKER_CONFIG_DIR/psama/psama.env
+echo "JAVA_OPTS=$PSAMA_OPTS" >> $DOCKER_CONFIG_DIR/psama/psama.env
 
 echo "" >> $DOCKER_CONFIG_DIR/httpd/httpd.env
 

@@ -52,7 +52,7 @@ docker restart httpd
 docker stop psama && docker rm psama
 docker run --name=psama --restart always \
   --network=picsure \
-  --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/psama/.env \
+  --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/psama/psama.env \
   $EMAIL_TEMPLATE_VOLUME \
   $PSAMA_TRUSTSTORE_VOLUME \
   -d hms-dbmi/psama:LATEST \

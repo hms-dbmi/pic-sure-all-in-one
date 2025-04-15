@@ -82,7 +82,7 @@ if [ -z "$(docker ps --format '{{.Names}}' | grep picsure-db)" ]; then
   echo "` < /dev/urandom tr -dc _A-Z-a-z-0-9 | head -c${1:-24}`" > auth.tmp
   docker exec -t picsure-db mysql -u root -p`cat ../pass.tmp` -e "CREATE USER 'auth'@'%' IDENTIFIED BY '`cat auth.tmp`';";
   docker exec -t picsure-db mysql -u root -p`cat ../pass.tmp` -e "GRANT ALL PRIVILEGES ON auth.* to 'auth'@'%';FLUSH PRIVILEGES;";
-  sed_inplace s/__AUTH_MYSQL_PASSWORD__/`cat auth.tmp`/g "$DOCKER_CONFIG_DIR/psama/.env"
+  sed_inplace s/__AUTH_MYSQL_PASSWORD__/`cat auth.tmp`/g "$DOCKER_CONFIG_DIR/psama/psama.env"
   rm -f auth.tmp
 
   cd $CWD

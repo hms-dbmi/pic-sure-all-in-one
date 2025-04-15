@@ -225,6 +225,49 @@ For example, if your server has IP `10.109.190.146`, browse to https://10.109.19
     - Cloud - GCP - Cloud SQL
 
 ## Data Loading
+
+### Uploading HPDS-ETL Configuration
+
+To configure how your public dataset CSV files are interpreted and ingested by the HPDS-ETL process, use the Jenkins job **Upload HPDS-ETL Dataset Configuration**.
+
+#### Purpose
+
+This job uploads a `config.json` file that defines metadata for each input CSV file used during ETL. Each key in the JSON maps to a CSV filename (without extension), and the associated values specify how the file’s data should be handled.
+
+#### Example `config.json`:
+
+```json
+{
+  "nhanesAllConcepts": {
+    "dataset_name": "Nhanes",
+    "dataset_name_as_root_node": true
+  },
+  "1000_genomes": {
+    "dataset_name": "1000Genomes",
+    "dataset_name_as_root_node": true
+  },
+  "synthea": {
+    "dataset_name": "Synthea",
+    "dataset_name_as_root_node": true
+  }
+}
+```
+
+#### Configuration Details
+
+- Each key corresponds to a CSV filename (e.g., `nhanesAllConcepts.csv`).
+- `dataset_name`: Logical name of the dataset used in HPDS and the dictionary-db.
+- `dataset_name_as_root_node`: If true, all concept paths within that CSV are rooted under `\dataset_name\`.
+
+#### Example Behavior
+
+For `nhanesAllConcepts.csv`:
+
+- Key: `nhanesAllConcepts`
+- Dataset Name: `Nhanes`
+- Concept paths will be rooted under `\nhanes\`
+- The dataset and its concepts will be visible in both HPDS and the PIC-SURE dictionary-db as part of the `Nhanes` dataset.
+
 ### Manual load HPDS
 - Genotype Data
   Load: [https://github.com/hms-dbmi/pic-sure-all-in-one/blob/master/hpds_geno_load.md](https://github.com/hms-dbmi/pic-sure-all-in-one/blob/master/hpds_geno_load.md)

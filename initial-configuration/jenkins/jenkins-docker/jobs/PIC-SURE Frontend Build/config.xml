@@ -51,7 +51,7 @@ fi
 GIT_BRANCH_SHORT=`echo ${GIT_BRANCH} | cut -d &quot;/&quot; -f 2` 
 GIT_COMMIT_SHORT=`echo ${GIT_COMMIT} | cut -c1-7`
 
-cp /usr/local/docker-config/httpd/.env .
+cp /usr/local/docker-config/httpd/httpd.env .env
 
 if [ ! -f .env ]; then
   echo &quot;.env file not found&quot;

@@ -262,7 +262,7 @@ pipeline {
                         },
                         createFrontendEnvFile: {
                             script {
-                                sh &quot;[ ! -f /usr/local/docker-config/httpd/.env ] || cp -rf /usr/local/docker-config/httpd/.env /usr/local/docker-config/httpd/.env.bak&quot;
+                                sh &quot;[ ! -f /usr/local/docker-config/httpd/httpd.env ] || cp -rf /usr/local/docker-config/httpd/httpd.env /usr/local/docker-config/httpd/httpd.env.bak&quot;
                                 sh &quot;touch .env&quot;
                                 sh &quot;chmod +wr .env&quot;
                                 sh &quot;echo &apos;VITE_PROJECT_HOSTNAME=&apos; &gt;&gt; .env&quot;
@@ -306,7 +306,7 @@ pipeline {
                                 sh &quot;echo &apos;#Google Analytics settings (leave blank to disable):&apos; &gt;&gt; .env&quot;
                                 sh &quot;echo &apos;VITE_GOOGLE_ANALYTICS_ID=&apos; &gt;&gt; .env&quot;
                                 sh &quot;echo &apos;VITE_GOOGLE_TAG_MANAGER_ID=&apos; &gt;&gt; .env&quot;
-                                sh &quot;mv .env &apos;/usr/local/docker-config/httpd/.env&apos;&quot;
+                                sh &quot;mv .env &apos;/usr/local/docker-config/httpd/httpd.env&apos;&quot;
                                 
                                 if (env.OPEN?.asBoolean()) {
                                     sh &quot;sed -i &apos;s/^OPEN_IDP_PROVIDER_IS_ENABLED=.*/OPEN_IDP_PROVIDER_IS_ENABLED=true/&apos; /usr/local/docker-config/psama/psama.env&quot;

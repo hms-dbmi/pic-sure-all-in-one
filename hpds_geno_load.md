@@ -8,6 +8,7 @@ In the $DOCKER_CONFIG_DIR/vcf-load/ directory, please include the following file
 - vcfIndex.tsv: a file that describes the VCF file(s) to be loaded.
   Note: For more information about the vcfIndex.tsv format, see [https://github.com/hms-dbmi/pic-sure-hpds-genotype-load-example#loading-your-vcf-data-into-hpds](https://github.com/hms-dbmi/pic-sure-hpds-genotype-load-example#loading-your-vcf-data-into-hpds). You can have multiple vcfIndex.tsv files for different groups of patients, as long as they do not overlap.
 - the VCF file(s) that will be read and converted to the hpds format.
+  Note: For more information on VCF files, see [https://github.com/bch-gnome/hpds_annotation](https://github.com/bch-gnome/hpds_annotation)
 
 ### Build Genomic Data
 

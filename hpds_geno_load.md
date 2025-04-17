@@ -2,7 +2,7 @@ Below are the steps to populate genomic data in HPDS.
 
 Note: Before you begin, please update the PIC-SURE All-In-One Jenkins Server by running `git pull` then `./update-jenkins.sh` in the pic-sure-all-in-one directory on your server. This will build a new Jenkins server image and restart Jenkins with the latest jobs and plugins.
 
-### Populate /usr/local/docker-config/vcf-load with your source data.
+## Populate /usr/local/docker-config/vcf-load with your source data.
 
 In the $DOCKER_CONFIG_DIR/vcf-load/ directory, please include the following files:
 - vcfIndex.tsv: a file that describes the VCF file(s) to be loaded.
@@ -10,16 +10,16 @@ In the $DOCKER_CONFIG_DIR/vcf-load/ directory, please include the following file
 - the VCF file(s) that will be read and converted to the hpds format.
   Note: For more information on VCF files, see [Steps for preparing VCF files](https://github.com/bch-gnome/hpds_annotation#recommended-steps-for-preparing-vcf-files)
 
-### Build Genomic Data
+## Build Genomic Data
 
 Run the "Load VCF Data" Jenkins job. This will create genomic data in the HPDS format but will not update HPDS.
 
-### Upload Data into HPDS 
+## Upload Data into HPDS 
 
 Run the "Load Staged Genomic Data" Jenkins job. This will move any genomic data you have built into the HPDS directory to be used next time the application restarts.
 
 
-### VCF Index Files
+## VCF Index Files
 
 Before loading your VCF file(s), at least one VCF index file must be created. The `vcfIndex.tsv` must be a tab separated flat file with 1 line per VCF file you intend to load. See sample file at `hpds/vcfIndex_sample.tsv`
 

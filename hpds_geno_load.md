@@ -56,29 +56,5 @@ If different patients are loaded from different VCF files, any variants in one f
 
 Joint variant calling is not required; however, it is highly recommended to process the variant data with joint variant calling. However, if joint variant calling is not feasible, then merging single-patient VCFs into larger batches using vcftools will suffice.
 
-### Multi-allelic variants
-
-Multi-allelic variants have to be split into multiple rows. So if you have:
-
-`1	1111111	.	A	T,C	100	PASS	.	GT	1/2`
-
-You have to split it to:
-
-```
-1	1111111	.	A	T	100	PASS	.	GT	0/1
-1	1111111	.	A	C	100	PASS	.	GT	0/1
-```
-
-
-### There is no support currently for flag-based INFO columns. 
-
-One approach that works well is to map all of the flag values for a row into a new INFO column called FLAGS and put all values for the VCF row into that column like so:
-
-`1	1111111	.	A	T	100	PASS	MULTIALLELIC;SYNONYMOUS;	GT	0/1`
-
-Is changed to:
-
-`1	1111111	.	A	T	100	PASS	FLAGS=MULTIALLELIC,SYNONYMOUS;	GT	0/1`
-
 ### Phased records 
 Phased records are coerced into unphased by the loader. This means `1|0` and `0|1` both become `0/1` after they are loaded.

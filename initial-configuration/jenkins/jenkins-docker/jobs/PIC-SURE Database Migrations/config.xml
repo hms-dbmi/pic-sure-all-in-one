@@ -20,6 +20,7 @@ def pic_sure_ref = &apos;&apos;
 def psu_ref = &apos;&apos;
 def psm_ref = &apos;&apos;
 def psf_ref = &apos;&apos;
+def dictionary_ref = &apos;&apos;
 
 node {   
     stage(&apos;Retrieve Build Spec&apos;) { 
@@ -55,7 +56,12 @@ node {
                     psm_ref = build.git_hash
                     echo &apos;psm_ref &apos; + psm_ref
                 }
-            }
+                if(build.project_job_git_key.equalsIgnoreCase(&quot;DICTIONARY&quot;)) {
+                    dictionary_ref = build.git_hash
+                    echo &apos;dictionary_ref &apos; + dictionary_ref
+                }
+
+        }
             if(micro_app_ref.isEmpty() || pic_sure_ref.isEmpty() || psf_ref.isEmpty() || psm_ref.isEmpty()) {
                 currentBuild.result = &apos;ABORTED&apos;
                 echo &apos;micro_app_ref = &apos; + micro_app_ref
@@ -109,6 +115,19 @@ node {
             sleep(time:10,unit:&quot;SECONDS&quot;) 
         }
     }
+    stage(&apos;Dictionary Migrations&apos;) {
+        script {
+            if (!dictionary_ref.isEmpty()) {
+                echo &quot;Building Uploader API&quot;
+                def result = build job: &apos;Migrate Dictionary Database&apos;, parameters: [
+                [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: dictionary_ref]
+            ]
+            } else {
+                echo &quot;No project_job_git_key DICTIONARY found in build spec. Skipping Dictionary Migrations&quot;
+            }
+        }
+    }
+
     stage(&apos;Clean Workspace&apos;){ 
         cleanWs() 
     }

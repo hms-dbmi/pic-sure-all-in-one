@@ -52,6 +52,10 @@ The columns in this file are:
 
 If different patients are loaded from different VCF files, any variants in one file but not in the other will be imputed as `0/1` NOT `./1` for any patients not explicitly mapped to a variant
 
+### Joint Calling
+
+Joint variant calling is not required; however, it is highly recommended to process the variant data with joint variant calling. However, if joint variant calling is not feasible, then merging single-patient VCFs into larger batches using vcftools will suffice.
+
 ### Multi-allelic variants
 
 Multi-allelic variants have to be split into multiple rows. So if you have:

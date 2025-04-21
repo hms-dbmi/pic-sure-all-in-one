@@ -173,6 +173,7 @@ The value must be in an array format, for example: [&quot;AN&quot;]  </descripti
               <string>Nhanes</string>
               <string>Synthea_10k</string>
               <string>1000_Genomes</string>
+              <string>All Public Studies</string>
               <string>Custom</string>
             </a>
           </choices>
@@ -192,21 +193,6 @@ The value must be in an array format, for example: [&quot;AN&quot;]  </descripti
           <description>If set to true user will be able to download HPDS Data.</description>
           <defaultValue>false</defaultValue>
         </hudson.model.BooleanParameterDefinition>
-        <hudson.model.StringParameterDefinition>
-          <name>Dataset_Name</name>
-          <description>If this value is left blank the first node of each concept path will be used as the study name ( The dataset ref ).
-
-Example 1:
-Dataset_Name:
-Concept Path: \node 1\node 2\node 3\
-Study Name: node 1
-
-Example 2:
-Dataset_Name: Nhanes
-Concept Path: \node 1\node 2\node 3\
-Study Name: Nhanes</description>
-          <trim>false</trim>
-        </hudson.model.StringParameterDefinition>
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
   </properties>

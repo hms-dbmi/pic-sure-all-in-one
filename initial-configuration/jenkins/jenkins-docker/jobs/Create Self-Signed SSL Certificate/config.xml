@@ -7,7 +7,7 @@
     <hudson.model.ParametersDefinitionProperty>
       <parameterDefinitions>
         <hudson.model.StringParameterDefinition>
-            <name>SERVERNAME</name>
+          <name>SERVERNAME</name>
           <description>the CNAME of the server certificate subject</description>
           <defaultValue>localhost</defaultValue>
           <trim>false</trim>
@@ -20,16 +20,18 @@
   <disabled>false</disabled>
   <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
   <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <jdk>(System)</jdk>
   <triggers/>
   <concurrentBuild>false</concurrentBuild>
   <builders>
     <hudson.tasks.Shell>
       <command>
-    openssl req -nodes -new -x509 -keyout server.key -out server.crt -subj "/CN=$SERVERNAME"
+    openssl req -nodes -new -x509 -keyout server.key -out server.crt -subj &quot;/CN=$SERVERNAME&quot; -addext &quot;subjectAltName=DNS:$SERVERNAME&quot;
 	cp server.key /usr/local/docker-config/httpd/cert/server.key
 	cp server.crt /usr/local/docker-config/httpd/cert/server.crt
 	rm -rf server.*
 	</command>
+      <configuredLocalRules/>
     </hudson.tasks.Shell>
   </builders>
   <publishers/>

@@ -53,6 +53,11 @@ docker run --rm --name=hpds-vcf-metadata-loader-$partition_name \
 -v $DOCKER_CONFIG_DIR/vcf-load/genomic/$partition_name:/opt/local/hpds/all \
 -e HEAPSIZE=$heapsize_mb -e LOADER_NAME=VariantMetadataLoader \
 hms-dbmi/pic-sure-hpds-etl:LATEST
+
+docker run --rm --name=genomic-dataset-finalizer-$partition_name \
+-v $DOCKER_CONFIG_DIR/vcf-load/genomic/$partition_name:/opt/local/hpds/all \
+-e HEAPSIZE=$heapsize_mb -e LOADER_NAME=GenomicDatasetFinalizer \
+hms-dbmi/pic-sure-hpds-etl:LATEST
             </command>
             <configuredLocalRules/>
         </hudson.tasks.Shell>

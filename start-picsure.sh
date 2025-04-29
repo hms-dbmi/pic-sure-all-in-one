@@ -74,6 +74,9 @@ docker run --name=wildfly --restart always --network=picsure -u root \
   --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/wildfly/wildfly.env \
   -d hms-dbmi/pic-sure-wildfly:LATEST \
   || exit 2
+# Workaround for macOS bind-mount limitations: macOS does not support atomic file moves on mounted volumes,
+# causing "Device or resource busy" errors during hot deployments. We just copy the files into the running container.
+docker cp $DOCKER_CONFIG_DIR/wildfly/deployments/*.war wildfly:/opt/jboss/wildfly/standalone/deployments/
 
 docker stop dictionary-api && docker rm dictionary-api
 docker run --name dictionary-api --restart always \

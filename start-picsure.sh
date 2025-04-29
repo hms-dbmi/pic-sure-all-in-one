@@ -72,7 +72,7 @@ docker run --name=wildfly --restart always --network=picsure -u root \
   -v $DOCKER_CONFIG_DIR/wildfly/standalone.xml:/opt/jboss/wildfly/standalone/configuration/standalone.xml \
   $TRUSTSTORE_VOLUME \
   $EMAIL_TEMPLATE_VOLUME \
-  -v $DOCKER_CONFIG_DIR/wildfly/deployments:/opt/jboss/wildfly/standalone/deployments \
+  -v wildflyDeployments:/opt/jboss/wildfly/standalone/deployments \
   -v $DOCKER_CONFIG_DIR/wildfly/wildfly_mysql_module.xml:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/module.xml  \
   -v $DOCKER_CONFIG_DIR/wildfly/mysql-connector-java-5.1.49.jar:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/mysql-connector-java-5.1.49.jar  \
   --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/wildfly/wildfly.env \

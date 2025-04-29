@@ -59,6 +59,9 @@ docker run --name=psama --restart always \
   || exit 2
 
 docker stop wildfly && docker rm wildfly
+# destroy volume if it exists and create a new one
+docker volume rm wildflyDeployments || true
+docker volume create --name=wildflyDeployments
 docker run --name=wildfly --restart always --network=picsure -u root \
   -v "$DOCKER_CONFIG_DIR"/log/wildfly-docker-logs/:/opt/jboss/wildfly/standalone/log/ \
   -v /etc/hosts:/etc/hosts \
@@ -69,11 +72,16 @@ docker run --name=wildfly --restart always --network=picsure -u root \
   -v $DOCKER_CONFIG_DIR/wildfly/standalone.xml:/opt/jboss/wildfly/standalone/configuration/standalone.xml \
   $TRUSTSTORE_VOLUME \
   $EMAIL_TEMPLATE_VOLUME \
+  -v wildflyDeployments:/opt/jboss/wildfly/standalone/deployments \
   -v $DOCKER_CONFIG_DIR/wildfly/wildfly_mysql_module.xml:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/module.xml  \
   -v $DOCKER_CONFIG_DIR/wildfly/mysql-connector-java-5.1.49.jar:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/mysql-connector-java-5.1.49.jar  \
   --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/wildfly/wildfly.env \
   -d hms-dbmi/pic-sure-wildfly:LATEST \
   || exit 2
+# Workaround for macOS bind-mount limitations: macOS does not support atomic file moves on mounted volumes,
+# causing "Device or resource busy" errors during hot deployments. By using a Docker-managed volume and
+# copying deployments into the running container, we avoid this issue across all supported platforms.
+docker cp $DOCKER_CONFIG_DIR/wildfly/deployments/. wildfly:/opt/jboss/wildfly/standalone/deployments/
 
 docker stop dictionary-api && docker rm dictionary-api
 docker run --name dictionary-api --restart always \

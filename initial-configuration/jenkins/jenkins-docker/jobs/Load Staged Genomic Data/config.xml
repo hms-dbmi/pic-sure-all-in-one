@@ -1,0 +1,48 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+    <actions/>
+    <description>This job moves genomic data created by the Load VCF Data job into the HPDS data directory to be used by the application upon restart.</description>
+    <keepDependencies>false</keepDependencies>
+    <properties>
+        <hudson.model.ParametersDefinitionProperty>
+            <parameterDefinitions>
+                <hudson.model.BooleanParameterDefinition>
+                    <name>backup_current_data</name>
+                    <description>Creates a backup of the previous genomic data before replacing it with the staged data. This will delete any previously backed up data</description>
+                    <defaultValue>false</defaultValue>
+                </hudson.model.BooleanParameterDefinition>
+                <hudson.model.BooleanParameterDefinition>
+                    <name>clean</name>
+                    <description>Whether to delete existing genomic data first. If false, will incrementally add staged data to existing data</description>
+                    <defaultValue>false</defaultValue>
+                </hudson.model.BooleanParameterDefinition>
+            </parameterDefinitions>
+        </hudson.model.ParametersDefinitionProperty>
+    </properties>
+    <scm class="hudson.scm.NullSCM"/>
+    <canRoam>true</canRoam>
+    <disabled>false</disabled>
+    <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+    <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+    <triggers/>
+    <concurrentBuild>false</concurrentBuild>
+    <builders>
+        <hudson.tasks.Shell>
+            <command>
+if $backup_current_data ; then
+    rm -rf /usr/local/docker-config/hpds/all-bak
+    mv /usr/local/docker-config/hpds/all /usr/local/docker-config/hpds/all-bak
+fi
+
+if $clean ; then
+    rm -rf /usr/local/docker-config/hpds/all/*
+fi
+
+cp -r /usr/local/docker-config/vcf-load/genomic/ /usr/local/docker-config/hpds/all/
+            </command>
+            <configuredLocalRules/>
+        </hudson.tasks.Shell>
+    </builders>
+    <publishers/>
+    <buildWrappers/>
+</project>

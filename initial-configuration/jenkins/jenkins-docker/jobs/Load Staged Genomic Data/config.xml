@@ -28,16 +28,18 @@
     <concurrentBuild>false</concurrentBuild>
     <builders>
         <hudson.tasks.Shell>
-            <command>if $backup_current_data ; then
-                rm -f /usr/local/docker-config/hpds/all-bak
-                mv /usr/local/docker-config/hpds/all /usr/local/docker-config/hpds/all-bak
-                fi
+            <command>
+if $backup_current_data ; then
+    rm -rf /usr/local/docker-config/hpds/all-bak
+    mv /usr/local/docker-config/hpds/all /usr/local/docker-config/hpds/all-bak
+fi
 
-                if $clean ; then
-                rm -rf /usr/local/docker-config/hpds/all/*
-                fi
+if $clean ; then
+    rm -rf /usr/local/docker-config/hpds/all/*
+fi
 
-                cp /usr/local/docker-config/vcf-load/genomic/* /usr/local/docker-config/hpds/all/</command>
+cp -r /usr/local/docker-config/vcf-load/genomic/ /usr/local/docker-config/hpds/all/
+            </command>
             <configuredLocalRules/>
         </hudson.tasks.Shell>
     </builders>

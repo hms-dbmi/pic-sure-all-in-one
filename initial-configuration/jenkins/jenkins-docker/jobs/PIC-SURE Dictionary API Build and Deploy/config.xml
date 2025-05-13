@@ -84,7 +84,8 @@ fi
 if docker ps --filter &quot;name=dictionary-db&quot; --format &apos;{{.Names}}&apos; | grep -q &quot;dictionary-db&quot;; then
     echo &quot;dictionary-db is already running. Rebuilding only the dictionary-api service.&quot;
     docker stop dictionary-api &amp;&amp; docker rm dictionary-api
-    docker compose up -d --no-deps --build dictionary-api
+    docker stop dictionary-dump &amp;&amp; docker rm dictionary-dump
+    docker compose up -d --no-deps --build dictionary-api dictionary-dump
 else
     echo &quot;dictionary-db is not running. Starting all services.&quot;
     docker stop dictionary-api &amp;&amp; docker rm dictionary-api

@@ -39,6 +39,7 @@
   <disabled>false</disabled>
   <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
   <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <jdk>(System)</jdk>
   <triggers/>
   <concurrentBuild>false</concurrentBuild>
   <builders>
@@ -47,7 +48,10 @@
 if [ -z &quot;${current_git_tag}&quot;]; then
 	current_git_tag=$(git log --pretty=format:&apos;%h&apos; -n 1)
 fi
-docker build . -t &quot;avillach/dictionary-api:$current_git_tag&quot;</command>
+docker build . -t &quot;avillach/dictionary-api:$current_git_tag&quot;
+if [ -d aggregate ]; then
+    cd aggregate &amp;&amp; docker build . -t &quot;avillach/dictionary-dumper:$current_git_tag&quot;
+fi</command>
       <configuredLocalRules/>
     </hudson.tasks.Shell>
   </builders>

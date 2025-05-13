@@ -42,9 +42,8 @@ docker run --name=httpd --restart always --network=picsure \
     -v $DOCKER_CONFIG_DIR/httpd/cert:/usr/local/apache2/cert/ \
     -v $DOCKER_CONFIG_DIR/httpd/httpd-vhosts.conf:/usr/local/apache2/conf/extra/httpd-vhosts.conf \
     $CUSTOM_HTTPD_VOLUMES \
-    --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/httpd/httpd.env \
-    -p 80:80 \
     -p 443:443 \
+    --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/httpd/httpd.env \
     -d hms-dbmi/pic-sure-frontend:LATEST \
     || exit 2
 docker restart httpd
@@ -91,3 +90,4 @@ if [ -f "$CURRENT_FS_DOCKER_CONFIG_DIR/passthru/application.properties" ]; then
     -v $DOCKER_CONFIG_DIR/passthru/application.properties:/application.properties \
     -d hms-dbmi/pic-sure-passthru:LATEST
 fi
+   

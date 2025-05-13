@@ -15,7 +15,7 @@
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
   </properties>
-  <scm class="hudson.plugins.git.GitSCM" plugin="git@5.5.2">
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@5.2.2">
     <configVersion>2</configVersion>
     <userRemoteConfigs>
       <hudson.plugins.git.UserRemoteConfig>
@@ -48,10 +48,14 @@ echo &quot;flyway.url=jdbc:postgresql://$POSTGRES_HOST:5432/$POSTGRES_DB&quot; &
 echo &quot;flyway.user=$POSTGRES_USER&quot; &gt;&gt; db/flyway/flyway.conf
 echo &quot;flyway.password=$POSTGRES_PASSWORD&quot; &gt;&gt; db/flyway/flyway.conf
 
+mkdir -p /usr/local/docker-config/flyway/dictionary/sql/
+cp -f db/flyway/flyway.conf /usr/local/docker-config/flyway/dictionary/flyway.conf
+cp -f db/flyway/* /usr/local/docker-config/flyway/dictionary/sql/
+
 docker run --rm --name dictionary-flyway \
   --env-file /usr/local/docker-config/dictionary/dictionary.env \
-  -v ./db/flyway:/flyway/sql \
-  -v ./db/flyway/flyway.conf:/flyway/conf/flyway.conf \
+  -v $DOCKER_CONFIG_DIR/flyway/dictionary/sql/:/flyway/sql \
+  -v $DOCKER_CONFIG_DIR/flyway/dictionary/flyway.conf:/flyway/conf/flyway.conf \
   --network dictionary \
   flyway/flyway:11-alpine -connectRetries=60 -validateMigrationNaming=true migrate</command>
       <configuredLocalRules/>

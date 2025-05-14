@@ -15,6 +15,18 @@ if [ -f "$CURRENT_FS_DOCKER_CONFIG_DIR/setProxy.sh" ]; then
    . $CURRENT_FS_DOCKER_CONFIG_DIR/setProxy.sh
 fi
 
+# Optional services
+[[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/hpds" ]] && INCLUDE_HPDS=true || INCLUDE_HPDS=false
+echo "INCLUDE_HPDS=$INCLUDE_HPDS"
+[[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/uploader" ]] && INCLUDE_UPLOADER=true || INCLUDE_UPLOADER=false
+echo "INCLUDE_UPLOADER=$INCLUDE_UPLOADER"
+[[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/dictionary" ]] && INCLUDE_DICTIONARY=true || INCLUDE_DICTIONARY=false
+echo "INCLUDE_DICTIONARY=$INCLUDE_DICTIONARY"
+[[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/dictionary/dump" ]] && INCLUDE_AGG_DICT=true || INCLUDE_AGG_DICT=false
+echo "INCLUDE_AGG_DICT=$INCLUDE_AGG_DICT"
+[[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/passthru" ]] && INCLUDE_PASSTHRU=true || INCLUDE_PASSTHRU=false
+echo "INCLUDE_PASSTHRU=$INCLUDE_PASSTHRU"
+
 # Docker Volumes
 export PICSURE_BANNER_VOLUME="-v $DOCKER_CONFIG_DIR/httpd/banner_config.json:/usr/local/apache2/htdocs/picsureui/settings/banner_config.json"
 export EMAIL_TEMPLATE_VOLUME="-v $DOCKER_CONFIG_DIR/wildfly/emailTemplates:/opt/jboss/wildfly/standalone/configuration/emailTemplates "
@@ -24,17 +36,26 @@ if [ -f $DOCKER_CONFIG_DIR/httpd/custom_httpd_volumes ]; then
 	export CUSTOM_HTTPD_VOLUMES=`cat $DOCKER_CONFIG_DIR/httpd/custom_httpd_volumes`
 fi
 
+# Docker networks
+# External network. Can talk to the internet
+docker network inspect picsure >/dev/null 2>&1 || docker network create picsure
+# Internal networks. Cannot talk to the internet
+docker network inspect dictionary >/dev/null 2>&1 || docker network create --internal dictionary
+docker network inspect hpds >/dev/null 2>&1 || docker network create --internal hpds
+
 # Start Commands
-docker stop hpds && docker rm hpds
-docker run --name=hpds --restart always --network=picsure \
-  -v $DOCKER_CONFIG_DIR/hpds:/opt/local/hpds \
-  -v $DOCKER_CONFIG_DIR/hpds/all:/opt/local/hpds/all \
-  -v "$DOCKER_CONFIG_DIR"/log/hpds-logs/:/var/log/ \
-  -v $DOCKER_CONFIG_DIR/hpds_csv/:/usr/local/docker-config/hpds_csv/ \
-  -v $DOCKER_CONFIG_DIR/aws_uploads/:/gic_query_results/ \
-  --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/hpds/hpds.env \
-  -d hms-dbmi/pic-sure-hpds:LATEST \
-  || exit 2
+if $INCLUDE_HPDS; then
+  docker stop hpds && docker rm hpds
+  docker run --name=hpds --restart always --network=picsure --network=hpds \
+    -v $DOCKER_CONFIG_DIR/hpds:/opt/local/hpds \
+    -v $DOCKER_CONFIG_DIR/hpds/all:/opt/local/hpds/all \
+    -v "$DOCKER_CONFIG_DIR"/log/hpds-logs/:/var/log/ \
+    -v $DOCKER_CONFIG_DIR/hpds_csv/:/usr/local/docker-config/hpds_csv/ \
+    -v $DOCKER_CONFIG_DIR/aws_uploads/:/gic_query_results/ \
+    --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/hpds/hpds.env \
+    -d hms-dbmi/pic-sure-hpds:LATEST \
+    || exit 2
+fi
 
 docker stop httpd && docker rm httpd
 docker run --name=httpd --restart always --network=picsure \
@@ -58,7 +79,7 @@ docker run --name=psama --restart always \
   || exit 2
 
 docker stop wildfly && docker rm wildfly
-docker run --name=wildfly --restart always --network=picsure -u root \
+docker run --name=wildfly --restart always --network=picsure --network=hpds --network=dictionary -u root \
   -v "$DOCKER_CONFIG_DIR"/log/wildfly-docker-logs/:/opt/jboss/wildfly/standalone/log/ \
   -v /etc/hosts:/etc/hosts \
   -v "$DOCKER_CONFIG_DIR"/log/wildfly-docker-os-logs/:/var/log/ \
@@ -77,14 +98,31 @@ docker run --name=wildfly --restart always --network=picsure -u root \
 # causing "Device or resource busy" errors during hot deployments. We just copy the files into the running container.
 docker cp "${DOCKER_CONFIG_DIR}/wildfly/deployments/." "wildfly:/opt/jboss/wildfly/standalone/deployments/"
 
-docker stop dictionary-api && docker rm dictionary-api
-docker run --name dictionary-api --restart always \
- --network=picsure --network=dictionary --network=hpdsNet \
- --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/dictionary/dictionary.env \
- -d avillach/dictionary-api:latest \
- || exit 2
+if $INCLUDE_UPLOADER; then
+  docker compose --profile production -f $CURRENT_FS_DOCKER_CONFIG_DIR/uploader/docker-compose.yml up -d
+fi
 
-if [ -f "$CURRENT_FS_DOCKER_CONFIG_DIR/passthru/application.properties" ]; then
+if $INCLUDE_DICTIONARY; then
+  docker start dictionary-db
+  docker stop dictionary-api && docker rm dictionary-api
+  docker run --name dictionary-api --restart always \
+   --network=picsure --network=dictionary \
+   --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/dictionary/dictionary.env \
+   -d avillach/dictionary-api:latest \
+   || exit 2
+fi
+
+if $INCLUDE_AGG_DICT; then
+  docker stop dictionary-dump && docker rm dictionary-dump
+  docker run --name dictionary-api --restart always \
+    --network=dictionary \
+    --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/dictionary/dictionary.env \
+    -v $DOCKER_CONFIG_DIR/dictionary/dump/application.properties:/application.properties \
+    -d avillach/dictionary-dump:latest \
+   || exit 2
+fi
+
+if $INCLUDE_PASSTHRU; then
   docker stop passthru && docker rm passthru
   docker run --restart always --name passthru --network picsure \
     -v $DOCKER_CONFIG_DIR/passthru/application.properties:/application.properties \

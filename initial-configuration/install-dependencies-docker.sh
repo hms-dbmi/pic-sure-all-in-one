@@ -193,11 +193,6 @@ if [ -z "$(docker network ls --format '{{.Name}}' | grep ^picsure$)" ]; then
 else
   echo "picsure network already exists. Leaving it alone."
 fi
-if [ -z "$(docker network ls --format '{{.Name}}' | grep ^hpdsNet$)" ]; then
-  docker network create hpdsNet
-else
-  echo "hpdsNet network already exists. Leaving it alone."
-fi
 if [ -z "$(docker network ls --format '{{.Name}}' | grep ^dictionary$)" ]; then
   docker network create dictionary
 else

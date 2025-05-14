@@ -49,7 +49,6 @@ docker run -d \
   -p 8086:8086 \
   -v $DOCKER_CONFIG_DIR/hpds/:/opt/local/hpds/ \
   --network dictionary \
-  --network picsure \
   hms-dbmi/dictionary-etl:latest
 
 echo &quot;Waiting for DictionaryEtlApplication to start...&quot;

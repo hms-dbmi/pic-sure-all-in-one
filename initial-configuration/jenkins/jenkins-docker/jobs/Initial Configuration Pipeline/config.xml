@@ -202,11 +202,11 @@ The value must be in an array format, for example: [&quot;AN&quot;]  </descripti
 def retrieveBuildSpecId;
 def pipelineBuildId;
 def build_hashes = [
-    DICTIONARY: false,
-    UPLOADER: false
+        DICTIONARY: false,
+        UPLOADER: false
 ];
 pipeline {
-    agent any 
+    agent any
     stages {
         stage(&apos;Set Project Specific Repositories&apos;) {
             steps {
@@ -219,14 +219,9 @@ pipeline {
                 }
             }
         }
-            stage(&apos;Initial Config and Build&apos;) { 
-                steps {
-                    parallel (
-                        dbMigrate: {
-                            script {
-                                def result = build job: &apos;PIC-SURE Database Migrations&apos;
-                            }
-                        },
+        stage(&apos;Initial Config and Build&apos;) {
+            steps {
+                parallel (
                         picsureBuild: {
                             script {
                                 def result = build job: &apos;PIC-SURE Pipeline&apos;
@@ -235,8 +230,8 @@ pipeline {
                         auth0Config: {
                             script {
                                 def result = build job: &apos;Configure Auth0 Integration&apos;, parameters: [
-                                    [$class: &apos;StringParameterValue&apos;, name: &apos;AUTH0_CLIENT_ID&apos;, value:env.AUTH0_CLIENT_ID],
-                                    [$class: &apos;StringParameterValue&apos;, name: &apos;AUTH0_CLIENT_SECRET&apos;, value: env.AUTH0_CLIENT_SECRET]]
+                                        [$class: &apos;StringParameterValue&apos;, name: &apos;AUTH0_CLIENT_ID&apos;, value:env.AUTH0_CLIENT_ID],
+                                        [$class: &apos;StringParameterValue&apos;, name: &apos;AUTH0_CLIENT_SECRET&apos;, value: env.AUTH0_CLIENT_SECRET]]
                             }
                         },
                         addRootCerts: {
@@ -293,7 +288,7 @@ pipeline {
                                 sh &quot;echo &apos;VITE_GOOGLE_ANALYTICS_ID=&apos; &gt;&gt; .env&quot;
                                 sh &quot;echo &apos;VITE_GOOGLE_TAG_MANAGER_ID=&apos; &gt;&gt; .env&quot;
                                 sh &quot;mv .env &apos;/usr/local/docker-config/httpd/httpd.env&apos;&quot;
-                                
+
                                 if (env.OPEN?.asBoolean()) {
                                     sh &quot;sed -i &apos;s/^OPEN_IDP_PROVIDER_IS_ENABLED=.*/OPEN_IDP_PROVIDER_IS_ENABLED=true/&apos; /usr/local/docker-config/psama/psama.env&quot;
                                 } else {
@@ -301,26 +296,31 @@ pipeline {
                                 }
                             }
                         },
-                emailConfig: {
+                        emailConfig: {
                             script {
                                 def result = build job: &apos;Configure Outbound Email Settings&apos;, parameters: [
-                                    [$class: &apos;StringParameterValue&apos;, name: &apos;OUTBOUND_EMAIL_USER&apos;, value:env.OUTBOUND_EMAIL_USER],
-                                    [$class: &apos;StringParameterValue&apos;, name: &apos;EMAIL_FROM&apos;, value: env.OUTBOUND_EMAIL_USER],
-                                    [$class: &apos;StringParameterValue&apos;, name: &apos;OUTBOUND_EMAIL_USER_PASSWORD&apos;, value: env.OUTBOUND_EMAIL_USER_PASSWORD]]
+                                        [$class: &apos;StringParameterValue&apos;, name: &apos;OUTBOUND_EMAIL_USER&apos;, value:env.OUTBOUND_EMAIL_USER],
+                                        [$class: &apos;StringParameterValue&apos;, name: &apos;EMAIL_FROM&apos;, value: env.OUTBOUND_EMAIL_USER],
+                                        [$class: &apos;StringParameterValue&apos;, name: &apos;OUTBOUND_EMAIL_USER_PASSWORD&apos;, value: env.OUTBOUND_EMAIL_USER_PASSWORD]]
 
                             }
                         }
-                    )
-                }
+                )
             }
-            stage(&apos;Post Migration Configs&apos;) { 
-                steps {
-                    parallel (
+        }
+        stage(&apos;Post Migration Configs&apos;) {
+            steps {
+                parallel (
+                        dbMigrate: {
+                            script {
+                                def result = build job: &apos;PIC-SURE Database Migrations&apos;
+                            }
+                        },
                         adminConfig: {
                             script {
                                 def result = build job: &apos;Create Admin User&apos;, parameters: [
-                                    [$class: &apos;StringParameterValue&apos;, name: &apos;EMAIL&apos;, value:env.ADMIN_USER_EMAIL],
-                                    [$class: &apos;StringParameterValue&apos;, name: &apos;CONNECTION_LABEL&apos;, value: &quot;Google&quot;]]
+                                        [$class: &apos;StringParameterValue&apos;, name: &apos;EMAIL&apos;, value:env.ADMIN_USER_EMAIL],
+                                        [$class: &apos;StringParameterValue&apos;, name: &apos;CONNECTION_LABEL&apos;, value: &quot;Google&quot;]]
                             }
                         },
                         tokenIntroToken: {
@@ -333,51 +333,51 @@ pipeline {
                                 def result = build job: &apos;Create HPDS Encryption Key&apos;
                             }
                         }
-                    )
-                }
+                )
             }
-            
-            stage(&apos;Load Demo Data&apos;) {
-                steps {
-                    script {
-                        def result = build job: &apos;Load HPDS and Dictionary Data&apos;, parameters: [
+        }
+
+        stage(&apos;Load Demo Data&apos;) {
+            steps {
+                script {
+                    def result = build job: &apos;Load HPDS and Dictionary Data&apos;, parameters: [
                             [$class: &apos;StringParameterValue&apos;, name: &apos;Dataset&apos;, value: env.Dataset],
                             [$class: &apos;StringParameterValue&apos;, name: &apos;Dataset_Name&apos;, value: env.Dataset_Name],
                             [$class: &apos;StringParameterValue&apos;, name: &apos;Dataset_Branch&apos;, value: env.Dataset_Branch],
                             [$class: &apos;BooleanParameterValue&apos;, name: &apos;Include_Genomic_Data&apos;, value: env.Include_Genomic_Data],
                             [$class: &apos;BooleanParameterValue&apos;, name: &apos;Allow_HPDS_Data_Export&apos;, value: env.Allow_HPDS_Data_Export],
                             [$class: &apos;BooleanParameterValue&apos;, name: &apos;Clear_Dictionary_Database&apos;, value: true]
-                        ]
-                    }
-                }
-            }
-            
-            stage(&apos;Deploy&apos;) {
-                steps {
-                    script {
-                        def result = build job: &apos;Retrieve Build Spec&apos;
-                        retrieveBuildSpecId = result.number
-                    }
-                    
-                    script {
-                        copyArtifacts filter: &apos;*&apos;, projectName: &apos;Retrieve Build Spec&apos;, selector: specific(&quot;&quot;+retrieveBuildSpecId)
-                        sh &apos;cat build-spec.json&apos;
-                        sh &apos;cat pipeline_git_commit.txt&apos;
-                        sh &apos;pwd&apos;
-                        def buildSpec = new JsonSlurper().parse(new File(&apos;/var/jenkins_home/workspace/PIC-SURE Pipeline/build-spec.json&apos;))
-                        pipelineBuildId = new File(&apos;/var/jenkins_home/workspace/PIC-SURE Pipeline/pipeline_git_commit.txt&apos;).text.trim()
-                        for(def build : buildSpec.application){
-                            build_hashes[build.project_job_git_key] = build.git_hash
-                        }
-                    }
-                    
-                    script {
-                        def result = build job: &apos;Start PIC-SURE&apos;, parameters: [[$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId]]
-                    }
+                    ]
                 }
             }
         }
-    }</script>
+
+        stage(&apos;Deploy&apos;) {
+            steps {
+                script {
+                    def result = build job: &apos;Retrieve Build Spec&apos;
+                    retrieveBuildSpecId = result.number
+                }
+
+                script {
+                    copyArtifacts filter: &apos;*&apos;, projectName: &apos;Retrieve Build Spec&apos;, selector: specific(&quot;&quot;+retrieveBuildSpecId)
+                    sh &apos;cat build-spec.json&apos;
+                    sh &apos;cat pipeline_git_commit.txt&apos;
+                    sh &apos;pwd&apos;
+                    def buildSpec = new JsonSlurper().parse(new File(&apos;/var/jenkins_home/workspace/PIC-SURE Pipeline/build-spec.json&apos;))
+                    pipelineBuildId = new File(&apos;/var/jenkins_home/workspace/PIC-SURE Pipeline/pipeline_git_commit.txt&apos;).text.trim()
+                    for(def build : buildSpec.application){
+                        build_hashes[build.project_job_git_key] = build.git_hash
+                    }
+                }
+
+                script {
+                    def result = build job: &apos;Start PIC-SURE&apos;, parameters: [[$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId]]
+                }
+            }
+        }
+    }
+}</script>
     <sandbox>true</sandbox>
   </definition>
   <triggers/>

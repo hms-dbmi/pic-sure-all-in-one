@@ -114,7 +114,7 @@ fi
 
 if $INCLUDE_AGG_DICT; then
   docker stop dictionary-dump && docker rm dictionary-dump
-  docker run --name dictionary-api --restart always \
+  docker run --name dictionary-dump --restart always \
     --network=dictionary \
     --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/dictionary/dictionary.env \
     -v $DOCKER_CONFIG_DIR/dictionary/dump/application.properties:/application.properties \

@@ -25,12 +25,12 @@ if [ -z "$(docker ps --format '{{.Names}}' | grep picsure-db)" ]; then
 
   echo "Configuring .my.cnf"
   # shellcheck disable=SC2129
-  touch "$DOCKER_CONFIG_DIR"/.my.cnf
-  echo "[mysql]" >> "$DOCKER_CONFIG_DIR"/.my.cnf
-  echo "user=root" >> "$DOCKER_CONFIG_DIR"/.my.cnf
-  echo "password=\"$(cat pass.tmp)\"" >> "$DOCKER_CONFIG_DIR"/.my.cnf
-  echo "host=picsure-db" >> "$DOCKER_CONFIG_DIR"/.my.cnf
-  echo "port=3306" >> "$DOCKER_CONFIG_DIR"/.my.cnf
+  touch "$DOCKER_CONFIG_DIR"/picsure-db/.my.cnf
+  echo "[mysql]" >> "$DOCKER_CONFIG_DIR"/picsure-db/.my.cnf
+  echo "user=root" >> "$DOCKER_CONFIG_DIR"/picsure-db/.my.cnf
+  echo "password=\"$(cat pass.tmp)\"" >> "$DOCKER_CONFIG_DIR"/picsure-db/.my.cnf
+  echo "host=picsure-db" >> "$DOCKER_CONFIG_DIR"/picsure-db/.my.cnf
+  echo "port=3306" >> "$DOCKER_CONFIG_DIR"/picsure-db/.my.cnf
   echo "Waiting for MySQL to become healthy..."
 
   cd mysql-docker

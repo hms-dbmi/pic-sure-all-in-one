@@ -25,4 +25,5 @@ docker run -d \
   -v /etc/hosts:/etc/hosts \
   -v /usr/local/pic-sure-services:/pic-sure-services \
   --network picsure \
+  --network dictionary \
   -p 8080:8080 --name jenkins pic-sure-jenkins:LATEST

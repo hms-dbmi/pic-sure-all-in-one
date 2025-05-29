@@ -8,6 +8,28 @@ and analyze complex datasets visually and interactively. The All-in-one also inc
 the developing, updating, testing, and deploying of PIC-SURE systems, making it easier for developers to manage and
 monitor the PIC-SURE ecosystem.
 
+## Table of Contents
+- [What is PIC-SURE?](#what-is-pic-sure)
+- [Using the All-in-one](#using-the-all-in-one)
+  - [Assumptions](#assumptions)
+  - [Pre-deployment Preparation](#pre-deployment-preparation)
+  - [Minimum System Requirements](#minimum-system-requirements)
+  - [Operating System Requirements](#operating-system-requirements)
+  - [Data Loading Requirements](#data-loading-requirements)
+- [Steps to Install on a Fresh Server](#steps-to-install-on-a-fresh-server)
+- [Additional Information](#additional-information)
+- [Data Loading](#data-loading)
+  - [Uploading HPDS-ETL Configuration](#uploading-hpds-etl-configuration)
+  - [Manual Load HPDS](#manual-load-hpds)
+  - [Manually Load Dictionary Database](#manually-load-dictionary-database)
+  - [Load Dictionary and HPDS](#load-dictionary-and-hpds)
+- [Updating Jenkins](#updating-jenkins)
+- [Users](#users)
+  - [Adding and Removing Users](#adding-and-removing-users)
+- [MacOS - Apple Chip - M1,M2,M3,etc](#macos---apple-chip---m1m2m3etc)
+  - [Setup Docker](#setup-docker)
+  - [Setup All in One](#setup-all-in-one)
+
 ## What is PIC-SURE?
 
 The Patient-centered Information Commons: Standard Unification of Research Elements (PIC-SURE) platform integrates
@@ -35,7 +57,7 @@ See more at [pic-sure.org](https://pic-sure.org/about)
 
 - You have `sudo` privileges or root account access on the server.
 
-### Pre deployment preparation:
+### Pre-deployment Preparation:
 
 - Ensure that you have a Google or G-Suite account. You will create an initial admin user tied to a Google account.
 
@@ -108,6 +130,7 @@ you exact instructions. If you're following the legacy install instructions, you
 `git clone https://github.com/hms-dbmi/pic-sure-all-in-one`
 
 4. Install the dependencies and build the Jenkins container
+
 `cd pic-sure-all-in-one/initial-configuration`
 Choose one of the following use cases:
 - *Fully dockerized install.* Our current happy path.
@@ -339,3 +362,21 @@ To deactivate a user:
 **Note:** When you deactivate a user, the user is gone forever and their email address cannot be used for a new user. To
 keep a user in the system without giving them access to PIC-SURE, follow the "To remove a user" procedure.
 
+## MacOS - Apple Chip - M1,M2,M3,etc
+### Setup Docker
+- Navigate to your docker desktop.
+- Go to your **Settings**
+- Under General -> Virtual Machine Options—Select the following Options:
+  >- Apple Virtualization Framework.
+  >- Use Rosetta for x86_64/amd64 emulation on Apple Silicon
+  >- VirtioFS
+- Under resources -> File Sharing -> Virtual file shares
+  >- Provide the path you intend to install the local all in one configuration. This is the same path specified as the first argument passed to the `install-dependencies-docker.sh`
+
+### Setup All in One
+- `cd pic-sure-all-in-one/initial-configuration`
+- *Fully dockerized install.* Our current happy path.
+```shell
+./install-dependencies-docker.sh /path/to/desired/config/dir/ && source ~/.bashrc
+```
+- Continue by following the [Steps to Install on a Fresh Server](#steps-to-install-on-a-fresh-server) from step 5 onwards.

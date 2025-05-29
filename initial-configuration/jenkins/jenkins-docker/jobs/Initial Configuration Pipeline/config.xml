@@ -310,10 +310,8 @@ pipeline {
         }
         stage(&apos;Migrations&apos;) {
             steps {
-                dbMigrate: {
-                    script {
-                        def result = build job: &apos;PIC-SURE Database Migrations&apos;
-                    }
+                script {
+                    def result = build job: &apos;PIC-SURE Database Migrations&apos;
                 }
             }
         }

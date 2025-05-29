@@ -196,7 +196,7 @@ The value must be in an array format, for example: [&quot;AN&quot;]  </descripti
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
   </properties>
-  <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@4000.v5198556e9cea_">
+  <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@4009.v0089238351a_9">
     <script>import groovy.json.JsonSlurper;
 
 def retrieveBuildSpecId;
@@ -308,14 +308,18 @@ pipeline {
                 )
             }
         }
+        stage(&apos;Migrations&apos;) {
+            steps {
+                dbMigrate: {
+                    script {
+                        def result = build job: &apos;PIC-SURE Database Migrations&apos;
+                    }
+                }
+            }
+        }
         stage(&apos;Post Migration Configs&apos;) {
             steps {
                 parallel (
-                        dbMigrate: {
-                            script {
-                                def result = build job: &apos;PIC-SURE Database Migrations&apos;
-                            }
-                        },
                         adminConfig: {
                             script {
                                 def result = build job: &apos;Create Admin User&apos;, parameters: [

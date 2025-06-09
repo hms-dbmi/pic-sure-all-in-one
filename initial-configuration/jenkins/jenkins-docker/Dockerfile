@@ -14,6 +14,8 @@ RUN echo deb http://archive.debian.org/debian stretch-backports main >> /etc/apt
 
 RUN apt-get update
 
+RUN apt-get -y install apt-utils
+
 RUN curl -fsSL https://get.docker.com | sh
 
 RUN docker --version

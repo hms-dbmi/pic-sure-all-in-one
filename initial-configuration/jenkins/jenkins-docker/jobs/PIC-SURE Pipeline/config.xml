@@ -12,15 +12,15 @@
   <description></description>
   <keepDependencies>false</keepDependencies>
   <properties/>
-  <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@4000.v5198556e9cea_">
+  <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@4009.v0089238351a_9">
     <script>import groovy.json.JsonSlurper;
 
 def retrieveBuildSpecId;
 def pipelineBuildId;
 def build_hashes = [
-    DICTIONARY: false,
-    UPLOADER: false,
-    PASSTHRU: false
+        DICTIONARY: false,
+        UPLOADER: false,
+        PASSTHRU: false
 ];
 pipeline {
     agent any
@@ -53,7 +53,7 @@ pipeline {
                             }
                         },
                         picsureauth:{
-                           script{
+                            script{
                                 def result = build job: &apos;PIC-SURE Auth Micro-App Build - Jenkinsfile&apos;, parameters: [[$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],[$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSAMA&apos;]]]
                             }
                         }
@@ -103,7 +103,7 @@ pipeline {
                 script {
                     if (build_hashes[&apos;UPLOADER&apos;]) {
                         echo &quot;Building Uploader API&quot;
-                        def result = build job: &apos;Build and Deploy Uploader&apos;, parameters: [
+                        def result = build job: &apos;PIC-SURE Build and Deploy Uploader&apos;, parameters: [
                                 [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],
                                 [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;UPLOADER&apos;]]
                         ]
@@ -120,10 +120,10 @@ pipeline {
                 script {
                     if (build_hashes[&apos;PASSTHRU&apos;]) {
                         echo &quot;Building Passthru Service&quot;
-                    def result = build job: &apos;Build Passthru Image&apos;, parameters: [
-                            [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],
-                            [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PASSTHRU&apos;]]
-                    ]
+                        def result = build job: &apos;Build Passthru Image&apos;, parameters: [
+                                [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],
+                                [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PASSTHRU&apos;]]
+                        ]
                     } else {
                         echo &quot;No project_job_git_key PASSTHRU found in build spec. Skipping Uploader Build&quot;
                     }

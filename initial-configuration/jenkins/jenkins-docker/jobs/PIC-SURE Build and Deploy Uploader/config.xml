@@ -39,11 +39,16 @@
   <disabled>false</disabled>
   <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
   <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <jdk>(System)</jdk>
   <triggers/>
   <concurrentBuild>false</concurrentBuild>
   <builders>
     <hudson.tasks.Shell>
-      <command>
+      <command>if [[ ! -f /usr/local/docker-config/uploader/.env ]]; then
+    mkdir -p /usr/local/docker-config/uploader
+    cp uploader/env-proto /usr/local/docker-config/uploader/.env
+fi
+
 mv /usr/local/docker-config/uploader/.env .env
 cp -r uploader /usr/local/docker-config/
 mv .env /usr/local/docker-config/uploader/.env

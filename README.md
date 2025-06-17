@@ -261,7 +261,7 @@ This job uploads a `config.json` file that defines metadata for each input CSV f
 
 ```json
 {
-  "nhanesAllConcepts": {
+  "nhanes": {
     "dataset_name": "Nhanes",
     "dataset_name_as_root_node": true
   },

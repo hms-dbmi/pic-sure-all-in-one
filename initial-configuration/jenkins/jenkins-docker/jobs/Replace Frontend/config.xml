@@ -16,6 +16,15 @@
           <description>Enables source maps</description>
           <defaultValue>true</defaultValue>
         </hudson.model.BooleanParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>build_spec_config</name>
+          <description>Use Build spec&apos;s config</description>
+          <defaultValue>true</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.FileParameterDefinition>
+          <name></name>
+          <description>custom configuration.json</description>
+        </hudson.model.FileParameterDefinition>
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
   </properties>
@@ -59,11 +68,34 @@ if [ ! -f .env ]; then
   exit 1
 fi
 
-if [ -f &quot;/var/jenkins_home/workspace/Check For Updates/configuration.json&quot; ]; then
-	echo &quot;Replacing the Config file from build spec&quot;
-	cp &quot;/var/jenkins_home/workspace/Check For Updates/configuration.json&quot; ./src/lib/assets/configuration.json
+if [ &quot;$build_spec_config&quot; = &quot;true&quot; ]; then
+  echo &quot;Checking out build_spec from GitHub and using its configuration.json&quot;
+  if [ -z &quot;$release_control_repo&quot; ]; then
+    echo &quot;ERROR: release_control_repo is not set.&quot;
+    exit 1
+  fi
+  BUILD_SPEC_REPO=&quot;$release_control_repo&quot;
+  BUILD_SPEC_BRANCH=&quot;${release_control_branch:-main}&quot;
+
+  # Clone the repo to a temp directory
+  tmpdir=$(mktemp -d)
+  git clone --depth 1 --branch &quot;$BUILD_SPEC_BRANCH&quot; &quot;$BUILD_SPEC_REPO&quot; &quot;$tmpdir&quot;
+  if [ -f &quot;$tmpdir/configuration.json&quot; ]; then
+    cp &quot;$tmpdir/configuration.json&quot; ./src/lib/assets/configuration.json
+    echo &quot;Copied configuration.json from build spec repo.&quot;
+  else
+    echo &quot;ERROR: configuration.json not found in build spec repo.&quot;
+    exit 1
+  fi
+  rm -rf &quot;$tmpdir&quot;
+elif [ -n &quot;$custom_configuration_json&quot; ]; then
+  echo &quot;Using custom configuration.json&quot;
+  cp &quot;$custom_configuration_json&quot; ./src/lib/assets/configuration.json
+elif [ -f &quot;/var/jenkins_home/workspace/Check For Updates/configuration.json&quot; ]; then
+  echo &quot;Replacing the Config file from build spec&quot;
+  cp &quot;/var/jenkins_home/workspace/Check For Updates/configuration.json&quot; ./src/lib/assets/configuration.json
 else
-	echo &quot;Using default configuration.json&quot;
+  echo &quot;Using default configuration.json&quot;
 fi
 
 [ -f &quot;/usr/local/docker-config/httpd/terms.html&quot; ] &amp;&amp; cp &quot;/usr/local/docker-config/httpd/terms.html&quot; ./src/terms.svelte

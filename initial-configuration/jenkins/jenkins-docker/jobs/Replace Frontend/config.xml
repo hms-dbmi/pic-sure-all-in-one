@@ -7,15 +7,15 @@
     <hudson.model.ParametersDefinitionProperty>
       <parameterDefinitions>
         <hudson.model.StringParameterDefinition>
-          <name>pipeline_build_id</name>
-          <defaultValue>MANUAL_RUN</defaultValue>
-          <trim>true</trim>
-        </hudson.model.StringParameterDefinition>
-        <hudson.model.StringParameterDefinition>
           <name>git_hash</name>
           <defaultValue>main</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>SRC_MAPS</name>
+          <description>Enables source maps</description>
+          <defaultValue>true</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
   </properties>
@@ -68,12 +68,31 @@ fi
 
 [ -f &quot;/usr/local/docker-config/httpd/terms.html&quot; ] &amp;&amp; cp &quot;/usr/local/docker-config/httpd/terms.html&quot; ./src/terms.svelte
 
+sed -i &quot;s/sourcemap: .*,/sourcemap: ${SRC_MAPS},/&quot; vite.config.ts
+
+if [ -f $DOCKER_CONFIG_DIR/httpd/custom_httpd_volumes ]; then
+	export CUSTOM_HTTPD_VOLUMES=`cat $DOCKER_CONFIG_DIR/httpd/custom_httpd_volumes`
+fi
+docker stop httpd hpds wildfly || true
+
 docker build --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_proxy --build-arg no_proxy=&quot;$no_proxy&quot; \
  --build-arg HTTP_PROXY=$http_proxy --build-arg HTTPS_PROXY=$http_proxy --build-arg NO_PROXY=&quot;$no_proxy&quot; \
  -f Dockerfile -t hms-dbmi/pic-sure-frontend:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} .
 docker tag hms-dbmi/pic-sure-frontend:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} hms-dbmi/pic-sure-frontend:LATEST
 
-</command>
+docker rm httpd || true
+docker run --name=httpd --restart always --network=picsure \
+    -v &quot;$DOCKER_CONFIG_DIR&quot;/log/httpd-docker-logs/:/app/logs/ \
+    -v $DOCKER_CONFIG_DIR/httpd/cert:/usr/local/apache2/cert/ \
+    -v $DOCKER_CONFIG_DIR/httpd/httpd-vhosts.conf:/usr/local/apache2/conf/extra/httpd-vhosts.conf \
+    $CUSTOM_HTTPD_VOLUMES \
+    --env-file /usr/local/docker-config/httpd/httpd.env \
+    -p 80:80 \
+    -p 443:443 \
+    -d hms-dbmi/pic-sure-frontend:LATEST \
+    || exit 2
+
+docker start hpds wildfly</command>
       <configuredLocalRules/>
     </hudson.tasks.Shell>
   </builders>

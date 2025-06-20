@@ -1,0 +1,133 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description></description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>git_hash</name>
+          <defaultValue>main</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>SRC_MAPS</name>
+          <description>Enables source maps</description>
+          <defaultValue>true</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>build_spec_config</name>
+          <description>Use Build spec&apos;s config</description>
+          <defaultValue>true</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.FileParameterDefinition>
+          <name></name>
+          <description>custom configuration.json</description>
+        </hudson.model.FileParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@5.2.2">
+    <configVersion>2</configVersion>
+    <userRemoteConfigs>
+      <hudson.plugins.git.UserRemoteConfig>
+        <url>https://github.com/hms-dbmi/pic-sure-frontend.git</url>
+      </hudson.plugins.git.UserRemoteConfig>
+    </userRemoteConfigs>
+    <branches>
+      <hudson.plugins.git.BranchSpec>
+        <name>${git_hash}</name>
+      </hudson.plugins.git.BranchSpec>
+    </branches>
+    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+    <submoduleCfg class="empty-list"/>
+    <extensions/>
+  </scm>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <jdk>(System)</jdk>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>
+if [ -f &quot;/usr/local/docker-config/setProxy.sh&quot; ]; then
+   . /usr/local/docker-config/setProxy.sh
+fi
+
+GIT_BRANCH_SHORT=`echo ${GIT_BRANCH} | cut -d &quot;/&quot; -f 2` 
+GIT_COMMIT_SHORT=`echo ${GIT_COMMIT} | cut -c1-7`
+
+cp /usr/local/docker-config/httpd/httpd.env .env
+
+if [ ! -f .env ]; then
+  echo &quot;.env file not found&quot;
+  exit 1
+fi
+
+if [ &quot;$build_spec_config&quot; = &quot;true&quot; ]; then
+  echo &quot;Checking out build_spec from GitHub and using its configuration.json&quot;
+  if [ -z &quot;$release_control_repo&quot; ]; then
+    echo &quot;ERROR: release_control_repo is not set.&quot;
+    exit 1
+  fi
+  BUILD_SPEC_REPO=&quot;$release_control_repo&quot;
+  BUILD_SPEC_BRANCH=&quot;${release_control_branch:-main}&quot;
+
+  # Clone the repo to a temp directory
+  tmpdir=$(mktemp -d)
+  git clone --depth 1 --branch &quot;$BUILD_SPEC_BRANCH&quot; &quot;$BUILD_SPEC_REPO&quot; &quot;$tmpdir&quot;
+  if [ -f &quot;$tmpdir/configuration.json&quot; ]; then
+    cp &quot;$tmpdir/configuration.json&quot; ./src/lib/assets/configuration.json
+    echo &quot;Copied configuration.json from build spec repo.&quot;
+  else
+    echo &quot;ERROR: configuration.json not found in build spec repo.&quot;
+    exit 1
+  fi
+  rm -rf &quot;$tmpdir&quot;
+elif [ -n &quot;$custom_configuration_json&quot; ]; then
+  echo &quot;Using custom configuration.json&quot;
+  cp &quot;$custom_configuration_json&quot; ./src/lib/assets/configuration.json
+elif [ -f &quot;/var/jenkins_home/workspace/Check For Updates/configuration.json&quot; ]; then
+  echo &quot;Replacing the Config file from build spec&quot;
+  cp &quot;/var/jenkins_home/workspace/Check For Updates/configuration.json&quot; ./src/lib/assets/configuration.json
+else
+  echo &quot;Using default configuration.json&quot;
+fi
+
+[ -f &quot;/usr/local/docker-config/httpd/terms.html&quot; ] &amp;&amp; cp &quot;/usr/local/docker-config/httpd/terms.html&quot; ./src/terms.svelte
+
+sed -i &quot;s/sourcemap: .*,/sourcemap: ${SRC_MAPS},/&quot; vite.config.ts
+
+if [ -f $DOCKER_CONFIG_DIR/httpd/custom_httpd_volumes ]; then
+	export CUSTOM_HTTPD_VOLUMES=`cat $DOCKER_CONFIG_DIR/httpd/custom_httpd_volumes`
+fi
+docker stop httpd hpds wildfly || true
+
+docker build --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_proxy --build-arg no_proxy=&quot;$no_proxy&quot; \
+ --build-arg HTTP_PROXY=$http_proxy --build-arg HTTPS_PROXY=$http_proxy --build-arg NO_PROXY=&quot;$no_proxy&quot; \
+ -f Dockerfile -t hms-dbmi/pic-sure-frontend:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} .
+docker tag hms-dbmi/pic-sure-frontend:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} hms-dbmi/pic-sure-frontend:LATEST
+
+docker rm httpd || true
+docker run --name=httpd --restart always --network=picsure \
+    -v &quot;$DOCKER_CONFIG_DIR&quot;/log/httpd-docker-logs/:/app/logs/ \
+    -v $DOCKER_CONFIG_DIR/httpd/cert:/usr/local/apache2/cert/ \
+    -v $DOCKER_CONFIG_DIR/httpd/httpd-vhosts.conf:/usr/local/apache2/conf/extra/httpd-vhosts.conf \
+    $CUSTOM_HTTPD_VOLUMES \
+    --env-file /usr/local/docker-config/httpd/httpd.env \
+    -p 80:80 \
+    -p 443:443 \
+    -d hms-dbmi/pic-sure-frontend:LATEST \
+    || exit 2
+
+docker start hpds wildfly</command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

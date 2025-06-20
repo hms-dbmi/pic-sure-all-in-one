@@ -39,6 +39,7 @@
   <disabled>false</disabled>
   <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
   <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <jdk>(System)</jdk>
   <triggers/>
   <concurrentBuild>false</concurrentBuild>
   <builders>
@@ -56,6 +57,13 @@ cp /usr/local/docker-config/httpd/httpd.env .env
 if [ ! -f .env ]; then
   echo &quot;.env file not found&quot;
   exit 1
+fi
+
+if [ -f &quot;/var/jenkins_home/workspace/Check For Updates/configuration.json&quot; ]; then
+	echo &quot;Replacing the Config file from build spec&quot;
+	cp &quot;/var/jenkins_home/workspace/Check For Updates/configuration.json&quot; ./src/lib/assets/configuration.json
+else
+	echo &quot;Using default configuration.json&quot;
 fi
 
 [ -f &quot;/usr/local/docker-config/httpd/terms.html&quot; ] &amp;&amp; cp &quot;/usr/local/docker-config/httpd/terms.html&quot; ./src/terms.svelte

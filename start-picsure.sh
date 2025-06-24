@@ -124,8 +124,9 @@ fi
 
 if $INCLUDE_PASSTHRU; then
   docker stop passthru && docker rm passthru
-  docker run --restart always --name passthru --network picsure \
+  docker run --restart always --name passthru --network picsure --network dictionary \
     -v $DOCKER_CONFIG_DIR/passthru/application.properties:/application.properties \
+    --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/passthru/passthru.env \
     -d hms-dbmi/pic-sure-passthru:LATEST
 fi
    

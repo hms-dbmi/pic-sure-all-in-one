@@ -48,12 +48,6 @@ MAX_ATTEMPTS=6
 SLEEP_INTERVAL=5
 ATTEMPT=1
 
-if [ &quot;$CLEAR_DATABASE&quot; ]; then
-	curl http://dictionaryetl:8086/load/clear
-else
-	echo &quot;Not clearing DB&quot;
-fi
-
 while ! docker logs dictionaryetl 2&gt;&amp;1 | grep -q &quot;Started DictionaryEtlApplication&quot;; do
     if [ &quot;$ATTEMPT&quot; -ge &quot;$MAX_ATTEMPTS&quot; ]; then
         echo &quot;DictionaryEtlApplication failed to start within $((MAX_ATTEMPTS * SLEEP_INTERVAL)) seconds.&quot;
@@ -68,6 +62,14 @@ while ! docker logs dictionaryetl 2&gt;&amp;1 | grep -q &quot;Started Dictionary
 done
 
 echo &quot;DictionaryEtlApplication has started!&quot;
+
+if [ &quot;$CLEAR_DATABASE&quot; ]; then
+	echo &quot;Clearing database&quot;
+	curl http://dictionaryetl:8086/load/clear
+else
+	echo &quot;Not clearing DB&quot;
+fi
+echo &quot;Adding datasets&quot;
 curl -X PUT -T datasets.csv http://dictionaryetl:8086/api/dataset/csv
 IFS=&apos;,&apos;      
 while read ref fullname abv desc

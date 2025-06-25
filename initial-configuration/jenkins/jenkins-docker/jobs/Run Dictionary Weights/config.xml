@@ -29,7 +29,9 @@
   <concurrentBuild>false</concurrentBuild>
   <builders>
     <hudson.tasks.Shell>
-      <command>cd dictionaryweights
+      <command>rm -rf /usr/local/docker-config/dictionary/weights.csv
+cp dictionaryweights/weights.csv /usr/local/docker-config/dictionary/weights.csv
+cd dictionaryweights
 
 docker build --no-cache -t weights:latest .
 

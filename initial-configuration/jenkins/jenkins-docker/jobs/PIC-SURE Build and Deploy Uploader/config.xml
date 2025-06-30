@@ -44,7 +44,8 @@
   <concurrentBuild>false</concurrentBuild>
   <builders>
     <hudson.tasks.Shell>
-      <command>if [[ ! -f /usr/local/docker-config/uploader/.env ]]; then
+      <command>#!/bin/bash
+if [[ ! -f /usr/local/docker-config/uploader/.env ]]; then
     mkdir -p /usr/local/docker-config/uploader
     cp uploader/env-proto /usr/local/docker-config/uploader/.env
 fi

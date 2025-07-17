@@ -36,6 +36,22 @@ if [ -f $DOCKER_CONFIG_DIR/httpd/custom_httpd_volumes ]; then
 	export CUSTOM_HTTPD_VOLUMES=`cat $DOCKER_CONFIG_DIR/httpd/custom_httpd_volumes`
 fi
 
+# Debug Ports
+echo "This script sets debug ports if you set specific variables"
+echo "Example: if you set WILDFLY_DEBUG=5005, it will expose 5005 on the wildfly container"
+echo "You will still have to manually edit the corrosponding .env file"
+echo "So that Java knows to support remote debugging"
+echo "Looking for ports in the following vars:"
+echo "  HPDS_DEBUG_PORT, WILDFLY_DEBUG_PORT, PSAMA_DEBUG_PORT, DICTIONARY_DEBUG_PORT"
+echo "  AGGREGATE_DEBUG_PORT, PASSTHRU_DEBUG_PORT"
+HPDS_DEBUG="${HPDS_DEBUG_PORT:+-p $HPDS_DEBUG_PORT:$HPDS_DEBUG_PORT }"
+WILDFLY_DEBUG="${WILDFLY_DEBUG_PORT:+-p $WILDFLY_DEBUG_PORT:$WILDFLY_DEBUG_PORT }"
+PSAMA_DEBUG="${PSAMA_DEBUG_PORT:+-p $PSAMA_DEBUG_PORT:$PSAMA_DEBUG_PORT }"
+DICTIONARY_DEBUG="${DICTIONARY_DEBUG_PORT:+-p $DICTIONARY_DEBUG_PORT:$DICTIONARY_DEBUG_PORT }"
+AGGREGATE_DEBUG="${AGGREGATE_DEBUG_PORT:+-p $AGGREGATE_DEBUG_PORT:$AGGREGATE_DEBUG_PORT }"
+PASSTHRU_DEBUG="${PASSTHRU_DEBUG_PORT:+-p $PASSTHRU_DEBUG_PORT:$PASSTHRU_DEBUG_PORT }"
+
+
 # Docker networks
 # External network. Can talk to the internet
 docker network inspect picsure >/dev/null 2>&1 || docker network create picsure
@@ -51,6 +67,7 @@ if $INCLUDE_HPDS; then
     -v $DOCKER_CONFIG_DIR/hpds/all:/opt/local/hpds/all \
     -v "$DOCKER_CONFIG_DIR"/log/hpds-logs/:/var/log/ \
     -v $DOCKER_CONFIG_DIR/hpds_csv/:/usr/local/docker-config/hpds_csv/ \
+    $HPDS_DEBUG \
     -v $DOCKER_CONFIG_DIR/aws_uploads/:/gic_query_results/ \
     --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/hpds/hpds.env \
     -d hms-dbmi/pic-sure-hpds:LATEST \
@@ -74,6 +91,7 @@ docker run --name=psama --restart always \
   --network=picsure \
   --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/psama/psama.env \
   $EMAIL_TEMPLATE_VOLUME \
+  $PSAMA_DEBUG \
   $PSAMA_TRUSTSTORE_VOLUME \
   -d hms-dbmi/psama:LATEST \
   || exit 2
@@ -86,6 +104,7 @@ docker run --name=wildfly --restart always --network=picsure --network=hpds --ne
   -v $DOCKER_CONFIG_DIR/wildfly/passthru/:/opt/jboss/wildfly/standalone/configuration/passthru/ \
   -v $DOCKER_CONFIG_DIR/wildfly/aggregate-data-sharing/:/opt/jboss/wildfly/standalone/configuration/aggregate-data-sharing/ \
   -v $DOCKER_CONFIG_DIR/wildfly/visualization/:/opt/jboss/wildfly/standalone/configuration/visualization/ \
+  $WILDFLY_DEBUG \
   -v $DOCKER_CONFIG_DIR/wildfly/standalone.xml:/opt/jboss/wildfly/standalone/configuration/standalone.xml \
   $TRUSTSTORE_VOLUME \
   $EMAIL_TEMPLATE_VOLUME \
@@ -107,6 +126,7 @@ if $INCLUDE_DICTIONARY; then
   docker stop dictionary-api && docker rm dictionary-api
   docker run --name dictionary-api --restart always \
    --network=picsure --network=dictionary \
+   $DICTIONARY_DEBUG \
    --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/dictionary/dictionary.env \
    -d avillach/dictionary-api:latest \
    || exit 2
@@ -117,6 +137,7 @@ if $INCLUDE_AGG_DICT; then
   docker run --name dictionary-dump --restart always \
     --network=dictionary \
     --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/dictionary/dictionary.env \
+    $AGGREGATE_DEBUG \
     -v $DOCKER_CONFIG_DIR/dictionary/dump/application.properties:/application.properties \
     -d avillach/dictionary-dump:latest \
    || exit 2
@@ -127,6 +148,6 @@ if $INCLUDE_PASSTHRU; then
   docker run --restart always --name passthru --network picsure --network dictionary \
     -v $DOCKER_CONFIG_DIR/passthru/application.properties:/application.properties \
     --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/passthru/passthru.env \
+    $PASSTHRU_DEBUG \
     -d hms-dbmi/pic-sure-passthru:LATEST
 fi
-   

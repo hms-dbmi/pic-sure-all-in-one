@@ -43,19 +43,23 @@
     </hudson.model.AllView>
     <listView>
       <owner class="hudson" reference="../../.."/>
-      <name>PIC-SURE Builds</name>
+      <name>Builds</name>
       <filterExecutors>false</filterExecutors>
       <filterQueue>false</filterQueue>
       <properties class="hudson.model.View$PropertyList"/>
       <jobNames>
         <comparator class="hudson.util.CaseInsensitiveComparator"/>
-        <string>PIC-SURE Auth Micro-App Build</string>
+        <string>PIC-SURE Aggregate Resource Build</string>
+        <string>PIC-SURE Auth Micro-App Build - Jenkinsfile</string>
+        <string>PIC-SURE Build and Deploy Uploader</string>
+        <string>PIC-SURE Build Passthrough Resource</string>
+        <string>PIC-SURE Dictionary API Build and Deploy</string>
+        <string>PIC-SURE Dictionary-ETL Build</string>
         <string>PIC-SURE Pipeline</string>
         <string>PIC-SURE Wildfly Image Build</string>
         <string>PIC-SURE-API Build</string>
         <string>PIC-SURE-HPDS Build</string>
         <string>PIC-SURE-HPDS-UI Docker Build</string>
-        <string>Project Specific PIC-SURE Overrides</string>
       </jobNames>
       <jobFilters/>
       <columns>
@@ -79,10 +83,7 @@
         <comparator class="hudson.util.CaseInsensitiveComparator" reference="../../../listView/jobNames/comparator"/>
         <string>Check For Updates</string>
         <string>PIC-SURE Pipeline</string>
-        <string>Load HPDS and Dictionary Data</string>
-        <string>Start JupyterHub</string>
         <string>Start PIC-SURE</string>
-        <string>Stop JupyterHub</string>
         <string>Stop PIC-SURE</string>
       </jobNames>
       <jobFilters/>
@@ -106,17 +107,18 @@
       <jobNames>
         <comparator class="hudson.util.CaseInsensitiveComparator" reference="../../../listView/jobNames/comparator"/>
         <string>Configure Auth0 Integration</string>
+        <string>Configure Google Analytics</string>
+        <string>Configure Institution Node</string>
         <string>Configure Outbound Email Settings</string>
         <string>Configure PIC-SURE Token Introspection Token</string>
         <string>Configure Proxy</string>
+        <string>Configure Remote MySQL Instance</string>
         <string>Configure SSL Certificates</string>
         <string>Configure SSLOffload</string>
-        <string>Create Admin User</string>
-        <string>Initial Configuration Pipeline</string>
-        <string>Configure Remote MySQL Instance</string>
+        <string>Configure TOS</string>
+        <string>Create Custom Login (IDP) Connection</string>
         <string>Create Self-Signed SSL Certificate</string>
         <string>Import Server Cert to TrustStore</string>
-        <string>Configure Institution Node</string>
       </jobNames>
       <jobFilters/>
       <columns>
@@ -132,17 +134,23 @@
     </listView>
     <listView>
       <owner class="hudson" reference="../../.."/>
-      <name>Supporting Jobs</name>
+      <name>_ Developer Support</name>
       <filterExecutors>false</filterExecutors>
       <filterQueue>false</filterQueue>
       <properties class="hudson.model.View$PropertyList"/>
       <jobNames>
         <comparator class="hudson.util.CaseInsensitiveComparator" reference="../../../listView/jobNames/comparator"/>
         <string>Backup Jenkins Home</string>
-        <string>Create PIC-SURE PassThrough Resource</string>
         <string>Create PIC-SURE Aggregate Resource</string>
         <string>Create PIC-SURE Visualization Build</string>
-        <string>Retrieve Build Spec</string>
+        <string>Create Self-Signed SSL Certificate</string>
+        <string>Download PSAMA Configuration</string>
+        <string>Export builds</string>
+        <string>Replace Frontend</string>
+        <string>Update User Token</string>
+        <string>Upload HPDS-ETL Dataset Configuration</string>
+        <string>Upload PSAMA Configuration</string>
+        <string>Upload Uploader .env File</string>
       </jobNames>
       <jobFilters/>
       <columns>
@@ -158,45 +166,21 @@
     </listView>
     <listView>
       <owner class="hudson" reference="../../.."/>
-      <name>Dictionary</name>
+      <name>Load Data</name>
       <filterExecutors>false</filterExecutors>
       <filterQueue>false</filterQueue>
       <properties class="hudson.model.View$PropertyList"/>
       <jobNames>
         <comparator class="java.lang.String$CaseInsensitiveComparator"/>
-        <string>PIC-SURE Dictionary API Build and Deploy</string>
-        <string>PIC-SURE Build Dictionary API</string>
-        <string>Deploy Dictionary API</string>
-        <string>Upload Dictionary .env File</string>
-        <string>Edit Dictionary .env</string>
-        <string>Weight Dictionary Search Fields</string>
-      </jobNames>
-      <jobFilters/>
-      <columns>
-        <hudson.views.StatusColumn/>
-        <hudson.views.WeatherColumn/>
-        <hudson.views.JobColumn/>
-        <hudson.views.LastSuccessColumn/>
-        <hudson.views.LastFailureColumn/>
-        <hudson.views.LastDurationColumn/>
-        <hudson.views.BuildButtonColumn/>
-      </columns>
-      <recurse>false</recurse>
-    </listView>
-    <listView>
-      <owner class="hudson" reference="../../.."/>
-      <name>Loading</name>
-      <filterExecutors>false</filterExecutors>
-      <filterQueue>false</filterQueue>
-      <properties class="hudson.model.View$PropertyList"/>
-      <jobNames>
-        <comparator class="java.lang.String$CaseInsensitiveComparator"/>
-        <string>Load Genomic Data</string>
-        <string>Load Genomic Metadata</string>
+        <string>Load Dictionary Data from Ingest CSVs</string>
         <string>Load HPDS and Dictionary Data</string>
         <string>Load HPDS Data From CSV</string>
+        <string>Load HPDS Data From Multiple CSVs</string>
         <string>Load HPDS Data From Multiple Files</string>
         <string>Load HPDS Data From RDBMS</string>
+        <string>Load Staged Genomic Data</string>
+        <string>Load VCF Data</string>
+        <string>Run Dictionary Weights</string>
       </jobNames>
       <jobFilters/>
       <columns>
@@ -212,14 +196,17 @@
     </listView>
     <listView>
       <owner class="hudson" reference="../../.."/>
-      <name>Uploader</name>
+      <name>Database</name>
       <filterExecutors>false</filterExecutors>
       <filterQueue>false</filterQueue>
       <properties class="hudson.model.View$PropertyList"/>
       <jobNames>
         <comparator class="java.lang.String$CaseInsensitiveComparator" reference="../../../listView[5]/jobNames/comparator"/>
-        <string>PIC-SURE Build and Deploy Uploader</string>
-        <string>Upload Uploader .env File</string>
+        <string>Migrate Dictionary Database</string>
+        <string>PIC-SURE Database Migrations</string>
+        <string>PIC-SURE Database Repair</string>
+        <string>Repair Dictionary Database</string>
+        <string>Run Dictionary Weights</string>
       </jobNames>
       <jobFilters/>
       <columns>
@@ -251,21 +238,22 @@
           </default>
           <int>7</int>
           <string>release_control_branch</string>
-          <string>*/master</string>
+          <string>*/dev</string>
           <string>release_control_repo</string>
-          <string>__RELEASE_CONTROL_REPO__</string>
+          <string>https://github.com/hms-dbmi/pic-sure-gic-institution-release-control.git</string>
           <string>DOCKER_CONFIG_DIR</string>
-          <string>/usr/local/docker-config/</string>
+          <string>/home/luke/config/picsure/</string>
           <string>MYSQL_NETWORK</string>
           <string>picsure</string>
           <string>MYSQL_CONFIG_DIR</string>
-          <string>/usr/local/docker-config/picsure-db/</string>
+          <string>/home/luke/config/picsure/picsure-db/</string>
           <string>MIGRATION_REPO</string>
           <string>https://github.com/hms-dbmi/PIC-SURE-Migrations</string>
           <string>MIGRATION_NAME</string>
-          <string>__PROJECT_SPECIFIC_MIGRATION_NAME__</string>
+          <string>GIC-Institution</string>
         </tree-map>
       </envVars>
     </hudson.slaves.EnvironmentVariablesNodeProperty>
   </globalNodeProperties>
+  <nodeRenameMigrationNeeded>true</nodeRenameMigrationNeeded>
 </hudson>

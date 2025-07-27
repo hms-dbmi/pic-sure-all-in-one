@@ -22,7 +22,7 @@ plugins:
       version: 487.vd79d090d4ea_e
   - artifactId: github-branch-source
     source:
-      version: 1728.v859147241f49
+      version: 1789.v5b_0c0cea_18c3 
   - artifactId: ssh-slaves
     source:
       version: 2.877.v365f5eb_a_b_eec
@@ -43,7 +43,7 @@ plugins:
       version: 1.10
   - artifactId: git
     source:
-      version: 5.2.1
+      version: 5.2.2
   - artifactId: ws-cleanup
     source:
       version: 0.45

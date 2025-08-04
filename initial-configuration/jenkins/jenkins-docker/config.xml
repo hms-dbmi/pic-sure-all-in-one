@@ -250,7 +250,7 @@
           <string>MIGRATION_REPO</string>
           <string>https://github.com/hms-dbmi/PIC-SURE-Migrations</string>
           <string>MIGRATION_NAME</string>
-          <string>__PROJECT_SPECIFIC_MIGRATION_NAME__string>
+          <string>__PROJECT_SPECIFIC_MIGRATION_NAME__</string>
         </tree-map>
       </envVars>
     </hudson.slaves.EnvironmentVariablesNodeProperty>

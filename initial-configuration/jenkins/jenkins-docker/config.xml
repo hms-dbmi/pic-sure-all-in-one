@@ -238,19 +238,19 @@
           </default>
           <int>7</int>
           <string>release_control_branch</string>
-          <string>*/dev</string>
+          <string>*/master</string>
           <string>release_control_repo</string>
-          <string>https://github.com/hms-dbmi/pic-sure-gic-institution-release-control.git</string>
+          <string>__RELEASE_CONTROL_REPO__</string>
           <string>DOCKER_CONFIG_DIR</string>
-          <string>/home/luke/config/picsure/</string>
+          <string>/usr/local/docker-config/</string>
           <string>MYSQL_NETWORK</string>
           <string>picsure</string>
           <string>MYSQL_CONFIG_DIR</string>
-          <string>/home/luke/config/picsure/picsure-db/</string>
+          <string>/usr/local/docker-config/picsure-db/</string>
           <string>MIGRATION_REPO</string>
           <string>https://github.com/hms-dbmi/PIC-SURE-Migrations</string>
           <string>MIGRATION_NAME</string>
-          <string>GIC-Institution</string>
+          <string>__PROJECT_SPECIFIC_MIGRATION_NAME__</string>
         </tree-map>
       </envVars>
     </hudson.slaves.EnvironmentVariablesNodeProperty>

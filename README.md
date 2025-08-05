@@ -120,6 +120,8 @@ Examples:
 
 ## Steps to install on a fresh server:
 
+Note: If you are doing this on a Mac, __please read this section first__: [MacOS Steps](#macos---apple-chip---m1m2m3etc)
+
 1. Install Docker. This process can vary widely depending on your OS of choice, so we're not going to attempt to give
 you exact instructions. If you're following the legacy install instructions, you can skip this.
 

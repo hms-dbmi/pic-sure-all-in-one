@@ -1,0 +1,116 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description>Used to update facet category/facet/facet-concept mapping tables on the dictionary. &#xd;
+Header for facet_categories.csv&#xd;
+name(unique)	display name	description &#xd;
+&#xd;
+Header for facet.csv&#xd;
+facet_category	facet_name(unique)	display_name	description	parent_name {any metadata columns you want}&#xd;
+&#xd;
+Header for facet_concept.csv (each columns&apos; values are concepts paths to map to that facet)&#xd;
+{facet_name_1}	{facet_name_2}&#xd;
+Note: if a facet is indicated to have a parent facet, that parent will also be assigned to the concept&#xd;
+</description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.FileParameterDefinition>
+          <name>facet_categories.csv</name>
+        </hudson.model.FileParameterDefinition>
+        <hudson.model.FileParameterDefinition>
+          <name>facets.csv</name>
+        </hudson.model.FileParameterDefinition>
+        <hudson.model.FileParameterDefinition>
+          <name>facet_concepts.csv</name>
+        </hudson.model.FileParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@5.5.2">
+    <configVersion>2</configVersion>
+    <userRemoteConfigs>
+      <hudson.plugins.git.UserRemoteConfig>
+        <url>https://github.com/hms-dbmi/picsure-dictionary-etl.git</url>
+      </hudson.plugins.git.UserRemoteConfig>
+    </userRemoteConfigs>
+    <branches>
+      <hudson.plugins.git.BranchSpec>
+        <name>*/gic-sharra</name>
+      </hudson.plugins.git.BranchSpec>
+    </branches>
+    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+    <submoduleCfg class="empty-list"/>
+    <extensions/>
+  </scm>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <jdk>(System)</jdk>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash
+docker stop dictionaryetl || true
+docker rm dictionaryetl || true
+docker build -t hms-dbmi/dictionary-etl:gic-sharra -t hms-dbmi/dictionary-etl:latest .
+
+cp /usr/local/docker-config/dictionary/dictionary.env .env
+
+docker stop dictionaryetl || true
+docker rm dictionaryetl || true
+docker run -d \
+  --name dictionaryetl \
+  --env-file .env \
+  -p 8086:8086 \
+  -v $DOCKER_CONFIG_DIR/hpds/:/opt/local/hpds/ \
+  --network dictionary \
+  --network picsure \
+  hms-dbmi/dictionary-etl:latest
+
+echo &quot;Waiting for DictionaryEtlApplication to start...&quot;
+MAX_ATTEMPTS=6
+SLEEP_INTERVAL=5
+ATTEMPT=1
+
+while ! docker logs dictionaryetl 2&gt;&amp;1 | grep -q &quot;Started DictionaryEtlApplication&quot;; do
+    if [ &quot;$ATTEMPT&quot; -ge &quot;$MAX_ATTEMPTS&quot; ]; then
+        echo &quot;DictionaryEtlApplication failed to start within $((MAX_ATTEMPTS * SLEEP_INTERVAL)) seconds.&quot;
+        docker logs dictionaryetl
+        docker stop dictionaryetl
+        docker rm dictionaryetl
+        exit 1
+    fi
+    echo &quot;Attempt $ATTEMPT: Application not started yet. Retrying in $SLEEP_INTERVAL seconds...&quot;
+    sleep $SLEEP_INTERVAL
+    ATTEMPT=$((ATTEMPT + 1))
+done
+
+echo &quot;DictionaryEtlApplication has started!&quot;
+
+head -n 1 facet_categories.csv
+     curl --request PUT --header &apos;Content-Type: text/plain&apos; \
+        --data-binary @facet_categories.csv \
+     	&quot;http://dictionaryetl:8086/api/facet/category/csv&quot;
+
+head -n 1 facets.csv
+     curl --request PUT --header &apos;Content-Type: text/plain&apos; \
+        --data-binary @facets.csv \
+        &quot;http://dictionaryetl:8086/api/facet/csv&quot;
+
+
+head -n 1 facet_concepts.csv
+      curl --request PUT --header &apos;Content-Type: text/plain&apos; \
+        --data-binary @facet_concepts.csv \
+        &quot;http://dictionaryetl:8086/api/facet/concept/csv&quot;
+
+</command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

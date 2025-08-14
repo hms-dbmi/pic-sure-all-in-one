@@ -202,10 +202,21 @@ echo Completed all dataset updates, refreshing base facets
 
 
 docker exec -i dictionary-db psql dictionary picsure -c &apos;UPDATE dict.update_info SET last_updated = NOW();&apos;
-</command>
+cp datasets.csv /usr/local/docker-config/dictionary/
+cp concepts.csv /usr/local/docker-config/dictionary/</command>
       <configuredLocalRules/>
     </hudson.tasks.Shell>
   </builders>
-  <publishers/>
+  <publishers>
+    <hudson.tasks.ArtifactArchiver>
+      <artifacts>datasets.csv,concepts.csv</artifacts>
+      <allowEmptyArchive>false</allowEmptyArchive>
+      <onlyIfSuccessful>true</onlyIfSuccessful>
+      <fingerprint>false</fingerprint>
+      <defaultExcludes>true</defaultExcludes>
+      <caseSensitive>true</caseSensitive>
+      <followSymlinks>false</followSymlinks>
+    </hudson.tasks.ArtifactArchiver>
+  </publishers>
   <buildWrappers/>
 </project>

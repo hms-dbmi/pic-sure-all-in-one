@@ -1,21 +1,16 @@
 <?xml version='1.1' encoding='UTF-8'?>
 <project>
   <actions/>
-  <description>Used to manually update dictionary using Data Dictionary Ingest File Format.&#xd;
-Header for datasets.csv: &#xd;
-ref	full_name	abbreviation	description {any other metadata columns you want}&#xd;
-Header for concepts.csv files (should be zipped - helps with upload/processing speed)&#xd;
-dataset_ref	concept name	display name	concept_type	concept_path	parent_concept_path	values	description {any other metadata columns you want}</description>
+  <description></description>
   <keepDependencies>false</keepDependencies>
   <properties>
     <hudson.model.ParametersDefinitionProperty>
       <parameterDefinitions>
-        <hudson.model.FileParameterDefinition>
-          <name>datasets.csv</name>
-        </hudson.model.FileParameterDefinition>
-        <hudson.model.FileParameterDefinition>
-          <name>concepts.zip</name>
-        </hudson.model.FileParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>admin_email</name>
+          <defaultValue>CommonAreaUser</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
         <hudson.model.BooleanParameterDefinition>
           <name>CLEAR_DATABASE</name>
           <defaultValue>false</defaultValue>
@@ -23,22 +18,7 @@ dataset_ref	concept name	display name	concept_type	concept_path	parent_concept_p
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
   </properties>
-  <scm class="hudson.plugins.git.GitSCM" plugin="git@5.5.2">
-    <configVersion>2</configVersion>
-    <userRemoteConfigs>
-      <hudson.plugins.git.UserRemoteConfig>
-        <url>https://github.com/hms-dbmi/picsure-dictionary-etl.git</url>
-      </hudson.plugins.git.UserRemoteConfig>
-    </userRemoteConfigs>
-    <branches>
-      <hudson.plugins.git.BranchSpec>
-        <name>*/gic-sharra</name>
-      </hudson.plugins.git.BranchSpec>
-    </branches>
-    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
-    <submoduleCfg class="empty-list"/>
-    <extensions/>
-  </scm>
+  <scm class="hudson.scm.NullSCM"/>
   <canRoam>true</canRoam>
   <disabled>false</disabled>
   <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
@@ -49,6 +29,77 @@ dataset_ref	concept name	display name	concept_type	concept_path	parent_concept_p
   <builders>
     <hudson.tasks.Shell>
       <command>#!/bin/bash
+#fetch admin user long term token 
+export EMAIL=$admin_email
+
+export user_token=`docker run -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -N -e \
+&quot;SELECT long_term_token FROM auth.user where email=&apos;${admin_email}&apos;; &quot;`
+
+export hpds_uuid=`cat /usr/local/docker-config/httpd/picsureui_settings.json | grep picSureResourceId | cut -d &apos;:&apos; -f 2| sed &apos;s/[&quot;, ]*//g&apos;`
+export base_url=`cat /usr/local/docker-config/httpd/httpd.env | grep VITE_ORIGIN | cut -d &apos;=&apos; -f 2`
+curl -k --header &apos;Content-Type: application/json&apos; \
+--header &quot;Authorization: Bearer ${user_token}&quot; \
+ --location &quot;${base_url}/picsure/search/${hpds_uuid}&quot; \
+--data &apos;{&quot;query&quot;:&quot;\\&quot;}&apos; | jq .results.phenotypes &gt; hpds_concept_list.json
+
+echo &quot;Getting concept entries, with values and all ancestors, from hpds response&quot;
+jq &apos;map({
+    &quot;dataset_ref&quot;: .name | split(&quot;\\&quot;)[1],
+    &quot;name&quot;:(.name | split(&quot;\\&quot;) | reverse[1]),
+    &quot;display&quot;:(.name | split(&quot;\\&quot;) | reverse[1]),
+    &quot;concept_type&quot;:
+        (if (.categorical | not) then &quot;Continuous&quot; else &quot;Categorical&quot; end),
+    &quot;concept_path&quot;:.name,
+    &quot;parent_concept_path&quot;:
+    (if ((.name | split(&quot;\\&quot;) | del(.[-2]) | join(&quot;\\&quot;)) != &quot;\\\\&quot;) then  (.name | split(&quot;\\&quot;) | del(.[-2]) | join(&quot;\\&quot;)) else &quot;&quot; end),
+    &quot;values&quot;: ((if (.categorical | not) then [.min, .max] else .categoryValues end) | tostring)
+}) | . + 
+([.[].parent_concept_path  | split(&quot;\\&quot;) |
+while (length &gt; 2;
+    del(.[-2])
+ )] | map(join(&quot;\\&quot;)) | unique
+ | map ({
+    &quot;dataset_ref&quot;: split(&quot;\\&quot;)[1],
+    &quot;name&quot;:(split(&quot;\\&quot;) | reverse[1]),
+    &quot;display&quot;:(split(&quot;\\&quot;) | reverse[1]),
+    &quot;concept_type&quot;:&quot;Categorical&quot;,
+    &quot;concept_path&quot;: .,
+    &quot;parent_concept_path&quot;:
+    (if ((split(&quot;\\&quot;) | del(.[-2]) | join(&quot;\\&quot;)) != &quot;\\&quot;) then  (split(&quot;\\&quot;) | del(.[-2]) | join(&quot;\\&quot;)) else &quot;&quot; end),
+})) |  unique_by(.concept_path)&apos;  hpds_concept_list.json &gt; dictionary_concepts.json
+
+
+echo &quot;building ideal ingest concepts.csv&quot;
+jq -r &apos;([
+  &quot;dataset_ref&quot;,
+  &quot;name&quot;,
+  &quot;display&quot;,
+  &quot;concept_type&quot;,
+  &quot;concept_path&quot;,
+  &quot;parent_concept_path&quot;,
+  &quot;values&quot;
+]) as $cols | map(. as $row | $cols | 
+map($row[.])) as $rows | $cols, $rows[] | @csv&apos; dictionary_concepts.json \
+| sed &apos;s/\\/\\\\/g&apos; &gt; concepts.csv 
+
+
+echo &quot;building ideal ingest datasets.csv&quot;
+jq -r &apos;[.[].dataset_ref] | unique | .[] | [{
+&quot;ref&quot;: .,
+&quot;full_name&quot;: .,
+&quot;abbreviation&quot;: &quot;&quot;,
+&quot;description&quot;: &quot;&quot;}] | ([
+&quot;ref&quot;,
+&quot;full_name&quot;,
+&quot;abbreviation&quot;,
+&quot;description&quot;
+] ) as $cols | map(. as $row | $cols | 
+map($row[.])) as $rows | $cols, $rows[] | @csv&apos; dictionary_concepts.json &gt; datasets.csv </command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash
+echo &quot;generation of ideal ingest files complete - moving to dictionary etl build&quot;
 docker stop dictionaryetl || true
 docker rm dictionaryetl || true
 docker build -t hms-dbmi/dictionary-etl:gic-sharra -t hms-dbmi/dictionary-etl:latest .
@@ -95,10 +146,6 @@ fi
 echo &quot;Adding datasets&quot;
 curl -X PUT -T datasets.csv http://dictionaryetl:8086/api/dataset/csv
 
-echo &quot;Extracting concepts&quot;
-mkdir concepts
-unzip concepts.zip -d concepts
-
 IFS=&apos;,&apos;      
 while read ref fullname abv desc
 do
@@ -106,8 +153,8 @@ if [[ $ref != *&apos;ref&apos;* ]]; then
 	dataset=`echo ${ref} | tr -d &apos;&quot;&apos;`
     mkdir $dataset
 	echo &quot;Fetching concepts for $dataset&quot;
-	head -n 1 concepts/concepts_0.csv &gt; ${dataset}/concepts.csv
-    grep -h -e &quot;^\&quot;*$dataset&quot; concepts/concepts* &gt;&gt; ${dataset}/concepts.csv
+	head -n 1 concepts.csv &gt; ${dataset}/concepts.csv
+    grep -h -e &quot;^\&quot;*$dataset&quot; concepts.csv &gt;&gt; ${dataset}/concepts.csv
 	encoded_dataset=$(printf &quot;$dataset&quot; | sed &apos;s/ /%20/g&apos;)
     echo &quot;Building concepts for $dataset&quot;
     if [[  $(wc -l &lt; ${dataset}/concepts.csv) -gt 50000 ]];
@@ -153,8 +200,6 @@ done &lt; datasets.csv
 wait;
 echo Completed all dataset updates, refreshing base facets
 
-#curl --fail --no-progress-meter --request PUT --header &apos;Content-Type: text/plain&apos; \
-#      http://dictionaryetl:8086/api/facet/general/refresh/ &amp;&amp; echo completed facet refresh
 
 docker exec -i dictionary-db psql dictionary picsure -c &apos;UPDATE dict.update_info SET last_updated = NOW();&apos;
 </command>
@@ -162,12 +207,5 @@ docker exec -i dictionary-db psql dictionary picsure -c &apos;UPDATE dict.update
     </hudson.tasks.Shell>
   </builders>
   <publishers/>
-  <buildWrappers>
-    <hudson.plugins.ws__cleanup.PreBuildCleanup plugin="ws-cleanup@0.47">
-      <deleteDirs>false</deleteDirs>
-      <cleanupParameter></cleanupParameter>
-      <externalDelete></externalDelete>
-      <disableDeferredWipeout>false</disableDeferredWipeout>
-    </hudson.plugins.ws__cleanup.PreBuildCleanup>
-  </buildWrappers>
+  <buildWrappers/>
 </project>

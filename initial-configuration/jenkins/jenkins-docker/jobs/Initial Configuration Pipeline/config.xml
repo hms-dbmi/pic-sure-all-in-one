@@ -203,7 +203,8 @@ def retrieveBuildSpecId;
 def pipelineBuildId;
 def build_hashes = [
     DICTIONARY: false,
-    UPLOADER: false
+    UPLOADER: false,
+    AGGREGATE: false
 ];
 pipeline {
     agent any

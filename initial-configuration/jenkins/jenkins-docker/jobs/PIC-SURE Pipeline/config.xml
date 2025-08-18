@@ -18,9 +18,10 @@
 def retrieveBuildSpecId;
 def pipelineBuildId;
 def build_hashes = [
-        DICTIONARY: false,
-        UPLOADER: false,
-        PASSTHRU: false
+    DICTIONARY: false,
+    UPLOADER: false,
+    PASSTHRU: false,
+    AGGREGATE: false,
 ];
 pipeline {
     agent any
@@ -47,39 +48,53 @@ pipeline {
         stage(&apos;PIC-SURE API and PSAMA&apos;) {
             steps {
                 parallel (
-                        picsureapi:{
-                            script {
-                                def result = build job: &apos;PIC-SURE-API Build&apos;, parameters: [[$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],[$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSA&apos;]]]
-                            }
-                        },
-                        picsureauth:{
-                            script{
-                                def result = build job: &apos;PIC-SURE Auth Micro-App Build - Jenkinsfile&apos;, parameters: [[$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],[$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSAMA&apos;]]]
-                            }
+                    picsureapi:{
+                        script {
+                            def result = build job: &apos;PIC-SURE-API Build&apos;, parameters: [
+                                [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],
+                                [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSA&apos;]]
+                            ]
                         }
+                    },
+                    picsureauth:{
+                        script{
+                            def result = build job: &apos;PIC-SURE Auth Micro-App Build - Jenkinsfile&apos;, parameters: [
+                                [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],
+                                [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSAMA&apos;]]
+                            ]
+                        }
+                    }
                 )
             }
         }
         stage(&apos;PIC-SURE HPDS and Wildfly&apos;){
             steps {
                 parallel (
-                        picsurehpds:{
-                            script {
-                                def result = build job: &apos;PIC-SURE-HPDS Build&apos;, parameters: [[$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],[$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSH&apos;]]]
-                            }
-                        },
-                        wildfly:{
-                            script {
-                                def result = build job: &apos;PIC-SURE Wildfly Image Build&apos;, parameters: [[$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId]]
-                            }
+                    picsurehpds:{
+                        script {
+                            def result = build job: &apos;PIC-SURE-HPDS Build&apos;, parameters: [
+                                [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],
+                                [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSH&apos;]]
+                            ]
                         }
+                    },
+                    wildfly:{
+                        script {
+                            def result = build job: &apos;PIC-SURE Wildfly Image Build&apos;, parameters: [
+                                [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId]
+                            ]
+                        }
+                    }
                 )
             }
         }
         stage(&apos;Frontend Build&apos;){
             steps {
                 script {
-                    def result = build job: &apos;PIC-SURE Frontend Build&apos;, parameters: [[$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],[$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSF&apos;]]]
+                    def result = build job: &apos;PIC-SURE Frontend Build&apos;, parameters: [
+                        [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],
+                        [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSF&apos;]]
+                    ]
                 }
             }
         }
@@ -88,8 +103,8 @@ pipeline {
                 script {
                     if (build_hashes[&apos;DICTIONARY&apos;]) {
                         def result = build job: &apos;PIC-SURE Dictionary API Build and Deploy&apos;, parameters: [
-                                [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],
-                                [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;DICTIONARY&apos;]]
+                            [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],
+                            [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;DICTIONARY&apos;]]
                         ]
                     } else {
                         echo &quot;No project_job_git_key DICTIONARY found in build spec. Skipping Dictionary Build&quot;
@@ -98,38 +113,50 @@ pipeline {
             }
 
         }
-        stage(&apos;Uploader Build&apos;) {
+        stage(&apos;Auxiliary Resources&apos;) {
             steps {
-                script {
-                    if (build_hashes[&apos;UPLOADER&apos;]) {
-                        echo &quot;Building Uploader API&quot;
-                        def result = build job: &apos;PIC-SURE Build and Deploy Uploader&apos;, parameters: [
-                                [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],
-                                [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;UPLOADER&apos;]]
-                        ]
-                    } else {
-                        echo &quot;No project_job_git_key UPLOADER found in build spec. Skipping Uploader Build&quot;
+                parallel (
+                    uploader:{
+                        script {
+                            if (build_hashes[&apos;UPLOADER&apos;]) {
+                                echo &quot;Building Uploader API&quot;
+                                def result = build job: &apos;PIC-SURE Build and Deploy Uploader&apos;, parameters: [
+                                    [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],
+                                    [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;UPLOADER&apos;]]
+                                ]
+                            } else {
+                                echo &quot;No project_job_git_key UPLOADER found in build spec. Skipping Uploader Build&quot;
+                            }
+                        }
+                    },
+                    passthru:{
+                        script {
+                            if (build_hashes[&apos;PASSTHRU&apos;]) {
+                                echo &quot;Building Passthru Service&quot;
+                                def result = build job: &apos;Build Passthru Image&apos;, parameters: [
+                                    [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],
+                                    [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PASSTHRU&apos;]]
+                                ]
+                            } else {
+                                echo &quot;No project_job_git_key PASSTHRU found in build spec. Skipping Uploader Build&quot;
+                            }
+                        }
+                    },
+                    aggregate:{
+                        script {
+                            if (build_hashes[&apos;AGGREGATE&apos;]) {
+                                echo &quot;Building Aggregate Resource&quot;
+                                def result = build job: &apos;PIC-SURE Aggregate Resource Build&apos;, parameters: [
+                                    [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],
+                                    [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;AGGREGATE&apos;]]
+                                ]
+                            } else {
+                                echo &quot;No project_job_git_key AGGREGATE found in build spec. Skipping Aggregate Resource Build&quot;
+                            }
+                        }
                     }
-                }
+                )
             }
-
-        }
-
-        stage(&apos;Passthru Build&apos;) {
-            steps {
-                script {
-                    if (build_hashes[&apos;PASSTHRU&apos;]) {
-                        echo &quot;Building Passthru Service&quot;
-                        def result = build job: &apos;Build Passthru Image&apos;, parameters: [
-                                [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],
-                                [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PASSTHRU&apos;]]
-                        ]
-                    } else {
-                        echo &quot;No project_job_git_key PASSTHRU found in build spec. Skipping Uploader Build&quot;
-                    }
-                }
-            }
-
         }
     }
 }</script>

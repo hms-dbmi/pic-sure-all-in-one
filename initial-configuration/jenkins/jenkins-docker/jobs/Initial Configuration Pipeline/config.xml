@@ -57,6 +57,12 @@
           <defaultValue>__YOUR_EMAIL_PASSWORD__</defaultValue>
           <trim>true</trim>
         </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>TARGET_OBFUSCATION_THRESHOLD</name>
+          <description>The aggregate resource will be configured to obfuscate result counts lower than this threshold</description>
+          <defaultValue>0</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
         <hudson.model.BooleanParameterDefinition>
           <name>OPEN</name>
           <description>PIC-SURE can be used without forcing the user log in. Unauthorized users will have a limited feature set.  See more information on Gitbook: TODO_GITBOOK</description>
@@ -209,7 +215,7 @@ def build_hashes = [
 pipeline {
     agent any
     stages {
-        stage(&apos;Set Project Specific Repositories&apos;) {
+        stage(&apos;Set Project Up&apos;) {
             steps {
                 script {
                     sh &quot;&quot;&quot;
@@ -217,6 +223,23 @@ pipeline {
                         sed -i &quot;s|__PROJECT_SPECIFIC_MIGRATION_NAME__|$env.PROJECT_MIGRATION_NAME|g&quot; /var/jenkins_home/config.xml
                     &quot;&quot;&quot;
                     Jenkins.instance.doReload()
+                }
+
+                script {
+                    def result = build job: &apos;Retrieve Build Spec&apos;
+                    retrieveBuildSpecId = result.number
+                }
+
+                script {
+                    copyArtifacts filter: &apos;*&apos;, projectName: &apos;Retrieve Build Spec&apos;, selector: specific(&quot;&quot;+retrieveBuildSpecId)
+                    sh &apos;cat build-spec.json&apos;
+                    sh &apos;cat pipeline_git_commit.txt&apos;
+                    sh &apos;pwd&apos;
+                    def buildSpec = new JsonSlurper().parse(new File(&apos;/var/jenkins_home/workspace/PIC-SURE Pipeline/build-spec.json&apos;))
+                    pipelineBuildId = new File(&apos;/var/jenkins_home/workspace/PIC-SURE Pipeline/pipeline_git_commit.txt&apos;).text.trim()
+                    for(def build : buildSpec.application){
+                        build_hashes[build.project_job_git_key] = build.git_hash
+                    }
                 }
             }
         }
@@ -348,25 +371,11 @@ pipeline {
         stage(&apos;Auxiliary Configs&apos;) {
           steps {
             script {
-                def result = build job: &apos;Retrieve Build Spec&apos;
-                retrieveBuildSpecId = result.number
-            }
-
-            script {
-                copyArtifacts filter: &apos;*&apos;, projectName: &apos;Retrieve Build Spec&apos;, selector: specific(&quot;&quot;+retrieveBuildSpecId)
-                sh &apos;cat build-spec.json&apos;
-                sh &apos;cat pipeline_git_commit.txt&apos;
-                sh &apos;pwd&apos;
-                def buildSpec = new JsonSlurper().parse(new File(&apos;/var/jenkins_home/workspace/PIC-SURE Pipeline/build-spec.json&apos;))
-                pipelineBuildId = new File(&apos;/var/jenkins_home/workspace/PIC-SURE Pipeline/pipeline_git_commit.txt&apos;).text.trim()
-                for(def build : buildSpec.application){
-                    build_hashes[build.project_job_git_key] = build.git_hash
-                }
-            }
-
-            script {
                 if (build_hashes[&apos;AGGREGATE&apos;]) {
-                    def result = build job: &apos;Create PIC-SURE Aggregate Resource&apos;, parameters: []
+                    def result = build job: &apos;Create PIC-SURE Aggregate Resource&apos;, parameters: [
+                        [$class: &apos;StringParameterValue&apos;, name: &apos;TARGET_OBFUSCATION_THRESHOLD&apos;, value: env.TARGET_OBFUSCATION_THRESHOLD],
+                        [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;AGGREGATE&apos;]]
+                    ]
                 } else {
                     echo &quot;No project_job_git_key AGGREGATE found in build spec. Skipping Aggregate Resource Configuration&quot;
                 }
@@ -391,23 +400,6 @@ pipeline {
 
         stage(&apos;Deploy&apos;) {
             steps {
-                script {
-                    def result = build job: &apos;Retrieve Build Spec&apos;
-                    retrieveBuildSpecId = result.number
-                }
-
-                script {
-                    copyArtifacts filter: &apos;*&apos;, projectName: &apos;Retrieve Build Spec&apos;, selector: specific(&quot;&quot;+retrieveBuildSpecId)
-                    sh &apos;cat build-spec.json&apos;
-                    sh &apos;cat pipeline_git_commit.txt&apos;
-                    sh &apos;pwd&apos;
-                    def buildSpec = new JsonSlurper().parse(new File(&apos;/var/jenkins_home/workspace/PIC-SURE Pipeline/build-spec.json&apos;))
-                    pipelineBuildId = new File(&apos;/var/jenkins_home/workspace/PIC-SURE Pipeline/pipeline_git_commit.txt&apos;).text.trim()
-                    for(def build : buildSpec.application){
-                        build_hashes[build.project_job_git_key] = build.git_hash
-                    }
-                }
-
                 script {
                     def result = build job: &apos;Start PIC-SURE&apos;, parameters: [[$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId]]
                 }

@@ -57,6 +57,12 @@
           <defaultValue>__YOUR_EMAIL_PASSWORD__</defaultValue>
           <trim>true</trim>
         </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>TARGET_OBFUSCATION_THRESHOLD</name>
+          <description>The aggregate resource will be configured to obfuscate result counts lower than this threshold</description>
+          <defaultValue>0</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
         <hudson.model.BooleanParameterDefinition>
           <name>OPEN</name>
           <description>PIC-SURE can be used without forcing the user log in. Unauthorized users will have a limited feature set.  See more information on Gitbook: TODO_GITBOOK</description>
@@ -202,13 +208,14 @@ The value must be in an array format, for example: [&quot;AN&quot;]  </descripti
 def retrieveBuildSpecId;
 def pipelineBuildId;
 def build_hashes = [
-        DICTIONARY: false,
-        UPLOADER: false
+    DICTIONARY: false,
+    UPLOADER: false,
+    AGGREGATE: false
 ];
 pipeline {
     agent any
     stages {
-        stage(&apos;Set Project Specific Repositories&apos;) {
+        stage(&apos;Set Project Up&apos;) {
             steps {
                 script {
                     sh &quot;&quot;&quot;
@@ -217,145 +224,7 @@ pipeline {
                     &quot;&quot;&quot;
                     Jenkins.instance.doReload()
                 }
-            }
-        }
-        stage(&apos;Initial Config and Build&apos;) {
-            steps {
-                parallel (
-                        picsureBuild: {
-                            script {
-                                def result = build job: &apos;PIC-SURE Pipeline&apos;
-                            }
-                        },
-                        auth0Config: {
-                            script {
-                                def result = build job: &apos;Configure Auth0 Integration&apos;, parameters: [
-                                        [$class: &apos;StringParameterValue&apos;, name: &apos;AUTH0_CLIENT_ID&apos;, value:env.AUTH0_CLIENT_ID],
-                                        [$class: &apos;StringParameterValue&apos;, name: &apos;AUTH0_CLIENT_SECRET&apos;, value: env.AUTH0_CLIENT_SECRET]]
-                            }
-                        },
-                        addRootCerts: {
-                            script {
-                                catchError(buildResult: &apos;SUCCESS&apos;, stageResult: &apos;UNSTABLE&apos;) {
-                                    def result = build job: &apos;Create Root Certs in TrustStore&apos;
-                                }
-                            }
-                        },
-                        createFrontendEnvFile: {
-                            script {
-                                sh &quot;[ ! -f /usr/local/docker-config/httpd/httpd.env ] || cp -rf /usr/local/docker-config/httpd/httpd.env /usr/local/docker-config/httpd/httpd.env.bak&quot;
-                                sh &quot;touch .env&quot;
-                                sh &quot;chmod +wr .env&quot;
-                                sh &quot;echo &apos;VITE_PROJECT_HOSTNAME=&apos; &gt;&gt; .env&quot;
-                                sh &quot;echo &apos;VITE_ORIGIN=&apos; &gt;&gt; .env&quot;
-                                sh &quot;echo &apos;VITE_LOGO=&apos; &gt;&gt; .env&quot;
-                                sh &quot;echo &apos;VITE_AUTH0_TENANT=$env.AUTH0_TENANT&apos; &gt;&gt; .env&quot;
-                                sh &quot;echo &apos;VITE_OPEN=$env.OPEN&apos; &gt;&gt; .env&quot;
-                                sh &quot;echo &apos;VITE_DISCOVER=$env.DISCOVER&apos; &gt;&gt; .env&quot;
-                                sh &quot;echo &apos;VITE_DASHBOARD=$env.DASHBOARD&apos; &gt;&gt; .env&quot;
-                                sh &quot;echo &apos;VITE_DIST_EXPLORER=$env.DIST_EXPLORER&apos; &gt;&gt; .env&quot;
-                                sh &quot;echo &apos;VITE_API=$env.API&apos; &gt;&gt; .env&quot;
-                                sh &quot;echo &apos;VITE_ALLOW_EXPORT=$env.ALLOW_EXPORT&apos; &gt;&gt; .env&quot;
-                                sh &quot;echo &apos;VITE_ALLOW_EXPORT_ENABLED=$env.ALLOW_EXPORT_ENABLED&apos; &gt;&gt; .env&quot;
-                                sh &quot;echo &apos;VITE_DOWNLOAD_AS_CSV=$env.DOWNLOAD_AS_CSV&apos; &gt;&gt; .env&quot;
-                                sh &quot;echo &apos;VITE_ENABLE_GENE_QUERY=$env.ENABLE_GENE_QUERY&apos; &gt;&gt; .env&quot;
-                                sh &quot;echo &apos;VITE_ENABLE_SNP_QUERY=$env.ENABLE_SNP_QUERY&apos; &gt;&gt; .env&quot;
-                                sh &quot;echo &apos;VITE_SHOW_VARIABLE_EXPORT=$env.SHOW_VARIABLE_EXPORT&apos; &gt;&gt; .env&quot;
-                                sh &quot;echo &apos;VITE_SHOW_VARIABLE_HIERARCHY=$env.SHOW_VARIABLE_HIERARCHY&apos; &gt;&gt; .env&quot;
-                                sh &quot;echo &apos;VITE_DOWNLOAD_AS_PFB=$env.DOWNLOAD_AS_PFB&apos; &gt;&gt; .env&quot;
-                                sh &quot;echo &apos;VITE_DATA_REQUESTS=$env.DATA_REQUESTS&apos; &gt;&gt; .env&quot;
-                                sh &quot;echo &apos;VITE_VARIANT_EXPLORER=$env.VARIANT_EXPLORER&apos; &gt;&gt; .env&quot;
-                                sh &quot;echo &apos;VITE_VARIANT_EXPLORER_TYPE=$env.VARIANT_EXPLORER_TYPE&apos; &gt;&gt; .env&quot;
-                                sh &quot;echo &apos;VITE_EXPLORER_MAX_COUNT=$env.EXPLORER_MAX_COUNT&apos; &gt;&gt; .env&quot;
-                                sh &quot;echo &apos;VITE_VARIANT_EXPLORER_EXCLUDE_COLUMNS=$env.VARIANT_EXPLORER_EXCLUDE_COLUMNS&apos; &gt;&gt; .env&quot;
-                                sh &quot;echo &apos;VITE_TOUR=$env.TOUR&apos; &gt;&gt; .env&quot;
-                                sh &quot;echo &apos;VITE_TOUR_SEARCH_TERM=$env.TOUR_SEARCH_TERM&apos; &gt;&gt; .env&quot;
-                                sh &quot;echo &apos;VITE_REQUIRE_CONSENTS=false&apos; &gt;&gt; .env&quot;
-                                sh &quot;echo &apos;VITE_USE_QUERY_TEMPLATE=false&apos; &gt;&gt; .env&quot;
-                                sh &quot;echo &apos;VITE_ENABLE_TOS=true&apos; &gt;&gt; .env&quot;
-                                sh &quot;echo &apos;#Login Provider (You may add as many as you would like):&apos; &gt;&gt; .env&quot;
-                                sh &quot;echo &apos;VITE_AUTH_PROVIDER_MODULE_GOOGLE=true&apos; &gt;&gt; .env&quot;
-                                sh &quot;echo &apos;VITE_AUTH_PROVIDER_MODULE_GOOGLE_TYPE=AUTH0&apos; &gt;&gt; .env&quot;
-                                sh &quot;echo &apos;VITE_AUTH_PROVIDER_MODULE_GOOGLE_CLIENTID=$env.AUTH0_CLIENT_ID&apos; &gt;&gt; .env&quot;
-                                sh &quot;echo &apos;VITE_AUTH_PROVIDER_MODULE_GOOGLE_CONNECTION=google-oauth2&apos; &gt;&gt; .env&quot;
-                                sh &quot;echo &apos;VITE_AUTH_PROVIDER_MODULE_GOOGLE_DESCRIPTION=Login&apos; &gt;&gt; .env&quot;
-                                sh &quot;echo &apos;#Resource UUIDs:&apos; &gt;&gt; .env&quot;
-                                sh &quot;echo  VITE_RESOURCE_HPDS=`cat /usr/local/docker-config/RESOURCE_ID_RAW` &gt;&gt; .env&quot;
-                                sh &quot;echo &apos;VITE_RESOURCE_OPEN_HPDS=&apos; &gt;&gt; .env&quot;
-                                sh &quot;echo &apos;VITE_RESOURCE_BASE_QUERY=&apos; &gt;&gt; .env&quot;
-                                sh &quot;echo &apos;VITE_RESOURCE_VIZ=&apos; &gt;&gt; .env&quot;
-                                sh &quot;echo &apos;#Google Analytics settings (leave blank to disable):&apos; &gt;&gt; .env&quot;
-                                sh &quot;echo &apos;VITE_GOOGLE_ANALYTICS_ID=&apos; &gt;&gt; .env&quot;
-                                sh &quot;echo &apos;VITE_GOOGLE_TAG_MANAGER_ID=&apos; &gt;&gt; .env&quot;
-                                sh &quot;mv .env &apos;/usr/local/docker-config/httpd/httpd.env&apos;&quot;
 
-                                if (env.OPEN?.asBoolean()) {
-                                    sh &quot;sed -i &apos;s/^OPEN_IDP_PROVIDER_IS_ENABLED=.*/OPEN_IDP_PROVIDER_IS_ENABLED=true/&apos; /usr/local/docker-config/psama/psama.env&quot;
-                                } else {
-                                    sh &quot;sed -i &apos;s/^OPEN_IDP_PROVIDER_IS_ENABLED=.*/OPEN_IDP_PROVIDER_IS_ENABLED=false/&apos; /usr/local/docker-config/psama/psama.env&quot;
-                                }
-                            }
-                        },
-                        emailConfig: {
-                            script {
-                                def result = build job: &apos;Configure Outbound Email Settings&apos;, parameters: [
-                                        [$class: &apos;StringParameterValue&apos;, name: &apos;OUTBOUND_EMAIL_USER&apos;, value:env.OUTBOUND_EMAIL_USER],
-                                        [$class: &apos;StringParameterValue&apos;, name: &apos;EMAIL_FROM&apos;, value: env.OUTBOUND_EMAIL_USER],
-                                        [$class: &apos;StringParameterValue&apos;, name: &apos;OUTBOUND_EMAIL_USER_PASSWORD&apos;, value: env.OUTBOUND_EMAIL_USER_PASSWORD]]
-
-                            }
-                        }
-                )
-            }
-        }
-        stage(&apos;Migrations&apos;) {
-            steps {
-                script {
-                    def result = build job: &apos;PIC-SURE Database Migrations&apos;
-                }
-            }
-        }
-        stage(&apos;Post Migration Configs&apos;) {
-            steps {
-                parallel (
-                        adminConfig: {
-                            script {
-                                def result = build job: &apos;Create Admin User&apos;, parameters: [
-                                        [$class: &apos;StringParameterValue&apos;, name: &apos;EMAIL&apos;, value:env.ADMIN_USER_EMAIL],
-                                        [$class: &apos;StringParameterValue&apos;, name: &apos;CONNECTION_LABEL&apos;, value: &quot;Google&quot;]]
-                            }
-                        },
-                        tokenIntroToken: {
-                            script {
-                                def result = build job: &apos;Configure PIC-SURE Token Introspection Token&apos;
-                            }
-                        },
-                        encryptionKey: {
-                            script {
-                                def result = build job: &apos;Create HPDS Encryption Key&apos;
-                            }
-                        }
-                )
-            }
-        }
-
-        stage(&apos;Load Demo Data&apos;) {
-            steps {
-                script {
-                    def result = build job: &apos;Load HPDS and Dictionary Data&apos;, parameters: [
-                            [$class: &apos;StringParameterValue&apos;, name: &apos;Dataset&apos;, value: env.Dataset],
-                            [$class: &apos;StringParameterValue&apos;, name: &apos;Dataset_Name&apos;, value: env.Dataset_Name],
-                            [$class: &apos;StringParameterValue&apos;, name: &apos;Dataset_Branch&apos;, value: env.Dataset_Branch],
-                            [$class: &apos;BooleanParameterValue&apos;, name: &apos;Include_Genomic_Data&apos;, value: env.Include_Genomic_Data],
-                            [$class: &apos;BooleanParameterValue&apos;, name: &apos;Allow_HPDS_Data_Export&apos;, value: env.Allow_HPDS_Data_Export],
-                            [$class: &apos;BooleanParameterValue&apos;, name: &apos;Clear_Dictionary_Database&apos;, value: true]
-                    ]
-                }
-            }
-        }
-
-        stage(&apos;Deploy&apos;) {
-            steps {
                 script {
                     def result = build job: &apos;Retrieve Build Spec&apos;
                     retrieveBuildSpecId = result.number
@@ -372,7 +241,165 @@ pipeline {
                         build_hashes[build.project_job_git_key] = build.git_hash
                     }
                 }
+            }
+        }
 
+        stage(&apos;Initial Config and Build&apos;) {
+            steps {
+                parallel (
+                    picsureBuild: {
+                        script {
+                            def result = build job: &apos;PIC-SURE Pipeline&apos;
+                        }
+                    },
+                    auth0Config: {
+                        script {
+                            def result = build job: &apos;Configure Auth0 Integration&apos;, parameters: [
+                                [$class: &apos;StringParameterValue&apos;, name: &apos;AUTH0_CLIENT_ID&apos;, value:env.AUTH0_CLIENT_ID],
+                                [$class: &apos;StringParameterValue&apos;, name: &apos;AUTH0_CLIENT_SECRET&apos;, value: env.AUTH0_CLIENT_SECRET]
+                            ]
+                        }
+                    },
+                    addRootCerts: {
+                        script {
+                            catchError(buildResult: &apos;SUCCESS&apos;, stageResult: &apos;UNSTABLE&apos;) {
+                                def result = build job: &apos;Create Root Certs in TrustStore&apos;
+                            }
+                        }
+                    },
+                    createFrontendEnvFile: {
+                        script {
+                            sh &quot;[ ! -f /usr/local/docker-config/httpd/httpd.env ] || cp -rf /usr/local/docker-config/httpd/httpd.env /usr/local/docker-config/httpd/httpd.env.bak&quot;
+                            sh &quot;touch .env&quot;
+                            sh &quot;chmod +wr .env&quot;
+                            sh &quot;echo &apos;VITE_PROJECT_HOSTNAME=&apos; &gt;&gt; .env&quot;
+                            sh &quot;echo &apos;VITE_ORIGIN=&apos; &gt;&gt; .env&quot;
+                            sh &quot;echo &apos;VITE_LOGO=&apos; &gt;&gt; .env&quot;
+                            sh &quot;echo &apos;VITE_AUTH0_TENANT=$env.AUTH0_TENANT&apos; &gt;&gt; .env&quot;
+                            sh &quot;echo &apos;VITE_OPEN=$env.OPEN&apos; &gt;&gt; .env&quot;
+                            sh &quot;echo &apos;VITE_DISCOVER=$env.DISCOVER&apos; &gt;&gt; .env&quot;
+                            sh &quot;echo &apos;VITE_DASHBOARD=$env.DASHBOARD&apos; &gt;&gt; .env&quot;
+                            sh &quot;echo &apos;VITE_DIST_EXPLORER=$env.DIST_EXPLORER&apos; &gt;&gt; .env&quot;
+                            sh &quot;echo &apos;VITE_API=$env.API&apos; &gt;&gt; .env&quot;
+                            sh &quot;echo &apos;VITE_ALLOW_EXPORT=$env.ALLOW_EXPORT&apos; &gt;&gt; .env&quot;
+                            sh &quot;echo &apos;VITE_ALLOW_EXPORT_ENABLED=$env.ALLOW_EXPORT_ENABLED&apos; &gt;&gt; .env&quot;
+                            sh &quot;echo &apos;VITE_DOWNLOAD_AS_CSV=$env.DOWNLOAD_AS_CSV&apos; &gt;&gt; .env&quot;
+                            sh &quot;echo &apos;VITE_ENABLE_GENE_QUERY=$env.ENABLE_GENE_QUERY&apos; &gt;&gt; .env&quot;
+                            sh &quot;echo &apos;VITE_ENABLE_SNP_QUERY=$env.ENABLE_SNP_QUERY&apos; &gt;&gt; .env&quot;
+                            sh &quot;echo &apos;VITE_SHOW_VARIABLE_EXPORT=$env.SHOW_VARIABLE_EXPORT&apos; &gt;&gt; .env&quot;
+                            sh &quot;echo &apos;VITE_SHOW_VARIABLE_HIERARCHY=$env.SHOW_VARIABLE_HIERARCHY&apos; &gt;&gt; .env&quot;
+                            sh &quot;echo &apos;VITE_DOWNLOAD_AS_PFB=$env.DOWNLOAD_AS_PFB&apos; &gt;&gt; .env&quot;
+                            sh &quot;echo &apos;VITE_DATA_REQUESTS=$env.DATA_REQUESTS&apos; &gt;&gt; .env&quot;
+                            sh &quot;echo &apos;VITE_VARIANT_EXPLORER=$env.VARIANT_EXPLORER&apos; &gt;&gt; .env&quot;
+                            sh &quot;echo &apos;VITE_VARIANT_EXPLORER_TYPE=$env.VARIANT_EXPLORER_TYPE&apos; &gt;&gt; .env&quot;
+                            sh &quot;echo &apos;VITE_EXPLORER_MAX_COUNT=$env.EXPLORER_MAX_COUNT&apos; &gt;&gt; .env&quot;
+                            sh &quot;echo &apos;VITE_VARIANT_EXPLORER_EXCLUDE_COLUMNS=$env.VARIANT_EXPLORER_EXCLUDE_COLUMNS&apos; &gt;&gt; .env&quot;
+                            sh &quot;echo &apos;VITE_TOUR=$env.TOUR&apos; &gt;&gt; .env&quot;
+                            sh &quot;echo &apos;VITE_TOUR_SEARCH_TERM=$env.TOUR_SEARCH_TERM&apos; &gt;&gt; .env&quot;
+                            sh &quot;echo &apos;VITE_REQUIRE_CONSENTS=false&apos; &gt;&gt; .env&quot;
+                            sh &quot;echo &apos;VITE_USE_QUERY_TEMPLATE=false&apos; &gt;&gt; .env&quot;
+                            sh &quot;echo &apos;VITE_ENABLE_TOS=true&apos; &gt;&gt; .env&quot;
+                            sh &quot;echo &apos;#Login Provider (You may add as many as you would like):&apos; &gt;&gt; .env&quot;
+                            sh &quot;echo &apos;VITE_AUTH_PROVIDER_MODULE_GOOGLE=true&apos; &gt;&gt; .env&quot;
+                            sh &quot;echo &apos;VITE_AUTH_PROVIDER_MODULE_GOOGLE_TYPE=AUTH0&apos; &gt;&gt; .env&quot;
+                            sh &quot;echo &apos;VITE_AUTH_PROVIDER_MODULE_GOOGLE_CLIENTID=$env.AUTH0_CLIENT_ID&apos; &gt;&gt; .env&quot;
+                            sh &quot;echo &apos;VITE_AUTH_PROVIDER_MODULE_GOOGLE_CONNECTION=google-oauth2&apos; &gt;&gt; .env&quot;
+                            sh &quot;echo &apos;VITE_AUTH_PROVIDER_MODULE_GOOGLE_DESCRIPTION=Login&apos; &gt;&gt; .env&quot;
+                            sh &quot;echo &apos;#Resource UUIDs:&apos; &gt;&gt; .env&quot;
+                            sh &quot;echo  VITE_RESOURCE_HPDS=`cat /usr/local/docker-config/RESOURCE_ID_RAW` &gt;&gt; .env&quot;
+                            sh &quot;echo &apos;VITE_RESOURCE_OPEN_HPDS=&apos; &gt;&gt; .env&quot;
+                            sh &quot;echo &apos;VITE_RESOURCE_BASE_QUERY=&apos; &gt;&gt; .env&quot;
+                            sh &quot;echo &apos;VITE_RESOURCE_VIZ=&apos; &gt;&gt; .env&quot;
+                            sh &quot;echo &apos;#Google Analytics settings (leave blank to disable):&apos; &gt;&gt; .env&quot;
+                            sh &quot;echo &apos;VITE_GOOGLE_ANALYTICS_ID=&apos; &gt;&gt; .env&quot;
+                            sh &quot;echo &apos;VITE_GOOGLE_TAG_MANAGER_ID=&apos; &gt;&gt; .env&quot;
+                            sh &quot;mv .env &apos;/usr/local/docker-config/httpd/httpd.env&apos;&quot;
+
+                            if (env.OPEN?.asBoolean()) {
+                                sh &quot;sed -i &apos;s/^OPEN_IDP_PROVIDER_IS_ENABLED=.*/OPEN_IDP_PROVIDER_IS_ENABLED=true/&apos; /usr/local/docker-config/psama/psama.env&quot;
+                            } else {
+                                sh &quot;sed -i &apos;s/^OPEN_IDP_PROVIDER_IS_ENABLED=.*/OPEN_IDP_PROVIDER_IS_ENABLED=false/&apos; /usr/local/docker-config/psama/psama.env&quot;
+                            }
+                        }
+                    },
+                    emailConfig: {
+                        script {
+                            def result = build job: &apos;Configure Outbound Email Settings&apos;, parameters: [
+                                [$class: &apos;StringParameterValue&apos;, name: &apos;OUTBOUND_EMAIL_USER&apos;, value:env.OUTBOUND_EMAIL_USER],
+                                [$class: &apos;StringParameterValue&apos;, name: &apos;EMAIL_FROM&apos;, value: env.OUTBOUND_EMAIL_USER],
+                                [$class: &apos;StringParameterValue&apos;, name: &apos;OUTBOUND_EMAIL_USER_PASSWORD&apos;, value: env.OUTBOUND_EMAIL_USER_PASSWORD]
+                            ]
+                        }
+                    }
+                )
+            }
+        }
+
+        stage(&apos;Migrations&apos;) {
+            steps {
+                script {
+                    def result = build job: &apos;PIC-SURE Database Migrations&apos;
+                }
+            }
+        }
+
+        stage(&apos;Post Migration Configs&apos;) {
+            steps {
+                parallel (
+                    adminConfig: {
+                        script {
+                            def result = build job: &apos;Create Admin User&apos;, parameters: [
+                                [$class: &apos;StringParameterValue&apos;, name: &apos;EMAIL&apos;, value:env.ADMIN_USER_EMAIL],
+                                [$class: &apos;StringParameterValue&apos;, name: &apos;CONNECTION_LABEL&apos;, value: &quot;Google&quot;]
+                            ]
+                        }
+                    },
+                    tokenIntroToken: {
+                        script {
+                            def result = build job: &apos;Configure PIC-SURE Token Introspection Token&apos;
+                        }
+                    },
+                    encryptionKey: {
+                        script {
+                            def result = build job: &apos;Create HPDS Encryption Key&apos;
+                        }
+                    }
+                )
+            }
+        }
+
+        stage(&apos;Auxiliary Configs&apos;) {
+          steps {
+            script {
+                if (build_hashes[&apos;AGGREGATE&apos;]) {
+                    def result = build job: &apos;Create PIC-SURE Aggregate Resource&apos;, parameters: [
+                        [$class: &apos;StringParameterValue&apos;, name: &apos;TARGET_OBFUSCATION_THRESHOLD&apos;, value: env.TARGET_OBFUSCATION_THRESHOLD],
+                        [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;AGGREGATE&apos;]]
+                    ]
+                } else {
+                    echo &quot;No project_job_git_key AGGREGATE found in build spec. Skipping Aggregate Resource Configuration&quot;
+                }
+            }
+          }
+        }
+
+        stage(&apos;Load Demo Data&apos;) {
+            steps {
+                script {
+                    def result = build job: &apos;Load HPDS and Dictionary Data&apos;, parameters: [
+                        [$class: &apos;StringParameterValue&apos;, name: &apos;Dataset&apos;, value: env.Dataset],
+                        [$class: &apos;StringParameterValue&apos;, name: &apos;Dataset_Name&apos;, value: env.Dataset_Name],
+                        [$class: &apos;StringParameterValue&apos;, name: &apos;Dataset_Branch&apos;, value: env.Dataset_Branch],
+                        [$class: &apos;BooleanParameterValue&apos;, name: &apos;Include_Genomic_Data&apos;, value: env.Include_Genomic_Data],
+                        [$class: &apos;BooleanParameterValue&apos;, name: &apos;Allow_HPDS_Data_Export&apos;, value: env.Allow_HPDS_Data_Export],
+                        [$class: &apos;BooleanParameterValue&apos;, name: &apos;Clear_Dictionary_Database&apos;, value: true]
+                    ]
+                }
+            }
+        }
+
+        stage(&apos;Deploy&apos;) {
+            steps {
                 script {
                     def result = build job: &apos;Start PIC-SURE&apos;, parameters: [[$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId]]
                 }

@@ -199,6 +199,12 @@ else
   echo "dictionary network already exists. Leaving it alone."
 fi
 
+echo "Creating docker volume for WildFly"
+if [ -z "$(docker volume ls --format '{{.Name}}' | grep ^wildfly_deployments$)" ]; then
+  docker volume create wildfly_deployments
+else
+  echo "docker volume for WildFly already exists."
+fi
 
 #-------------------------------------------------------------------------------------------------#
 #                                           MySQL Start                                           #

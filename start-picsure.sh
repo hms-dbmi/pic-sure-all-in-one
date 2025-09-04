@@ -96,6 +96,16 @@ docker run --name=psama --restart always \
   -d hms-dbmi/psama:LATEST \
   || exit 2
 
+
+# This ensure the volume is created for existing environments providing some level of "safety" when updating an
+# existing environment.
+if [ -z "$(docker volume ls --format '{{.Name}}' | grep ^wildfly_deployments$)" ]; then
+  echo "Creating docker volume for WildFly"
+  docker volume create wildfly_deployments
+else
+  echo "docker volume for WildFly already exists."
+fi
+
 docker stop wildfly && docker rm wildfly
 docker run --name=wildfly --restart always --network=picsure --network=hpds --network=dictionary -u root \
   -v "$DOCKER_CONFIG_DIR"/log/wildfly-docker-logs/:/opt/jboss/wildfly/standalone/log/ \
@@ -110,6 +120,7 @@ docker run --name=wildfly --restart always --network=picsure --network=hpds --ne
   $EMAIL_TEMPLATE_VOLUME \
   -v $DOCKER_CONFIG_DIR/wildfly/wildfly_mysql_module.xml:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/module.xml  \
   -v $DOCKER_CONFIG_DIR/wildfly/mysql-connector-java-5.1.49.jar:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/mysql-connector-java-5.1.49.jar  \
+  -v wildfly_deployments:/opt/jboss/wildfly/standalone/deployments \
   --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/wildfly/wildfly.env \
   -d hms-dbmi/pic-sure-wildfly:LATEST \
   || exit 2

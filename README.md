@@ -106,6 +106,7 @@ Examples:
     - After the data is loaded, running the UI only requires m5.large ec2 (2 vCPU and 8gb ram). This can range depending
       on the size of the data.
     - AWS cost estimates based on Boston Children’s Hospital: $1,600 - $1,700 monthly costs for hosting the application and data (depending on the size of the data). $2,000 - $3,000 quarterly costs to map, process, and stage the data (depending on the size of the data)
+    - To increase the HEAPSIZE, visit vi /var/jenkins_home/jobs/Load\ HPDS\ Data\ From\ RDBMS/config.xml Go down to the bottom of the file and you will see a "docker run" command.  In that command, look for the HEAPSIZE parameter, which can be changed depending on the size of the data. 
 
 - If the resources required to load your data exceed the minimum system requirements, you can spin up an additional VM
   dedicated to loading the data. After you are finished loading the data, then that VM can be shut off.

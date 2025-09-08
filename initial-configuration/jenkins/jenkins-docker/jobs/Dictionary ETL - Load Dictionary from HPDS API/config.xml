@@ -50,13 +50,11 @@
     <hudson.tasks.Shell>
       <command>#!/bin/bash
 #fetch admin user long term token 
-export EMAIL=$admin_email
-
 export user_token=`docker run -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -N -e \
 &quot;SELECT long_term_token FROM auth.user where email=&apos;${admin_email}&apos;; &quot;`
+export base_url=`cat ${DOCKER_CONFIG_DIR}/httpd/httpd.env | grep VITE_ORIGIN | cut -d &apos;=&apos; -f 2`
+export hpds_uuid=`curl -k -X GET --header &quot;Authorization: Bearer ${user_token}&quot;  --location &quot;${base_url}/picsure/resource&quot; | jq -r &apos;.[] | select(.name==&quot;hpds&quot;) | .uuid&apos;`
 
-export hpds_uuid=`cat /usr/local/docker-config/httpd/picsureui_settings.json | grep picSureResourceId | cut -d &apos;:&apos; -f 2| sed &apos;s/[&quot;, ]*//g&apos;`
-export base_url=`cat /usr/local/docker-config/httpd/httpd.env | grep VITE_ORIGIN | cut -d &apos;=&apos; -f 2`
 curl -k --header &apos;Content-Type: application/json&apos; \
 --header &quot;Authorization: Bearer ${user_token}&quot; \
  --location &quot;${base_url}/picsure/search/${hpds_uuid}&quot; \

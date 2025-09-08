@@ -175,6 +175,7 @@
         <string>Dictionary ETL - Initial Load</string>
         <string>Dictionary ETL - Load Dictionary from HPDS API</string>
         <string>Dictionary ETL - Load Facets from CSVs</string>
+        <string>Dictionary ETL - Pull Facet Ingestion Files from Git</string>
         <string>Load Dictionary Data from Ingest CSVs</string>
         <string>Load HPDS and Dictionary Data</string>
         <string>Load HPDS Data From CSV</string>

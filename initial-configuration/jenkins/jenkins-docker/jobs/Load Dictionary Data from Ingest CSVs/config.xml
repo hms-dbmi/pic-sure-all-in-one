@@ -51,7 +51,7 @@ dataset_ref	concept name	display name	concept_type	concept_path	parent_concept_p
       <command>#!/bin/bash
 docker stop dictionaryetl || true
 docker rm dictionaryetl || true
-docker build -t hms-dbmi/dictionary-etl:gic-sharra -t hms-dbmi/dictionary-etl:latest .
+docker build -t hms-dbmi/dictionary-etl:csvload -t hms-dbmi/dictionary-etl:latest .
 
 cp /usr/local/docker-config/dictionary/dictionary.env .env
 

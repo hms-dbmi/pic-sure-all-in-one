@@ -125,7 +125,7 @@ map($row[.])) as $rows | $cols, $rows[] | @csv&apos; dictionary_concepts.json &g
 echo &quot;generation of ideal ingest files complete - moving to dictionary etl build&quot;
 docker stop dictionaryetl || true
 docker rm dictionaryetl || true
-docker build -t hms-dbmi/dictionary-etl:hpds-api -t hms-dbmi/dictionary-etl:latest .
+docker build -t hms-dbmi/dictionary-etl:hpdsapi -t hms-dbmi/dictionary-etl:latest .
 
 cp /usr/local/docker-config/dictionary/dictionary.env .env
 

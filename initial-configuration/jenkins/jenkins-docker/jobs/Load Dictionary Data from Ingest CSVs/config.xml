@@ -32,7 +32,7 @@ dataset_ref	concept name	display name	concept_type	concept_path	parent_concept_p
     </userRemoteConfigs>
     <branches>
       <hudson.plugins.git.BranchSpec>
-        <name>main</name>
+        <name>*/main</name>
       </hudson.plugins.git.BranchSpec>
     </branches>
     <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
@@ -152,9 +152,6 @@ fi
 done &lt; datasets.csv
 wait;
 echo Completed all dataset updates, refreshing base facets
-
-#curl --fail --no-progress-meter --request PUT --header &apos;Content-Type: text/plain&apos; \
-#      http://dictionaryetl:8086/api/facet/general/refresh/ &amp;&amp; echo completed facet refresh
 
 docker exec -i dictionary-db psql dictionary picsure -c &apos;UPDATE dict.update_info SET last_updated = NOW();&apos;
 </command>

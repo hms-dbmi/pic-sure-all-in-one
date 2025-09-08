@@ -32,7 +32,7 @@ dataset_ref	concept name	display name	concept_type	concept_path	parent_concept_p
     </userRemoteConfigs>
     <branches>
       <hudson.plugins.git.BranchSpec>
-        <name>*/gic-sharra</name>
+        <name>main</name>
       </hudson.plugins.git.BranchSpec>
     </branches>
     <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>

@@ -15,10 +15,30 @@
           <name>CLEAR_DATABASE</name>
           <defaultValue>false</defaultValue>
         </hudson.model.BooleanParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>dictionary_etl_branch</name>
+          <defaultValue>main</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
   </properties>
-  <scm class="hudson.scm.NullSCM"/>
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@5.5.2">
+    <configVersion>2</configVersion>
+    <userRemoteConfigs>
+      <hudson.plugins.git.UserRemoteConfig>
+        <url>https://github.com/hms-dbmi/picsure-dictionary-etl.git</url>
+      </hudson.plugins.git.UserRemoteConfig>
+    </userRemoteConfigs>
+    <branches>
+      <hudson.plugins.git.BranchSpec>
+        <name>*/${dictionary_etl_branch}</name>
+      </hudson.plugins.git.BranchSpec>
+    </branches>
+    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+    <submoduleCfg class="empty-list"/>
+    <extensions/>
+  </scm>
   <canRoam>true</canRoam>
   <disabled>false</disabled>
   <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
@@ -94,7 +114,10 @@ jq -r &apos;[.[].dataset_ref] | unique | .[] | [{
 &quot;abbreviation&quot;,
 &quot;description&quot;
 ] ) as $cols | map(. as $row | $cols | 
-map($row[.])) as $rows | $cols, $rows[] | @csv&apos; dictionary_concepts.json &gt; datasets.csv </command>
+map($row[.])) as $rows | $cols, $rows[] | @csv&apos; dictionary_concepts.json &gt; datasets.csv 
+
+
+</command>
       <configuredLocalRules/>
     </hudson.tasks.Shell>
     <hudson.tasks.Shell>
@@ -102,7 +125,7 @@ map($row[.])) as $rows | $cols, $rows[] | @csv&apos; dictionary_concepts.json &g
 echo &quot;generation of ideal ingest files complete - moving to dictionary etl build&quot;
 docker stop dictionaryetl || true
 docker rm dictionaryetl || true
-docker build -t hms-dbmi/dictionary-etl:gic-sharra -t hms-dbmi/dictionary-etl:latest .
+docker build -t hms-dbmi/dictionary-etl:hpds-api -t hms-dbmi/dictionary-etl:latest .
 
 cp /usr/local/docker-config/dictionary/dictionary.env .env
 
@@ -198,8 +221,9 @@ else
 fi
 done &lt; datasets.csv
 wait;
-echo Completed all dataset updates, refreshing base facets
-
+echo Completed all dataset updates, refreshing base continuous/categorical facets
+      curl --request PUT \
+        &quot;http://dictionaryetl:8086/api/facet/refresh/data_type&quot;
 
 docker exec -i dictionary-db psql dictionary picsure -c &apos;UPDATE dict.update_info SET last_updated = NOW();&apos;
 cp datasets.csv /usr/local/docker-config/dictionary/

@@ -1,0 +1,125 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description>&#xd;
+</description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>ontology_branch</name>
+          <defaultValue>master</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>dictionary_etl_branch</name>
+          <defaultValue>main</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@5.5.2">
+    <configVersion>2</configVersion>
+    <userRemoteConfigs>
+      <hudson.plugins.git.UserRemoteConfig>
+        <url>https://github.com/hms-dbmi/picsure-dictionary-etl.git</url>
+      </hudson.plugins.git.UserRemoteConfig>
+    </userRemoteConfigs>
+    <branches>
+      <hudson.plugins.git.BranchSpec>
+        <name>*/${dictionary_etl_branch}</name>
+      </hudson.plugins.git.BranchSpec>
+    </branches>
+    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+    <submoduleCfg class="empty-list"/>
+    <extensions/>
+  </scm>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <jdk>(System)</jdk>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash
+docker stop dictionaryetl || true
+docker rm dictionaryetl || true
+docker build -t hms-dbmi/dictionary-etl:facet -t hms-dbmi/dictionary-etl:latest .
+
+cp /usr/local/docker-config/dictionary/dictionary.env .env
+
+docker stop dictionaryetl || true
+docker rm dictionaryetl || true
+docker run -d \
+  --name dictionaryetl \
+  --env-file .env \
+  -p 8086:8086 \
+  -v $DOCKER_CONFIG_DIR/hpds/:/opt/local/hpds/ \
+  --network dictionary \
+  --network picsure \
+  hms-dbmi/dictionary-etl:latest
+
+echo &quot;Waiting for DictionaryEtlApplication to start...&quot;
+MAX_ATTEMPTS=6
+SLEEP_INTERVAL=5
+ATTEMPT=1
+
+while ! docker logs dictionaryetl 2&gt;&amp;1 | grep -q &quot;Started DictionaryEtlApplication&quot;; do
+    if [ &quot;$ATTEMPT&quot; -ge &quot;$MAX_ATTEMPTS&quot; ]; then
+        echo &quot;DictionaryEtlApplication failed to start within $((MAX_ATTEMPTS * SLEEP_INTERVAL)) seconds.&quot;
+        docker logs dictionaryetl
+        docker stop dictionaryetl
+        docker rm dictionaryetl
+        exit 1
+    fi
+    echo &quot;Attempt $ATTEMPT: Application not started yet. Retrying in $SLEEP_INTERVAL seconds...&quot;
+    sleep $SLEEP_INTERVAL
+    ATTEMPT=$((ATTEMPT + 1))
+done
+
+echo &quot;DictionaryEtlApplication has started!&quot;
+
+echo &quot;Fetching facet ingestion files&quot;
+
+git clone https://github.com/hms-dbmi/GIC-ontology.git
+cd GIC-ontology
+git checkout ${ontology_branch}
+tar -xzf &quot;Dictionary Ingestion Files&quot;/facet_dictionary_ingestion_files.tar.gz
+rm -f -r &apos;facet_dictionary_ingestion_files/._&apos;*
+curl --request PUT --header &apos;Content-Type: text/plain&apos; \
+  --data-binary @facet_dictionary_ingestion_files/facet_categories.csv \
+  &quot;http://dictionaryetl:8086/api/facet/category/csv&quot;
+        
+ curl --request PUT --header &apos;Content-Type: text/plain&apos; \
+   --data-binary @facet_dictionary_ingestion_files/facets.csv \
+   &quot;http://dictionaryetl:8086/api/facet/csv&quot;
+
+find . -name &quot;*facet_concepts.csv&quot; -type f | while read -r file; do
+    echo &quot;Processing: $file&quot;
+      curl --request PUT --header &apos;Content-Type: text/plain&apos; \
+        --data-binary @$file \
+        &quot;http://dictionaryetl:8086/api/facet/concept/csv&quot;
+done
+    
+curl --request PUT &quot;http://dictionaryetl:8086/api/facet/refresh/data_type&quot;
+
+docker exec -i dictionary-db psql dictionary picsure -c &apos;UPDATE dict.update_info SET last_updated = NOW();&apos;
+
+</command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers>
+    <hudson.plugins.ws__cleanup.PreBuildCleanup plugin="ws-cleanup@0.47">
+      <deleteDirs>false</deleteDirs>
+      <cleanupParameter></cleanupParameter>
+      <externalDelete></externalDelete>
+      <disableDeferredWipeout>false</disableDeferredWipeout>
+    </hudson.plugins.ws__cleanup.PreBuildCleanup>
+  </buildWrappers>
+</project>

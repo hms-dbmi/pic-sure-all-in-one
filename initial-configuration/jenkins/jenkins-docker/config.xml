@@ -1,16 +1,23 @@
+@@ -1,268 +1,263 @@
 <?xml version='1.1' encoding='UTF-8'?>
 <hudson>
   <disabledAdministrativeMonitors>
-    <string>jenkins.diagnostics.RootUrlNotSetMonitor</string>
     <string>jenkins.diagnostics.SecurityIsOffMonitor</string>
+    <string>jenkins.diagnostics.RootUrlNotSetMonitor</string>
+    <string>hudson.util.DoubleLaunchChecker</string>
   </disabledAdministrativeMonitors>
-  <version>2.235.2</version>
-  <installStateName>RUNNING</installStateName>
+  <version>2.452.4</version>
+
   <numExecutors>5</numExecutors>
   <mode>NORMAL</mode>
   <useSecurity>true</useSecurity>
-  <authorizationStrategy class="hudson.security.AuthorizationStrategy$Unsecured"/>
-  <securityRealm class="hudson.security.SecurityRealm$None"/>
+  <authorizationStrategy class="hudson.security.FullControlOnceLoggedInAuthorizationStrategy">
+    <denyAnonymousReadAccess>true</denyAnonymousReadAccess>
+  </authorizationStrategy>
+  <securityRealm class="hudson.security.HudsonPrivateSecurityRealm">
+    <disableSignup>true</disableSignup>
+    <enableCaptcha>false</enableCaptcha>
+  </securityRealm>
   <disableRememberMe>false</disableRememberMe>
   <projectNamingStrategy class="jenkins.model.ProjectNamingStrategy$DefaultProjectNamingStrategy"/>
   <workspaceDir>${JENKINS_HOME}/workspace/${ITEM_FULL_NAME}</workspaceDir>
@@ -238,23 +245,29 @@
         <unserializable-parents/>
         <tree-map>
           <default>
-            <comparator class="hudson.util.CaseInsensitiveComparator" reference="../../../../../../views/listView/jobNames/comparator"/>
+            <comparator class="java.lang.String$CaseInsensitiveComparator" reference="../../../../../../views/listView[5]/jobNames/comparator"/>
           </default>
           <int>7</int>
-          <string>release_control_branch</string>
-          <string>*/master</string>
-          <string>release_control_repo</string>
-          <string>__RELEASE_CONTROL_REPO__</string>
+
+
+
+
           <string>DOCKER_CONFIG_DIR</string>
-          <string>/usr/local/docker-config/</string>
-          <string>MYSQL_NETWORK</string>
-          <string>picsure</string>
-          <string>MYSQL_CONFIG_DIR</string>
-          <string>/usr/local/docker-config/picsure-db/</string>
+          <string>/opt/picsure/config/</string>
+          <string>MIGRATION_NAME</string>
+          <string>GIC-Institution</string>
           <string>MIGRATION_REPO</string>
           <string>https://github.com/hms-dbmi/PIC-SURE-Migrations</string>
-          <string>MIGRATION_NAME</string>
-          <string>__PROJECT_SPECIFIC_MIGRATION_NAME__</string>
+          <string>MYSQL_CONFIG_DIR</string>
+          <string>/opt/picsure/config/picsure-db/</string>
+          <string>MYSQL_NETWORK</string>
+          <string>picsure</string>
+          <string>release_control_branch</string>
+          <string>*/dev</string>
+          <string>release_control_repo</string>
+          <string>https://github.com/hms-dbmi/pic-sure-gic-institution-release-control.git</string>
+
+
         </tree-map>
       </envVars>
     </hudson.slaves.EnvironmentVariablesNodeProperty>

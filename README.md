@@ -21,8 +21,7 @@ monitor the PIC-SURE ecosystem.
 - [Data Loading](#data-loading)
   - [Uploading HPDS-ETL Configuration](#uploading-hpds-etl-configuration)
   - [Manual Load HPDS](#manual-load-hpds)
-  - [Manually Load Dictionary Database](#manually-load-dictionary-database)
-  - [Load Dictionary and HPDS](#load-dictionary-and-hpds)
+  - [Data Dictionary] (docs/dictionary.md)
 - [Updating Jenkins](#updating-jenkins)
 - [Users](#users)
   - [Adding and Removing Users](#adding-and-removing-users)
@@ -299,20 +298,6 @@ For `nhanesAllConcepts.csv`:
   Load: [https://github.com/hms-dbmi/pic-sure-all-in-one/blob/master/hpds_geno_load.md](https://github.com/hms-dbmi/pic-sure-all-in-one/blob/master/hpds_geno_load.md)
 - Phenotypic Data
   Load: [https://github.com/hms-dbmi/pic-sure-hpds-phenotype-load-example](https://github.com/hms-dbmi/pic-sure-hpds-phenotype-load-example)
-
-### Manually load Dictionary Database
-- **Job:** Hydrate Data Dictionary Database
-  **Prerequisite:**
-      - Completed the initial configuration pipeline.
-      - Run the "PIC-SURE Dictionary-ETL Build" job.
-      - Create a "columnMeta.csv" and place it in the "$DOCKER_CONFIG_DIR/hpds" directory.
-    **Execution:** Run the "Project Hydrate Data Dictionary Database" job selecting the desired parameters.
-
-### Load Dictionary and HPDS
-- **Job:** "Load HPDS and Dictionary Data"
-  **Prerequisite:**
-      - Completed the initial configuration pipeline.
-  **Execution:** Run the "Load HPDS and Dictionary Data" job selecting the desired parameters.
 
 ## Updating Jenkins
 

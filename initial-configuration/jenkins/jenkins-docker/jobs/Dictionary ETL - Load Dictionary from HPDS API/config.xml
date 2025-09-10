@@ -6,11 +6,6 @@
   <properties>
     <hudson.model.ParametersDefinitionProperty>
       <parameterDefinitions>
-        <hudson.model.StringParameterDefinition>
-          <name>admin_email</name>
-          <defaultValue>CommonAreaUser</defaultValue>
-          <trim>false</trim>
-        </hudson.model.StringParameterDefinition>
         <hudson.model.BooleanParameterDefinition>
           <name>CLEAR_DATABASE</name>
           <defaultValue>false</defaultValue>
@@ -49,15 +44,13 @@
   <builders>
     <hudson.tasks.Shell>
       <command>#!/bin/bash
-#fetch admin user long term token 
-export user_token=`docker run -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -N -e \
-&quot;SELECT long_term_token FROM auth.user where email=&apos;${admin_email}&apos;; &quot;`
-export base_url=`cat ${DOCKER_CONFIG_DIR}/httpd/httpd.env | grep VITE_ORIGIN | cut -d &apos;=&apos; -f 2`
-export hpds_uuid=`curl -k -X GET --header &quot;Authorization: Bearer ${user_token}&quot;  --location &quot;${base_url}/picsure/resource&quot; | jq -r &apos;.[] | select(.name==&quot;hpds&quot;) | .uuid&apos;`
 
+export base_url=`docker run -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -N -e \
+&quot;SELECT resourceRSPath FROM resource where name=&apos;hpds&apos;;&quot;`
+export hpds_uuid=`docker run -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -N -e \
+&quot;SELECT BIN_TO_UUID(uuid) FROM resource where name=&apos;hpds&apos;;&quot;`
 curl -k --header &apos;Content-Type: application/json&apos; \
---header &quot;Authorization: Bearer ${user_token}&quot; \
- --location &quot;${base_url}/picsure/search/${hpds_uuid}&quot; \
+ --location &quot;${base_url}/search/${hpds_uuid}&quot; \
 --data &apos;{&quot;query&quot;:&quot;\\&quot;}&apos; | jq .results.phenotypes &gt; hpds_concept_list.json
 
 echo &quot;Getting concept entries, with values and all ancestors, from hpds response&quot;

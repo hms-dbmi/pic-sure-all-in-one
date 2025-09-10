@@ -1,23 +1,16 @@
-@@ -1,268 +1,263 @@
 <?xml version='1.1' encoding='UTF-8'?>
 <hudson>
   <disabledAdministrativeMonitors>
-    <string>jenkins.diagnostics.SecurityIsOffMonitor</string>
     <string>jenkins.diagnostics.RootUrlNotSetMonitor</string>
-    <string>hudson.util.DoubleLaunchChecker</string>
+    <string>jenkins.diagnostics.SecurityIsOffMonitor</string>
   </disabledAdministrativeMonitors>
-  <version>2.452.4</version>
-
+  <version>2.235.2</version>
+  <installStateName>RUNNING</installStateName>
   <numExecutors>5</numExecutors>
   <mode>NORMAL</mode>
   <useSecurity>true</useSecurity>
-  <authorizationStrategy class="hudson.security.FullControlOnceLoggedInAuthorizationStrategy">
-    <denyAnonymousReadAccess>true</denyAnonymousReadAccess>
-  </authorizationStrategy>
-  <securityRealm class="hudson.security.HudsonPrivateSecurityRealm">
-    <disableSignup>true</disableSignup>
-    <enableCaptcha>false</enableCaptcha>
-  </securityRealm>
+  <authorizationStrategy class="hudson.security.AuthorizationStrategy$Unsecured"/>
+  <securityRealm class="hudson.security.SecurityRealm$None"/>
   <disableRememberMe>false</disableRememberMe>
   <projectNamingStrategy class="jenkins.model.ProjectNamingStrategy$DefaultProjectNamingStrategy"/>
   <workspaceDir>${JENKINS_HOME}/workspace/${ITEM_FULL_NAME}</workspaceDir>
@@ -181,9 +174,7 @@
         <comparator class="java.lang.String$CaseInsensitiveComparator"/>
         <string>Dictionary ETL - Initial Load</string>
         <string>Dictionary ETL - Load Dictionary from HPDS API</string>
-        <string>Dictionary ETL - Load Facets from CSVs</string>
-        <string>Dictionary ETL - Pull Facet Ingestion Files from Git</string>
-        <string>Load Dictionary Data from Ingest CSVs</string>
+        <string>Dictionary ETL - Pull GIC Facet Ingestion Files from Git</string>
         <string>Load HPDS and Dictionary Data</string>
         <string>Load HPDS Data From CSV</string>
         <string>Load HPDS Data From Multiple CSVs</string>
@@ -245,29 +236,23 @@
         <unserializable-parents/>
         <tree-map>
           <default>
-            <comparator class="java.lang.String$CaseInsensitiveComparator" reference="../../../../../../views/listView[5]/jobNames/comparator"/>
+            <comparator class="hudson.util.CaseInsensitiveComparator" reference="../../../../../../views/listView/jobNames/comparator"/>
           </default>
           <int>7</int>
-
-
-
-
+          <string>release_control_branch</string>
+          <string>*/master</string>
+          <string>release_control_repo</string>
+          <string>__RELEASE_CONTROL_REPO__</string>
           <string>DOCKER_CONFIG_DIR</string>
-          <string>/opt/picsure/config/</string>
-          <string>MIGRATION_NAME</string>
-          <string>GIC-Institution</string>
-          <string>MIGRATION_REPO</string>
-          <string>https://github.com/hms-dbmi/PIC-SURE-Migrations</string>
-          <string>MYSQL_CONFIG_DIR</string>
-          <string>/opt/picsure/config/picsure-db/</string>
+          <string>/usr/local/docker-config/</string>
           <string>MYSQL_NETWORK</string>
           <string>picsure</string>
-          <string>release_control_branch</string>
-          <string>*/dev</string>
-          <string>release_control_repo</string>
-          <string>https://github.com/hms-dbmi/pic-sure-gic-institution-release-control.git</string>
-
-
+          <string>MYSQL_CONFIG_DIR</string>
+          <string>/usr/local/docker-config/picsure-db/</string>
+          <string>MIGRATION_REPO</string>
+          <string>https://github.com/hms-dbmi/PIC-SURE-Migrations</string>
+          <string>MIGRATION_NAME</string>
+          <string>__PROJECT_SPECIFIC_MIGRATION_NAME__</string>
         </tree-map>
       </envVars>
     </hudson.slaves.EnvironmentVariablesNodeProperty>

@@ -21,7 +21,7 @@ monitor the PIC-SURE ecosystem.
 - [Data Loading](#data-loading)
   - [Uploading HPDS-ETL Configuration](#uploading-hpds-etl-configuration)
   - [Manual Load HPDS](#manual-load-hpds)
-  - [Data Dictionary] (docs/dictionary.md)
+  - [Data Dictionary](docs/dictionary.md)
 - [Updating Jenkins](#updating-jenkins)
 - [Users](#users)
   - [Adding and Removing Users](#adding-and-removing-users)

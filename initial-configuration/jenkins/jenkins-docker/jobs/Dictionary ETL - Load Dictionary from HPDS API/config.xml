@@ -46,9 +46,9 @@
       <command>#!/bin/bash
 
 export base_url=`docker run -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -N -e \
-&quot;SELECT resourceRSPath FROM resource where name=&apos;hpds&apos;;&quot;`
+&quot;SELECT resourceRSPath FROM picsure.resource where name=&apos;hpds&apos;;&quot;`
 export hpds_uuid=`docker run -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -N -e \
-&quot;SELECT BIN_TO_UUID(uuid) FROM resource where name=&apos;hpds&apos;;&quot;`
+&quot;SELECT BIN_TO_UUID(uuid) FROM picsure.resource where name=&apos;hpds&apos;;&quot;`
 curl -k --header &apos;Content-Type: application/json&apos; \
  --location &quot;${base_url}/search/${hpds_uuid}&quot; \
 --data &apos;{&quot;query&quot;:&quot;\\&quot;}&apos; | jq .results.phenotypes &gt; hpds_concept_list.json

@@ -37,7 +37,7 @@ Note: if a facet is indicated to have a parent facet, that parent will also be a
     </userRemoteConfigs>
     <branches>
       <hudson.plugins.git.BranchSpec>
-        <name>*/gic-sharra</name>
+        <name>main</name>
       </hudson.plugins.git.BranchSpec>
     </branches>
     <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>

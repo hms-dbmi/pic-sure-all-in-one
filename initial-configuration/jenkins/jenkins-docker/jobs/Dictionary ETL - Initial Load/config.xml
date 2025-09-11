@@ -11,18 +11,7 @@
   </actions>
   <description>Will clear out any existing data in dictionary database (if any) and fill with data existing in HPDS. Will also update facets with provided ingestion formatted files</description>
   <keepDependencies>false</keepDependencies>
-  <properties>
-    <hudson.model.ParametersDefinitionProperty>
-      <parameterDefinitions>
-        <hudson.model.StringParameterDefinition>
-          <name>admin_email</name>
-          <description>Used to establish connection to HPDS in order to pull the ingested concepts</description>
-          <defaultValue>CommonAreaUser</defaultValue>
-          <trim>false</trim>
-        </hudson.model.StringParameterDefinition>
-      </parameterDefinitions>
-    </hudson.model.ParametersDefinitionProperty>
-  </properties>
+  <properties/>
   <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@4009.v0089238351a_9">
     <script>pipeline {
     agent any
@@ -32,7 +21,6 @@
         stage(&apos;Initial Dictionary Load&apos;) {
             steps {
                 build job: &apos;Dictionary ETL - Load Dictionary from HPDS API&apos;, parameters: [
-                                        string(name: &apos;admin_email&apos;, value: params.admin_email),
                                         booleanParam(name: &apos;CLEAR_DATABASE&apos;, value: true)
                                     ]
             }

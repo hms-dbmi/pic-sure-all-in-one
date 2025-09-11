@@ -8,7 +8,7 @@
       <parameterDefinitions>
         <hudson.model.BooleanParameterDefinition>
           <name>CLEAR_DATABASE</name>
-          <defaultValue>false</defaultValue>
+          <defaultValue>true</defaultValue>
         </hudson.model.BooleanParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>dictionary_etl_branch</name>
@@ -44,14 +44,8 @@
   <builders>
     <hudson.tasks.Shell>
       <command>#!/bin/bash
-
-export base_url=`docker run -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -N -e \
-&quot;SELECT resourceRSPath FROM picsure.resource where name=&apos;hpds&apos;;&quot;`
-export hpds_uuid=`docker run -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -N -e \
-&quot;SELECT BIN_TO_UUID(uuid) FROM picsure.resource where name=&apos;hpds&apos;;&quot;`
-curl -k --header &apos;Content-Type: application/json&apos; \
- --location &quot;${base_url}/search/${hpds_uuid}&quot; \
---data &apos;{&quot;query&quot;:&quot;\\&quot;}&apos; | jq .results.phenotypes &gt; hpds_concept_list.json
+curl -k -X POST --header &apos;Content-Type: application/json&apos; --location &quot;http://hpds:8080/PIC-SURE/search&quot; --data &apos;{&quot;query&quot;:&quot;&quot;}&apos; \
+| jq .results.phenotypes &gt; hpds_concept_list.json
 
 echo &quot;Getting concept entries, with values and all ancestors, from hpds response&quot;
 jq &apos;map({

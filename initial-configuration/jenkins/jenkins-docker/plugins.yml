@@ -43,7 +43,7 @@ plugins:
       version: 1.10
   - artifactId: git
     source:
-      version: 5.2.2
+      version: 5.7.0
   - artifactId: ws-cleanup
     source:
       version: 0.45
@@ -55,7 +55,7 @@ plugins:
       version: 694.vc02a_69c9787f
   - artifactId: cloudbees-folder
     source:
-      version: 6.928.v7c780211d66e
+      version: 6.1040.v8a_e6330a_54e3
   - artifactId: list-git-branches-parameter
     source:
       version: 0.0.13

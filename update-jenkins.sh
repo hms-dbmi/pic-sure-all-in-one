@@ -48,3 +48,8 @@ sed_inplace "s|*/master|`cat "$DOCKER_CONFIG_DIR"/jenkins_home_bak/config.xml | 
 sed_inplace "s|__PROJECT_SPECIFIC_MIGRATION_NAME__|`cat "$DOCKER_CONFIG_DIR"/jenkins_home_bak/config.xml | grep -A1 MIGRATION_NAME | tail -1 | sed 's/<\/*string>//g' | sed 's/ //g' `|g" "$DOCKER_CONFIG_DIR"/jenkins_home/config.xml
 
 ./start-jenkins.sh
+
+if [ -f "/var/jenkins_home/secrets/initialAdminPassword" ]
+	then echo $(docker exec -t jenkins cat /var/jenkins_home/secrets/initialAdminPassword) > /var/jenkins_home/secrets/initialAdminPassword
+ 	else echo "Could not update local initialAdminPassword file: file does not exist"
+fi

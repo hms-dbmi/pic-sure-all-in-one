@@ -117,8 +117,8 @@ node {
     stage(&apos;Dictionary Migrations&apos;) {
         script {
             if (!dictionary_ref.isEmpty()) {
-                echo &quot;Building Uploader API&quot;
-                def result = build job: &apos;Repair Dictionary Database&apos;, parameters: [
+                echo &quot;Migrating Dictionary Database&quot;
+                def result = build job: &apos;Migrate Dictionary Database&apos;, parameters: [
                         [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: dictionary_ref]
                 ]
             } else {

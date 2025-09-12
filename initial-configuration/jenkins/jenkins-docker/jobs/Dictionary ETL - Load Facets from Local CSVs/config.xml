@@ -99,20 +99,18 @@ echo &quot;DictionaryEtlApplication has started!&quot;
 head -n 1 facet_categories.csv
      curl --request PUT --header &apos;Content-Type: text/plain&apos; \
         --data-binary @facet_categories.csv \
-     	&quot;http://dictionaryetl:8086/api/facet/category/csv&quot;
+     	&quot;http://dictionaryetl:8086/api/facet/category/csv&quot; || exit 1
 
 head -n 1 facets.csv
      curl --request PUT --header &apos;Content-Type: text/plain&apos; \
         --data-binary @facets.csv \
-        &quot;http://dictionaryetl:8086/api/facet/csv&quot;
+        &quot;http://dictionaryetl:8086/api/facet/csv&quot; || exit 1
 
 
 head -n 1 facet_concepts.csv
       curl --request PUT --header &apos;Content-Type: text/plain&apos; \
         --data-binary @facet_concepts.csv \
-        &quot;http://dictionaryetl:8086/api/facet/concept/csv&quot;
-        
-      curl --request PUT &quot;http://dictionaryetl:8086/api/facet/refresh/data_type&quot;
+        &quot;http://dictionaryetl:8086/api/facet/concept/csv&quot; || exit 1
 
 docker exec -i dictionary-db psql dictionary picsure -c &apos;UPDATE dict.update_info SET last_updated = NOW();&apos;
 </command>

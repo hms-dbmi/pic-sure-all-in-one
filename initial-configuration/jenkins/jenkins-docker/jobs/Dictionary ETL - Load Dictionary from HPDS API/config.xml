@@ -147,12 +147,12 @@ echo &quot;DictionaryEtlApplication has started!&quot;
 
 if [ &quot;$CLEAR_DATABASE&quot; ]; then
 	echo &quot;Clearing database&quot;
-	curl http://dictionaryetl:8086/load/clear
+	curl -X DELETE http://dictionaryetl:8086/clear/all || exit 1
 else
 	echo &quot;Not clearing DB&quot;
 fi
 echo &quot;Adding datasets&quot;
-curl -X PUT -T datasets.csv http://dictionaryetl:8086/api/dataset/csv
+curl -X PUT -T datasets.csv http://dictionaryetl:8086/api/dataset/csv || exit 1
 
 IFS=&apos;,&apos;      
 while read ref fullname abv desc
@@ -184,7 +184,7 @@ if [[ $ref != *&apos;ref&apos;* ]]; then
                     sed -n &quot;${line1},${line2}p&quot; ${dataset}/concepts.csv &gt;&gt; ${dataset}/concepts_$i.csv
                     curl --request PUT --header &apos;Content-Type: text/plain&apos; \
                         --data-binary @${dataset}/concepts_$i.csv \
-                        &quot;http://dictionaryetl:8086/api/concept/csv?datasetRef=${encoded_dataset}&quot;
+                        &quot;http://dictionaryetl:8086/api/concept/csv?datasetRef=${encoded_dataset}&quot;  || exit 1
                         
                     echo &quot;completed $dataset line1 $line1 through line2 $line2&quot;
                   
@@ -197,7 +197,7 @@ if [[ $ref != *&apos;ref&apos;* ]]; then
       echo started $dataset ingest
       curl --request PUT --header &apos;Content-Type: text/plain&apos; \
         --data-binary @${dataset}/concepts.csv \
-        &quot;http://dictionaryetl:8086/api/concept/csv?datasetRef=${encoded_dataset}&quot;
+        &quot;http://dictionaryetl:8086/api/concept/csv?datasetRef=${encoded_dataset}&quot; || exit 1
       echo completed $dataset ingest
     } &amp;
     fi
@@ -208,7 +208,7 @@ done &lt; datasets.csv
 wait;
 echo Completed all dataset updates, refreshing base continuous/categorical facets
       curl --request PUT \
-        &quot;http://dictionaryetl:8086/api/facet/refresh/data_type&quot;
+        &quot;http://dictionaryetl:8086/api/facet/refresh/data_type&quot;  || exit 1
 
 docker exec -i dictionary-db psql dictionary picsure -c &apos;UPDATE dict.update_info SET last_updated = NOW();&apos;
 cp datasets.csv /usr/local/docker-config/dictionary/

@@ -92,24 +92,23 @@ tar -xzf &quot;Dictionary Ingestion Files&quot;/facet_dictionary_ingestion_files
 rm -f -r &apos;facet_dictionary_ingestion_files/._&apos;*
 curl --request PUT --header &apos;Content-Type: text/plain&apos; \
   --data-binary @facet_dictionary_ingestion_files/facet_categories.csv \
-  &quot;http://dictionaryetl:8086/api/facet/category/csv&quot;
+  &quot;http://dictionaryetl:8086/api/facet/category/csv&quot; || exit 1
         
  curl --request PUT --header &apos;Content-Type: text/plain&apos; \
    --data-binary @facet_dictionary_ingestion_files/facets.csv \
-   &quot;http://dictionaryetl:8086/api/facet/csv&quot;
+   &quot;http://dictionaryetl:8086/api/facet/csv&quot; || exit 1
 
 find . -name &quot;*facet_concepts.csv&quot; -type f | while read -r file; do
     echo &quot;Processing: $file&quot;
       curl --request PUT --header &apos;Content-Type: text/plain&apos; \
         --data-binary @$file \
-        &quot;http://dictionaryetl:8086/api/facet/concept/csv&quot;
+        &quot;http://dictionaryetl:8086/api/facet/concept/csv&quot; || exit 1
 done
-    
-curl --request PUT &quot;http://dictionaryetl:8086/api/facet/refresh/data_type&quot;
 
 docker exec -i dictionary-db psql dictionary picsure -c &apos;UPDATE dict.update_info SET last_updated = NOW();&apos;
 
-</command>
+docker stop dictionaryetl || true
+docker rm dictionaryetl || true</command>
       <configuredLocalRules/>
     </hudson.tasks.Shell>
   </builders>

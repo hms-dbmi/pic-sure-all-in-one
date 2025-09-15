@@ -1,58 +1,58 @@
 plugins:
   - artifactId: groovy
     source:
-      version: 453.vcdb_a_c5c99890
+      version: 497.v7b_061a_a_de65d
   - artifactId: timestamper
     source:
-      version: 1.26
+      version: 1.30
   - artifactId: email-ext
     source:
-      version: 2.99
+      version: 1925.v1598902b_58dd
   - artifactId: build-timeout
     source:
-      version: 1.31
+      version: 1.38
   - artifactId: workflow-aggregator
     source:
-      version: 596.v8c21c963d92d
+      version: 608.v67378e9d3db_1
   - artifactId: pipeline-stage-view
     source:
-      version: 2.33
+      version: 2.38
   - artifactId: ant
     source:
-      version: 487.vd79d090d4ea_e
+      version: 518.v8d8dc7945eca_
   - artifactId: github-branch-source
     source:
-      version: 1789.v5b_0c0cea_18c3 
+      version: 1862.v1a_fc22a_d3788
   - artifactId: ssh-slaves
     source:
-      version: 2.877.v365f5eb_a_b_eec
+      version: 3.1071.v0d059c7b_c555
   - artifactId: pipeline-github-lib
     source:
-      version: 42.v0739460cda_c4
+      version: 65.v203688e7727e
   - artifactId: matrix-auth
     source:
-      version: 3.2
+      version: 3.2.8
   - artifactId: antisamy-markup-formatter
     source:
-      version: 159.v25b_c67cd35fb_
+      version: 173.v680e3a_b_69ff3
   - artifactId: gradle
     source:
-      version: 2.8.2
+      version: 2.16.1149.v711b_998b_0532
   - artifactId: pam-auth
     source:
-      version: 1.10
+      version: 1.12
   - artifactId: git
     source:
       version: 5.7.0
   - artifactId: ws-cleanup
     source:
-      version: 0.45
+      version: 0.49
   - artifactId: subversion
     source:
-      version: 2.17.3
+      version: 1292.ve8cf25770ee3
   - artifactId: ldap
     source:
-      version: 694.vc02a_69c9787f
+      version: 780.vcb_33c9a_e4332
   - artifactId: cloudbees-folder
     source:
       version: 6.1040.v8a_e6330a_54e3
@@ -61,7 +61,7 @@ plugins:
       version: 0.0.13
   - artifactId: copyartifact
     source:
-      version: 722.v0662a_9b_e22a_c
+      version: 770.va_6c69e063442
   - artifactId: docker-workflow
     source:
-      version: 572.v950f58993843
+      version: 621.va_73f881d9232

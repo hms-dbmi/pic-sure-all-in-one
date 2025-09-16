@@ -50,6 +50,7 @@
       <jobNames>
         <comparator class="hudson.util.CaseInsensitiveComparator"/>
         <string>PIC-SURE Aggregate Resource Build</string>
+        <string>PIC-SURE Frontend Build</string>
         <string>PIC-SURE Auth Micro-App Build - Jenkinsfile</string>
         <string>PIC-SURE Build and Deploy Uploader</string>
         <string>PIC-SURE Build Passthrough Resource</string>

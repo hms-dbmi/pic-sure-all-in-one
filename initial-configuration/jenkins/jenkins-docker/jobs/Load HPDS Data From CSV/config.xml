@@ -66,11 +66,12 @@ docker stop hpds-etl &amp;&amp; docker rm hpds-etl
 openssl enc -aes-128-cbc -k secret -P | grep key | cut -d &apos;=&apos; -f2 &gt;  /usr/local/docker-config/hpds_temp/encryption_key
 
 docker stop hpds_data_load_csv &amp;&amp; docker rm hpds_data_load_csv
-docker run --name=hpds-etl \
+docker run --name hpds_data_load_csv \
   -v $DOCKER_CONFIG_DIR/hpds_temp:/opt/local/hpds \
   -v $DOCKER_CONFIG_DIR/hpds_csv/allConcepts.csv:/opt/local/hpds/allConcepts.csv \
-  -e HEAPSIZE=4096 -e LOADER_NAME=CSVLoaderNewSearch \
-  --name hpds_data_load_csv hms-dbmi/pic-sure-hpds-etl:LATEST &amp;&amp; \
+  -e HEAPSIZE=4096 \
+  -e LOADER_NAME=CSVLoaderNewSearch \
+  hms-dbmi/pic-sure-hpds-etl:LATEST &amp;&amp; \
 find /usr/local/docker-config/hpds/ -not -type d -maxdepth 1 -exec echo mv {} /usr/local/docker-config/hpds_pheno_bak \;    &amp;&amp; \
 mv /usr/local/docker-config/hpds_temp/* /usr/local/docker-config/hpds
 </command>

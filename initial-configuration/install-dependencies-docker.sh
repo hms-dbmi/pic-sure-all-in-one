@@ -180,7 +180,7 @@ else
   echo "Looks like docker is installed! Attempting a simple docker command: "
 fi
 
-if ! docker run hello-world > /dev/null 2>&1; then
+if ! docker run --rm hello-world > /dev/null 2>&1; then
   echo "Docker hello-world failed. Exiting"
   exit
 else

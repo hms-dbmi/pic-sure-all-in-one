@@ -71,7 +71,7 @@ export SQL=&quot;INSERT INTO resource (uuid, targetURL, resourceRSPath, descript
  VALUES (unhex(&apos;$RESOURCE_ID_HEX&apos;), NULL, &apos;http://passthru/$RESOURCE_PATH/&apos;, &apos;Passthru for $SITE_NAME&apos;, &apos;$SITE_NAME&apos;, NULL);&quot;
 
 # Add generated uuid to database
-docker run -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e &quot;$SQL&quot; picsure
+docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e &quot;$SQL&quot; picsure
 
 # If there is no application.properties, make one
 mkdir -p /usr/local/docker-config/passthru/

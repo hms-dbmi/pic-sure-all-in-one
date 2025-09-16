@@ -40,7 +40,7 @@
 
 cat /usr/local/docker-config/wildfly/standalone.xml | grep client_secret | cut -d &apos;=&apos; -f 3 | sed &apos;s/[\&quot;/\&gt;]//g&apos; &gt; secret.txt
 
-export appplication_uuid=`docker run -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -N -e &quot;SELECT BIN_TO_UUID(uuid) FROM auth.application where name=&apos;PICSURE&apos;;&quot;`
+export appplication_uuid=`docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -N -e &quot;SELECT BIN_TO_UUID(uuid) FROM auth.application where name=&apos;PICSURE&apos;;&quot;`
 
 # This UUID is currently a magic number of sorts, this will need to be parameterized to make this job portable
 export new_token_introspection_token=`java -jar generateJwt.jar secret.txt sub &quot;PSAMA_APPLICATION|${appplication_uuid}&quot; 365 day | grep -v &quot;Generating&quot;`
@@ -50,7 +50,7 @@ sed -i &quot;s/$old_token_introspection_token/$new_token_introspection_token/g&q
 
 sed -i &quot;s/$old_token_introspection_token/$new_token_introspection_token/g&quot; /usr/local/docker-config/psama/psama.env
 
-docker run -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e \
+docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e \
 &quot;update application set token=&apos;$new_token_introspection_token&apos;;&quot; auth
 </command>
     </hudson.tasks.Shell>

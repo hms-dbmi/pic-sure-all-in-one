@@ -47,11 +47,13 @@ mkdir -p /usr/local/docker-config/hpds_temp
 #generate a new encryption key
 openssl enc -aes-128-cbc -k secret -P | grep key | cut -d &apos;=&apos; -f2 &gt;  /usr/local/docker-config/hpds_temp/encryption_key
 
-docker run --name=hpds-etl \
+docker run --name=hpds_data_load_multiple_csv \
 -v $DOCKER_CONFIG_DIR/hpds_temp:/opt/local/hpds \
 -v $DOCKER_CONFIG_DIR/hpds_input/:/opt/local/hpds_input/ \
 -e JAVA_OPTS=&quot;-Dlogback.log.level=INFO&quot; \
--e HEAPSIZE=8000 -e LOADER_NAME=LowRAMMultiCSVLoader hms-dbmi/pic-sure-hpds-etl:LATEST &amp;&amp; \
+-e HEAPSIZE=8000 \
+-e LOADER_NAME=LowRAMMultiCSVLoader
+hms-dbmi/pic-sure-hpds-etl:LATEST &amp;&amp; \
 mv /usr/local/docker-config/hpds /usr/local/docker-config/hpds_bak &amp;&amp; \
 mv /usr/local/docker-config/hpds_temp /usr/local/docker-config/hpds
 </command>

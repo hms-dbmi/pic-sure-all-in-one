@@ -1,0 +1,15 @@
+services:
+  psama:
+    ports: [ 5007:5007 ]
+  wildfly:
+    ports: [ 5008:5007 ]
+  hpds:
+    ports: [ 5009:5007 ]
+  dictionary-api:
+    ports: [ 5010:5007 ]
+  dictionary-aggregator:
+    ports: [ 5011:5007 ]
+  passthru:
+    ports: [ 5012:5007 ]
+  uploader:
+    ports: [ 5013:5007 ]

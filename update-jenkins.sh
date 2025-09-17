@@ -12,7 +12,15 @@ git pull
 echo "Sometimes we have to update not just the Jenkins jobs, but also the docker image itself."
 echo "If you want to update that image. Rerun this command with the --rebuild flag added."
 
-DOCKER_CONFIG_DIR="${DOCKER_CONFIG_DIR:-/usr/local/docker-config}"
+export DOCKER_CONFIG_DIR="${DOCKER_CONFIG_DIR:-/usr/local/docker-config}"
+export MYSQL_CONFIG_DIR="${MYSQL_CONFIG_DIR:-$DOCKER_CONFIG_DIR/picsure-db/}"
+# Use this for file system checks. Use DOCKER_CONFIG_DIR for docker commands.
+# Except for --env_file commands, which refer to the current file system, not the root fs
+export CURRENT_FS_DOCKER_CONFIG_DIR="${CURRENT_FS_DOCKER_CONFIG_DIR:-$DOCKER_CONFIG_DIR}"
+
+if [ -f "$CURRENT_FS_DOCKER_CONFIG_DIR/setProxy.sh" ]; then
+   . $CURRENT_FS_DOCKER_CONFIG_DIR/setProxy.sh
+fi
 
 if [ "$1" = "--rebuild" ]; then
   #  Rebuild the docker image. This matches the initial dep script. The proxy args are generally empty, but you might

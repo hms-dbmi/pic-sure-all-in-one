@@ -66,7 +66,7 @@ cp target/pic-sure-visualization-resource.war /usr/local/docker-config/wildfly/d
 
 # Make properties config file
 export SQL=&quot;SELECT LOWER(CONCAT(SUBSTR(HEX(uuid), 1, 8), &apos;-&apos;, SUBSTR(HEX(uuid), 9, 4), &apos;-&apos;, SUBSTR(HEX(uuid), 13, 4), &apos;-&apos;, SUBSTR(HEX(uuid), 17, 4), &apos;-&apos;, SUBSTR(HEX(uuid), 21))) from picsure.resource where name = &apos;hpds&apos;&quot;;
-HPDS_ID=$(docker run -i -v &quot;${MYSQL_CONFIG_DIR}&quot;.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -se &quot;$SQL&quot; picsure);
+HPDS_ID=$(docker run --rm -i -v &quot;${MYSQL_CONFIG_DIR}&quot;.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -se &quot;$SQL&quot; picsure);
 RESOURCE_ID=`uuidgen -r`
 
 mkdir -p /usr/local/docker-config/wildfly/visualization/$RESOURCE_PATH
@@ -84,7 +84,7 @@ export SQL=&quot;INSERT INTO resource (uuid, targetURL, resourceRSPath, descript
  VALUES (unhex(&apos;$RESOURCE_ID_HEX&apos;), NULL, &apos;http://wildfly:8080/$RESOURCE_PATH/pic-sure/visualization/&apos;, &apos;$RESOURCE_DESC&apos;, &apos;$RESOURCE_NAME&apos;, NULL);&quot;
 
 # Run with config
-docker run -i -v &quot;$MYSQL_CONFIG_DIR&quot;/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e &quot;$SQL&quot; picsure</command>
+docker run --rm -i -v &quot;$MYSQL_CONFIG_DIR&quot;/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e &quot;$SQL&quot; picsure</command>
       <configuredLocalRules/>
     </hudson.tasks.Shell>
   </builders>

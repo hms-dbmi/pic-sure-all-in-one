@@ -58,12 +58,12 @@
 cd target
 grep client_secret /usr/local/docker-config/wildfly/standalone.xml | cut -d &apos;=&apos; -f 3 | sed &apos;s/[\&quot;/\&gt;]//g&apos; &gt; secret.txt
 
-export USER_SUBJECT=`docker run -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -N -e \
+export USER_SUBJECT=`docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -N -e \
 &quot;SELECT subject FROM auth.user where email=&apos;$USERNAME&apos;; &quot;`
 
 export user_token=`java -jar generateJwt.jar secret.txt sub &quot;LONG_TERM_TOKEN|${USER_SUBJECT}&quot; ${DAYSUNTILEXPIRATION} day | grep -v &quot;Generating&quot;`
 
-docker run -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e \
+docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e \
 &quot;update auth.user set long_term_token=&apos;$user_token&apos;  where email=&apos;$USERNAME&apos;;&quot; 
 
 </command>

@@ -60,11 +60,11 @@ END
     RESOURCE_ID_HEX=`echo $RESOURCE_ID | awk &apos;{ print toupper($0) }&apos;| sed &apos;s/-//g&apos;;`
     SQL=&quot;INSERT INTO resource (uuid, targetURL, resourceRSPath, description, name, token) \
     VALUES (unhex(&apos;$RESOURCE_ID_HEX&apos;), NULL, &apos;http://wildfly:8080/$RESOURCE_PATH/pic-sure/aggregate-data-sharing/&apos;, &apos;$RESOURCE_DESC&apos;, &apos;$RESOURCE_NAME&apos;, NULL);&quot;
-    docker run -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e &quot;$SQL&quot; picsure
+    docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e &quot;$SQL&quot; picsure
 else
     # Retrieve from DB
     SQL=&quot;SELECT LOWER(CONCAT(SUBSTR(HEX(uuid), 1, 8), &apos;-&apos;, SUBSTR(HEX(uuid), 9, 4), &apos;-&apos;, SUBSTR(HEX(uuid), 13, 4), &apos;-&apos;, SUBSTR(HEX(uuid), 17, 4), &apos;-&apos;, SUBSTR(HEX(uuid), 21))) from resource where name = &apos;$RESOURCE_NAME&apos;&quot;;
-    RESOURCE_ID=$(docker run -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e &quot;$SQL&quot; picsure)
+    RESOURCE_ID=$(docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e &quot;$SQL&quot; picsure)
 fi
 
 echo &quot;Aggregate Resource ID is $RESOURCE_ID&quot;</command>

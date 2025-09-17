@@ -1,0 +1,196 @@
+name: pic-sure-all-in-one
+
+networks:
+  picsure:
+    external: true
+  dictionary:
+  hpds:
+  uploader:
+
+volumes:
+  uploader-db-data:
+  wildfly_deployments:
+
+services:
+  jenkins:
+    container_name: jenkins
+    image: pic-sure-jenkins:LATEST
+    profiles: [ jenkins ]
+    networks: [ picsure, dictionary ]
+    ports: [ "8080:8080" ]
+    environment:
+      http_proxy: $http_proxy
+      https_proxy: $https_proxy
+      no_proxy: $no_proxy
+    volumes:
+      - /etc/hosts:/etc/hosts
+      - /var/run/docker.sock:/var/run/docker.sock
+      - $DOCKER_CONFIG_DIR/pic-sure-services:/pic-sure-services
+      - $DOCKER_CONFIG_DIR/jenkins_cert:/var/jenkins_cert
+      - $DOCKER_CONFIG_DIR/hpds_csv/:/usr/local/docker-config/hpds_csv/
+      - $DOCKER_CONFIG_DIR/jenkins_home:/var/jenkins_home
+      - $DOCKER_CONFIG_DIR:/usr/local/docker-config
+      - $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf
+      - $HOME/.m2:/root/.m2
+      - ./picsure.sh:/scripts/picsure.sh
+      - ./compose.yml:/scripts/compose.yml
+      - ./compose.debug.yml:/scripts/compose.debug.yml
+
+  picsure-db:
+    container_name: picsure-db
+    image: mysql:8.0
+    #profiles: [ standalone, federated, networked ]
+    networks: [ picsure ]
+    env_file: $CURRENT_FS_DOCKER_CONFIG_DIR/picsure-db/picsure-db.env
+    restart: always
+    healthcheck:
+      test: [ "CMD", "mysqladmin" ,"ping", "-uroot", "-p$$MYSQL_ROOT_PASSWORD" ]
+      timeout: 20s
+      retries: 10
+      start_period: 15s
+    volumes:
+      - $MYSQL_CONFIG_DIR/data:/var/lib/mysql
+  
+  dictionary-db:
+    container_name: dictionary-db
+    image: postgres:16-alpine
+    #profiles: [ standalone, federated, networked ]
+    networks: [ dictionary ]
+    env_file: $CURRENT_FS_DOCKER_CONFIG_DIR/dictionary/dictionary.env
+    restart: always
+    volumes:
+      - $DOCKER_CONFIG_DIR/dictionary/db/data:/var/lib/postgresql/data
+      - $DOCKER_CONFIG_DIR/dictionary/db/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+
+  uploader-db:
+    container_name: uploader-db
+    image: mysql:8.0
+    profiles: [ networked ]
+    # This is super confusing. There are actually two .env files: one for the docker-compose environment itself
+    # and one for each container. This specifies the LATTER of those two envs
+    # The variables on the right side of the environment section are from the FORMER of these two envs
+    env_file: $CURRENT_FS_DOCKER_CONFIG_DIR/uploader/uploader.env
+    healthcheck:
+      test: [ "CMD", "mysqladmin" ,"ping", "-u", "root", "-p$$DATA_UPLOAD_DB_PASS" ]
+      timeout: 20s
+      retries: 10
+    networks:
+      - uploader
+    restart: always
+    volumes:
+      - uploader-db-data:/var/lib/mysql
+      - $DOCKER_CONFIG_DIR/uploader/data/schema.sql:/docker-entrypoint-initdb.d/seed.sql:ro
+
+  httpd:
+    container_name: httpd
+    image: hms-dbmi/pic-sure-frontend:LATEST
+    #profiles: [ standalone, federated, networked ]
+    networks: [ picsure ]
+    env_file: $CURRENT_FS_DOCKER_CONFIG_DIR/httpd/httpd.env
+    restart: always
+    ports: [ "443:443" ]
+    volumes:
+      - $DOCKER_CONFIG_DIR/log/httpd-docker-logs/:/app/logs/
+      - $DOCKER_CONFIG_DIR/httpd/cert:/usr/local/apache2/cert/
+      - $DOCKER_CONFIG_DIR/httpd/httpd-vhosts.conf:/usr/local/apache2/conf/extra/httpd-vhosts.conf
+      
+  psama:
+    container_name: psama
+    image: hms-dbmi/psama:LATEST
+    #profiles: [ standalone, federated, networked ]
+    networks: [ picsure ]
+    depends_on: [ picsure-db ]
+    env_file: $CURRENT_FS_DOCKER_CONFIG_DIR/psama/psama.env
+    restart: always
+    volumes:
+      - $DOCKER_CONFIG_DIR/wildfly/emailTemplates:/opt/jboss/wildfly/standalone/configuration/emailTemplates
+      - $DOCKER_CONFIG_DIR/psama/application.truststore:/usr/local/tomcat/conf/application.truststore
+
+  wildfly:
+    container_name: wildfly
+    image: hms-dbmi/pic-sure-wildfly:LATEST
+    #profiles: [ standalone, federated, networked ]
+    networks: [ picsure, hpds, dictionary ]
+    depends_on: [ picsure-db ]
+    env_file: $CURRENT_FS_DOCKER_CONFIG_DIR/wildfly/wildfly.env
+    restart: always
+    volumes:
+      - /etc/hosts:/etc/hosts
+      - wildfly_deployments:/opt/jboss/wildfly/standalone/deployments
+      - $DOCKER_CONFIG_DIR/log/wildfly-docker-logs/:/opt/jboss/wildfly/standalone/log/
+      - $DOCKER_CONFIG_DIR/log/wildfly-docker-os-logs/:/var/log/
+      - $DOCKER_CONFIG_DIR/wildfly/passthru/:/opt/jboss/wildfly/standalone/configuration/passthru/
+      - $DOCKER_CONFIG_DIR/wildfly/aggregate-data-sharing/:/opt/jboss/wildfly/standalone/configuration/aggregate-data-sharing/
+      - $DOCKER_CONFIG_DIR/wildfly/visualization/:/opt/jboss/wildfly/standalone/configuration/visualization/
+      - $DOCKER_CONFIG_DIR/wildfly/standalone.xml:/opt/jboss/wildfly/standalone/configuration/standalone.xml
+      - $DOCKER_CONFIG_DIR/wildfly/application.truststore:/opt/jboss/wildfly/standalone/configuration/application.truststore
+      - $DOCKER_CONFIG_DIR/wildfly/emailTemplates:/opt/jboss/wildfly/standalone/configuration/emailTemplates
+      - $DOCKER_CONFIG_DIR/wildfly/wildfly_mysql_module.xml:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/module.xml
+      - $DOCKER_CONFIG_DIR/wildfly/mysql-connector-java-5.1.49.jar:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/mysql-connector-java-5.1.49.jar
+
+  dictionary-api:
+    container_name: dictionary-api
+    image: avillach/dictionary-api:latest
+    #profiles: [ standalone, federated, networked ]
+    depends_on: [ dictionary-db ]
+    networks: [ picsure, dictionary ]
+    restart: always
+    env_file: $CURRENT_FS_DOCKER_CONFIG_DIR/dictionary/dictionary.env
+
+  dictionary-aggregator:
+    container_name: dictionary-aggregator
+    image: avillach/dictionary-dump:latest
+    profiles: [ federated, networked ]
+    depends_on: [ dictionary-db ]
+    networks: [ dictionary ]
+    env_file: $CURRENT_FS_DOCKER_CONFIG_DIR/dictionary/dictionary.env
+    restart: always
+    volumes:
+      - $DOCKER_CONFIG_DIR/dictionary/dump/application.properties:/application.properties
+
+  hpds:
+    container_name: hpds
+    image: hms-dbmi/pic-sure-hpds:LATEST
+    profiles: [ standalone, networked ]
+    networks: [ picsure, hpds ]
+    env_file: $CURRENT_FS_DOCKER_CONFIG_DIR/hpds/hpds.env
+    restart: always
+    volumes:
+      - $DOCKER_CONFIG_DIR/hpds:/opt/local/hpds
+      - $DOCKER_CONFIG_DIR/hpds/all:/opt/local/hpds/all
+      - $DOCKER_CONFIG_DIR/log/hpds-logs/:/var/log/
+      - $DOCKER_CONFIG_DIR/hpds_csv/:/usr/local/docker-config/hpds_csv/
+      - $DOCKER_CONFIG_DIR/aws_uploads/:/gic_query_results/
+
+  passthru:
+    container_name: passthru
+    image: hms-dbmi/pic-sure-passthru:LATEST
+    profiles: [ federated ]
+    depends_on: [ picsure-db ]
+    networks: [ picsure, dictionary ]
+    env_file: $CURRENT_FS_DOCKER_CONFIG_DIR/passthru/passthru.env
+    restart: always
+    volumes:
+      - $DOCKER_CONFIG_DIR/passthru/application.properties:/application.properties
+
+  uploader:
+    container_name: uploader
+    image: lukesikinabch/gic-uploader:1.2.3
+    profiles: [ networked ]
+    env_file: $CURRENT_FS_DOCKER_CONFIG_DIR/uploader/uploader.env
+    depends_on: [ uploader-db ]
+    networks: [ picsure, uploader ]
+    restart: always
+    volumes:
+      - $DOCKER_CONFIG_DIR/aws_uploads/:/gic_query_results/
+
+  uploader-migrations:
+    container_name: uploader-migrations
+    image: flyway/flyway:11-alpine
+    profiles: [ networked, migrate ]
+    depends_on: [ uploader-db ]
+    networks: [ uploader ]
+    env_file: $CURRENT_FS_DOCKER_CONFIG_DIR/uploader/uploader.env
+    command: -url=jdbc:mysql://uploader-db:3306/${DATA_UPLOAD_DB_DATABASE}?allowPublicKeyRetrieval=true -schemas=${DATA_UPLOAD_DB_DATABASE} -user=${DATA_UPLOAD_DB_USER} -password=${DATA_UPLOAD_DB_PASS} -connectRetries=60 -validateMigrationNaming=true migrate
+    volumes:
+      - $DOCKER_CONFIG_DIR/uploader/flyway:/flyway/sql

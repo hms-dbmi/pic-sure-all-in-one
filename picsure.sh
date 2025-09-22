@@ -22,6 +22,9 @@ if [[ "$1" == "start" ]]
    else MODE='down'
 fi
 
+# pass in a specific service, or leave blank to start
+# Example: './picsure.sh start jenkins' (starts jenkins service only)
+# Example: './picsure.sh start' (starts everything)
 if [[ -n "$2" ]]
   then docker compose $COMPOSE_FILES $MODE $2
   else docker compose $COMPOSE_FILES $MODE $(docker compose config --services)

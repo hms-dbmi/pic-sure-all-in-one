@@ -32,9 +32,9 @@ services:
       - $DOCKER_CONFIG_DIR:/usr/local/docker-config
       - $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf
       - $HOME/.m2:/root/.m2
-      - ./picsure.sh:/scripts/picsure.sh
-      - ./compose.yml:/scripts/compose.yml
-      - ./compose.debug.yml:/scripts/compose.debug.yml
+      - picsure.sh:/scripts/picsure.sh
+      - compose.yml:/scripts/compose.yml
+      - compose.debug.yml:/scripts/compose.debug.yml
 
   picsure-db:
     container_name: picsure-db

@@ -22,7 +22,7 @@ plugins:
       version: 518.v8d8dc7945eca_
   - artifactId: github-branch-source
     source:
-      version: 1862.v1a_fc22a_d3788
+      version: 1864.v411feec5e78e
   - artifactId: ssh-slaves
     source:
       version: 3.1071.v0d059c7b_c555
@@ -55,7 +55,7 @@ plugins:
       version: 780.vcb_33c9a_e4332
   - artifactId: cloudbees-folder
     source:
-      version: 6.1042.v37b_8229708e4
+      version: 6.1045.vb_ddd55e2d03f
   - artifactId: list-git-branches-parameter
     source:
       version: 0.0.13

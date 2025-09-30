@@ -32,6 +32,7 @@ This is equivalent to the Unix Epoch time value for the time of the observation 
   <disabled>false</disabled>
   <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
   <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <jdk>(System)</jdk>
   <triggers/>
   <concurrentBuild>false</concurrentBuild>
   <builders>
@@ -54,7 +55,7 @@ docker run --name=hpds_data_load_multiple_files \
 -v $DOCKER_CONFIG_DIR/hpds_input/:/opt/local/hpds_input/ \
 -e JAVA_OPTS=&quot;-Dlogback.log.level=INFO&quot; \
 -e HEAPSIZE=4096 \
--e LOADER_NAME=SequentialLoader 
+-e LOADER_NAME=SequentialLoader \
 hms-dbmi/pic-sure-hpds-etl:LATEST
 
 mkdir -p /usr/local/docker-config/hpds_bak/

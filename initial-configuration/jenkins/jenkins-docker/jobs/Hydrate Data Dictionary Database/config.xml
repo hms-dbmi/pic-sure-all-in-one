@@ -39,7 +39,8 @@ Study Name: Nhanes</description>
   <concurrentBuild>false</concurrentBuild>
   <builders>
     <hudson.tasks.Shell>
-      <command>cp /usr/local/docker-config/dictionary/dictionary.env .env
+      <command>#!/bin/bash
+cp /usr/local/docker-config/dictionary/dictionary.env .env
 
 docker stop dictionaryetl || true
 docker rm dictionaryetl || true
@@ -69,7 +70,25 @@ while ! docker logs dictionaryetl 2&gt;&amp;1 | grep -q &quot;Started Dictionary
 done
 echo &quot;DictionaryEtlApplication has started!&quot;
 
-#curl -s &quot;http://dictionaryetl:8086/load/initialize?datasetName=$Dataset_Name&amp;includeDefaultFacets=true&amp;clearDatabase=$Clear_Dictionary_Database&quot;
+echo &quot;Checking for columnMeta.csv file&quot;
+if [ -z $DOCKER_CONFIG_DIR/hpds/columnMeta.csv ];
+then
+echo &quot;columnMeta.csv not found, creating it&quot;
+docker run --name=hpds_generate_columnmeta_csv \
+-v $DOCKER_CONFIG_DIR/hpds/:/opt/local/hpds/ \
+-e JAVA_OPTS=&quot;-Dlogback.log.level=INFO&quot; \
+-e HEAPSIZE=4096 \
+-e LOADER_NAME=CreateColumnmetaCSV \
+hms-dbmi/pic-sure-hpds-etl:LATEST
+
+docker stop hpds_generate_columnmeta_csv
+docker rm hpds_generate_columnmeta_csv
+else
+echo &quot;columnMeta.csv found, moving to dictionary hydration step&quot;
+
+fi
+
+
 curl -v -s -X POST -H &quot;Content-Type: application/json&quot; \
      -d &apos;{
            &quot;datasetName&quot;: &quot;&apos;&quot;$Dataset_Name&quot;&apos;&quot;,
@@ -77,7 +96,7 @@ curl -v -s -X POST -H &quot;Content-Type: application/json&quot; \
            &quot;clearDatabase&quot;: &quot;&apos;&quot;$Clear_Dictionary_Database&quot;&apos;&quot;
          }&apos; \
      http://dictionaryetl:8086/load/initialize
-
+     
 docker stop dictionaryetl
 docker rm dictionaryetl</command>
       <configuredLocalRules/>

@@ -14,9 +14,9 @@
   <builders>
     <hudson.tasks.Shell>
       <command>
-cp /scripts/start-picsure.sh .
+cp /scripts/. .
 export CURRENT_FS_DOCKER_CONFIG_DIR=/usr/local/docker-config/
-./start-picsure.sh
+./picsure.sh start
 </command>
     </hudson.tasks.Shell>
   </builders>

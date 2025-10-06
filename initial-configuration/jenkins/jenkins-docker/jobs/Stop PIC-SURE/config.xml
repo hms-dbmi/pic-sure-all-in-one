@@ -14,9 +14,9 @@
   <builders>
     <hudson.tasks.Shell>
       <command>
-        cp /scripts/stop-picsure.sh .
-        export CURRENT_FS_DOCKER_CONFIG_DIR=/usr/local/docker-config/
-        ./stop-picsure.sh
+cp /scripts/. .
+export CURRENT_FS_DOCKER_CONFIG_DIR=/usr/local/docker-config/
+./picsure.sh stop
   </command>
     </hudson.tasks.Shell>
   </builders>

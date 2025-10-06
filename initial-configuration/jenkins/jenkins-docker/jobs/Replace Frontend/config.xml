@@ -112,19 +112,10 @@ docker build --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_pr
  -f Dockerfile -t hms-dbmi/pic-sure-frontend:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} .
 docker tag hms-dbmi/pic-sure-frontend:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} hms-dbmi/pic-sure-frontend:LATEST
 
-docker rm httpd || true
-docker run --name=httpd --restart always --network=picsure \
-    -v &quot;$DOCKER_CONFIG_DIR&quot;/log/httpd-docker-logs/:/app/logs/ \
-    -v $DOCKER_CONFIG_DIR/httpd/cert:/usr/local/apache2/cert/ \
-    -v $DOCKER_CONFIG_DIR/httpd/httpd-vhosts.conf:/usr/local/apache2/conf/extra/httpd-vhosts.conf \
-    $CUSTOM_HTTPD_VOLUMES \
-    --env-file /usr/local/docker-config/httpd/httpd.env \
-    -p 80:80 \
-    -p 443:443 \
-    -d hms-dbmi/pic-sure-frontend:LATEST \
-    || exit 2
-
-docker start hpds wildfly</command>
+cp /scripts/. .
+export CURRENT_FS_DOCKER_CONFIG_DIR=/usr/local/docker-config/
+./picsure.sh start
+</command>
       <configuredLocalRules/>
     </hudson.tasks.Shell>
   </builders>

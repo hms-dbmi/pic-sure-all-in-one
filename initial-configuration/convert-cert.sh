@@ -17,7 +17,7 @@ keypath=$1
 crtpath=$2
 jenkinspass=$3
 
-echo "Configuring start-jenkins.sh"
+echo "Configuring mysql-docker.env"
 sed_inplace "2 i JENKINS_OPTS_STR=\"--httpPort=-1 --httpsPort=8080 --httpsKeyStore=$DOCKER_CONFIG_DIR/jenkins_cert/certificate.pfx --httpsKeyStorePassword=$jenkinspass\"" mysql-docker/.env
 
 echo "Converting cert and moving to $DOCKER_CONFIG_DIR/jenkins_cert/"

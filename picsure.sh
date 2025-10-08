@@ -10,7 +10,9 @@ if [ -f "$CURRENT_FS_DOCKER_CONFIG_DIR/setProxy.sh" ]; then
    . $CURRENT_FS_DOCKER_CONFIG_DIR/setProxy.sh
 fi
 
-export COMPOSE_PROFILES="standalone"
+PICSURE_PROFILES=$(cat $DOCKER_CONFIG_DIR/.profile 2>/dev/null)
+
+export COMPOSE_PROFILES="${PICSURE_PROFILES:standalone}"
 export COMPOSE_FILES=""
 
 if [[ "$COMPOSE_PROFILES" == *"debug"* ]];then

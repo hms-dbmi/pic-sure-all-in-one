@@ -50,7 +50,6 @@
       <command>#!/bin/bash
 
 CONFIG_DIR=&quot;/usr/local/docker-config/dictionary&quot;
-COMPOSE_FILE=&quot;docker-compose.yml&quot;
 
 mkdir -p &quot;$CONFIG_DIR&quot;
 mkdir -p &quot;$CONFIG_DIR/db/data&quot;
@@ -79,18 +78,7 @@ else
 
     cp .env &quot;$CONFIG_DIR/dictionary.env&quot;
 fi
-
-# Step 2: Check if dictionary-db service is running
-if docker ps --filter &quot;name=dictionary-db&quot; --format &apos;{{.Names}}&apos; | grep -q &quot;dictionary-db&quot;; then
-    echo &quot;dictionary-db is already running. Rebuilding only the dictionary-api service.&quot;
-    docker stop dictionary-api &amp;&amp; docker rm dictionary-api
-    docker stop dictionary-dump &amp;&amp; docker rm dictionary-dump
-    docker compose up -d --no-deps --build dictionary-api dictionary-dump
-else
-    echo &quot;dictionary-db is not running. Starting all services.&quot;
-    docker stop dictionary-api &amp;&amp; docker rm dictionary-api
-    docker compose up -d --build
-fi</command>
+</command>
       <configuredLocalRules/>
     </hudson.tasks.Shell>
   </builders>

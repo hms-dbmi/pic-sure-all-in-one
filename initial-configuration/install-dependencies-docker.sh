@@ -268,7 +268,7 @@ rm pass.tmp
 
 echo "Installation script complete.  Staring Jenkins."
 cd ..
-./start-jenkins.sh
+./picsure.sh start jenkins
 
 
 

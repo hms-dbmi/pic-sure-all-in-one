@@ -210,16 +210,16 @@ For example, if your server has IP `10.109.190.146`, you would browse to https:/
 12. Log in using your Google account that you previously configured.
 
 13. Once you have confirmed that you can access the PIC-SURE UI using your admin user, stop the jenkins server by
-    running the following stop-jenkins.sh script:
+    running the following script:
 
-sudo ./stop-jenkins.sh
+sudo ./picsure.sh stop jenkins
 
 ## Additional Information:
 
 - Any time you wish to update the system, please run the update-jenkins.sh script and then start the Jenkins server.
   This ensures the jenkins jobs and configurations are up to date. See [here](#updating-jenkins)
 
-- Always stop Jenkins using the stop-jenkins.sh script when you are done to prevent unauthorized access as Jenkins
+- Always stop Jenkins using the `picsure.sh stop jenkins` script when you are done to prevent unauthorized access as Jenkins
   effectively has root privileges on your server.
 
 - To start or stop PIC-SURE use the "Start PIC-SURE" and "Stop PIC-SURE" jobs.
@@ -308,7 +308,7 @@ does migrate your initial configurations.  (Does not impact PIC-SURE users)
 
 1. On the host machine navigate to the `pic-sure-all-in-one` directory.
 1. Run `sudo ./update-jenkins.sh`
-1. If jenkins is not running run the start script `sudo ./start-jenkins.sh`
+1. If jenkins is not running run the start script `sudo ./picsure.sh start jenkins`
 1. Follow the jenkins set up steps again.
 
 A backup of your jenkins home can be found here: `"$DOCKER_CONFIG_DIR"/jenkins_home_bak/`

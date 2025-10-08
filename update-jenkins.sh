@@ -6,7 +6,7 @@ sed_inplace() {
     sed -i '' "$@"
   fi
 }
-./stop-jenkins.sh
+./picsure.sh stop jenkins
 git pull
 
 echo "Sometimes we have to update not just the Jenkins jobs, but also the docker image itself."
@@ -55,4 +55,4 @@ sed_inplace "s|host|`cat "$DOCKER_CONFIG_DIR"/jenkins_home_bak/config.xml | grep
 sed_inplace "s|*/master|`cat "$DOCKER_CONFIG_DIR"/jenkins_home_bak/config.xml | grep -A1 release_control_branch | tail -1 | sed 's/<\/*string>//g' | sed 's/ //g' `|g" "$DOCKER_CONFIG_DIR"/jenkins_home/config.xml
 sed_inplace "s|__PROJECT_SPECIFIC_MIGRATION_NAME__|`cat "$DOCKER_CONFIG_DIR"/jenkins_home_bak/config.xml | grep -A1 MIGRATION_NAME | tail -1 | sed 's/<\/*string>//g' | sed 's/ //g' `|g" "$DOCKER_CONFIG_DIR"/jenkins_home/config.xml
 
-./start-jenkins.sh
+./picsure.sh start jenkins

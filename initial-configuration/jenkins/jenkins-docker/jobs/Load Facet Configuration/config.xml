@@ -31,7 +31,7 @@ cp /usr/local/docker-config/dictionary/dictionary.env .env
 # Priority:
 #   a) FACET_LOADER_CONFIG_PATH env var
 #   b) workspace-local facet_loader_configuration.json
-#   c) default: /usr/local/docker-config/hpds_input/facet_loader_configuration.json
+#   c) default: /usr/local/docker-config/dictionary/facet_loader_configuration.json
 
 PAYLOAD_FILE=&quot;&quot;
 
@@ -39,10 +39,10 @@ if [[ -n &quot;${FACET_LOADER_CONFIG_PATH:-}&quot; &amp;&amp; -f &quot;${FACET_L
   PAYLOAD_FILE=&quot;${FACET_LOADER_CONFIG_PATH}&quot;
 elif [[ -f &quot;./facet_loader_configuration.json&quot; ]]; then
   PAYLOAD_FILE=&quot;./facet_loader_configuration.json&quot;
-elif [[ -f &quot;/usr/local/docker-config/hpds_input/facet_loader_configuration.json&quot; ]]; then
-  PAYLOAD_FILE=&quot;/usr/local/docker-config/hpds_input/facet_loader_configuration.json&quot;
+elif [[ -f &quot;/usr/local/docker-config/dictionary/facet_loader_configuration.json&quot; ]]; then
+  PAYLOAD_FILE=&quot;/usr/local/docker-config/dictionary/facet_loader_configuration.json&quot;
 else
-  echo &quot;ERROR: facet_loader_configuration.json not provided and not found at default path: /usr/local/docker-config/hpds_input/facet_loader_configuration.json&quot; &gt;&amp;2
+  echo &quot;ERROR: facet_loader_configuration.json not provided and not found at default path: /usr/local/docker-config/dictionary/facet_loader_configuration.json&quot; &gt;&amp;2
   exit 1
 fi
 
@@ -91,7 +91,6 @@ echo &quot;DictionaryEtlApplication has started!&quot;
 # Note: The Facet Loader controller is mounted at /api/facet-loader/load and expects application/json.
 # The service is exposed on localhost:8086 per the container run config above.
 
-# 5) Post the facet loader JSON payload with retry
 HTTP_CODE=$(curl --silent --show-error --fail \
   --retry 10 \
   --retry-delay 5 \

@@ -1,0 +1,118 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description></description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.FileParameterDefinition>
+          <name>facet_loader_configuration.json</name>
+        </hudson.model.FileParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.scm.NullSCM"/>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <jdk>(System)</jdk>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash
+set -euo pipefail
+
+cp /usr/local/docker-config/dictionary/dictionary.env .env
+
+# Resolve the facet loader configuration payload path
+# Priority:
+#   a) FACET_LOADER_CONFIG_PATH env var
+#   b) workspace-local facet_loader_configuration.json
+#   c) default: /usr/local/docker-config/dictionary/facet_loader_configuration.json
+
+PAYLOAD_FILE=&quot;&quot;
+
+if [[ -n &quot;${FACET_LOADER_CONFIG_PATH:-}&quot; &amp;&amp; -f &quot;${FACET_LOADER_CONFIG_PATH}&quot; ]]; then
+  PAYLOAD_FILE=&quot;${FACET_LOADER_CONFIG_PATH}&quot;
+elif [[ -f &quot;./facet_loader_configuration.json&quot; ]]; then
+  PAYLOAD_FILE=&quot;./facet_loader_configuration.json&quot;
+elif [[ -f &quot;/usr/local/docker-config/dictionary/facet_loader_configuration.json&quot; ]]; then
+  PAYLOAD_FILE=&quot;/usr/local/docker-config/dictionary/facet_loader_configuration.json&quot;
+else
+  echo &quot;ERROR: facet_loader_configuration.json not provided and not found at default path: /usr/local/docker-config/dictionary/facet_loader_configuration.json&quot; &gt;&amp;2
+  exit 1
+fi
+
+echo &quot;Using facet loader payload: ${PAYLOAD_FILE}&quot;
+
+# Optional: basic JSON validation if jq is available
+if command -v jq &gt;/dev/null 2&gt;&amp;1; then
+  if ! jq empty &quot;${PAYLOAD_FILE}&quot; 2&gt;/dev/null; then
+    echo &quot;ERROR: Payload file is not valid JSON: ${PAYLOAD_FILE}&quot; &gt;&amp;2
+    exit 1
+  fi
+fi
+
+docker stop dictionaryetl || true
+docker rm dictionaryetl || true
+
+docker run -d \
+  --name dictionaryetl \
+  --env-file .env \
+  -p 8086:8086 \
+  -v &quot;${DOCKER_CONFIG_DIR:-/usr/local/docker-config}/hpds/:/opt/local/hpds/&quot; \
+  --network dictionary \
+  --network picsure \
+  hms-dbmi/dictionary-etl:latest
+
+echo &quot;Waiting for DictionaryEtlApplication to start...&quot;
+MAX_ATTEMPTS=6
+SLEEP_INTERVAL=5
+ATTEMPT=1
+
+while ! docker logs dictionaryetl 2&gt;&amp;1 | grep -q &quot;Started DictionaryEtlApplication&quot;; do
+  if [[ &quot;${ATTEMPT}&quot; -ge &quot;${MAX_ATTEMPTS}&quot; ]]; then
+    echo &quot;DictionaryEtlApplication failed to start within $((MAX_ATTEMPTS * SLEEP_INTERVAL)) seconds.&quot; &gt;&amp;2
+    docker logs dictionaryetl || true
+    docker stop dictionaryetl || true
+    docker rm dictionaryetl || true
+    exit 1
+  fi
+  echo &quot;Attempt ${ATTEMPT}: Application not started yet. Retrying in ${SLEEP_INTERVAL} seconds...&quot;
+  sleep &quot;${SLEEP_INTERVAL}&quot;
+  ATTEMPT=$((ATTEMPT + 1))
+done
+
+echo &quot;DictionaryEtlApplication has started!&quot;
+
+# Note: The Facet Loader controller is mounted at /api/facet-loader/load and expects application/json.
+# The service is exposed on localhost:8086 per the container run config above.
+
+HTTP_CODE=$(curl --silent --show-error --fail \
+  --retry 10 \
+  --retry-delay 5 \
+  --retry-all-errors \
+  --retry-connrefused \
+  -o /tmp/facet_loader_response.json \
+  -w &quot;%{http_code}&quot; \
+  -X POST \
+  -H &quot;Content-Type: application/json&quot; \
+  --data-binary @&quot;${PAYLOAD_FILE}&quot; \
+  http://dictionaryetl:8086/api/facet-loader/load)
+
+echo &quot;Facet loader response (HTTP ${HTTP_CODE}):&quot;
+cat /tmp/facet_loader_response.json || true
+
+docker restart dictionary-api
+
+docker stop dictionaryetl || true
+docker rm dictionaryetl || true</command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

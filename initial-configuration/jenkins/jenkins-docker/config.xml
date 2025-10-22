@@ -53,14 +53,14 @@
         <string>PIC-SURE Frontend Build</string>
         <string>PIC-SURE Auth Micro-App Build - Jenkinsfile</string>
         <string>PIC-SURE Build and Deploy Uploader</string>
-        <string>PIC-SURE Build Passthrough Resource</string>
+        <string>Build Passthru Image</string>
+        <string>Create PIC-SURE Visualization Build</string>
         <string>PIC-SURE Dictionary API Build and Deploy</string>
         <string>PIC-SURE Dictionary-ETL Build</string>
         <string>PIC-SURE Pipeline</string>
         <string>PIC-SURE Wildfly Image Build</string>
         <string>PIC-SURE-API Build</string>
         <string>PIC-SURE-HPDS Build</string>
-        <string>PIC-SURE-HPDS-UI Docker Build</string>
       </jobNames>
       <jobFilters/>
       <columns>
@@ -120,6 +120,7 @@
         <string>Create Custom Login (IDP) Connection</string>
         <string>Create Self-Signed SSL Certificate</string>
         <string>Import Server Cert to TrustStore</string>
+        <string>Update User Token</string>
       </jobNames>
       <jobFilters/>
       <columns>
@@ -152,6 +153,7 @@
         <string>Upload HPDS-ETL Dataset Configuration</string>
         <string>Upload PSAMA Configuration</string>
         <string>Upload Uploader .env File</string>
+        <string>Export Jenkins Jobs</string>
       </jobNames>
       <jobFilters/>
       <columns>

@@ -180,7 +180,6 @@
         <string>Dictionary ETL - Pull GIC Facet Ingestion Files from Git</string>
         <string>Load HPDS and Dictionary Data</string>
         <string>Load HPDS Data From CSV</string>
-        <string>Load HPDS Data From Multiple CSVs</string>
         <string>Load HPDS Data From Multiple Files</string>
         <string>Load HPDS Data From RDBMS</string>
         <string>Load Staged Genomic Data</string>

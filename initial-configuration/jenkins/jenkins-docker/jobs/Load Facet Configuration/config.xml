@@ -101,7 +101,7 @@ HTTP_CODE=$(curl --silent --show-error --fail \
   -X POST \
   -H &quot;Content-Type: application/json&quot; \
   --data-binary @&quot;${PAYLOAD_FILE}&quot; \
-  http://dictionaryetl:8086/api/facet-loader/load)
+  http://dictionaryetl:8086/api/facet/loader/load)
 
 echo &quot;Facet loader response (HTTP ${HTTP_CODE}):&quot;
 cat /tmp/facet_loader_response.json || true

@@ -63,7 +63,6 @@ docker run -d \
   --name dictionaryetl \
   --env-file .env \
   -p 8086:8086 \
-  -v &quot;${DOCKER_CONFIG_DIR:-/usr/local/docker-config}/hpds/:/opt/local/hpds/&quot; \
   --network dictionary \
   --network picsure \
   hms-dbmi/dictionary-etl:latest

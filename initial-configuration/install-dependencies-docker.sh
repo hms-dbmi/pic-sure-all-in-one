@@ -123,7 +123,6 @@ if [ -n "$(command -v yum)" ] && [ -z "$(command -v docker)" ]; then
   yum install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker compose-plugin
   sudo systemctl start docker
   mkdir -p ../docker-config
-  cp -r config/* $DOCKER_CONFIG_DIR/
 fi
 
 if [ -n "$(command -v apt-get)" ] && [ -z "$(command -v docker)" ]; then
@@ -145,27 +144,27 @@ if [ -n "$(command -v apt-get)" ] && [ -z "$(command -v docker)" ]; then
   # Install docker
   apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker compose-plugin
   mkdir -p ../docker-config
-  cp -r config/* $DOCKER_CONFIG_DIR
 fi
+cp -r config/* $DOCKER_CONFIG_DIR/
 
-if [[ "$OSTYPE" =~ ^darwin ]]; then
-    echo "Darwin detected. Assuming macOS. Install commands will use brew."
-    #check for brew
-    if [ -z "$(command -v brew)" ]; then
-      echo "Brew not detected. Please install brew and rerun this script."
-      exit
-    fi
-    echo $1
-    #check for $1 arg
-    if [ -z "$1" ]; then
-      echo "No arguments supplied. Please provide the path to the docker-config dir."
-      echo "MacOS doesn't like the default docker-config dir Please supply a dir as an arguments."
-      exit
-    else
-      echo "Copying config to $1"
-      cp -r config/* $1
-    fi
-fi
+# if [[ "$OSTYPE" =~ ^darwin ]]; then
+#     echo "Darwin detected. Assuming macOS. Install commands will use brew."
+#     #check for brew
+#     if [ -z "$(command -v brew)" ]; then
+#       echo "Brew not detected. Please install brew and rerun this script."
+#       exit
+#     fi
+#     echo $1
+#     #check for $1 arg
+#     if [ -z "$1" ]; then
+#       echo "No arguments supplied. Please provide the path to the docker-config dir."
+#       echo "MacOS doesn't like the default docker-config dir Please supply a dir as an arguments."
+#       exit
+#     else
+#       echo "Copying config to $1"
+#       cp -r config/* $1
+#     fi
+# fi
 
 if [ -n "$(command -v apk)" ]; then
   echo "apk detected. Assuming alpine. Install commands will use apk"

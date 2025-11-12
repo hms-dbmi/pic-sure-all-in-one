@@ -22,6 +22,7 @@ monitor the PIC-SURE ecosystem.
   - [Uploading HPDS-ETL Configuration](#uploading-hpds-etl-configuration)
   - [Manual Load HPDS](#manual-load-hpds)
   - [Data Dictionary](docs/dictionary.md)
+  - [Copy HPDS data from Dev to Prod](#copy-hpds-data-from-dev-to-prod)
 - [Updating Jenkins](#updating-jenkins)
 - [Users](#users)
   - [Adding and Removing Users](#adding-and-removing-users)
@@ -298,6 +299,11 @@ For `nhanesAllConcepts.csv`:
   Load: [https://github.com/hms-dbmi/pic-sure-all-in-one/blob/master/hpds_geno_load.md](https://github.com/hms-dbmi/pic-sure-all-in-one/blob/master/hpds_geno_load.md)
 - Phenotypic Data
   Load: [https://github.com/hms-dbmi/pic-sure-hpds-phenotype-load-example](https://github.com/hms-dbmi/pic-sure-hpds-phenotype-load-example)
+
+### Copy HPDS data from Dev to Prod
+1. Backup `$DOCKER_CONFIG_DIR/hpds/hpds.env` file for any custom environment specific configurations.
+2. Copy the entire `$DOCKER_CONFIG_DIR/hpds` folder from dev to production using rsync or other method. hpds is a large directory, you'll need a strategy to either backup/snapshot current production hpds data (if desired) or notify users that the site will be unstable if syncing the folder in place.
+3. Replace or update new `$DOCKER_CONFIG_DIR/hpds/hpds.env` with data in backup from step 1.
 
 ## Updating Jenkins
 

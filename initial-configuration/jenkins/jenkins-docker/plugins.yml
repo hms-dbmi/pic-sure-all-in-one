@@ -7,7 +7,7 @@ plugins:
       version: 1.30
   - artifactId: email-ext
     source:
-      version: 1925.v1598902b_58dd
+      version: 1933.v45cec755423f
   - artifactId: build-timeout
     source:
       version: 1.38
@@ -19,13 +19,13 @@ plugins:
       version: 2.38
   - artifactId: ant
     source:
-      version: 518.v8d8dc7945eca_
+      version: 520.vd082ecfb_16a_9
   - artifactId: github-branch-source
     source:
-      version: 1864.v411feec5e78e
+      version: 1917.v9ee8a_39b_3d0d
   - artifactId: ssh-slaves
     source:
-      version: 3.1071.v0d059c7b_c555
+      version: 3.1085.vc64d040efa_85
   - artifactId: pipeline-github-lib
     source:
       version: 65.v203688e7727e
@@ -43,7 +43,7 @@ plugins:
       version: 1.12
   - artifactId: git
     source:
-      version: 5.7.0
+      version: 5.8.0
   - artifactId: ws-cleanup
     source:
       version: 0.49
@@ -52,10 +52,10 @@ plugins:
       version: 1292.ve8cf25770ee3
   - artifactId: ldap
     source:
-      version: 780.vcb_33c9a_e4332
+      version: 793.v754d6b_41b_ea_4
   - artifactId: cloudbees-folder
     source:
-      version: 6.1045.vb_ddd55e2d03f
+      version: 6.1073.va_7888eb_dd514
   - artifactId: list-git-branches-parameter
     source:
       version: 0.0.13
@@ -64,4 +64,4 @@ plugins:
       version: 770.va_6c69e063442
   - artifactId: docker-workflow
     source:
-      version: 621.va_73f881d9232
+      version: 634.vedc7242b_eda_7

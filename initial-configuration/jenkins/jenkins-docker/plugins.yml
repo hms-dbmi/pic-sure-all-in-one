@@ -53,9 +53,6 @@ plugins:
   - artifactId: ldap
     source:
       version: 780.vcb_33c9a_e4332
-  - artifactId: cloudbees-folder
-    source:
-      version: 6.1045.vb_ddd55e2d03f
   - artifactId: list-git-branches-parameter
     source:
       version: 0.0.13

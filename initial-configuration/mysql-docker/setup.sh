@@ -1,3 +1,9 @@
+#!/usr/bin/env bash
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PARENT_DIR="$(dirname "$SCRIPT_DIR")"
+
 sed_inplace() {
   if sed --version 2>/dev/null | grep -q "GNU sed"; then
     sed -i "$@"
@@ -83,7 +89,7 @@ if [ -z "$(docker ps --format '{{.Names}}' | grep picsure-db)" ]; then
   sed_inplace s/__AUTH_MYSQL_PASSWORD__/`cat auth.tmp`/g "$DOCKER_CONFIG_DIR/psama/psama.env"
   rm -f auth.tmp
 
-  cd $CWD
+  cd "$PARENT_DIR"
   rm -f pass.tmp
 else
   echo "You are already running a docker container named picsure-db. If you want to remove it, do so manually"

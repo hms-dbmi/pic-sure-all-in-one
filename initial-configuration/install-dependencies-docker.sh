@@ -266,12 +266,6 @@ if [ -n "$2" ]; then
   ./convert-cert.sh $2 $3 $password
 fi
 
-echo Deleting pass.tmp
-rm pass.tmp
-
 echo "Installation script complete.  Staring Jenkins."
 cd ..
 ./start-jenkins.sh
-
-
-

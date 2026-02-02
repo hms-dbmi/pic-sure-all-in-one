@@ -90,6 +90,7 @@ docker stop psama && docker rm psama
 docker run --name=psama --restart always \
   --network=picsure \
   --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/psama/psama.env \
+  -v $DOCKER_CONFIG_DIR/log/psama-docker-logs/:/var/log/ \
   $EMAIL_TEMPLATE_VOLUME \
   $PSAMA_DEBUG \
   $PSAMA_TRUSTSTORE_VOLUME \
@@ -138,6 +139,7 @@ if $INCLUDE_DICTIONARY; then
   docker run --name dictionary-api --restart always \
    --network=picsure --network=dictionary \
    $DICTIONARY_DEBUG \
+    -v $DOCKER_CONFIG_DIR/log/dictionary-docker-logs/:/var/log/ \
    --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/dictionary/dictionary.env \
    -d avillach/dictionary-api:latest \
    || exit 2
@@ -149,6 +151,7 @@ if $INCLUDE_AGG_DICT; then
     --network=dictionary \
     --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/dictionary/dictionary.env \
     $AGGREGATE_DEBUG \
+    -v $DOCKER_CONFIG_DIR/log/agg-dict-docker-logs/:/var/log/ \
     -v $DOCKER_CONFIG_DIR/dictionary/dump/application.properties:/application.properties \
     -d avillach/dictionary-dump:latest \
    || exit 2
@@ -158,6 +161,7 @@ if $INCLUDE_PASSTHRU; then
   docker stop passthru && docker rm passthru
   docker run --restart always --name passthru --network picsure --network dictionary \
     -v $DOCKER_CONFIG_DIR/passthru/application.properties:/application.properties \
+    -v $DOCKER_CONFIG_DIR/log/passthru-docker-logs/:/var/log/ \
     --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/passthru/passthru.env \
     $PASSTHRU_DEBUG \
     -d hms-dbmi/pic-sure-passthru:LATEST

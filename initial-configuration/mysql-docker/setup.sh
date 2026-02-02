@@ -12,7 +12,9 @@ sed_inplace() {
   fi
 }
 
-alias generate-random="cat /dev/urandom | tr -dc _A-Z-a-z-0-9 | head -c${1:-24}"
+generate-random() {
+  cat /dev/urandom | tr -dc _A-Z-a-z-0-9 | head -c${1:-24}
+}
 
 if [ -z "$(docker ps --format '{{.Names}}' | grep picsure-db)" ]; then
   echo "Cleaning up old configs"

@@ -211,7 +211,7 @@ fi
 
 #-------------------------------------------------------------------------------------------------#
 #                                           MySQL Start                                           #
-#                     Install Jenkins and configure jobs and DB connection                        #
+#                                 Install Mysql and configure DB                                  #
 #-------------------------------------------------------------------------------------------------#
 ./mysql-docker/setup.sh 2>&1 | tee "/var/log/picsure_mysql_init.log"
 

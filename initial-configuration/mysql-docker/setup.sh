@@ -20,10 +20,10 @@ if [ -z "$(docker ps --format '{{.Names}}' | grep picsure-db)" ]; then
   cp -r config/* "$DOCKER_CONFIG_DIR"/
 
   echo "Starting mysql server"
-  ROOT_PASS=$(generate-random)
 
   echo "Configuring mysql-docker/.env"
   rm -f mysql-docker/.env
+  ROOT_PASS=$(generate-random)
   # shellcheck disable=SC2129
   echo "PICSURE_DB_ROOT_PASS=$ROOT_PASS" >> mysql-docker/.env
   echo "PICSURE_DB_PASS=$ROOT_PASS" >> mysql-docker/.env
@@ -70,23 +70,23 @@ if [ -z "$(docker ps --format '{{.Names}}' | grep picsure-db)" ]; then
   docker exec -t picsure-db mysql -u root -p$ROOT_PASS -e "CREATE DATABASE auth;"
 
   AIRFLOW_PASS=$(generate-random)
-  docker exec -t picsure-db mysql -u root -p$ROOT_PASS -e "CREATE USER 'airflow'@'%' IDENTIFIED BY '$AIRFLOW_PASS';";
-  docker exec -t picsure-db mysql -u root -p$ROOT_PASS -e "GRANT ALL PRIVILEGES ON auth.* TO 'airflow'@'%';FLUSH PRIVILEGES;";
-  docker exec -t picsure-db mysql -u root -p$ROOT_PASS -e "GRANT ALL PRIVILEGES ON picsure.* TO 'airflow'@'%';FLUSH PRIVILEGES;";
   sed_inplace s/__AIRFLOW_MYSQL_PASSWORD__/$AIRFLOW_PASS/g "$DOCKER_CONFIG_DIR/flyway/auth/flyway-auth.conf"
   sed_inplace s/__AIRFLOW_MYSQL_PASSWORD__/$AIRFLOW_PASS/g "$DOCKER_CONFIG_DIR/flyway/auth/sql.properties"
   sed_inplace s/__AIRFLOW_MYSQL_PASSWORD__/$AIRFLOW_PASS/g "$DOCKER_CONFIG_DIR/flyway/picsure/flyway-picsure.conf"
   sed_inplace s/__AIRFLOW_MYSQL_PASSWORD__/$AIRFLOW_PASS/g "$DOCKER_CONFIG_DIR/flyway/picsure/sql.properties"
+  docker exec -t picsure-db mysql -u root -p$ROOT_PASS -e "CREATE USER 'airflow'@'%' IDENTIFIED BY '$AIRFLOW_PASS';";
+  docker exec -t picsure-db mysql -u root -p$ROOT_PASS -e "GRANT ALL PRIVILEGES ON auth.* TO 'airflow'@'%';FLUSH PRIVILEGES;";
+  docker exec -t picsure-db mysql -u root -p$ROOT_PASS -e "GRANT ALL PRIVILEGES ON picsure.* TO 'airflow'@'%';FLUSH PRIVILEGES;";
 
   PICSURE_PASS=$(generate-random)
+  sed_inplace s/__PIC_SURE_MYSQL_PASSWORD__/$PICSURE_PASS/g "$DOCKER_CONFIG_DIR/wildfly/standalone.xml"
   docker exec -t picsure-db mysql -u root -p$ROOT_PASS -e "CREATE USER 'picsure'@'%' IDENTIFIED BY '$PICSURE_PASS';";
   docker exec -t picsure-db mysql -u root -p$ROOT_PASS -e "GRANT ALL PRIVILEGES ON picsure.* to 'picsure'@'%';FLUSH PRIVILEGES";
-  sed_inplace s/__PIC_SURE_MYSQL_PASSWORD__/$PICSURE_PASS/g "$DOCKER_CONFIG_DIR/wildfly/standalone.xml"
 
   AUTH_PASS=$(generate-random)
+  sed_inplace s/__AUTH_MYSQL_PASSWORD__/$AUTH_PASS/g "$DOCKER_CONFIG_DIR/psama/psama.env"
   docker exec -t picsure-db mysql -u root -p$ROOT_PASS -e "CREATE USER 'auth'@'%' IDENTIFIED BY '$AUTH_PASS';";
   docker exec -t picsure-db mysql -u root -p$ROOT_PASS -e "GRANT ALL PRIVILEGES ON auth.* to 'auth'@'%';FLUSH PRIVILEGES;";
-  sed_inplace s/__AUTH_MYSQL_PASSWORD__/$AUTH_PASS/g "$DOCKER_CONFIG_DIR/psama/psama.env"
 
   cd "$PARENT_DIR"
 else

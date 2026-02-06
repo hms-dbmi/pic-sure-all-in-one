@@ -99,13 +99,13 @@ docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  &q
 docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  &quot;grant all privileges on picsure.* to &apos;picsure&apos;@&apos;%&apos; identified by &apos;$PICSURE_PASSWORD&apos;;flush privileges;&quot; mysql
 docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  &quot;grant all privileges on auth.* to &apos;auth&apos;@&apos;%&apos; identified by &apos;$AUTH_PASSWORD&apos;;flush privileges;&quot; mysql
 
-if [ &quot;$DROP_EXISTING_TABLES&quot; = &quot;TRUE&quot;]; then
-  docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  &amp;quot;drop database IF EXISTS auth;&amp;quot; mysql
-  docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  &amp;quot;drop database IF EXISTS picsure;&amp;quot; mysql
+if [ &quot;$DROP_EXISTING_TABLES&quot; = &quot;TRUE&quot; ]; then
+  docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  &quot;drop database IF EXISTS auth;&quot; mysql
+  docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  &quot;drop database IF EXISTS picsure;&quot; mysql
 fi
 
-docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  &quot;create database auth;&quot; mysql
-docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  &quot;create database picsure;&quot; mysql
+docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  &quot;create database IF NOT EXISTS auth;&quot; mysql
+docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  &quot;create database IF NOT EXISTS picsure;&quot; mysql
       </command>
       <configuredLocalRules/>
     </hudson.tasks.Shell>

@@ -19,7 +19,7 @@
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
   </properties>
-  <scm class="hudson.plugins.git.GitSCM" plugin="git@5.5.2">
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@5.9.0">
     <configVersion>2</configVersion>
     <userRemoteConfigs>
       <hudson.plugins.git.UserRemoteConfig>
@@ -46,6 +46,14 @@
     <hudson.tasks.Shell>
       <command>GIT_BRANCH_SHORT=`echo ${GIT_BRANCH} | cut -d &quot;/&quot; -f 2` 
 GIT_COMMIT_SHORT=`echo ${GIT_COMMIT} | cut -c1-7`
+ 
+docker run --rm \
+  -v &quot;$DOCKER_CONFIG_DIR/jenkins_home/workspace/PIC-SURE DIctionary-ETL Build/:/app&quot; \
+  -v maven_m2_cache:/root/.m2 \
+  -w /app \
+  --platform=linux/amd64 \
+  maven:3.9.11-amazoncorretto-24 \
+  sh -lc &quot;mvn clean install -B -T 1C -DskipTests&quot;
 
 docker build -t hms-dbmi/dictionary-etl:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} -t hms-dbmi/dictionary-etl:latest .</command>
       <configuredLocalRules/>

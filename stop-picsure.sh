@@ -43,6 +43,10 @@ fi
 if $INCLUDE_AGG_DICT; then
   docker stop dictionary-dump && docker rm dictionary-dump
 fi
+[[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/dictionary/meilisearch" ]] && INCLUDE_MEILISEARCH=true || INCLUDE_MEILISEARCH=false
+if $INCLUDE_MEILISEARCH; then
+  docker stop meilisearch && docker rm meilisearch
+fi
 if $INCLUDE_PASSTHRU; then
   docker stop passthru && docker rm passthru
 fi

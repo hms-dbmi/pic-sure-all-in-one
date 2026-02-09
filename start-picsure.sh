@@ -26,6 +26,8 @@ echo "INCLUDE_DICTIONARY=$INCLUDE_DICTIONARY"
 echo "INCLUDE_AGG_DICT=$INCLUDE_AGG_DICT"
 [[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/passthru" ]] && INCLUDE_PASSTHRU=true || INCLUDE_PASSTHRU=false
 echo "INCLUDE_PASSTHRU=$INCLUDE_PASSTHRU"
+[[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/dictionary/meilisearch" ]] && INCLUDE_MEILISEARCH=true || INCLUDE_MEILISEARCH=false
+echo "INCLUDE_MEILISEARCH=$INCLUDE_MEILISEARCH"
 
 # Docker Volumes
 export PICSURE_BANNER_VOLUME="-v $DOCKER_CONFIG_DIR/httpd/banner_config.json:/usr/local/apache2/htdocs/picsureui/settings/banner_config.json"
@@ -131,6 +133,16 @@ docker cp "${DOCKER_CONFIG_DIR}/wildfly/deployments/." "wildfly:/opt/jboss/wildf
 
 if $INCLUDE_UPLOADER; then
   docker compose --profile production -f $CURRENT_FS_DOCKER_CONFIG_DIR/uploader/docker-compose.yml up -d
+fi
+
+if $INCLUDE_MEILISEARCH; then
+  docker stop meilisearch 2>/dev/null && docker rm meilisearch 2>/dev/null || true
+  docker run --name meilisearch --restart always \
+    --network=dictionary \
+    --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/dictionary/meilisearch/meilisearch.env \
+    -v meili-data:/meili_data \
+    -d getmeili/meilisearch:v1.12 \
+    || exit 2
 fi
 
 if $INCLUDE_DICTIONARY; then

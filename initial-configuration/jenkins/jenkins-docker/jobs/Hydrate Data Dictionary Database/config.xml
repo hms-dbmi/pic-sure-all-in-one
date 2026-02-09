@@ -71,7 +71,7 @@ done
 echo &quot;DictionaryEtlApplication has started!&quot;
 
 echo &quot;Checking for columnMeta.csv file&quot;
-if [ -z $DOCKER_CONFIG_DIR/hpds/columnMeta.csv ];
+if [ ! -f &quot;$DOCKER_CONFIG_DIR/hpds/columnMeta.csv&quot; ];
 then
 echo &quot;columnMeta.csv not found, creating it&quot;
 docker run --name=hpds_generate_columnmeta_csv \

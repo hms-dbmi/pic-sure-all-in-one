@@ -90,6 +90,29 @@ The value must be in an array format, for example: [&quot;AN&quot;]</description
     <script>pipeline {
     agent any
 
+    parameters {
+        booleanParam(name: &apos;Include_Genomic_Data&apos;, defaultValue: true,
+                     description: &apos;If set to true genomic data must be present or HPDS will fail to start.&apos;)
+        booleanParam(name: &apos;VARIANT_EXPLORER&apos;, defaultValue: true,
+                     description: &apos;Enable the variant explorer. Only enable if HPDS has been loaded with Genomic data.&apos;)
+        booleanParam(name: &apos;ENABLE_GENE_QUERY&apos;, defaultValue: true,
+                     description: &apos;Enable the genomic filtering UI which guides users creating genomic queries.&apos;)
+        booleanParam(name: &apos;ENABLE_SNP_QUERY&apos;, defaultValue: true,
+                     description: &apos;Enable the genomic filtering UI which guides users creating genomic SNP queries.&apos;)
+        choice(name: &apos;VARIANT_EXPLORER_TYPE&apos;, choices: [&apos;aggregate&apos;, &apos;full&apos;],
+               description: &apos;Aggregate is recommended.&apos;)
+        string(name: &apos;EXPLORER_MAX_COUNT&apos;, defaultValue: &apos;10000&apos;,
+               description: &apos;Max amount of data points for the variant explorer.&apos;)
+        string(name: &apos;VARIANT_EXPLORER_EXCLUDE_COLUMNS&apos;, defaultValue: &apos;&apos;,
+               description: &apos;Advanced: An array of columns to exclude in the variant explorer. Example: [&quot;AN&quot;]&apos;)
+        string(name: &apos;heapsize_mb&apos;, defaultValue: &apos;16000&apos;,
+               description: &apos;Heapsize in megabytes for the VCF data loader.&apos;)
+        booleanParam(name: &apos;backup_current_data&apos;, defaultValue: false,
+                     description: &apos;Creates a backup of the previous genomic data before replacing it with the staged data.&apos;)
+        booleanParam(name: &apos;clean&apos;, defaultValue: false,
+                     description: &apos;Whether to delete existing genomic data first. If false, will incrementally add staged data.&apos;)
+    }
+
     environment {
         GIT_REPOSITORY = &apos;https://github.com/hms-dbmi/pic-sure-public-datasets.git&apos;
         GIT_BRANCH = &apos;1000Geno-Genomic-Data&apos;

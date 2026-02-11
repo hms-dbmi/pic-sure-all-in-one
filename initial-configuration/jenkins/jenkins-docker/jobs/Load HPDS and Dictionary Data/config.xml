@@ -29,6 +29,11 @@
             </a>
           </choices>
         </hudson.model.ChoiceParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>Include_Dataset_Facets</name>
+          <description>If set to true, the first concept path nodes will be automatically converted into datasets.</description>
+          <defaultValue>false</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>Dataset_Branch</name>
           <description>The branch for pic-sure-public-datasets</description>
@@ -249,7 +254,7 @@ pipeline {
             steps {
                 script {
                     def result = build job: &apos;Hydrate Data Dictionary Database&apos;, parameters: [
-                        [$class: &apos;StringParameterValue&apos;, name: &apos;Dataset_Name&apos;, value: params.Dataset_Name],
+                        [$class: &apos;BooleanParameterValue&apos;, name: &apos;Include_Default_Facets&apos;, value: params.Include_Dataset_Facets],
                         [$class: &apos;BooleanParameterValue&apos;, name: &apos;Clear_Dictionary_Database&apos;, value: params.Clear_Dictionary_Database]
                     ]
                 }

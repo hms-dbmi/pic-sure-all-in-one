@@ -15,7 +15,7 @@
         <hudson.model.StringParameterDefinition>
           <name>vcf_index_file</name>
           <description>The location of the VCF index file</description>
-                    <defaultValue>$DOCKER_CONFIG_DIR/vcf-load/vcfIndex.tsv</defaultValue>
+          <defaultValue>vcfIndex.tsv</defaultValue>
           <trim>true</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
@@ -32,6 +32,7 @@
   <disabled>false</disabled>
   <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
   <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <jdk>(System)</jdk>
   <triggers/>
   <concurrentBuild>true</concurrentBuild>
   <builders>
@@ -41,7 +42,7 @@ rm -rf /usr/local/docker-config/vcf-load/genomic-merged/$partition_name
 
 docker run --rm --name=hpds-new-vcf-loader-$partition_name \
 -v $DOCKER_CONFIG_DIR/vcf-load:/opt/local/hpds \
--v $DOCKER_CONFIG_DIR/$vcf_index_file:/opt/local/hpds/vcfIndex.tsv \
+-v $DOCKER_CONFIG_DIR/vcf-load/$vcf_index_file:/opt/local/hpds/vcfIndex.tsv \
 -v $DOCKER_CONFIG_DIR/vcf-load/genomic/$partition_name:/opt/local/hpds/all \
 -v $DOCKER_CONFIG_DIR/vcf-load/genomic-merged/$partition_name:/opt/local/hpds/merged \
 -e HEAPSIZE=$heapsize_mb -e LOADER_NAME=SplitChromosomeVcfLoader \
@@ -49,7 +50,7 @@ hms-dbmi/pic-sure-hpds-etl:LATEST
 
 docker run --rm --name=hpds-vcf-metadata-loader-$partition_name \
 -v $DOCKER_CONFIG_DIR/vcf-load:/opt/local/hpds \
--v $DOCKER_CONFIG_DIR/$vcf_index_file:/opt/local/hpds/vcfIndex.tsv \
+-v $DOCKER_CONFIG_DIR/vcf-load/$vcf_index_file:/opt/local/hpds/vcfIndex.tsv \
 -v $DOCKER_CONFIG_DIR/vcf-load/genomic/$partition_name:/opt/local/hpds/all \
 -e HEAPSIZE=$heapsize_mb -e LOADER_NAME=VariantMetadataLoader \
 hms-dbmi/pic-sure-hpds-etl:LATEST

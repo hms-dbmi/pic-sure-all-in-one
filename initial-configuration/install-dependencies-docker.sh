@@ -1,3 +1,6 @@
+#!/usr/bin/env bash
+set -e
+
 ################################################################################
 #                           1) HELPER FUNCTIONS                                #
 ################################################################################
@@ -208,9 +211,9 @@ fi
 
 #-------------------------------------------------------------------------------------------------#
 #                                           MySQL Start                                           #
-#                     Install Jenkins and configure jobs and DB connection                        #
+#                                 Install Mysql and configure DB                                  #
 #-------------------------------------------------------------------------------------------------#
-./mysql-docker/setup.sh
+./mysql-docker/setup.sh 2>&1 | tee "/var/log/picsure_mysql_init.log"
 
 #-------------------------------------------------------------------------------------------------#
 #                                         Jenkins Install                                         #
@@ -263,12 +266,6 @@ if [ -n "$2" ]; then
   ./convert-cert.sh $2 $3 $password
 fi
 
-echo Deleting pass.tmp
-rm pass.tmp
-
 echo "Installation script complete.  Staring Jenkins."
 cd ..
 ./start-jenkins.sh
-
-
-

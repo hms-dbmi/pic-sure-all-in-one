@@ -50,8 +50,8 @@
           <description>Aggregate is recommended.</description>
           <choices class="java.util.Arrays$ArrayList">
             <a class="string-array">
-              <string>aggregate</string>
-              <string>full</string>
+            <string>aggregate</string>
+            <string>full</string>
             </a>
           </choices>
         </hudson.model.ChoiceParameterDefinition>
@@ -115,7 +115,7 @@ The value must be in an array format, for example: [&quot;AN&quot;]</description
 
     environment {
         GIT_REPOSITORY = &apos;https://github.com/hms-dbmi/pic-sure-public-datasets.git&apos;
-        GIT_BRANCH = &apos;1000Geno-Genomic-Data&apos;
+        GIT_BRANCH = &apos;main&apos;
         SPARSE_CHECKOUT_PATH = &apos;open_access-1000Genomes&apos;
     }
 

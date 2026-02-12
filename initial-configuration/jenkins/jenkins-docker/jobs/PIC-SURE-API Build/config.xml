@@ -13,13 +13,13 @@
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>git_hash</name>
-          <defaultValue>*/master</defaultValue>
+          <defaultValue>ALS-10712</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
   </properties>
-  <scm class="hudson.plugins.git.GitSCM" plugin="git@5.5.2">
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@5.9.0">
     <configVersion>2</configVersion>
     <userRemoteConfigs>
       <hudson.plugins.git.UserRemoteConfig>
@@ -43,32 +43,34 @@
   <triggers/>
   <concurrentBuild>false</concurrentBuild>
   <builders>
-    <hudson.tasks.Maven>
-      <targets>clean install -DskipTests -Dwildfly.skip=true</targets>
-      <mavenName>Maven Home</mavenName>
-      <usePrivateRepository>false</usePrivateRepository>
-      <settings class="jenkins.mvn.DefaultSettingsProvider"/>
-      <globalSettings class="jenkins.mvn.DefaultGlobalSettingsProvider"/>
-      <injectBuildVariables>false</injectBuildVariables>
-    </hudson.tasks.Maven>
     <hudson.tasks.Shell>
-      <command>
-if [ -f &quot;/usr/local/docker-config/setProxy.sh&quot; ]; then
+      <command>if [ -f &quot;/usr/local/docker-config/setProxy.sh&quot; ]; then
    . /usr/local/docker-config/setProxy.sh
 fi
 
 GIT_BRANCH_SHORT=`echo ${GIT_BRANCH} | cut -d &quot;/&quot; -f 2` 
 GIT_COMMIT_SHORT=`echo ${GIT_COMMIT} | cut -c1-7`
 
-cd pic-sure-api-war
-docker build --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_proxy --build-arg no_proxy=&quot;$no_proxy&quot; \
-  --build-arg HTTP_PROXY=$http_proxy --build-arg HTTPS_PROXY=$http_proxy --build-arg NO_PROXY=&quot;$no_proxy&quot; \
+docker run --rm \
+  -v &quot;$DOCKER_CONFIG_DIR/jenkins_home/workspace/$JOB_NAME/:/app&quot; \
+  -v maven_m2_cache:/root/.m2 \
+  -w /app \
   --platform=linux/amd64 \
-  -t hms-dbmi/pic-sure-api:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} .
-docker tag hms-dbmi/pic-sure-api:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} hms-dbmi/pic-sure-api:LATEST
-mkdir -p /usr/local/docker-config/wildfly/deployments/
-cp target/pic-sure-api-war.war /usr/local/docker-config/wildfly/deployments/pic-sure-api-2.war
-</command>
+  maven:3.9-eclipse-temurin-11 \
+  sh -lc &quot;mvn clean install -DskipTests&quot;
+
+docker build \
+-f docker/all-in-one/all-in-one.Dockerfile \
+--build-arg http_proxy=$http_proxy \
+--build-arg https_proxy=$http_proxy \
+--build-arg no_proxy=&quot;$no_proxy&quot; \
+--build-arg HTTP_PROXY=$http_proxy \
+--build-arg HTTPS_PROXY=$http_proxy \
+--build-arg NO_PROXY=&quot;$no_proxy&quot; \
+--build-arg PIC_SURE_BUILD_VERSION=LATEST \
+-t hms-dbmi/pic-sure-wildfly:${pipeline_build_id} .
+
+docker tag hms-dbmi/pic-sure-wildfly:${pipeline_build_id} hms-dbmi/pic-sure-wildfly:LATEST</command>
       <configuredLocalRules/>
     </hudson.tasks.Shell>
   </builders>

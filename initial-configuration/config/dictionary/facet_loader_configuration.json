@@ -1,0 +1,14 @@
+[
+  {
+    "Facet_Category": {
+      "Name": "dataset_id",
+      "Metadata": [{ "key": "order", "value": "1" }]
+    }
+  },
+  {
+    "Facet_Category": {
+      "Name": "data_type",
+      "Metadata": [{ "key": "order", "value": "2" }]
+    }
+  }
+]

@@ -17,6 +17,11 @@
           <description>Set to true to enable Explore without Login. Set to false to disable it.</description>
           <defaultValue>true</defaultValue>
         </hudson.model.BooleanParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>CONFIRM_PUBLIC_DATA</name>
+          <description>I know what I am doing and accept that all of my data will be publicly available</description>
+          <defaultValue>false</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>FRONTEND_GIT_HASH</name>
           <description>Git branch or commit hash for the frontend build. The frontend must be rebuilt to pick up the new environment variables.</description>
@@ -30,11 +35,21 @@
     <script>pipeline {
     agent any
     stages {
+        stage(&apos;Confirm&apos;) {
+            when {
+                expression { env.ENABLE_OPEN_ACCESS.toBoolean() &amp;&amp; !env.CONFIRM_PUBLIC_DATA.toBoolean() }
+            }
+            steps {
+                error(&apos;You must check &quot;I know what I am doing and accept that all of my data will be publicly available&quot; to proceed.&apos;)
+            }
+        }
+
         stage(&apos;Configure Open Access&apos;) {
             steps {
                 script {
                     def result = build job: &apos;Enable Explore Without Login&apos;, parameters: [
-                        [$class: &apos;BooleanParameterValue&apos;, name: &apos;ENABLE_OPEN_ACCESS&apos;, value: env.ENABLE_OPEN_ACCESS.toBoolean()]
+                        [$class: &apos;BooleanParameterValue&apos;, name: &apos;ENABLE_OPEN_ACCESS&apos;, value: env.ENABLE_OPEN_ACCESS.toBoolean()],
+                        [$class: &apos;BooleanParameterValue&apos;, name: &apos;CONFIRM_PUBLIC_DATA&apos;, value: env.CONFIRM_PUBLIC_DATA.toBoolean()]
                     ]
                 }
             }

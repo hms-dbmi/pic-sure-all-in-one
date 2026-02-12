@@ -11,6 +11,11 @@
                     <description>Set to true to enable Explore without Login. Set to false to disable it.</description>
                     <defaultValue>true</defaultValue>
                 </hudson.model.BooleanParameterDefinition>
+                <hudson.model.BooleanParameterDefinition>
+                    <name>CONFIRM_PUBLIC_DATA</name>
+                    <description>I know what I am doing and accept that all of my data will be publicly available</description>
+                    <defaultValue>false</defaultValue>
+                </hudson.model.BooleanParameterDefinition>
             </parameterDefinitions>
         </hudson.model.ParametersDefinitionProperty>
     </properties>
@@ -25,6 +30,11 @@
         <hudson.tasks.Shell>
             <command>#!/bin/bash
 set -e
+
+if [ "$ENABLE_OPEN_ACCESS" = "true" ] &amp;&amp; [ "$CONFIRM_PUBLIC_DATA" != "true" ]; then
+    echo "ERROR: You must check 'I know what I am doing and accept that all of my data will be publicly available' to proceed."
+    exit 1
+fi
 
 CONFIG_DIR="/usr/local/docker-config"
 

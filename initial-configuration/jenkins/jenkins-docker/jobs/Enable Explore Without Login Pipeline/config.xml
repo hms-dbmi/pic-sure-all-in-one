@@ -1,0 +1,67 @@
+  <actions>
+    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobAction plugin="pipeline-model-definition@2.2218.v56d0cda_37c72"/>
+    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction plugin="pipeline-model-definition@2.2218.v56d0cda_37c72">
+      <jobProperties/>
+      <triggers/>
+      <parameters/>
+      <options/>
+    </org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction>
+  </actions>
+  <description>Enables or disables Explore without Login. Updates frontend, PSAMA, and Wildfly configuration, rebuilds the frontend, and restarts PIC-SURE.</description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.BooleanParameterDefinition>
+          <name>ENABLE_OPEN_ACCESS</name>
+          <description>Set to true to enable Explore without Login. Set to false to disable it.</description>
+          <defaultValue>true</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>FRONTEND_GIT_HASH</name>
+          <description>Git branch or commit hash for the frontend build. The frontend must be rebuilt to pick up the new environment variables.</description>
+          <defaultValue>main</defaultValue>
+          <trim>true</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@4009.v0089238351a_9">
+    <script>pipeline {
+    agent any
+    stages {
+        stage(&apos;Configure Open Access&apos;) {
+            steps {
+                script {
+                    def result = build job: &apos;Enable Explore Without Login&apos;, parameters: [
+                        [$class: &apos;BooleanParameterValue&apos;, name: &apos;ENABLE_OPEN_ACCESS&apos;, value: env.ENABLE_OPEN_ACCESS.toBoolean()]
+                    ]
+                }
+            }
+        }
+
+        stage(&apos;Rebuild Frontend&apos;) {
+            steps {
+                script {
+                    def result = build job: &apos;PIC-SURE Frontend Build&apos;, parameters: [
+                        [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: &apos;MANUAL_RUN&apos;],
+                        [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: env.FRONTEND_GIT_HASH]
+                    ]
+                }
+            }
+        }
+
+        stage(&apos;Deploy&apos;) {
+            steps {
+                script {
+                    def result = build job: &apos;Start PIC-SURE&apos;
+                }
+            }
+        }
+    }
+}</script>
+    <sandbox>true</sandbox>
+  </definition>
+  <triggers/>
+  <disabled>false</disabled>
+</flow-definition>

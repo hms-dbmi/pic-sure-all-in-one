@@ -310,6 +310,7 @@ pipeline {
                             sh &quot;echo &apos;VITE_RESOURCE_OPEN_HPDS=&apos; &gt;&gt; .env&quot;
                             sh &quot;echo &apos;VITE_RESOURCE_BASE_QUERY=&apos; &gt;&gt; .env&quot;
                             sh &quot;echo &apos;VITE_RESOURCE_VIZ=&apos; &gt;&gt; .env&quot;
+                            sh &quot;echo &apos;RESOURCE_LOG=35d190ad-6547-46c5-a7ad-ae35cfd2e34b&apos; &gt;&gt; .env&quot;
                             sh &quot;echo &apos;#Google Analytics settings (leave blank to disable):&apos; &gt;&gt; .env&quot;
                             sh &quot;echo &apos;VITE_GOOGLE_ANALYTICS_ID=&apos; &gt;&gt; .env&quot;
                             sh &quot;echo &apos;VITE_GOOGLE_TAG_MANAGER_ID=&apos; &gt;&gt; .env&quot;

@@ -26,6 +26,8 @@ echo "INCLUDE_DICTIONARY=$INCLUDE_DICTIONARY"
 echo "INCLUDE_AGG_DICT=$INCLUDE_AGG_DICT"
 [[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/passthru" ]] && INCLUDE_PASSTHRU=true || INCLUDE_PASSTHRU=false
 echo "INCLUDE_PASSTHRU=$INCLUDE_PASSTHRU"
+[[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/logging" ]] && INCLUDE_LOGGING=true || INCLUDE_LOGGING=false
+echo "INCLUDE_LOGGING=$INCLUDE_LOGGING"
 
 # Docker Volumes
 export PICSURE_BANNER_VOLUME="-v $DOCKER_CONFIG_DIR/httpd/banner_config.json:/usr/local/apache2/htdocs/picsureui/settings/banner_config.json"
@@ -165,4 +167,13 @@ if $INCLUDE_PASSTHRU; then
     --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/passthru/passthru.env \
     $PASSTHRU_DEBUG \
     -d hms-dbmi/pic-sure-passthru:LATEST
+fi
+
+if $INCLUDE_LOGGING; then
+  docker stop pic-sure-logging && docker rm pic-sure-logging
+  docker run --name=pic-sure-logging --restart always \
+    --network=picsure \
+    --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/logging/logging.env \
+    -v $DOCKER_CONFIG_DIR/logging/logs:/app/logs \
+    -d hms-dbmi/pic-sure-logging:LATEST
 fi

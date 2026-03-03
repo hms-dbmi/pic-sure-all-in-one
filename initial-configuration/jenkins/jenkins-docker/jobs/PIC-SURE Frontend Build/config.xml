@@ -18,7 +18,7 @@
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>THEME</name>
-          <defaultValue>bdc</defaultValue>
+          <defaultValue>picsure</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
       </parameterDefinitions>

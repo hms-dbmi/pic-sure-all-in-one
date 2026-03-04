@@ -43,7 +43,7 @@ plugins:
       version: 1.12
   - artifactId: git
     source:
-      version: 5.8.0
+      version: 5.8.1
   - artifactId: ws-cleanup
     source:
       version: 0.49

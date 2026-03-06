@@ -19,7 +19,7 @@
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
   </properties>
-  <scm class="hudson.plugins.git.GitSCM" plugin="git@5.5.2">
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@5.9.0">
     <configVersion>2</configVersion>
     <userRemoteConfigs>
       <hudson.plugins.git.UserRemoteConfig>
@@ -39,26 +39,26 @@
   <disabled>false</disabled>
   <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
   <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
-  <jdk>JDK-21</jdk>
+  <jdk>(System)</jdk>
   <triggers/>
   <concurrentBuild>false</concurrentBuild>
   <builders>
     <hudson.tasks.Shell>
-      <command>
-if [ -f &quot;/usr/local/docker-config/setProxy.sh&quot; ]; then
+      <command>if [ -f &quot;/usr/local/docker-config/setProxy.sh&quot; ]; then
    . /usr/local/docker-config/setProxy.sh
 fi
 
 GIT_BRANCH_SHORT=`echo ${GIT_BRANCH} | cut -d &quot;/&quot; -f 2` 
 GIT_COMMIT_SHORT=`echo ${GIT_COMMIT} | cut -c1-7`
 
-cp -r /root/.m2 .m2
+docker build -f docker/build.Dockerfile -t hms-dbmi/hpds-build .
 
-# HPDS
-docker build -f docker/pic-sure-hpds/build.Dockerfile --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_proxy --build-arg no_proxy="$no_proxy" \
---build-arg HTTP_PROXY=$http_proxy --build-arg HTTPS_PROXY=$http_proxy --build-arg NO_PROXY="$no_proxy" \
--t hms-dbmi/pic-sure-hpds-build:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} .
-docker tag hms-dbmi/pic-sure-hpds-build:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} hms-dbmi/pic-sure-hpds-build:LATEST
+docker run --rm \
+  -v &quot;$DOCKER_CONFIG_DIR/jenkins_home/workspace/$JOB_NAME/:/app&quot; \
+  -v maven_m2_cache:/root/.m2 \
+  -w /app \
+  hms-dbmi/hpds-build \
+  sh -lc &quot;mvn clean install -DskipTests&quot;
 
 docker build -f docker/pic-sure-hpds/Dockerfile --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_proxy --build-arg no_proxy=&quot;$no_proxy&quot; \
 --build-arg HTTP_PROXY=$http_proxy --build-arg HTTPS_PROXY=$http_proxy --build-arg NO_PROXY=&quot;$no_proxy&quot; \
@@ -69,8 +69,7 @@ docker tag hms-dbmi/pic-sure-hpds:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} hms-db
 docker build -f docker/pic-sure-hpds-etl/Dockerfile --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_proxy --build-arg no_proxy=&quot;$no_proxy&quot; \
 --build-arg HTTP_PROXY=$http_proxy --build-arg HTTPS_PROXY=$http_proxy --build-arg NO_PROXY=&quot;$no_proxy&quot; \
 -t hms-dbmi/pic-sure-hpds-etl:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} .
-docker tag hms-dbmi/pic-sure-hpds-etl:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} hms-dbmi/pic-sure-hpds-etl:LATEST
-</command>
+docker tag hms-dbmi/pic-sure-hpds-etl:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} hms-dbmi/pic-sure-hpds-etl:LATEST</command>
       <configuredLocalRules/>
     </hudson.tasks.Shell>
   </builders>

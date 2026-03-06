@@ -38,11 +38,17 @@ import groovy.json.JsonSlurper;
   
 def buildSpec = new JsonSlurper().parse(new File(&apos;/var/jenkins_home/workspace/Check For Updates/build-spec.json&apos;));
 
-Jenkins.instance.getItemByFullName(&quot;PIC-SURE Pipeline&quot;)
+def pipelineRun = Jenkins.instance.getItemByFullName(&quot;PIC-SURE Pipeline&quot;)
     .scheduleBuild2(0).get()
-    
-Jenkins.instance.getItemByFullName(&quot;PIC-SURE Database Migrations&quot;)
+if (pipelineRun.result != Result.SUCCESS) {
+    throw new Exception(&quot;PIC-SURE Pipeline failed with result: ${pipelineRun.result}&quot;)
+}
+
+def migrationsRun = Jenkins.instance.getItemByFullName(&quot;PIC-SURE Database Migrations&quot;)
     .scheduleBuild2(0).get()
+if (migrationsRun.result != Result.SUCCESS) {
+    throw new Exception(&quot;PIC-SURE Database Migrations failed with result: ${migrationsRun.result}&quot;)
+}
 </script>
           <sandbox>false</sandbox>
         </script>

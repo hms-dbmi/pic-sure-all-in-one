@@ -42,8 +42,8 @@ elif [[ -f &quot;./facet_loader_configuration.json&quot; ]]; then
 elif [[ -f &quot;/usr/local/docker-config/dictionary/facet_loader_configuration.json&quot; ]]; then
   PAYLOAD_FILE=&quot;/usr/local/docker-config/dictionary/facet_loader_configuration.json&quot;
 else
-  echo &quot;ERROR: facet_loader_configuration.json not provided and not found at default path: /usr/local/docker-config/dictionary/facet_loader_configuration.json&quot; &gt;&amp;2
-  exit 1
+  echo &quot;WARNING: facet_loader_configuration.json not provided and not found at default path: /usr/local/docker-config/dictionary/facet_loader_configuration.json&quot; &gt;&amp;2
+  exit 0
 fi
 
 echo &quot;Using facet loader payload: ${PAYLOAD_FILE}&quot;

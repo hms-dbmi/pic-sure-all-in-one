@@ -1,0 +1,240 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<flow-definition plugin="workflow-job@1571.vb_423c255d6d9">
+  <actions>
+    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobAction plugin="pipeline-model-definition@2.2277.v00573e73ddf1"/>
+    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction plugin="pipeline-model-definition@2.2277.v00573e73ddf1">
+      <jobProperties/>
+      <triggers/>
+      <parameters>
+        <string>EXPLORER_MAX_COUNT</string>
+        <string>backup_current_data</string>
+        <string>heapsize_mb</string>
+        <string>VARIANT_EXPLORER_TYPE</string>
+        <string>VARIANT_EXPLORER_EXCLUDE_COLUMNS</string>
+        <string>Include_Genomic_Data</string>
+        <string>VARIANT_EXPLORER</string>
+        <string>clean</string>
+        <string>ENABLE_GENE_QUERY</string>
+        <string>ENABLE_SNP_QUERY</string>
+      </parameters>
+      <options/>
+    </org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction>
+  </actions>
+  <description>Downloads and loads the public 1000Genomes genomic dataset into HPDS. This pipeline configures the application for genomic data, pulls VCF data from the pic-sure-public-datasets repository, processes it through the VCF loader, and stages it for use by HPDS.</description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.BooleanParameterDefinition>
+          <name>Include_Genomic_Data</name>
+          <description>If set to true genomic data must be present or HPDS will fail to start.</description>
+          <defaultValue>true</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>VARIANT_EXPLORER</name>
+          <description>Enable the variant explorer. Only enable if HPDS has been loaded with Genomic data.</description>
+          <defaultValue>true</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>ENABLE_GENE_QUERY</name>
+          <description>Enable the genomic filtering UI which guides users creating genomic queries.</description>
+          <defaultValue>true</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>ENABLE_SNP_QUERY</name>
+          <description>Enable the genomic filtering UI which guides users creating genomic SNP queries.</description>
+          <defaultValue>true</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.ChoiceParameterDefinition>
+          <name>VARIANT_EXPLORER_TYPE</name>
+          <description>Aggregate is recommended.</description>
+          <choices class="java.util.Arrays$ArrayList">
+            <a class="string-array">
+              <string>aggregate</string>
+              <string>full</string>
+            </a>
+          </choices>
+        </hudson.model.ChoiceParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>EXPLORER_MAX_COUNT</name>
+          <description>Max amount of data points for the variant explorer.</description>
+          <defaultValue>10000</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>VARIANT_EXPLORER_EXCLUDE_COLUMNS</name>
+          <description>Advanced: An array of columns to exclude in the variant explorer. Example: [&quot;AN&quot;]</description>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>heapsize_mb</name>
+          <description>Heapsize in megabytes for the VCF data loader.</description>
+          <defaultValue>16000</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>backup_current_data</name>
+          <description>Creates a backup of the previous genomic data before replacing it with the staged data.</description>
+          <defaultValue>false</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>clean</name>
+          <description>Whether to delete existing genomic data first. If false, will incrementally add staged data.</description>
+          <defaultValue>false</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@4255.vd9c37f80fd8a_">
+    <script>import groovy.json.JsonSlurper;
+
+def retrieveBuildSpecId;
+def pipelineBuildId;
+def build_hashes = [
+    DICTIONARY: false,
+    UPLOADER: false,
+    AGGREGATE: false
+];
+pipeline {
+    agent any
+
+    parameters {
+        booleanParam(name: &apos;Include_Genomic_Data&apos;, defaultValue: true,
+                     description: &apos;If set to true genomic data must be present or HPDS will fail to start.&apos;)
+        booleanParam(name: &apos;VARIANT_EXPLORER&apos;, defaultValue: true,
+                     description: &apos;Enable the variant explorer. Only enable if HPDS has been loaded with Genomic data.&apos;)
+        booleanParam(name: &apos;ENABLE_GENE_QUERY&apos;, defaultValue: true,
+                     description: &apos;Enable the genomic filtering UI which guides users creating genomic queries.&apos;)
+        booleanParam(name: &apos;ENABLE_SNP_QUERY&apos;, defaultValue: true,
+                     description: &apos;Enable the genomic filtering UI which guides users creating genomic SNP queries.&apos;)
+        choice(name: &apos;VARIANT_EXPLORER_TYPE&apos;, choices: [&apos;aggregate&apos;, &apos;full&apos;],
+               description: &apos;Aggregate is recommended.&apos;)
+        string(name: &apos;EXPLORER_MAX_COUNT&apos;, defaultValue: &apos;10000&apos;,
+               description: &apos;Max amount of data points for the variant explorer.&apos;)
+        string(name: &apos;VARIANT_EXPLORER_EXCLUDE_COLUMNS&apos;, defaultValue: &apos;&apos;,
+               description: &apos;Advanced: An array of columns to exclude in the variant explorer. Example: [&quot;AN&quot;]&apos;)
+        string(name: &apos;heapsize_mb&apos;, defaultValue: &apos;16000&apos;,
+               description: &apos;Heapsize in megabytes for the VCF data loader.&apos;)
+        booleanParam(name: &apos;backup_current_data&apos;, defaultValue: false,
+                     description: &apos;Creates a backup of the previous genomic data before replacing it with the staged data.&apos;)
+        booleanParam(name: &apos;clean&apos;, defaultValue: false,
+                     description: &apos;Whether to delete existing genomic data first. If false, will incrementally add staged data.&apos;)
+    }
+
+    environment {
+        GIT_REPOSITORY = &apos;https://github.com/hms-dbmi/pic-sure-public-datasets.git&apos;
+        GIT_BRANCH = &apos;main&apos;
+        SPARSE_CHECKOUT_PATH = &apos;open_access-1000Genomes&apos;
+    }
+
+    stages {
+        stage(&apos;Retrieve Build Spec&apos;) {
+            steps {
+                script {
+                    def result = build job: &apos;Retrieve Build Spec&apos;
+                    retrieveBuildSpecId = result.number
+                }
+                script {
+                    copyArtifacts filter: &apos;*&apos;, projectName: &apos;Retrieve Build Spec&apos;, selector: specific(&quot;&quot;+retrieveBuildSpecId)
+                    sh &apos;cat build-spec.json&apos;
+                    sh &apos;cat pipeline_git_commit.txt&apos;
+                    sh &apos;pwd&apos;
+                    def buildSpec = new JsonSlurper().parse(new File(&apos;/var/jenkins_home/workspace/PIC-SURE Pipeline/build-spec.json&apos;))
+                    pipelineBuildId = new File(&apos;/var/jenkins_home/workspace/PIC-SURE Pipeline/pipeline_git_commit.txt&apos;).text.trim()
+                    for(def build : buildSpec.application){
+                        build_hashes[build.project_job_git_key] = build.git_hash
+                    }
+                }
+            }
+        }
+
+        stage(&apos;Genomic Configuration&apos;) {
+            steps {
+                script {
+                    def result = build job: &apos;Genomic Configuration&apos;, parameters: [
+                        [$class: &apos;BooleanParameterValue&apos;, name: &apos;Include_Genomic_Data&apos;, value: params.Include_Genomic_Data],
+                        [$class: &apos;BooleanParameterValue&apos;, name: &apos;VARIANT_EXPLORER&apos;, value: params.VARIANT_EXPLORER],
+                        [$class: &apos;BooleanParameterValue&apos;, name: &apos;ENABLE_GENE_QUERY&apos;, value: params.ENABLE_GENE_QUERY],
+                        [$class: &apos;BooleanParameterValue&apos;, name: &apos;ENABLE_SNP_QUERY&apos;, value: params.ENABLE_SNP_QUERY],
+                        [$class: &apos;StringParameterValue&apos;, name: &apos;VARIANT_EXPLORER_TYPE&apos;, value: params.VARIANT_EXPLORER_TYPE],
+                        [$class: &apos;StringParameterValue&apos;, name: &apos;EXPLORER_MAX_COUNT&apos;, value: params.EXPLORER_MAX_COUNT],
+                        [$class: &apos;StringParameterValue&apos;, name: &apos;VARIANT_EXPLORER_EXCLUDE_COLUMNS&apos;, value: params.VARIANT_EXPLORER_EXCLUDE_COLUMNS]
+                    ]
+                }
+            }
+        }
+
+        stage(&apos;Sparse Checkout 1000Genomes Data&apos;) {
+            steps {
+                script {
+                    checkout([
+                        $class: &apos;GitSCM&apos;,
+                        branches: [[name: env.GIT_BRANCH]],
+                        userRemoteConfigs: [[url: env.GIT_REPOSITORY]],
+                        extensions: [
+                            [$class: &apos;SparseCheckoutPaths&apos;, sparseCheckoutPaths: [[path: env.SPARSE_CHECKOUT_PATH]]]
+                        ]
+                    ])
+                }
+            }
+        }
+
+        stage(&apos;Stage VCF Data&apos;) {
+            steps {
+                script {
+                    sh &quot;&quot;&quot;
+                        mkdir -p /usr/local/docker-config/vcf-load/
+                        cp -r ${env.SPARSE_CHECKOUT_PATH}/* /usr/local/docker-config/vcf-load/
+                        echo &quot;1000Genomes VCF data staged to /usr/local/docker-config/vcf-load/&quot;
+                        ls -la /usr/local/docker-config/vcf-load/
+                    &quot;&quot;&quot;
+                }
+            }
+        }
+
+        stage(&apos;Load VCF Data&apos;) {
+            steps {
+                script {
+                    def result = build job: &apos;Load VCF Data&apos;, parameters: [
+                        [$class: &apos;StringParameterValue&apos;, name: &apos;partition_name&apos;, value: &apos;1000Genomes&apos;],
+                        [$class: &apos;StringParameterValue&apos;, name: &apos;heapsize_mb&apos;, value: params.heapsize_mb]
+                    ]
+                }
+            }
+        }
+
+        stage(&apos;Load Staged Genomic Data&apos;) {
+            steps {
+                script {
+                    def result = build job: &apos;Load Staged Genomic Data&apos;, parameters: [
+                        [$class: &apos;BooleanParameterValue&apos;, name: &apos;backup_current_data&apos;, value: params.backup_current_data],
+                        [$class: &apos;BooleanParameterValue&apos;, name: &apos;clean&apos;, value: params.clean]
+                    ]
+                }
+            }
+        }
+        stage(&apos;Frontend Build&apos;){
+            steps {
+                script {
+                    def result = build job: &apos;PIC-SURE Frontend Build&apos;, parameters: [
+                        [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],
+                        [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSF&apos;]]
+                    ]
+                }
+            }
+        }
+
+        stage(&apos;Restart Services&apos;) {
+            steps {
+                script {
+                    def result = build job: &apos;Start PIC-SURE&apos;, parameters: [[$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId]]
+                }
+            }
+        }
+    }
+}</script>
+    <sandbox>true</sandbox>
+  </definition>
+  <triggers/>
+  <disabled>false</disabled>
+</flow-definition>

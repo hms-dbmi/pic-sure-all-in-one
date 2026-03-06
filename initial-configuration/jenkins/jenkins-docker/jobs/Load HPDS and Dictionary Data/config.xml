@@ -1,8 +1,8 @@
 <?xml version='1.1' encoding='UTF-8'?>
-<flow-definition plugin="workflow-job@1400.v7fd111b_ec82f">
+<flow-definition plugin="workflow-job@1571.vb_423c255d6d9">
   <actions>
-    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobAction plugin="pipeline-model-definition@2.2218.v56d0cda_37c72"/>
-    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction plugin="pipeline-model-definition@2.2218.v56d0cda_37c72">
+    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobAction plugin="pipeline-model-definition@2.2277.v00573e73ddf1"/>
+    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction plugin="pipeline-model-definition@2.2277.v00573e73ddf1">
       <jobProperties/>
       <triggers/>
       <parameters>
@@ -29,6 +29,11 @@
             </a>
           </choices>
         </hudson.model.ChoiceParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>Include_Dataset_Facets</name>
+          <description>If set to true, the first concept path nodes will be automatically converted into datasets.</description>
+          <defaultValue>false</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>Dataset_Branch</name>
           <description>The branch for pic-sure-public-datasets</description>
@@ -63,10 +68,14 @@ If &quot;RDBMS&quot; is selected &quot;Load HPDS Data From RDBMS&quot; will be u
           <description>Backup of the current database will be available in the &quot;$DOCKER_CONFIG_DIR/dictionary/csv/backup/&quot;</description>
           <defaultValue>false</defaultValue>
         </hudson.model.BooleanParameterDefinition>
+        <hudson.model.FileParameterDefinition>
+          <name>facet_loader_configuration.json</name>
+          <description>Optionally include a facet configuration file. To see how to create a facet configuration file please see the documentation outlined at https://pic-sure.gitbook.io/pic-sure-developer-guide/configuring-pic-sure/all-in-one-facet-configuration.</description>
+        </hudson.model.FileParameterDefinition>
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
   </properties>
-  <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@4000.v5198556e9cea_">
+  <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@4255.vd9c37f80fd8a_">
     <script>import groovy.json.JsonSlurper;
 
 def retrieveBuildSpecId;
@@ -157,7 +166,7 @@ pipeline {
             }
         }
 
-        stage(&apos;Process Files&apos;) {
+        stage(&apos;Process Data Set Files&apos;) {
             steps {
                 script {
                     // Remove existing allConcepts.csv in target directory
@@ -245,12 +254,31 @@ pipeline {
             steps {
                 script {
                     def result = build job: &apos;Hydrate Data Dictionary Database&apos;, parameters: [
-                        [$class: &apos;StringParameterValue&apos;, name: &apos;Dataset_Name&apos;, value: params.Dataset_Name],
+                        [$class: &apos;BooleanParameterValue&apos;, name: &apos;Include_Default_Facets&apos;, value: params.Include_Dataset_Facets],
                         [$class: &apos;BooleanParameterValue&apos;, name: &apos;Clear_Dictionary_Database&apos;, value: params.Clear_Dictionary_Database]
                     ]
                 }
             }
         }
+        
+        stage(&apos;Load Facets with Configuration&apos;) {
+            steps {
+                script {
+                    sh &apos;&apos;&apos;
+                    if [ -f &quot;facet_loader_configuration.json&quot; ]; then
+                      echo &quot;Found facet_loader_configuration.json. Moving to /usr/local/docker-config/dictionary/facet_loader_configuration.json&quot;
+                      mv facet_loader_configuration.json /usr/local/docker-config/dictionary/facet_loader_configuration.json
+                    else
+                      echo &quot;facet_loader_configuration.json not found in workspace; skipping move.&quot;
+                    fi
+                    &apos;&apos;&apos;
+                    def result = build job: &apos;Load Facet Configuration&apos;
+                }
+            }
+        }
+
+        
+        
         
         stage(&apos;Dictionary Weights&apos;) {
             steps {

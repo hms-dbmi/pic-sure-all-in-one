@@ -1,0 +1,142 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+    <actions/>
+    <description>Enables "Explore without Login" functionality. This configures the frontend, PSAMA, and Wildfly to allow unauthenticated users to use the explorer page with a limited feature set.</description>
+    <keepDependencies>false</keepDependencies>
+    <properties>
+        <hudson.model.ParametersDefinitionProperty>
+            <parameterDefinitions>
+                <hudson.model.BooleanParameterDefinition>
+                    <name>ENABLE_OPEN_ACCESS</name>
+                    <description>Set to true to enable Explore without Login. Set to false to disable it.</description>
+                    <defaultValue>true</defaultValue>
+                </hudson.model.BooleanParameterDefinition>
+                <hudson.model.BooleanParameterDefinition>
+                    <name>CONFIRM_PUBLIC_DATA</name>
+                    <description>I know what I am doing and accept that all of my data will be publicly available</description>
+                    <defaultValue>false</defaultValue>
+                </hudson.model.BooleanParameterDefinition>
+            </parameterDefinitions>
+        </hudson.model.ParametersDefinitionProperty>
+    </properties>
+    <scm class="hudson.scm.NullSCM"/>
+    <canRoam>true</canRoam>
+    <disabled>false</disabled>
+    <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+    <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+    <triggers/>
+    <concurrentBuild>false</concurrentBuild>
+    <builders>
+        <hudson.tasks.Shell>
+            <command>#!/bin/bash
+set -e
+
+if [ "$ENABLE_OPEN_ACCESS" = "true" ] &amp;&amp; [ "$CONFIRM_PUBLIC_DATA" != "true" ]; then
+    echo "ERROR: You must check 'I know what I am doing and accept that all of my data will be publicly available' to proceed."
+    exit 1
+fi
+
+CONFIG_DIR="/usr/local/docker-config"
+
+echo "============================================"
+echo "Enable Explore Without Login: $ENABLE_OPEN_ACCESS"
+echo "============================================"
+
+##
+## 1. Frontend Configuration (httpd.env)
+##
+echo ""
+echo "--- Configuring Frontend (httpd.env) ---"
+
+HTTPD_ENV="$CONFIG_DIR/httpd/httpd.env"
+
+if [ ! -f "$HTTPD_ENV" ]; then
+    echo "ERROR: $HTTPD_ENV not found."
+    exit 1
+fi
+
+# Update or add VITE_OPEN
+if grep -q "^VITE_OPEN=" "$HTTPD_ENV"; then
+    sed -i "s/^VITE_OPEN=.*/VITE_OPEN=$ENABLE_OPEN_ACCESS/" "$HTTPD_ENV"
+else
+    echo "VITE_OPEN=$ENABLE_OPEN_ACCESS" &gt;&gt; "$HTTPD_ENV"
+fi
+
+# Update or add VITE_OPEN_EXPLORER
+if grep -q "^VITE_OPEN_EXPLORER=" "$HTTPD_ENV"; then
+    sed -i "s/^VITE_OPEN_EXPLORER=.*/VITE_OPEN_EXPLORER=$ENABLE_OPEN_ACCESS/" "$HTTPD_ENV"
+else
+    echo "VITE_OPEN_EXPLORER=$ENABLE_OPEN_ACCESS" &gt;&gt; "$HTTPD_ENV"
+fi
+
+# Set VITE_RESOURCE_OPEN_HPDS to match VITE_RESOURCE_HPDS when enabling
+if [ "$ENABLE_OPEN_ACCESS" = "true" ]; then
+    AUTH_HPDS=$(grep "^VITE_RESOURCE_HPDS=" "$HTTPD_ENV" | cut -d'=' -f2)
+    if [ -n "$AUTH_HPDS" ]; then
+        if grep -q "^VITE_RESOURCE_OPEN_HPDS=" "$HTTPD_ENV"; then
+            sed -i "s/^VITE_RESOURCE_OPEN_HPDS=.*/VITE_RESOURCE_OPEN_HPDS=$AUTH_HPDS/" "$HTTPD_ENV"
+        else
+            echo "VITE_RESOURCE_OPEN_HPDS=$AUTH_HPDS" &gt;&gt; "$HTTPD_ENV"
+        fi
+        echo "Set VITE_RESOURCE_OPEN_HPDS=$AUTH_HPDS"
+
+        # Update visualization resource if it exists
+        VIZ_RESOURCE=$(grep "^VITE_RESOURCE_VIZ=" "$HTTPD_ENV" | cut -d'=' -f2)
+        if [ -n "$VIZ_RESOURCE" ]; then
+            echo "Visualization resource found: $VIZ_RESOURCE (HPDS UUIDs should match)"
+        fi
+    else
+        echo "WARNING: VITE_RESOURCE_HPDS not found in $HTTPD_ENV. VITE_RESOURCE_OPEN_HPDS must be set manually."
+    fi
+else
+    # Clear the open HPDS resource when disabling
+    if grep -q "^VITE_RESOURCE_OPEN_HPDS=" "$HTTPD_ENV"; then
+        sed -i "s/^VITE_RESOURCE_OPEN_HPDS=.*/VITE_RESOURCE_OPEN_HPDS=/" "$HTTPD_ENV"
+    fi
+fi
+
+echo "Frontend configuration updated."
+
+##
+## 2. PSAMA Configuration (psama.env)
+##
+echo ""
+echo "--- Configuring PSAMA (psama.env) ---"
+
+PSAMA_ENV="$CONFIG_DIR/psama/psama.env"
+
+if [ ! -f "$PSAMA_ENV" ]; then
+    echo "ERROR: $PSAMA_ENV not found."
+    exit 1
+fi
+
+sed -i "s/^OPEN_IDP_PROVIDER_IS_ENABLED=.*/OPEN_IDP_PROVIDER_IS_ENABLED=$ENABLE_OPEN_ACCESS/" "$PSAMA_ENV"
+echo "Set OPEN_IDP_PROVIDER_IS_ENABLED=$ENABLE_OPEN_ACCESS"
+
+##
+## 3. Wildfly Configuration (standalone.xml)
+##
+echo ""
+echo "--- Configuring Wildfly (standalone.xml) ---"
+
+STANDALONE_XML="$CONFIG_DIR/wildfly/standalone.xml"
+
+if [ ! -f "$STANDALONE_XML" ]; then
+    echo "ERROR: $STANDALONE_XML not found."
+    exit 1
+fi
+
+sed -i "s|&lt;simple name=\"java:global/openAccessEnabled\" value=\"[^\"]*\"|&lt;simple name=\"java:global/openAccessEnabled\" value=\"$ENABLE_OPEN_ACCESS\"|" "$STANDALONE_XML"
+echo "Set openAccessEnabled=$ENABLE_OPEN_ACCESS"
+
+echo ""
+echo "============================================"
+echo "Configuration complete."
+echo "Run 'Start PIC-SURE' to apply changes."
+echo "============================================"
+</command>
+        </hudson.tasks.Shell>
+    </builders>
+    <publishers/>
+    <buildWrappers/>
+</project>

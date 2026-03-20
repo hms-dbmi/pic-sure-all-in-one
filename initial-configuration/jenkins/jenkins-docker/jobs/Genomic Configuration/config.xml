@@ -1,0 +1,105 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<flow-definition plugin="workflow-job@1400.v7fd111b_ec82f">
+  <actions>
+    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobAction plugin="pipeline-model-definition@2.2218.v56d0cda_37c72"/>
+    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction plugin="pipeline-model-definition@2.2218.v56d0cda_37c72">
+      <jobProperties/>
+      <triggers/>
+      <parameters/>
+      <options/>
+    </org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction>
+  </actions>
+  <description>Configure genomic data settings for HPDS and the PIC-SURE frontend.</description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.BooleanParameterDefinition>
+          <name>Include_Genomic_Data</name>
+          <description>If set to true genomic data must be present or HPDS will fail to start.</description>
+          <defaultValue>false</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>VARIANT_EXPLORER</name>
+          <description>Enable the variant explorer. Only enable if HPDS has been loaded with Genomic data.</description>
+          <defaultValue>false</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>ENABLE_GENE_QUERY</name>
+          <description>Enable the genomic filtering UI which guides users creating genomic queries. Enable if HPDS has been loaded with Genomic data.</description>
+          <defaultValue>true</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>ENABLE_SNP_QUERY</name>
+          <description>Enable the genomic filtering UI which guides users creating genomic SNP queries. Enable if HPDS has been loaded with Genomic data.</description>
+          <defaultValue>true</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.ChoiceParameterDefinition>
+          <name>VARIANT_EXPLORER_TYPE</name>
+          <description>Aggregate is recommended.</description>
+          <choices class="java.util.Arrays$ArrayList">
+            <a class="string-array">
+              <string>aggregate</string>
+              <string>full</string>
+            </a>
+          </choices>
+        </hudson.model.ChoiceParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>EXPLORER_MAX_COUNT</name>
+          <description>Max amount of data point for the variant explorer.</description>
+          <defaultValue>10000</defaultValue>
+          <trim>true</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>VARIANT_EXPLORER_EXCLUDE_COLUMNS</name>
+          <description>Advanced: An array of columns to exclude in the variant explorer.
+The value must be in an array format, for example: [&quot;AN&quot;]  </description>
+          <trim>true</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@4009.v0089238351a_9">
+    <script>pipeline {
+    agent any
+    stages {
+        stage(&apos;Configure Genomic Frontend Settings&apos;) {
+            steps {
+                script {
+                    def envFile = &apos;/usr/local/docker-config/httpd/httpd.env&apos;
+                    def genomicVars = [
+                        &quot;VITE_ENABLE_GENE_QUERY=${env.ENABLE_GENE_QUERY}&quot;,
+                        &quot;VITE_ENABLE_SNP_QUERY=${env.ENABLE_SNP_QUERY}&quot;,
+                        &quot;VITE_VARIANT_EXPLORER=${env.VARIANT_EXPLORER}&quot;,
+                        &quot;VITE_VARIANT_EXPLORER_TYPE=${env.VARIANT_EXPLORER_TYPE}&quot;,
+                        &quot;VITE_EXPLORER_MAX_COUNT=${env.EXPLORER_MAX_COUNT}&quot;,
+                        &quot;VITE_VARIANT_EXPLORER_EXCLUDE_COLUMNS=${env.VARIANT_EXPLORER_EXCLUDE_COLUMNS}&quot;
+                    ]
+
+                    for (entry in genomicVars) {
+                        def key = entry.split(&apos;=&apos;)[0]
+                        sh &quot;sed -i &apos;/^${key}=/d&apos; ${envFile}&quot;
+                        sh &quot;echo &apos;${entry}&apos; &gt;&gt; ${envFile}&quot;
+                    }
+                }
+            }
+        }
+
+        stage(&apos;Configure HPDS Genomic Data&apos;) {
+            steps {
+                script {
+                    if (env.Include_Genomic_Data == &quot;true&quot;) {
+                        sh &quot;sed -i &apos;s/^SPRING_PROFILES_ACTIVE=.*/SPRING_PROFILES_ACTIVE=bch-dev/&apos; /usr/local/docker-config/hpds/hpds.env&quot;
+                    } else {
+                        sh &quot;sed -i &apos;s/^SPRING_PROFILES_ACTIVE=.*/SPRING_PROFILES_ACTIVE=/&apos; /usr/local/docker-config/hpds/hpds.env&quot;
+                    }
+                }
+            }
+        }
+    }
+}</script>
+    <sandbox>true</sandbox>
+  </definition>
+  <triggers/>
+  <disabled>false</disabled>
+</flow-definition>

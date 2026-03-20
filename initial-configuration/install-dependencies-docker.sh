@@ -123,7 +123,7 @@ if [ -n "$(command -v yum)" ] && [ -z "$(command -v docker)" ]; then
   yum -y update
   # This repo can be removed after we move away from centos 7 I think
   yum-config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
-  yum install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker compose-plugin
+  yum install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
   sudo systemctl start docker
   mkdir -p ../docker-config
   cp -r config/* $DOCKER_CONFIG_DIR/

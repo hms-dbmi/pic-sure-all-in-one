@@ -1,8 +1,8 @@
 <?xml version='1.1' encoding='UTF-8'?>
-<flow-definition plugin="workflow-job@1400.v7fd111b_ec82f">
+<flow-definition plugin="workflow-job@1571.vb_423c255d6d9">
   <actions>
-    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobAction plugin="pipeline-model-definition@2.2218.v56d0cda_37c72"/>
-    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction plugin="pipeline-model-definition@2.2218.v56d0cda_37c72">
+    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobAction plugin="pipeline-model-definition@2.2277.v00573e73ddf1"/>
+    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction plugin="pipeline-model-definition@2.2277.v00573e73ddf1">
       <jobProperties/>
       <triggers/>
       <parameters/>
@@ -84,16 +84,6 @@
           <defaultValue>true</defaultValue>
         </hudson.model.BooleanParameterDefinition>
         <hudson.model.BooleanParameterDefinition>
-          <name>ENABLE_GENE_QUERY</name>
-          <description>Enable the genomic filtering UI which guides users creating genomic queries. Enable if HPDS has been loaded with Genomic data. </description>
-          <defaultValue>true</defaultValue>
-        </hudson.model.BooleanParameterDefinition>
-        <hudson.model.BooleanParameterDefinition>
-          <name>ENABLE_SNP_QUERY</name>
-          <description>Enable the genomic filtering UI which guides users creating genomic SNP queries. Enable if HPDS has been loaded with Genomic data. </description>
-          <defaultValue>true</defaultValue>
-        </hudson.model.BooleanParameterDefinition>
-        <hudson.model.BooleanParameterDefinition>
           <name>VITE_ALLOW_EXPORT_ENABLED</name>
           <description>Enables the export button on the search results page.</description>
           <defaultValue>true</defaultValue>
@@ -134,33 +124,6 @@
           <defaultValue>false</defaultValue>
         </hudson.model.BooleanParameterDefinition>
         <hudson.model.BooleanParameterDefinition>
-          <name>VARIANT_EXPLORER</name>
-          <description>Enable the variant explorer. Only enable if HPDS has been loaded with Genomic data. </description>
-          <defaultValue>false</defaultValue>
-        </hudson.model.BooleanParameterDefinition>
-        <hudson.model.ChoiceParameterDefinition>
-          <name>VARIANT_EXPLORER_TYPE</name>
-          <description>Aggregate is recommended.</description>
-          <choices class="java.util.Arrays$ArrayList">
-            <a class="string-array">
-              <string>aggregate</string>
-              <string>full</string>
-            </a>
-          </choices>
-        </hudson.model.ChoiceParameterDefinition>
-        <hudson.model.StringParameterDefinition>
-          <name>EXPLORER_MAX_COUNT</name>
-          <description>Max amount of data point for the variant explorer.</description>
-          <defaultValue>10000</defaultValue>
-          <trim>true</trim>
-        </hudson.model.StringParameterDefinition>
-        <hudson.model.StringParameterDefinition>
-          <name>VARIANT_EXPLORER_EXCLUDE_COLUMNS</name>
-          <description>Advanced: An array of columns to exclude in the variant explorer. 
-The value must be in an array format, for example: [&quot;AN&quot;]  </description>
-          <trim>true</trim>
-        </hudson.model.StringParameterDefinition>
-        <hudson.model.BooleanParameterDefinition>
           <name>TOUR</name>
           <description>Enable the tour feature which guides the user through the application.</description>
           <defaultValue>true</defaultValue>
@@ -190,19 +153,19 @@ The value must be in an array format, for example: [&quot;AN&quot;]  </descripti
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.BooleanParameterDefinition>
-          <name>Include_Genomic_Data</name>
-          <description>If set to true genomic data must be present or HPDS will fail to start.</description>
+          <name>Allow_HPDS_Data_Export</name>
+          <description>If set to true user will be able to download HPDS Data.</description>
           <defaultValue>false</defaultValue>
         </hudson.model.BooleanParameterDefinition>
         <hudson.model.BooleanParameterDefinition>
-          <name>Allow_HPDS_Data_Export</name>
-          <description>If set to true user will be able to download HPDS Data.</description>
+          <name>Include_Dataset_Facets</name>
+          <description>If set to true, the first concept path nodes will be automatically converted into datasets.</description>
           <defaultValue>false</defaultValue>
         </hudson.model.BooleanParameterDefinition>
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
   </properties>
-  <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@4009.v0089238351a_9">
+  <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@4255.vd9c37f80fd8a_">
     <script>import groovy.json.JsonSlurper;
 
 def retrieveBuildSpecId;
@@ -284,16 +247,10 @@ pipeline {
                             sh &quot;echo &apos;VITE_ALLOW_EXPORT=$env.ALLOW_EXPORT&apos; &gt;&gt; .env&quot;
                             sh &quot;echo &apos;VITE_ALLOW_EXPORT_ENABLED=$env.ALLOW_EXPORT_ENABLED&apos; &gt;&gt; .env&quot;
                             sh &quot;echo &apos;VITE_DOWNLOAD_AS_CSV=$env.DOWNLOAD_AS_CSV&apos; &gt;&gt; .env&quot;
-                            sh &quot;echo &apos;VITE_ENABLE_GENE_QUERY=$env.ENABLE_GENE_QUERY&apos; &gt;&gt; .env&quot;
-                            sh &quot;echo &apos;VITE_ENABLE_SNP_QUERY=$env.ENABLE_SNP_QUERY&apos; &gt;&gt; .env&quot;
                             sh &quot;echo &apos;VITE_SHOW_VARIABLE_EXPORT=$env.SHOW_VARIABLE_EXPORT&apos; &gt;&gt; .env&quot;
                             sh &quot;echo &apos;VITE_SHOW_VARIABLE_HIERARCHY=$env.SHOW_VARIABLE_HIERARCHY&apos; &gt;&gt; .env&quot;
                             sh &quot;echo &apos;VITE_DOWNLOAD_AS_PFB=$env.DOWNLOAD_AS_PFB&apos; &gt;&gt; .env&quot;
                             sh &quot;echo &apos;VITE_DATA_REQUESTS=$env.DATA_REQUESTS&apos; &gt;&gt; .env&quot;
-                            sh &quot;echo &apos;VITE_VARIANT_EXPLORER=$env.VARIANT_EXPLORER&apos; &gt;&gt; .env&quot;
-                            sh &quot;echo &apos;VITE_VARIANT_EXPLORER_TYPE=$env.VARIANT_EXPLORER_TYPE&apos; &gt;&gt; .env&quot;
-                            sh &quot;echo &apos;VITE_EXPLORER_MAX_COUNT=$env.EXPLORER_MAX_COUNT&apos; &gt;&gt; .env&quot;
-                            sh &quot;echo &apos;VITE_VARIANT_EXPLORER_EXCLUDE_COLUMNS=$env.VARIANT_EXPLORER_EXCLUDE_COLUMNS&apos; &gt;&gt; .env&quot;
                             sh &quot;echo &apos;VITE_TOUR=$env.TOUR&apos; &gt;&gt; .env&quot;
                             sh &quot;echo &apos;VITE_TOUR_SEARCH_TERM=$env.TOUR_SEARCH_TERM&apos; &gt;&gt; .env&quot;
                             sh &quot;echo &apos;VITE_REQUIRE_CONSENTS=false&apos; &gt;&gt; .env&quot;
@@ -388,11 +345,10 @@ pipeline {
                 script {
                     def result = build job: &apos;Load HPDS and Dictionary Data&apos;, parameters: [
                         [$class: &apos;StringParameterValue&apos;, name: &apos;Dataset&apos;, value: env.Dataset],
-                        [$class: &apos;StringParameterValue&apos;, name: &apos;Dataset_Name&apos;, value: env.Dataset_Name],
                         [$class: &apos;StringParameterValue&apos;, name: &apos;Dataset_Branch&apos;, value: env.Dataset_Branch],
-                        [$class: &apos;BooleanParameterValue&apos;, name: &apos;Include_Genomic_Data&apos;, value: env.Include_Genomic_Data],
                         [$class: &apos;BooleanParameterValue&apos;, name: &apos;Allow_HPDS_Data_Export&apos;, value: env.Allow_HPDS_Data_Export],
-                        [$class: &apos;BooleanParameterValue&apos;, name: &apos;Clear_Dictionary_Database&apos;, value: true]
+                        [$class: &apos;BooleanParameterValue&apos;, name: &apos;Clear_Dictionary_Database&apos;, value: true],
+                        [$class: &apos;BooleanParameterValue&apos;, name: &apos;Include_Dataset_Facets&apos;, value: env.Include_Dataset_Facets]
                     ]
                 }
             }

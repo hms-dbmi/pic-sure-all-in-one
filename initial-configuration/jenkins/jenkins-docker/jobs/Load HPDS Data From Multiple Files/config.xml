@@ -52,7 +52,7 @@ This is equivalent to the Unix Epoch time value for the time of the observation 
       <command>#!/bin/bash
 export PROFILING_OPTS=&quot;-Dcom.sun.management.jmxremote.port=9000 -Dcom.sun.management.jmxremote.authenticate=false -Dcom.sun.management.jmxremote.ssl=false -Djava.rmi.server.hostname=localhost&quot;
 
-docker stop hpds-etl &amp;&amp; docker rm hpds-etl
+docker stop hpds_data_load_multiple_files &amp;&amp; docker rm hpds_data_load_multiple_files
 
 cp /usr/local/docker-config/hpds/hpds.env ./hpds.env
 rm -rf /usr/local/docker-config/hpds_temp

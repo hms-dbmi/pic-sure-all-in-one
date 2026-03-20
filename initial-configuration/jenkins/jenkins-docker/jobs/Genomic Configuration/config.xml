@@ -96,15 +96,6 @@ The value must be in an array format, for example: [&quot;AN&quot;]  </descripti
                 }
             }
         }
-
-        stage(&apos;Restart Services&apos;) {
-            steps {
-                script {
-                    sh &quot;docker restart hpds || true&quot;
-                    sh &quot;docker restart httpd || true&quot;
-                }
-            }
-        }
     }
 }</script>
     <sandbox>true</sandbox>

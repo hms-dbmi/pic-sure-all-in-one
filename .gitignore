@@ -4,3 +4,14 @@
 initial-configuration/mysql-docker/.env
 pass.tmp
 initial-configuration/pass.tmp
+
+# Compose rewrite — secrets and generated files
+.env
+certs/
+config/dictionary/dictionary.env
+config/hpds/encryption_key
+config/wildfly/application.truststore
+config/wildfly/deployments/*.war
+config/psama/application.truststore
+config/wildfly/visualization/pic-sure-visualization-resource/resource.properties
+.data/

@@ -1,0 +1,349 @@
+# =============================================================================
+# PIC-SURE All-in-One — Docker Compose
+# =============================================================================
+# Usage:
+#   cp .env.example .env && ./init.sh && docker compose up -d
+#
+# Dev (build from source):
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build hpds
+#
+# See PLAN.md for architecture docs, GLOSSARY.md for terminology.
+# =============================================================================
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # HTTPD — Reverse Proxy + Frontend (ONLY public-facing container)
+  # ---------------------------------------------------------------------------
+  httpd:
+    image: hms-dbmi/pic-sure-httpd:${PICSURE_IMAGE_TAG:-LATEST}
+    container_name: httpd
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./certs/server.crt:/usr/local/apache2/cert/server.crt:ro
+      - ./certs/server.key:/usr/local/apache2/cert/server.key:ro
+      - ./certs/server.chain:/usr/local/apache2/cert/server.chain:ro
+      - ./config/httpd/httpd-vhosts.conf:/usr/local/apache2/conf/extra/httpd-vhosts.conf:ro
+      - httpd-logs:/app/logs
+    env_file:
+      - .env
+    networks:
+      - public
+      - app    # Needs to reach wildfly and psama for reverse proxying
+    depends_on:
+      wildfly:
+        condition: service_started
+      psama:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "--no-check-certificate", "-q", "https://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
+  # Deploy WARs — copies additional WARs into wildfly deployments volume
+  # ---------------------------------------------------------------------------
+  deploy-wars:
+    image: alpine:latest
+    container_name: deploy-wars
+    volumes:
+      - ./config/wildfly/deploy-wars.sh:/deploy-wars.sh:ro
+      - ./config/wildfly/deployments/:/additional-wars/:ro
+      - wildfly-deployments:/deployments
+    command: sh /deploy-wars.sh
+    restart: "no"
+
+  # ---------------------------------------------------------------------------
+  # Wildfly — PIC-SURE API
+  # ---------------------------------------------------------------------------
+  wildfly:
+    image: hms-dbmi/pic-sure-wildfly:${PICSURE_IMAGE_TAG:-LATEST}
+    container_name: wildfly
+    restart: always
+    user: root
+    volumes:
+      - ./config/wildfly/standalone.xml:/opt/jboss/wildfly/standalone/configuration/standalone.xml:ro
+      - ./config/wildfly/application.truststore:/opt/jboss/wildfly/standalone/configuration/application.truststore:ro
+      - ./config/wildfly/wildfly_mysql_module.xml:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/module.xml:ro
+      - ./config/wildfly/mysql-connector-java-5.1.49.jar:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/mysql-connector-java-5.1.49.jar:ro
+      - ./config/wildfly/visualization/:/opt/jboss/wildfly/standalone/configuration/visualization/:ro
+      - wildfly-deployments:/opt/jboss/wildfly/standalone/deployments
+      - wildfly-logs:/opt/jboss/wildfly/standalone/log
+    environment:
+      # JVM
+      JAVA_OPTS: >-
+        ${WILDFLY_JAVA_OPTS:--Xms2g -Xmx4g -XX:MetaspaceSize=96M -XX:MaxMetaspaceSize=256m}
+        -Djava.net.preferIPv4Stack=true
+        -Djavax.net.ssl.trustStore=/opt/jboss/wildfly/standalone/configuration/application.truststore
+        -Djavax.net.ssl.trustStorePassword=password
+      # Database
+      DB_HOST: ${DB_HOST:-picsure-db}
+      DB_PORT: ${DB_PORT:-3306}
+      DB_PICSURE_PASSWORD: ${DB_PICSURE_PASSWORD}
+      # Auth
+      AUTH0_CLIENT_ID: ${AUTH0_CLIENT_ID}
+      AUTH0_CLIENT_SECRET: ${AUTH0_CLIENT_SECRET}
+      AUTH0_TENANT: ${AUTH0_TENANT:-avillachlab}
+      PICSURE_INTROSPECTION_TOKEN: ${PICSURE_INTROSPECTION_TOKEN}
+      PICSURE_APPLICATION_ID: ${PICSURE_APPLICATION_ID}
+      # Email
+      EMAIL_USER: ${EMAIL_USER:-}
+      EMAIL_PASSWORD: ${EMAIL_PASSWORD:-}
+      # App config
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      SYSTEM_NAME: ${SYSTEM_NAME:-PIC-SURE All-in-one}
+      TOS_ENABLED: ${TOS_ENABLED:-false}
+      OPEN_ACCESS_ENABLED: ${OPEN_ACCESS_ENABLED:-false}
+    networks:
+      - app
+      - data
+    depends_on:
+      picsure-db:
+        condition: service_healthy
+      flyway-init:
+        condition: service_completed_successfully
+      deploy-wars:
+        condition: service_completed_successfully
+
+  # ---------------------------------------------------------------------------
+  # PSAMA — Auth Micro-App
+  # ---------------------------------------------------------------------------
+  psama:
+    image: hms-dbmi/pic-sure-psama:${PICSURE_IMAGE_TAG:-LATEST}
+    container_name: psama
+    restart: always
+    volumes:
+      - psama-logs:/var/log
+    environment:
+      JAVA_OPTS: ${PSAMA_JAVA_OPTS:--Xms2g -Xmx4g -XX:MetaspaceSize=96M -XX:MaxMetaspaceSize=256m -Djava.net.preferIPv4Stack=true}
+      # Database
+      DATASOURCE_URL: jdbc:mysql://${DB_HOST:-picsure-db}:${DB_PORT:-3306}/auth?useUnicode=true&characterEncoding=UTF-8&autoReconnect=true&autoReconnectForPools=true&serverTimezone=UTC
+      DATASOURCE_USERNAME: auth
+      DATASOURCE_PASSWORD: ${DB_AUTH_PASSWORD}
+      # Auth
+      APPLICATION_CLIENT_SECRET: ${AUTH0_CLIENT_SECRET}
+      APPLICATION_CLIENT_SECRET_IS_BASE_64: "false"
+      AUTH0_IDP_PROVIDER_IS_ENABLED: "true"
+      AUTH0_HOST: https://${AUTH0_TENANT:-avillachlab}.auth0.com/
+      OPEN_IDP_PROVIDER_IS_ENABLED: "${OPEN_IDP_PROVIDER_IS_ENABLED:-false}"
+      STACK_SPECIFIC_APPLICATION_ID: ${PICSURE_APPLICATION_ID}
+      # Tokens
+      TOKEN_EXPIRATION_TIME: ${PSAMA_TOKEN_EXPIRATION:-3600000}
+      LONG_TERM_TOKEN_EXPIRATION_TIME: ${PSAMA_LONG_TERM_TOKEN_EXPIRATION:-2592000000}
+      # Email
+      EMAIL_ADDRESS: ${EMAIL_USER:-}
+      EMAIL_PASSWORD: ${EMAIL_PASSWORD:-}
+      # App config
+      TOS_ENABLED: ${TOS_ENABLED:-false}
+      SYSTEM_NAME: ${SYSTEM_NAME:-PIC-SURE All-in-one}
+      DENIED_EMAIL_ENABLED: "false"
+    networks:
+      - app
+    depends_on:
+      picsure-db:
+        condition: service_healthy
+      flyway-init:
+        condition: service_completed_successfully
+
+  # ---------------------------------------------------------------------------
+  # HPDS — High Performance Data Store
+  # ---------------------------------------------------------------------------
+  hpds:
+    image: hms-dbmi/pic-sure-hpds:${PICSURE_IMAGE_TAG:-LATEST}
+    container_name: hpds
+    restart: always
+    volumes:
+      - hpds-data:/opt/local/hpds
+      - hpds-genomic:/opt/local/hpds/all
+      - hpds-csv:/usr/local/docker-config/hpds_csv
+      - hpds-query-results:/gic_query_results
+      - hpds-logs:/var/log
+    environment:
+      JAVA_OPTS: ${HPDS_JAVA_OPTS:--XX:+UseParallelGC -XX:SurvivorRatio=250 -Xms1g -Xmx16g}
+      SPRING_PROFILES_ACTIVE: ${HPDS_PROFILE:-}
+      ID_BATCH_SIZE: ${HPDS_ID_BATCH_SIZE:-0}
+      CACHE_SIZE: ${HPDS_CACHE_SIZE:-1500}
+      SMALL_TASK_THREADS: ${HPDS_SMALL_TASK_THREADS:-1}
+      LARGE_TASK_THREADS: ${HPDS_LARGE_TASK_THREADS:-1}
+      SMALL_JOB_LIMIT: ${HPDS_SMALL_JOB_LIMIT:-100}
+      ALL_IDS_CONCEPT: NONE
+      ID_CUBE_NAME: NONE
+      ENABLE_FILE_SHARING: ${HPDS_ENABLE_FILE_SHARING:-true}
+      VCF_EXCERPT_ENABLED: ${HPDS_VCF_EXCERPT_ENABLED:-true}
+      HPDS_GENOMIC_DATA_DIRECTORY: ${HPDS_GENOMIC_DATA_DIRECTORY:-/opt/local/hpds/all/}
+      HPDS_GENOMIC_PROCESSOR_IMPL: localPatientDistributed
+    networks:
+      - app
+    # HPDS has no dedicated health endpoint and may crash-loop without data
+    # (especially with bch-dev profile). The || exit 0 is intentional — it
+    # prevents compose from marking HPDS as unhealthy before data is loaded.
+    # TODO: Add a proper /health endpoint to HPDS and replace this.
+    healthcheck:
+      test: ["CMD", "sh", "-c", "wget -q --spider http://localhost:8080/PIC-SURE/ 2>/dev/null || exit 0"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ---------------------------------------------------------------------------
+  # Dictionary API (Optional)
+  # ---------------------------------------------------------------------------
+  dictionary-api:
+    image: hms-dbmi/pic-sure-dictionary-api:${PICSURE_IMAGE_TAG:-LATEST}
+    container_name: dictionary-api
+    restart: always
+    env_file:
+      - ./config/dictionary/dictionary.env
+    volumes:
+      - dictionary-logs:/var/log
+    networks:
+      - app
+      - data
+    depends_on:
+      dictionary-db:
+        condition: service_healthy
+
+  # ---------------------------------------------------------------------------
+  # Dictionary Dump / Aggregate (Optional)
+  # ---------------------------------------------------------------------------
+  dictionary-dump:
+    image: hms-dbmi/pic-sure-dictionary-dump:${PICSURE_IMAGE_TAG:-LATEST}
+    container_name: dictionary-dump
+    restart: always
+    env_file:
+      - ./config/dictionary/dictionary.env
+    volumes:
+      - dictionary-logs:/var/log
+    networks:
+      - data
+
+  # ---------------------------------------------------------------------------
+  # MySQL — picsure-db (auth + picsure schemas)
+  # ---------------------------------------------------------------------------
+  picsure-db:
+    image: mysql:8.0
+    container_name: picsure-db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      DB_PICSURE_PASSWORD: ${DB_PICSURE_PASSWORD}
+      DB_AUTH_PASSWORD: ${DB_AUTH_PASSWORD}
+      DB_AIRFLOW_PASSWORD: ${DB_AIRFLOW_PASSWORD}
+    volumes:
+      - picsure-db-data:/var/lib/mysql
+      - ./config/db-init:/docker-entrypoint-initdb.d:ro
+    networks:
+      - app
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-uroot", "-p${DB_ROOT_PASSWORD}"]
+      timeout: 20s
+      retries: 10
+      start_period: 15s
+      interval: 10s
+
+
+  # ---------------------------------------------------------------------------
+  # PostgreSQL — dictionary-db
+  # ---------------------------------------------------------------------------
+  dictionary-db:
+    image: postgres:16-alpine
+    container_name: dictionary-db
+    restart: always
+    env_file:
+      - ./config/dictionary/dictionary.env
+    volumes:
+      - dictionary-db-data:/var/lib/postgresql/data
+      - ./config/dictionary/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+    networks:
+      - data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U picsure -d dictionary"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ---------------------------------------------------------------------------
+  # Flyway — Database Migrations (init container — runs once and exits)
+  # ---------------------------------------------------------------------------
+  # Runs auth, picsure, and project-specific migrations in order.
+  # Migration SQL files are mounted from the individual repos.
+  # If repos aren't cloned locally, create config/flyway/{auth,picsure}/sql/
+  # and place migration files there.
+  flyway-init:
+    image: flyway/flyway:latest
+    container_name: flyway-init
+    platform: linux/amd64
+    entrypoint: ["bash", "/scripts/run-migrations.sh"]
+    volumes:
+      - ./config/flyway/run-migrations.sh:/scripts/run-migrations.sh:ro
+      # Auth migrations — prefer local repo, fall back to config dir
+      - ${PSAMA_SRC:-../pic-sure-auth-microapp}/pic-sure-auth-db/db/sql:/migrations/auth:ro
+      # PIC-SURE API migrations
+      - ${WILDFLY_SRC:-../pic-sure}/pic-sure-api-data/src/main/resources/db/sql:/migrations/picsure:ro
+      # Project-specific migrations (optional — mount if using a custom migration repo)
+      # - ../pic-sure-migrations/Baseline/auth:/migrations/custom/auth:ro
+      # - ../pic-sure-migrations/Baseline/picsure:/migrations/custom/picsure:ro
+    environment:
+      DB_HOST: ${DB_HOST:-picsure-db}
+      DB_PORT: ${DB_PORT:-3306}
+      DB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+    networks:
+      - app
+    depends_on:
+      picsure-db:
+        condition: service_healthy
+    restart: "no"
+
+# =============================================================================
+# Networks
+# =============================================================================
+networks:
+  # Public network — only httpd should be on this
+  public:
+    driver: bridge
+
+  # App network — bridge (needs outbound internet for Auth0, email, etc.)
+  # Services: wildfly, psama, hpds, picsure-db, visualization, logging
+  # Note: PSAMA must reach Auth0 for token validation. Wildfly may need
+  # outbound for email, truststore updates, etc.
+  app:
+    driver: bridge
+
+  # Data network — internal, no internet access
+  # Services: dictionary-api, dictionary-dump, dictionary-db
+  # Wildfly also connects here to query the dictionary
+  data:
+    driver: bridge
+    internal: true
+
+# =============================================================================
+# Volumes
+# =============================================================================
+volumes:
+  # Database
+  picsure-db-data:
+  dictionary-db-data:
+
+  # HPDS data
+  hpds-data:
+  hpds-genomic:
+  hpds-csv:
+
+  # Application
+  wildfly-deployments:
+
+  # HPDS query results (GIC file sharing)
+  hpds-query-results:
+
+  # Logs
+  httpd-logs:
+  wildfly-logs:
+  psama-logs:
+  hpds-logs:
+  dictionary-logs:

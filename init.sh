@@ -77,6 +77,13 @@ set_env_var() {
 # Preflight checks
 # ---------------------------------------------------------------------------
 
+# ---------------------------------------------------------------------------
+# Clone sibling repos if missing
+# ---------------------------------------------------------------------------
+if [ -x "$SCRIPT_DIR/clone-repos.sh" ]; then
+  "$SCRIPT_DIR/clone-repos.sh"
+fi
+
 if [ ! -f "$ENV_FILE" ]; then
   error ".env file not found. Run: cp .env.example .env"
   error "Then edit .env with your Auth0 credentials and admin email."

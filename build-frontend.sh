@@ -30,8 +30,17 @@ fi
 
 # Extract only VITE_* vars — no secrets leak into the build
 # The Frontend Dockerfile does `COPY .env ...` so we write a filtered .env
-echo "Extracting VITE_* variables for frontend build..."
-grep '^VITE_' "$ENV_FILE" > "$FRONTEND_SRC/.env"
+echo "Building frontend .env (defaults + AIO overrides)..."
+# Start with frontend's own defaults, then overlay AIO config.
+# Frontend repo owns feature flags; AIO only overrides auth/resource vars.
+FRONTEND_DEFAULTS="$FRONTEND_SRC/.env.example"
+{
+  if [ -f "$FRONTEND_DEFAULTS" ]; then
+    grep '^VITE_' "$FRONTEND_DEFAULTS" || true
+  fi
+  # AIO overrides win (later lines override earlier for duplicate keys)
+  grep '^VITE_' "$ENV_FILE" || true
+} > "$FRONTEND_SRC/.env"
 
 echo "Building frontend image with theme: $THEME"
 cd "$FRONTEND_SRC"

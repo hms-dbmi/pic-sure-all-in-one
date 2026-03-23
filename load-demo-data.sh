@@ -148,7 +148,7 @@ HPDS_KEY="$SCRIPT_DIR/config/hpds/encryption_key"
 if [ ! -f "$HPDS_KEY" ]; then
   info "Generating HPDS encryption key..."
   mkdir -p "$(dirname "$HPDS_KEY")"
-  openssl enc -aes-128-cbc -k "$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 24)" -P 2>/dev/null \
+  openssl enc -aes-128-cbc -k "$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 24 || true)" -P 2>/dev/null \
     | grep key | cut -d'=' -f2 > "$HPDS_KEY"
 fi
 

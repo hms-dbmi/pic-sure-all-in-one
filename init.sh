@@ -34,8 +34,9 @@ error() { echo -e "${RED}[init]${NC} $*" >&2; }
 # ---------------------------------------------------------------------------
 
 generate_password() {
-  # Generate a secure random password (24 chars, alphanumeric + some symbols)
-  LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 24
+  # Generate a secure random password (24 chars, alphanumeric)
+  # The || true prevents SIGPIPE from tr causing a non-zero exit under pipefail
+  LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 24 || true
 }
 
 generate_uuid() {

@@ -404,8 +404,44 @@ docker_build() {
   info "Built hms-dbmi/$name:$IMAGE_TAG"
 }
 
-# Order matters: HPDS first (installs client-api into Maven cache), then PSAMA
-maven_build "pic-sure-hpds" "$HPDS_SRC" "$HPDS_SRC/docker/pic-sure-hpds/Dockerfile"
+# Order matters: HPDS first (installs client-api into Maven cache), then PSAMA.
+# Always run HPDS Maven build even if the Docker image exists, because PSAMA
+# needs client-api in the Maven cache volume. The Docker image build is skipped
+# if it already exists, but the Maven install is not.
+docker volume create "$MAVEN_CACHE" 2>/dev/null || true
+
+info "Ensuring HPDS client-api is in Maven cache..."
+CLIENT_API_CHECK=$(docker run --rm -v "$MAVEN_CACHE:/root/.m2" alpine \
+  ls /root/.m2/repository/edu/harvard/hms/dbmi/avillach/hpds/client-api/3.0.0-SNAPSHOT/ 2>/dev/null || true)
+
+if [ -z "$CLIENT_API_CHECK" ] || [ "$FORCE" = "true" ]; then
+  info "Building HPDS (Maven install — required for PSAMA dependency)..."
+  BUILD_DIR="$SCRIPT_DIR/.build-pic-sure-hpds"
+  rm -rf "$BUILD_DIR"
+  mkdir -p "$BUILD_DIR"
+  docker run --rm \
+    -v "$HPDS_SRC:/src:ro" \
+    -v "$MAVEN_CACHE:/root/.m2" \
+    -v "$BUILD_DIR:/build" \
+    -w /build \
+    maven:3.9.9-amazoncorretto-24 \
+    bash -c "cp -r /src/. /build/ && mvn -B clean install -DskipTests"
+
+  if ! docker image inspect "hms-dbmi/pic-sure-hpds:$IMAGE_TAG" &>/dev/null || [ "$FORCE" = "true" ]; then
+    docker build -f "$HPDS_SRC/docker/pic-sure-hpds/Dockerfile" \
+      -t "hms-dbmi/pic-sure-hpds:$IMAGE_TAG" "$BUILD_DIR"
+    info "Built hms-dbmi/pic-sure-hpds:$IMAGE_TAG"
+  fi
+  rm -rf "$BUILD_DIR"
+else
+  info "HPDS client-api found in Maven cache."
+  # Still build the Docker image if missing
+  if ! docker image inspect "hms-dbmi/pic-sure-hpds:$IMAGE_TAG" &>/dev/null; then
+    maven_build "pic-sure-hpds" "$HPDS_SRC" "$HPDS_SRC/docker/pic-sure-hpds/Dockerfile"
+  else
+    info "Image hms-dbmi/pic-sure-hpds:$IMAGE_TAG exists. Skipping."
+  fi
+fi
 # PSAMA: dev.Dockerfile is multi-stage (runs Maven internally) but can't access
 # the Maven cache volume during docker build. So we build with Maven container
 # first, then package with a simple runtime Dockerfile.

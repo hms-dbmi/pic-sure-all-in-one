@@ -338,53 +338,102 @@ mkdir -p "$SCRIPT_DIR/config/hpds"
 
 echo ""
 # ---------------------------------------------------------------------------
-# Authenticate to GitHub Container Registry
+# Build container images from source
 # ---------------------------------------------------------------------------
-# Container images are hosted on ghcr.io and require authentication to pull.
-# We use `gh auth token` if available, otherwise check for an existing login.
+# PIC-SURE images are not published to any registry — they must be built
+# from the sibling repos. This is automated here so `docker compose up -d`
+# just works.
 #
-# To build images from source instead, use docker-compose.dev.yml:
-#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
-# See README-compose.md for details.
+# Build order matters: PSAMA depends on hpds:client-api (a Maven artifact
+# in GitHub Packages, which requires auth). We build HPDS first via a Maven
+# container with a shared cache volume, so PSAMA finds client-api locally.
+#
+# Re-runs skip images that already exist. Use --force to rebuild all.
 # ---------------------------------------------------------------------------
 
-info "Checking GitHub Container Registry access..."
+IMAGE_TAG="${PICSURE_IMAGE_TAG:-LATEST}"
+MAVEN_CACHE="maven_m2_cache"
 
-GHCR_LOGGED_IN=false
-# Check if already logged into ghcr.io
-if grep -q "ghcr.io" ~/.docker/config.json 2>/dev/null; then
-  GHCR_LOGGED_IN=true
-  info "Already authenticated to ghcr.io."
-elif command -v gh &>/dev/null && gh auth status &>/dev/null 2>&1; then
-  info "Logging into ghcr.io via GitHub CLI..."
-  if gh auth token | docker login ghcr.io -u token --password-stdin 2>/dev/null; then
-    GHCR_LOGGED_IN=true
-    info "Authenticated to ghcr.io."
+HPDS_SRC="${HPDS_SRC:-$SCRIPT_DIR/../pic-sure-hpds}"
+PSAMA_SRC="${PSAMA_SRC:-$SCRIPT_DIR/../pic-sure-auth-microapp}"
+WILDFLY_SRC="${WILDFLY_SRC:-$SCRIPT_DIR/../pic-sure}"
+DICTIONARY_SRC="${DICTIONARY_SRC:-$SCRIPT_DIR/../picsure-dictionary}"
+
+info "Checking container images..."
+
+# --- Helper: build Java project via Maven container, then package runtime image ---
+maven_build() {
+  local name="$1" src="$2" dockerfile="$3"
+  local build_dir="$SCRIPT_DIR/.build-$name"
+
+  if docker image inspect "hms-dbmi/$name:$IMAGE_TAG" &>/dev/null && [ "$FORCE" != "true" ]; then
+    info "Image hms-dbmi/$name:$IMAGE_TAG exists. Skipping."
+    return
   fi
+
+  info "Building $name (Maven + Docker)..."
+  rm -rf "$build_dir"
+  mkdir -p "$build_dir"
+  docker volume create "$MAVEN_CACHE" 2>/dev/null || true
+
+  # Run Maven in a container with shared cache — avoids needing local Java/Maven
+  docker run --rm \
+    -v "$src:/src:ro" \
+    -v "$MAVEN_CACHE:/root/.m2" \
+    -v "$build_dir:/build" \
+    -w /build \
+    maven:3.9.9-amazoncorretto-24 \
+    bash -c "cp -r /src/. /build/ && mvn -B clean install -DskipTests"
+
+  docker build -f "$dockerfile" -t "hms-dbmi/$name:$IMAGE_TAG" "$build_dir"
+  rm -rf "$build_dir"
+  info "Built hms-dbmi/$name:$IMAGE_TAG"
+}
+
+# --- Helper: build with self-contained multi-stage Dockerfile ---
+docker_build() {
+  local name="$1" context="$2" dockerfile="$3"
+
+  if docker image inspect "hms-dbmi/$name:$IMAGE_TAG" &>/dev/null && [ "$FORCE" != "true" ]; then
+    info "Image hms-dbmi/$name:$IMAGE_TAG exists. Skipping."
+    return
+  fi
+
+  info "Building $name..."
+  docker build -f "$dockerfile" -t "hms-dbmi/$name:$IMAGE_TAG" "$context"
+  info "Built hms-dbmi/$name:$IMAGE_TAG"
+}
+
+# Order matters: HPDS first (installs client-api into Maven cache), then PSAMA
+maven_build "pic-sure-hpds" "$HPDS_SRC" "$HPDS_SRC/docker/pic-sure-hpds/Dockerfile"
+# PSAMA: dev.Dockerfile is multi-stage (runs Maven internally) but can't access
+# the Maven cache volume during docker build. So we build with Maven container
+# first, then package with a simple runtime Dockerfile.
+PSAMA_RUNTIME_DF="$SCRIPT_DIR/config/scripts/psama-runtime.Dockerfile"
+if [ ! -f "$PSAMA_RUNTIME_DF" ]; then
+  cat > "$PSAMA_RUNTIME_DF" <<'EOF'
+FROM amazoncorretto:24-alpine
+COPY pic-sure-auth-services/target/pic-sure-auth-services-*.jar /pic-sure-auth-service.jar
+EXPOSE 8090
+ENTRYPOINT ["sh", "-c", "java ${JAVA_OPTS} -jar /pic-sure-auth-service.jar"]
+EOF
+fi
+maven_build "pic-sure-psama" "$PSAMA_SRC" "$PSAMA_RUNTIME_DF"
+maven_build "pic-sure-wildfly" "$WILDFLY_SRC" "$WILDFLY_SRC/docker/all-in-one/all-in-one.Dockerfile"
+
+# Dictionary images have self-contained multi-stage Dockerfiles
+docker_build "pic-sure-dictionary-api" "$DICTIONARY_SRC" "$DICTIONARY_SRC/Dockerfile"
+docker_build "pic-sure-dictionary-dump" "$DICTIONARY_SRC/aggregate" "$DICTIONARY_SRC/aggregate/Dockerfile"
+
+# Frontend
+if ! docker image inspect "hms-dbmi/pic-sure-httpd:$IMAGE_TAG" &>/dev/null || [ "$FORCE" = "true" ]; then
+  info "Building frontend..."
+  "$SCRIPT_DIR/build-frontend.sh"
+else
+  info "Image hms-dbmi/pic-sure-httpd:$IMAGE_TAG exists. Skipping."
 fi
 
-if [ "$GHCR_LOGGED_IN" != "true" ]; then
-  echo ""
-  error "Cannot authenticate to GitHub Container Registry (ghcr.io)."
-  error ""
-  error "PIC-SURE images are hosted on ghcr.io and require a GitHub token to pull."
-  error "Options:"
-  error "  1. Install GitHub CLI and authenticate:"
-  error "       gh auth login"
-  error "       ./init.sh"
-  error ""
-  error "  2. Log in to ghcr.io manually with a Personal Access Token (read:packages scope):"
-  error "       echo YOUR_TOKEN | docker login ghcr.io -u YOUR_USERNAME --password-stdin"
-  error "       ./init.sh"
-  error ""
-  error "  3. Build from source instead (no registry auth needed):"
-  error "       docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build"
-  exit 1
-fi
-
-# Build the frontend image (merges feature flags from frontend repo + auth config from .env)
-info "Building frontend image..."
-"$SCRIPT_DIR/build-frontend.sh"
+info "All images ready."
 
 # ---------------------------------------------------------------------------
 

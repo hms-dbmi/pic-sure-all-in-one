@@ -414,7 +414,8 @@ docker volume create "$MAVEN_CACHE" 2>/dev/null || true
 
 # Wildfly/pic-sure repo targets Java 11 (javax.* APIs) — must use JDK 11
 maven_build "pic-sure-wildfly" "$WILDFLY_SRC" "$WILDFLY_SRC/docker/all-in-one/all-in-one.Dockerfile" "" "maven:3.9-eclipse-temurin-11"
-maven_build "pic-sure-hpds" "$HPDS_SRC" "$HPDS_SRC/docker/pic-sure-hpds/Dockerfile" "-nsu"
+# -pl '!docker' skips the docker submodule which runs `git log` (not available in Maven container)
+maven_build "pic-sure-hpds" "$HPDS_SRC" "$HPDS_SRC/docker/pic-sure-hpds/Dockerfile" "-nsu -pl !docker"
 
 # PSAMA: dev.Dockerfile is multi-stage (runs Maven internally) but can't access
 # the Maven cache volume during docker build. So we build with Maven container

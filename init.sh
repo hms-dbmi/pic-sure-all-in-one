@@ -363,7 +363,7 @@ info "Checking container images..."
 
 # --- Helper: build Java project via Maven container, then package runtime image ---
 maven_build() {
-  local name="$1" src="$2" dockerfile="$3"
+  local name="$1" src="$2" dockerfile="$3" mvn_flags="${4:-}"
   local build_dir="$SCRIPT_DIR/.build-$name"
 
   if docker image inspect "hms-dbmi/$name:$IMAGE_TAG" &>/dev/null && [ "$FORCE" != "true" ]; then
@@ -383,7 +383,7 @@ maven_build() {
     -v "$build_dir:/build" \
     -w /build \
     maven:3.9.9-amazoncorretto-24 \
-    bash -c "cp -r /src/. /build/ && mvn -B clean install -DskipTests"
+    bash -c "cp -r /src/. /build/ && mvn -B clean install -DskipTests $mvn_flags"
 
   docker build -f "$dockerfile" -t "hms-dbmi/$name:$IMAGE_TAG" "$build_dir"
   rm -rf "$build_dir"
@@ -405,43 +405,8 @@ docker_build() {
 }
 
 # Order matters: HPDS first (installs client-api into Maven cache), then PSAMA.
-# Always run HPDS Maven build even if the Docker image exists, because PSAMA
-# needs client-api in the Maven cache volume. The Docker image build is skipped
-# if it already exists, but the Maven install is not.
-docker volume create "$MAVEN_CACHE" 2>/dev/null || true
-
-info "Ensuring HPDS client-api is in Maven cache..."
-CLIENT_API_CHECK=$(docker run --rm -v "$MAVEN_CACHE:/root/.m2" alpine \
-  ls /root/.m2/repository/edu/harvard/hms/dbmi/avillach/hpds/client-api/3.0.0-SNAPSHOT/ 2>/dev/null || true)
-
-if [ -z "$CLIENT_API_CHECK" ] || [ "$FORCE" = "true" ]; then
-  info "Building HPDS (Maven install — required for PSAMA dependency)..."
-  BUILD_DIR="$SCRIPT_DIR/.build-pic-sure-hpds"
-  rm -rf "$BUILD_DIR"
-  mkdir -p "$BUILD_DIR"
-  docker run --rm \
-    -v "$HPDS_SRC:/src:ro" \
-    -v "$MAVEN_CACHE:/root/.m2" \
-    -v "$BUILD_DIR:/build" \
-    -w /build \
-    maven:3.9.9-amazoncorretto-24 \
-    bash -c "cp -r /src/. /build/ && mvn -B clean install -DskipTests"
-
-  if ! docker image inspect "hms-dbmi/pic-sure-hpds:$IMAGE_TAG" &>/dev/null || [ "$FORCE" = "true" ]; then
-    docker build -f "$HPDS_SRC/docker/pic-sure-hpds/Dockerfile" \
-      -t "hms-dbmi/pic-sure-hpds:$IMAGE_TAG" "$BUILD_DIR"
-    info "Built hms-dbmi/pic-sure-hpds:$IMAGE_TAG"
-  fi
-  rm -rf "$BUILD_DIR"
-else
-  info "HPDS client-api found in Maven cache."
-  # Still build the Docker image if missing
-  if ! docker image inspect "hms-dbmi/pic-sure-hpds:$IMAGE_TAG" &>/dev/null; then
-    maven_build "pic-sure-hpds" "$HPDS_SRC" "$HPDS_SRC/docker/pic-sure-hpds/Dockerfile"
-  else
-    info "Image hms-dbmi/pic-sure-hpds:$IMAGE_TAG exists. Skipping."
-  fi
-fi
+# PSAMA uses -nsu (no snapshot updates) so it won't try to reach GitHub Packages.
+maven_build "pic-sure-hpds" "$HPDS_SRC" "$HPDS_SRC/docker/pic-sure-hpds/Dockerfile"
 # PSAMA: dev.Dockerfile is multi-stage (runs Maven internally) but can't access
 # the Maven cache volume during docker build. So we build with Maven container
 # first, then package with a simple runtime Dockerfile.
@@ -454,7 +419,10 @@ EXPOSE 8090
 ENTRYPOINT ["sh", "-c", "java ${JAVA_OPTS} -jar /pic-sure-auth-service.jar"]
 EOF
 fi
-maven_build "pic-sure-psama" "$PSAMA_SRC" "$PSAMA_RUNTIME_DF"
+# -nsu: no snapshot updates — prevents Maven from trying to fetch client-api
+# from GitHub Packages (which requires auth). It's already in the cache from
+# the HPDS build above.
+maven_build "pic-sure-psama" "$PSAMA_SRC" "$PSAMA_RUNTIME_DF" "-nsu"
 maven_build "pic-sure-wildfly" "$WILDFLY_SRC" "$WILDFLY_SRC/docker/all-in-one/all-in-one.Dockerfile"
 
 # Dictionary images have self-contained multi-stage Dockerfiles

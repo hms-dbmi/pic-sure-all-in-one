@@ -54,14 +54,8 @@ fi
 # ---------------------------------------------------------------------------
 
 if ! docker image inspect hms-dbmi/pic-sure-hpds-etl:LATEST >/dev/null 2>&1; then
-  info "Building HPDS ETL image..."
-  HPDS_SRC="${HPDS_SRC:-$SCRIPT_DIR/../pic-sure-hpds}"
-  if [ ! -d "$HPDS_SRC/docker/pic-sure-hpds-etl" ]; then
-    error "HPDS source not found at $HPDS_SRC. Clone pic-sure-hpds as a sibling repo."
-    exit 1
-  fi
-  docker build -f "$HPDS_SRC/docker/pic-sure-hpds-etl/Dockerfile" \
-    -t hms-dbmi/pic-sure-hpds-etl:LATEST "$HPDS_SRC" || exit 1
+  error "HPDS ETL image not found. Run ./init.sh first (it builds all images)."
+  exit 1
 fi
 
 # ---------------------------------------------------------------------------

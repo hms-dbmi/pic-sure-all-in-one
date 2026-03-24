@@ -414,8 +414,46 @@ docker volume create "$MAVEN_CACHE" 2>/dev/null || true
 
 # Wildfly/pic-sure repo targets Java 11 (javax.* APIs) — must use JDK 11
 maven_build "pic-sure-wildfly" "$WILDFLY_SRC" "$WILDFLY_SRC/docker/all-in-one/all-in-one.Dockerfile" "" "maven:3.9-eclipse-temurin-11"
-# -pl '!docker' skips the docker submodule which runs `git log` (not available in Maven container)
-maven_build "pic-sure-hpds" "$HPDS_SRC" "$HPDS_SRC/docker/pic-sure-hpds/Dockerfile" "-nsu -pl !docker"
+# HPDS: builds both the runtime image AND the ETL image from one Maven run.
+# The docker submodule produces fat jars for ETL and runs `git log` (needs git).
+HPDS_NEED_BUILD=false
+if ! docker image inspect "hms-dbmi/pic-sure-hpds:$IMAGE_TAG" &>/dev/null || \
+   ! docker image inspect "hms-dbmi/pic-sure-hpds-etl:$IMAGE_TAG" &>/dev/null || \
+   [ "$FORCE" = "true" ]; then
+  HPDS_NEED_BUILD=true
+fi
+
+if [ "$HPDS_NEED_BUILD" = "true" ]; then
+  HPDS_BUILD_DIR="$SCRIPT_DIR/.build-pic-sure-hpds"
+  info "Building HPDS (Maven + Docker)..."
+  rm -rf "$HPDS_BUILD_DIR"
+  mkdir -p "$HPDS_BUILD_DIR"
+  docker run --rm \
+    -v "$HPDS_SRC:/src:ro" \
+    -v "$MAVEN_CACHE:/root/.m2" \
+    -v "$HPDS_BUILD_DIR:/build" \
+    -w /build \
+    maven:3.9.9-amazoncorretto-24 \
+    bash -c "which git >/dev/null 2>&1 || yum install -y git >/dev/null 2>&1; cp -r /src/. /build/ && mvn -B clean install -DskipTests -nsu"
+
+  # Runtime image
+  if ! docker image inspect "hms-dbmi/pic-sure-hpds:$IMAGE_TAG" &>/dev/null || [ "$FORCE" = "true" ]; then
+    docker build -f "$HPDS_SRC/docker/pic-sure-hpds/Dockerfile" \
+      -t "hms-dbmi/pic-sure-hpds:$IMAGE_TAG" "$HPDS_BUILD_DIR"
+    info "Built hms-dbmi/pic-sure-hpds:$IMAGE_TAG"
+  fi
+
+  # ETL image (fat jars produced by Maven in docker/pic-sure-hpds-etl/)
+  if ! docker image inspect "hms-dbmi/pic-sure-hpds-etl:$IMAGE_TAG" &>/dev/null || [ "$FORCE" = "true" ]; then
+    docker build -f "$HPDS_BUILD_DIR/docker/pic-sure-hpds-etl/Dockerfile" \
+      -t "hms-dbmi/pic-sure-hpds-etl:$IMAGE_TAG" "$HPDS_BUILD_DIR"
+    info "Built hms-dbmi/pic-sure-hpds-etl:$IMAGE_TAG"
+  fi
+
+  rm -rf "$HPDS_BUILD_DIR"
+else
+  info "Images hms-dbmi/pic-sure-hpds and pic-sure-hpds-etl exist. Skipping."
+fi
 
 # PSAMA: dev.Dockerfile is multi-stage (runs Maven internally) but can't access
 # the Maven cache volume during docker build. So we build with Maven container

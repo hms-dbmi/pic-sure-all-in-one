@@ -337,18 +337,68 @@ mkdir -p "$SCRIPT_DIR/config/hpds"
 # ---------------------------------------------------------------------------
 
 echo ""
+# ---------------------------------------------------------------------------
+# Authenticate to GitHub Container Registry
+# ---------------------------------------------------------------------------
+# Container images are hosted on ghcr.io and require authentication to pull.
+# We use `gh auth token` if available, otherwise check for an existing login.
+#
+# To build images from source instead, use docker-compose.dev.yml:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
+# See README-compose.md for details.
+# ---------------------------------------------------------------------------
+
+info "Checking GitHub Container Registry access..."
+
+GHCR_LOGGED_IN=false
+# Check if already logged into ghcr.io
+if grep -q "ghcr.io" ~/.docker/config.json 2>/dev/null; then
+  GHCR_LOGGED_IN=true
+  info "Already authenticated to ghcr.io."
+elif command -v gh &>/dev/null && gh auth status &>/dev/null 2>&1; then
+  info "Logging into ghcr.io via GitHub CLI..."
+  if gh auth token | docker login ghcr.io -u token --password-stdin 2>/dev/null; then
+    GHCR_LOGGED_IN=true
+    info "Authenticated to ghcr.io."
+  fi
+fi
+
+if [ "$GHCR_LOGGED_IN" != "true" ]; then
+  echo ""
+  error "Cannot authenticate to GitHub Container Registry (ghcr.io)."
+  error ""
+  error "PIC-SURE images are hosted on ghcr.io and require a GitHub token to pull."
+  error "Options:"
+  error "  1. Install GitHub CLI and authenticate:"
+  error "       gh auth login"
+  error "       ./init.sh"
+  error ""
+  error "  2. Log in to ghcr.io manually with a Personal Access Token (read:packages scope):"
+  error "       echo YOUR_TOKEN | docker login ghcr.io -u YOUR_USERNAME --password-stdin"
+  error "       ./init.sh"
+  error ""
+  error "  3. Build from source instead (no registry auth needed):"
+  error "       docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build"
+  exit 1
+fi
+
+# Build the frontend image (merges feature flags from frontend repo + auth config from .env)
+info "Building frontend image..."
+"$SCRIPT_DIR/build-frontend.sh"
+
+# ---------------------------------------------------------------------------
+
 info "======================================"
 info "  Initialization complete!"
 info "======================================"
 echo ""
 info "Next steps:"
 info "  1. Review .env and fill in any missing values (AUTH0_CLIENT_ID, etc.)"
-info "  2. Build frontend:  ./build-frontend.sh"
-info "  3. Start services:  docker compose up -d"
-info "  4. Seed database:   ./seed-db.sh"
-info "  5. Restart:          docker compose restart wildfly psama"
-info "  6. Load demo data:  ./load-demo-data.sh  (optional)"
-info "  7. Browse to: https://localhost"
+info "  2. Start services:  docker compose up -d"
+info "  3. Seed database:   ./seed-db.sh"
+info "  4. Restart:          docker compose restart wildfly psama"
+info "  5. Load demo data:  ./load-demo-data.sh  (optional)"
+info "  6. Browse to: https://localhost"
 echo ""
 
 if [ -z "${AUTH0_CLIENT_ID:-}" ]; then

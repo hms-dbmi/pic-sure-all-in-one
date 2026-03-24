@@ -363,7 +363,7 @@ info "Checking container images..."
 
 # --- Helper: build Java project via Maven container, then package runtime image ---
 maven_build() {
-  local name="$1" src="$2" dockerfile="$3" mvn_flags="${4:-}"
+  local name="$1" src="$2" dockerfile="$3" mvn_flags="${4:-}" maven_image="${5:-maven:3.9.9-amazoncorretto-24}"
   local build_dir="$SCRIPT_DIR/.build-$name"
 
   if docker image inspect "hms-dbmi/$name:$IMAGE_TAG" &>/dev/null && [ "$FORCE" != "true" ]; then
@@ -382,7 +382,7 @@ maven_build() {
     -v "$MAVEN_CACHE:/root/.m2" \
     -v "$build_dir:/build" \
     -w /build \
-    maven:3.9.9-amazoncorretto-24 \
+    "$maven_image" \
     bash -c "cp -r /src/. /build/ && mvn -B clean install -DskipTests $mvn_flags"
 
   docker build -f "$dockerfile" -t "hms-dbmi/$name:$IMAGE_TAG" "$build_dir"
@@ -412,7 +412,8 @@ docker_build() {
 # -nsu (no snapshot updates) prevents 401s from GitHub Packages.
 docker volume create "$MAVEN_CACHE" 2>/dev/null || true
 
-maven_build "pic-sure-wildfly" "$WILDFLY_SRC" "$WILDFLY_SRC/docker/all-in-one/all-in-one.Dockerfile"
+# Wildfly/pic-sure repo targets Java 11 (javax.* APIs) — must use JDK 11
+maven_build "pic-sure-wildfly" "$WILDFLY_SRC" "$WILDFLY_SRC/docker/all-in-one/all-in-one.Dockerfile" "" "maven:3.9-eclipse-temurin-11"
 maven_build "pic-sure-hpds" "$HPDS_SRC" "$HPDS_SRC/docker/pic-sure-hpds/Dockerfile" "-nsu"
 
 # PSAMA: dev.Dockerfile is multi-stage (runs Maven internally) but can't access

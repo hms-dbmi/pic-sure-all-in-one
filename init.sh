@@ -404,9 +404,17 @@ docker_build() {
   info "Built hms-dbmi/$name:$IMAGE_TAG"
 }
 
-# Order matters: HPDS first (installs client-api into Maven cache), then PSAMA.
-# PSAMA uses -nsu (no snapshot updates) so it won't try to reach GitHub Packages.
-maven_build "pic-sure-hpds" "$HPDS_SRC" "$HPDS_SRC/docker/pic-sure-hpds/Dockerfile"
+# Build order matters due to Maven dependency chain:
+#   pic-sure (Wildfly) → builds pic-sure-resource-api
+#   HPDS → needs resource-api, builds client-api
+#   PSAMA → needs client-api
+# All three publish artifacts to the shared Maven cache volume.
+# -nsu (no snapshot updates) prevents 401s from GitHub Packages.
+docker volume create "$MAVEN_CACHE" 2>/dev/null || true
+
+maven_build "pic-sure-wildfly" "$WILDFLY_SRC" "$WILDFLY_SRC/docker/all-in-one/all-in-one.Dockerfile"
+maven_build "pic-sure-hpds" "$HPDS_SRC" "$HPDS_SRC/docker/pic-sure-hpds/Dockerfile" "-nsu"
+
 # PSAMA: dev.Dockerfile is multi-stage (runs Maven internally) but can't access
 # the Maven cache volume during docker build. So we build with Maven container
 # first, then package with a simple runtime Dockerfile.
@@ -419,11 +427,7 @@ EXPOSE 8090
 ENTRYPOINT ["sh", "-c", "java ${JAVA_OPTS} -jar /pic-sure-auth-service.jar"]
 EOF
 fi
-# -nsu: no snapshot updates — prevents Maven from trying to fetch client-api
-# from GitHub Packages (which requires auth). It's already in the cache from
-# the HPDS build above.
 maven_build "pic-sure-psama" "$PSAMA_SRC" "$PSAMA_RUNTIME_DF" "-nsu"
-maven_build "pic-sure-wildfly" "$WILDFLY_SRC" "$WILDFLY_SRC/docker/all-in-one/all-in-one.Dockerfile"
 
 # Dictionary images have self-contained multi-stage Dockerfiles
 docker_build "pic-sure-dictionary-api" "$DICTIONARY_SRC" "$DICTIONARY_SRC/Dockerfile"

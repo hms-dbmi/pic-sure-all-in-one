@@ -92,10 +92,19 @@ rm -f "$SCRIPT_DIR/config/wildfly/deployments/"*.war
 info "Generated config removed."
 
 # -------------------------------------------------------------------------
-# Step 5: Optionally remove images
+# Step 5: Remove images (--all only)
 # -------------------------------------------------------------------------
-# Not removing images by default — they're expensive to rebuild/pull.
-# User can run: docker image prune or docker rmi manually.
+if [ "$WIPE_DB" = "true" ]; then
+  info "Removing PIC-SURE images..."
+  for img in pic-sure-hpds pic-sure-psama pic-sure-wildfly pic-sure-httpd \
+             pic-sure-dictionary-api pic-sure-dictionary-dump pic-sure-hpds-etl; do
+    docker rmi "hms-dbmi/$img:${PICSURE_IMAGE_TAG:-LATEST}" 2>/dev/null && \
+      info "Removed image: hms-dbmi/$img" || true
+  done
+  # Remove Maven cache volume (forces full rebuild)
+  docker volume rm maven_m2_cache 2>/dev/null && \
+    info "Removed Maven cache volume." || true
+fi
 
 # -------------------------------------------------------------------------
 # Done

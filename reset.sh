@@ -40,6 +40,16 @@ else
 fi
 echo ""
 
+read -r -p "Are you sure? [y/N] " response
+case "$response" in
+  [yY][eE][sS]|[yY]) ;;
+  *)
+    info "Aborted."
+    exit 0
+    ;;
+esac
+echo ""
+
 # -------------------------------------------------------------------------
 # Step 1: Back up .env
 # -------------------------------------------------------------------------
@@ -123,10 +133,7 @@ info "To start fresh:"
 info "  1. cp .env.example .env    # or restore your backup"
 info "  2. Edit .env with your Auth0 credentials"
 info "  3. ./init.sh"
-info "  4. docker compose up -d"
 if [ "$WIPE_DB" = "true" ]; then
-  info "  5. ./seed-db.sh"
-  info "  6. docker compose restart wildfly psama"
-  info "  7. ./load-demo-data.sh"
+  info "  4. ./load-demo-data.sh"
 fi
 echo ""

@@ -28,6 +28,15 @@ info()  { echo -e "${GREEN}[seed]${NC} $*"; }
 warn()  { echo -e "${YELLOW}[seed]${NC} $*"; }
 error() { echo -e "${RED}[seed]${NC} $*" >&2; }
 
+# Portable sed -i (macOS needs '' argument)
+sed_in_place() {
+  if [[ "$OSTYPE" =~ ^darwin ]]; then
+    sed -i '' "$@"
+  else
+    sed -i "$@"
+  fi
+}
+
 # Source .env
 if [ ! -f "$SCRIPT_DIR/.env" ]; then
   error ".env not found. Run ./init.sh first."
@@ -62,14 +71,21 @@ if [ -d "$MIGRATIONS_SRC/Baseline" ]; then
   # Prepare auth migrations (substitute application UUID)
   TMPDIR=$(mktemp -d)
   cp "$MIGRATIONS_SRC/Baseline/auth/"*.sql "$TMPDIR/" 2>/dev/null || true
-  sed -i "s/__APPLICATION_UUID__/$APP_ID_HEX/g" "$TMPDIR/"*.sql 2>/dev/null || true
+  sed_in_place "s/__APPLICATION_UUID__/$APP_ID_HEX/g" "$TMPDIR/"*.sql 2>/dev/null || true
 
-  # Check if already applied
+  # Check if already successfully applied (success=1, not failed attempts)
   ALREADY_DONE=$(docker exec picsure-db mysql -uroot -p"$ROOT_PASS" -N -e \
-    "SELECT COUNT(*) FROM auth.flyway_custom_schema_history;" 2>/dev/null || echo "0")
+    "SELECT COUNT(*) FROM auth.flyway_custom_schema_history WHERE success=1 AND version IS NOT NULL;" 2>/dev/null || echo "0")
 
   if [ "$ALREADY_DONE" = "0" ] || [ "$ALREADY_DONE" = "" ]; then
+    # Clean up any failed migration records so Flyway will retry
+    docker exec picsure-db mysql -uroot -p"$ROOT_PASS" -e \
+      "DELETE FROM auth.flyway_custom_schema_history WHERE success=0;" 2>/dev/null || true
+    docker exec picsure-db mysql -uroot -p"$ROOT_PASS" -e \
+      "DELETE FROM picsure.flyway_custom_schema_history WHERE success=0;" 2>/dev/null || true
+
     # Run auth baseline
+    info "Running auth baseline migrations..."
     docker run --rm \
       --network picsure_app \
       -v "$TMPDIR:/flyway/sql:ro" \
@@ -81,14 +97,15 @@ if [ -d "$MIGRATIONS_SRC/Baseline" ]; then
       -baselineOnMigrate=true \
       -ignoreMigrationPatterns="*:missing" \
       -table=flyway_custom_schema_history \
-      migrate 2>&1 | grep -E "^Migrating|^Successfully|^Current" || true
+      migrate
 
     # Run picsure baseline
+    info "Running picsure baseline migrations..."
     TMPDIR_PS=$(mktemp -d)
     cp "$MIGRATIONS_SRC/Baseline/picsure/"*.sql "$TMPDIR_PS/" 2>/dev/null || true
-    sed -i "s/__RESOURCE_UUID__/$RESOURCE_ID_HEX/g" "$TMPDIR_PS/"*.sql 2>/dev/null || true
+    sed_in_place "s/__RESOURCE_UUID__/$RESOURCE_ID_HEX/g" "$TMPDIR_PS/"*.sql 2>/dev/null || true
     # Fix hardcoded HPDS resource UUID to match ours
-    sed -i "s/16A7B3241CBF4333B65B3EA2AF954313/$RESOURCE_ID_HEX/g" "$TMPDIR_PS/"*.sql 2>/dev/null || true
+    sed_in_place "s/16A7B3241CBF4333B65B3EA2AF954313/$RESOURCE_ID_HEX/g" "$TMPDIR_PS/"*.sql 2>/dev/null || true
 
     docker run --rm \
       --network picsure_app \
@@ -101,7 +118,7 @@ if [ -d "$MIGRATIONS_SRC/Baseline" ]; then
       -baselineOnMigrate=true \
       -ignoreMigrationPatterns="*:missing" \
       -table=flyway_custom_schema_history \
-      migrate 2>&1 | grep -E "^Migrating|^Successfully|^Current" || true
+      migrate
 
     rm -rf "$TMPDIR" "$TMPDIR_PS"
     info "Baseline migrations applied."

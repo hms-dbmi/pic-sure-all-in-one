@@ -229,7 +229,6 @@ pic-sure-all-in-one/
 ├── .env                        # Your config (git-ignored)
 ├── init.sh                     # One-command setup (secrets, build, start, seed)
 ├── seed-db.sh                  # DB seeding (called by init.sh, can re-run standalone)
-├── build-frontend.sh           # Frontend image build (called by init.sh)
 ├── load-demo-data.sh           # Demo data loader (optional, run after init)
 ├── config/
 │   ├── wildfly/                # Wildfly/pic-sure-api config

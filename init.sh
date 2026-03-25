@@ -516,10 +516,27 @@ maven_build "pic-sure-psama" "$PSAMA_SRC" "$PSAMA_RUNTIME_DF" "-nsu"
 docker_build "pic-sure-dictionary-api" "$DICTIONARY_SRC" "$DICTIONARY_SRC/Dockerfile"
 docker_build "pic-sure-dictionary-dump" "$DICTIONARY_SRC/aggregate" "$DICTIONARY_SRC/aggregate/Dockerfile"
 
-# Frontend
+# Frontend — filter .env to VITE_* only (no secret leakage into build context)
+FRONTEND_SRC="${FRONTEND_SRC:-$SCRIPT_DIR/../PIC-SURE-Frontend}"
+FRONTEND_THEME="${PICSURE_THEME:-picsure}"
+
 if ! docker image inspect "hms-dbmi/pic-sure-httpd:$IMAGE_TAG" &>/dev/null || [ "$FORCE" = "true" ]; then
-  info "Building frontend..."
-  "$SCRIPT_DIR/build-frontend.sh" &> "$BUILD_OUT"
+  if [ ! -d "$FRONTEND_SRC" ]; then
+    error "Frontend source not found at $FRONTEND_SRC"
+    exit 1
+  fi
+  info "Building frontend (theme: $FRONTEND_THEME)..."
+  FRONTEND_DEFAULTS="$FRONTEND_SRC/.env.example"
+  {
+    if [ -f "$FRONTEND_DEFAULTS" ]; then grep '^VITE_' "$FRONTEND_DEFAULTS" || true; fi
+    grep '^VITE_' "$ENV_FILE" || true
+  } > "$FRONTEND_SRC/.env"
+  docker build -f "$FRONTEND_SRC/Dockerfile" \
+    --build-arg THEME="$FRONTEND_THEME" \
+    -t "hms-dbmi/pic-sure-httpd:$IMAGE_TAG" \
+    "$FRONTEND_SRC" &> "$BUILD_OUT"
+  rm -f "$FRONTEND_SRC/.env"
+  info "Built hms-dbmi/pic-sure-httpd:$IMAGE_TAG"
 else
   info "Image hms-dbmi/pic-sure-httpd:$IMAGE_TAG exists. Skipping."
 fi

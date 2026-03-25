@@ -8,6 +8,7 @@
 #   ./load-demo-data.sh                # Load NHANES (default)
 #   ./load-demo-data.sh synthea        # Load Synthea 10k
 #   ./load-demo-data.sh 1000genomes    # Load 1000 Genomes
+#   ./load-demo-data.sh --verbose      # Show full ETL/Docker output
 #
 # Prerequisites:
 #   - docker compose up -d must have been run (databases healthy)
@@ -17,7 +18,24 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-DATASET="${1:-nhanes}"
+
+# Parse flags
+VERBOSE=false
+DATASET="nhanes"
+for arg in "$@"; do
+  case "$arg" in
+    --verbose) VERBOSE=true ;;
+    -*) echo "Unknown flag: $arg"; exit 1 ;;
+    *) DATASET="$arg" ;;
+  esac
+done
+
+# Noisy output goes here (default: suppressed)
+if [ "$VERBOSE" = "true" ]; then
+  BUILD_OUT="/dev/stdout"
+else
+  BUILD_OUT="/dev/null"
+fi
 
 # Colors
 GREEN='\033[0;32m'
@@ -67,7 +85,8 @@ if ! docker image inspect hms-dbmi/pic-sure-dictionary-etl:LATEST >/dev/null 2>&
   DICT_SRC="${DICTIONARY_SRC:-$SCRIPT_DIR/../picsure-dictionary}"
   if [ -f "$DICT_SRC/dictionaryweights/Dockerfile" ]; then
     docker build -f "$DICT_SRC/dictionaryweights/Dockerfile" \
-      -t hms-dbmi/pic-sure-dictionary-etl:LATEST "$DICT_SRC/dictionaryweights" || \
+      -t hms-dbmi/pic-sure-dictionary-etl:LATEST "$DICT_SRC/dictionaryweights" \
+      &> "$BUILD_OUT" || \
       warn "Dictionary ETL image build failed. Dictionary hydration will be skipped."
   else
     warn "Dictionary ETL source not found. Dictionary hydration will be skipped."
@@ -168,7 +187,8 @@ docker run --rm \
   -v "$DATA_DIR/allConcepts.csv:/opt/local/hpds/allConcepts.csv:ro" \
   -e HEAPSIZE=4096 \
   -e LOADER_NAME=CSVLoaderNewSearch \
-  hms-dbmi/pic-sure-hpds-etl:LATEST
+  hms-dbmi/pic-sure-hpds-etl:LATEST \
+  &> "$BUILD_OUT"
 
 info "HPDS data loaded."
 
@@ -203,7 +223,7 @@ DICT_ETL_SRC="${DICT_ETL_SRC:-$SCRIPT_DIR/../picsure-dictionary-etl}"
 if ! docker image inspect hms-dbmi/dictionary-etl:latest >/dev/null 2>&1; then
   if [ -f "$DICT_ETL_SRC/Dockerfile" ]; then
     info "Building dictionary ETL image..."
-    docker build -t hms-dbmi/dictionary-etl:latest "$DICT_ETL_SRC" 2>&1 | tail -3
+    docker build -t hms-dbmi/dictionary-etl:latest "$DICT_ETL_SRC" &> "$BUILD_OUT"
   else
     warn "Dictionary ETL source not found at $DICT_ETL_SRC"
     warn "Clone it: git clone https://github.com/hms-dbmi/picsure-dictionary-etl.git"
@@ -222,7 +242,8 @@ if [ "${SKIP_DICT:-}" != "true" ]; then
     -v picsure_hpds-data:/opt/local/hpds/ \
     -e HEAPSIZE=4096 \
     -e LOADER_NAME=CreateColumnmetaCSV \
-    hms-dbmi/pic-sure-hpds-etl:LATEST 2>/dev/null
+    hms-dbmi/pic-sure-hpds-etl:LATEST \
+    &> "$BUILD_OUT"
 
   # Step 3b: Start dictionary ETL service
   info "Starting dictionary ETL service..."
@@ -235,7 +256,8 @@ if [ "${SKIP_DICT:-}" != "true" ]; then
     -e POSTGRES_DB=dictionary \
     -e POSTGRES_USER=picsure \
     -e POSTGRES_PASSWORD="$DICT_PASS" \
-    hms-dbmi/dictionary-etl:latest 2>/dev/null
+    hms-dbmi/dictionary-etl:latest \
+    &> "$BUILD_OUT"
 
   # Wait for ETL to start
   for i in $(seq 1 12); do
@@ -251,7 +273,8 @@ if [ "${SKIP_DICT:-}" != "true" ]; then
   docker run --rm --network picsure_data curlimages/curl:latest \
     -s -X POST -H "Content-Type: application/json" \
     -d '{"includeDefaultFacets": "true", "clearDatabase": "true"}' \
-    http://dictionaryetl:8086/load/initialize 2>&1
+    http://dictionaryetl:8086/load/initialize \
+    &> "$BUILD_OUT"
 
   # Step 3c.1: Load facet configuration
   FACET_CONFIG="$SCRIPT_DIR/initial-configuration/config/dictionary/facet_loader_configuration.json"
@@ -262,7 +285,8 @@ if [ "${SKIP_DICT:-}" != "true" ]; then
       curlimages/curl:latest \
       -s -X POST -H "Content-Type: application/json" \
       -d @/facet_config.json \
-      http://dictionaryetl:8086/api/facet/loader/load 2>&1
+      http://dictionaryetl:8086/api/facet/loader/load \
+      &> "$BUILD_OUT"
     info "Facets loaded."
   else
     warn "Facet config not found at $FACET_CONFIG — skipping facet loading."
@@ -277,7 +301,7 @@ if [ "${SKIP_DICT:-}" != "true" ]; then
   if ! docker image inspect hms-dbmi/dictionary-weights:latest >/dev/null 2>&1; then
     if [ -f "$DICT_WEIGHTS_SRC/Dockerfile" ]; then
       docker build -f "$DICT_WEIGHTS_SRC/Dockerfile" "$DICT_WEIGHTS_SRC" \
-        -t hms-dbmi/dictionary-weights:latest 2>/dev/null
+        -t hms-dbmi/dictionary-weights:latest &> "$BUILD_OUT"
     fi
   fi
 
@@ -290,7 +314,8 @@ if [ "${SKIP_DICT:-}" != "true" ]; then
       -e POSTGRES_DB=dictionary \
       -e POSTGRES_USER=picsure \
       -e POSTGRES_PASSWORD="$DICT_PASS" \
-      hms-dbmi/dictionary-weights:latest 2>&1 | tail -3
+      hms-dbmi/dictionary-weights:latest \
+      &> "$BUILD_OUT"
     info "Dictionary weights applied."
   else
     warn "Dictionary weights image not available. Search may not return results."

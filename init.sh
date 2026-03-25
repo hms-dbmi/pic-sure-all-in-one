@@ -6,8 +6,14 @@
 #
 # Usage:
 #   cp .env.example .env   # Edit with your Auth0 creds, admin email
-#   ./init.sh              # Generates passwords, certs, DB setup
-#   docker compose up -d   # Start everything
+#   ./init.sh              # Generates secrets, builds images, starts services, seeds DB
+#
+# That's it. One command from clone to running.
+#
+# Flags:
+#   --force     Regenerate all secrets (passwords, certs, etc.)
+#   --verbose   Show full build output (Maven, Docker, etc.)
+#   --log       Pipe all output to init.log in the current directory
 #
 # Re-running init.sh is safe — it will NOT overwrite existing passwords
 # unless you pass --force.
@@ -92,8 +98,39 @@ if [ ! -f "$ENV_FILE" ]; then
 fi
 
 FORCE=false
-if [ "${1:-}" = "--force" ]; then
-  FORCE=true
+VERBOSE=false
+LOG=false
+
+for arg in "$@"; do
+  case "$arg" in
+    --force)   FORCE=true ;;
+    --verbose) VERBOSE=true ;;
+    --log)     LOG=true ;;
+    *)         warn "Unknown flag: $arg" ;;
+  esac
+done
+
+# --- Output redirection ---
+# By default, noisy build output (Maven, Docker) is suppressed.
+# --verbose shows everything; --log pipes all output to init.log.
+LOG_FILE="$SCRIPT_DIR/init.log"
+
+if [ "$LOG" = "true" ]; then
+  info "Logging all output to $LOG_FILE"
+  exec > >(tee "$LOG_FILE") 2>&1
+fi
+
+# Noisy build output is redirected to this path.
+# --verbose → /dev/stdout (show everything)
+# default   → /dev/null (quiet, just show [init] status lines)
+# --log captures everything via tee regardless.
+if [ "$VERBOSE" = "true" ]; then
+  BUILD_OUT="/dev/stdout"
+else
+  BUILD_OUT="/dev/null"
+fi
+
+if [ "$FORCE" = "true" ]; then
   warn "Force mode — will regenerate all secrets"
 fi
 
@@ -383,9 +420,11 @@ maven_build() {
     -v "$build_dir:/build" \
     -w /build \
     "$maven_image" \
-    bash -c "cp -r /src/. /build/ && mvn -B clean install -DskipTests $mvn_flags"
+    bash -c "cp -r /src/. /build/ && mvn -B clean install -DskipTests $mvn_flags" \
+    &> "$BUILD_OUT"
 
-  docker build -f "$dockerfile" -t "hms-dbmi/$name:$IMAGE_TAG" "$build_dir"
+  docker build -f "$dockerfile" -t "hms-dbmi/$name:$IMAGE_TAG" "$build_dir" \
+    &> "$BUILD_OUT"
   rm -rf "$build_dir"
   info "Built hms-dbmi/$name:$IMAGE_TAG"
 }
@@ -400,7 +439,8 @@ docker_build() {
   fi
 
   info "Building $name..."
-  docker build -f "$dockerfile" -t "hms-dbmi/$name:$IMAGE_TAG" "$context"
+  docker build -f "$dockerfile" -t "hms-dbmi/$name:$IMAGE_TAG" "$context" \
+    &> "$BUILD_OUT"
   info "Built hms-dbmi/$name:$IMAGE_TAG"
 }
 
@@ -434,19 +474,22 @@ if [ "$HPDS_NEED_BUILD" = "true" ]; then
     -v "$HPDS_BUILD_DIR:/build" \
     -w /build \
     maven:3.9.9-amazoncorretto-24 \
-    bash -c "which git >/dev/null 2>&1 || yum install -y git >/dev/null 2>&1; cp -r /src/. /build/ && mvn -B clean install -DskipTests -nsu"
+    bash -c "which git >/dev/null 2>&1 || yum install -y git >/dev/null 2>&1; cp -r /src/. /build/ && mvn -B clean install -DskipTests -nsu" \
+    &> "$BUILD_OUT"
 
   # Runtime image
   if ! docker image inspect "hms-dbmi/pic-sure-hpds:$IMAGE_TAG" &>/dev/null || [ "$FORCE" = "true" ]; then
     docker build -f "$HPDS_SRC/docker/pic-sure-hpds/Dockerfile" \
-      -t "hms-dbmi/pic-sure-hpds:$IMAGE_TAG" "$HPDS_BUILD_DIR"
+      -t "hms-dbmi/pic-sure-hpds:$IMAGE_TAG" "$HPDS_BUILD_DIR" \
+      &> "$BUILD_OUT"
     info "Built hms-dbmi/pic-sure-hpds:$IMAGE_TAG"
   fi
 
   # ETL image (fat jars produced by Maven in docker/pic-sure-hpds-etl/)
   if ! docker image inspect "hms-dbmi/pic-sure-hpds-etl:$IMAGE_TAG" &>/dev/null || [ "$FORCE" = "true" ]; then
     docker build -f "$HPDS_BUILD_DIR/docker/pic-sure-hpds-etl/Dockerfile" \
-      -t "hms-dbmi/pic-sure-hpds-etl:$IMAGE_TAG" "$HPDS_BUILD_DIR"
+      -t "hms-dbmi/pic-sure-hpds-etl:$IMAGE_TAG" "$HPDS_BUILD_DIR" \
+      &> "$BUILD_OUT"
     info "Built hms-dbmi/pic-sure-hpds-etl:$IMAGE_TAG"
   fi
 
@@ -476,7 +519,7 @@ docker_build "pic-sure-dictionary-dump" "$DICTIONARY_SRC/aggregate" "$DICTIONARY
 # Frontend
 if ! docker image inspect "hms-dbmi/pic-sure-httpd:$IMAGE_TAG" &>/dev/null || [ "$FORCE" = "true" ]; then
   info "Building frontend..."
-  "$SCRIPT_DIR/build-frontend.sh"
+  "$SCRIPT_DIR/build-frontend.sh" &> "$BUILD_OUT"
 else
   info "Image hms-dbmi/pic-sure-httpd:$IMAGE_TAG exists. Skipping."
 fi
@@ -484,18 +527,51 @@ fi
 info "All images ready."
 
 # ---------------------------------------------------------------------------
+# Start services
+# ---------------------------------------------------------------------------
 
+info "Starting services..."
+cd "$SCRIPT_DIR"
+docker compose up -d &> "$BUILD_OUT"
+
+# Wait for DB to be healthy before seeding
+info "Waiting for database to be healthy..."
+RETRIES=30
+until docker inspect --format='{{.State.Health.Status}}' picsure-db 2>/dev/null | grep -q healthy; do
+  RETRIES=$((RETRIES - 1))
+  if [ "$RETRIES" -le 0 ]; then
+    error "Database did not become healthy in time."
+    error "Check logs: docker compose logs picsure-db"
+    exit 1
+  fi
+  sleep 2
+done
+info "Database is healthy."
+
+# ---------------------------------------------------------------------------
+# Seed database
+# ---------------------------------------------------------------------------
+
+info "Seeding database..."
+"$SCRIPT_DIR/seed-db.sh"
+
+# ---------------------------------------------------------------------------
+# Restart services to pick up seeded data
+# ---------------------------------------------------------------------------
+
+info "Restarting wildfly and psama to pick up seeded data..."
+docker compose restart wildfly psama
+
+# ---------------------------------------------------------------------------
+# Done
+# ---------------------------------------------------------------------------
+
+echo ""
 info "======================================"
-info "  Initialization complete!"
+info "  PIC-SURE is running!"
 info "======================================"
 echo ""
-info "Next steps:"
-info "  1. Review .env and fill in any missing values (AUTH0_CLIENT_ID, etc.)"
-info "  2. Start services:  docker compose up -d"
-info "  3. Seed database:   ./seed-db.sh"
-info "  4. Restart:          docker compose restart wildfly psama"
-info "  5. Load demo data:  ./load-demo-data.sh  (optional)"
-info "  6. Browse to: https://localhost"
+info "  Browse to: https://localhost"
 echo ""
 
 if [ -z "${AUTH0_CLIENT_ID:-}" ]; then
@@ -506,8 +582,7 @@ if [ -z "${ADMIN_EMAIL:-}" ]; then
 fi
 
 echo ""
-info "For production deployments:"
-info "  - Replace self-signed certs in certs/ with real SSL certificates"
-info "  - Set strong Auth0 credentials"
-info "  - Consider DB_MODE=remote for external database"
+info "Optional next steps:"
+info "  - Load demo data:  ./load-demo-data.sh"
+info "  - For production: replace self-signed certs in certs/ with real SSL certificates"
 echo ""

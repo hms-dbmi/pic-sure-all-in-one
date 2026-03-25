@@ -15,4 +15,4 @@ config/wildfly/deployments/*.war
 config/psama/application.truststore
 config/wildfly/visualization/pic-sure-visualization-resource/resource.properties
 .data/
-.build-*/
+.build-*/init.log

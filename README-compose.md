@@ -13,22 +13,10 @@ cp .env.example .env
 # Edit .env — set AUTH0_CLIENT_ID, AUTH0_CLIENT_SECRET, AUTH0_TENANT, ADMIN_EMAIL
 # For evaluation, request demo credentials at: http://avillachlabsupport.hms.harvard.edu
 
-# 2. Initialize (generates passwords, SSL cert, truststore, config files)
+# 2. Initialize (builds images, starts services, seeds database — everything)
 ./init.sh
 
-# 3. Build frontend (bakes in auth config)
-./build-frontend.sh
-
-# 4. Start
-docker compose up -d
-
-# 5. Seed database (roles, admin user, visualization resource)
-./seed-db.sh
-
-# 6. Restart services to pick up seed data
-docker compose restart wildfly psama
-
-# 7. Load demo data (optional — includes HPDS + dictionary + search weights)
+# 3. Load demo data (optional — includes HPDS + dictionary + search weights)
 ./load-demo-data.sh          # NHANES (default)
 ./load-demo-data.sh synthea  # or Synthea 10k
 ```
@@ -239,8 +227,10 @@ pic-sure-all-in-one/
 ├── docker-compose.dev.yml      # Dev overrides (build from source)
 ├── .env.example                # Configuration template
 ├── .env                        # Your config (git-ignored)
-├── init.sh                     # One-time initialization
-├── load-demo-data.sh           # Demo data loader
+├── init.sh                     # One-command setup (secrets, build, start, seed)
+├── seed-db.sh                  # DB seeding (called by init.sh, can re-run standalone)
+├── build-frontend.sh           # Frontend image build (called by init.sh)
+├── load-demo-data.sh           # Demo data loader (optional, run after init)
 ├── config/
 │   ├── wildfly/                # Wildfly/pic-sure-api config
 │   │   └── standalone.xml      # App server config (uses env vars)

@@ -20,8 +20,8 @@ services:
     container_name: httpd
     restart: always
     ports:
-      - "80:80"
-      - "443:443"
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
     volumes:
       - ./certs/server.crt:/usr/local/apache2/cert/server.crt:ro
       - ./certs/server.key:/usr/local/apache2/cert/server.key:ro

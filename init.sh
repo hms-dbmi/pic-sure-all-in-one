@@ -588,7 +588,12 @@ info "======================================"
 info "  PIC-SURE is running!"
 info "======================================"
 echo ""
-info "  Browse to: https://localhost"
+DISPLAY_PORT="${HTTPS_PORT:-443}"
+if [ "$DISPLAY_PORT" = "443" ]; then
+  info "  Browse to: https://localhost"
+else
+  info "  Browse to: https://localhost:$DISPLAY_PORT"
+fi
 echo ""
 
 if [ -z "${AUTH0_CLIENT_ID:-}" ]; then

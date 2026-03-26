@@ -47,4 +47,6 @@ sed_inplace "s|host|`cat "$DOCKER_CONFIG_DIR"/jenkins_home_bak/config.xml | grep
 sed_inplace "s|*/master|`cat "$DOCKER_CONFIG_DIR"/jenkins_home_bak/config.xml | grep -A1 release_control_branch | tail -1 | sed 's/<\/*string>//g' | sed 's/ //g' `|g" "$DOCKER_CONFIG_DIR"/jenkins_home/config.xml
 sed_inplace "s|__PROJECT_SPECIFIC_MIGRATION_NAME__|`cat "$DOCKER_CONFIG_DIR"/jenkins_home_bak/config.xml | grep -A1 MIGRATION_NAME | tail -1 | sed 's/<\/*string>//g' | sed 's/ //g' `|g" "$DOCKER_CONFIG_DIR"/jenkins_home/config.xml
 
+./migrate_jenkins.sh "$DOCKER_CONFIG_DIR"/jenkins_home_bak "$DOCKER_CONFIG_DIR"/jenkins_home "$DOCKER_CONFIG_DIR"/jenkins_home_tmp
+
 ./start-jenkins.sh

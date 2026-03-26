@@ -59,110 +59,164 @@ docker network inspect picsure >/dev/null 2>&1 || docker network create picsure
 docker network inspect dictionary >/dev/null 2>&1 || docker network create --internal dictionary
 docker network inspect hpds >/dev/null 2>&1 || docker network create --internal hpds
 
-# Start Commands
-if $INCLUDE_HPDS; then
-  docker stop hpds && docker rm hpds
-  docker run --name=hpds --restart always --network=picsure --network=hpds \
-    -v $DOCKER_CONFIG_DIR/hpds:/opt/local/hpds \
-    -v $DOCKER_CONFIG_DIR/hpds/all:/opt/local/hpds/all \
-    -v "$DOCKER_CONFIG_DIR"/log/hpds-logs/:/var/log/ \
-    -v $DOCKER_CONFIG_DIR/hpds_csv/:/usr/local/docker-config/hpds_csv/ \
-    $HPDS_DEBUG \
-    -v $DOCKER_CONFIG_DIR/aws_uploads/:/gic_query_results/ \
-    --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/hpds/hpds.env \
-    -d hms-dbmi/pic-sure-hpds:LATEST \
-    || exit 2
-fi
+# # Start Commands
+# if $INCLUDE_HPDS; then
+#   docker stop hpds && docker rm hpds
+#   docker run --name=hpds --restart always --network=picsure --network=hpds \
+#     -v $DOCKER_CONFIG_DIR/hpds:/opt/local/hpds \
+#     -v $DOCKER_CONFIG_DIR/hpds/all:/opt/local/hpds/all \
+#     -v "$DOCKER_CONFIG_DIR"/log/hpds-logs/:/var/log/ \
+#     -v $DOCKER_CONFIG_DIR/hpds_csv/:/usr/local/docker-config/hpds_csv/ \
+#     $HPDS_DEBUG \
+#     -v $DOCKER_CONFIG_DIR/aws_uploads/:/gic_query_results/ \
+#     --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/hpds/hpds.env \
+#     -d hms-dbmi/pic-sure-hpds:LATEST \
+#     || exit 2
+# fi
 
-docker stop httpd && docker rm httpd
-docker run --name=httpd --restart always --network=picsure \
-    -v "$DOCKER_CONFIG_DIR"/log/httpd-docker-logs/:/app/logs/ \
+(
+  docker stop httpd && docker rm httpd || true
+  docker stop httpd-harness && docker rm httpd-harness || true
+
+  PSP="/Users/samanthapiatt/Documents/Projects/Pic-sure/base/frontend"
+
+  pushd $PSP
+  FLAG="--no-cache"
+  # FLAG=""
+  docker build $FLAG -f Dockerfile --build-arg THEME=aim-ahead -t hms-dbmi/pic-sure-frontend:dev .
+  # docker build $FLAG -f Dockerfile.dev -t hms-dbmi/pic-sure-frontend:dev .
+  popd
+
+  # ------------------------------ HARNESSED --------------------------------- #
+  # BACKEND_HOST=nhanes-dev.hms.harvard.edu
+  # BACKEND_IP=10.4.169.23
+  # BACKEND_HOST=gic-bch-dev.pl.hms.harvard.edu
+  # BACKEND_IP=10.244.149.130
+  # ENV_PORT="5173"
+  # docker run --name=httpd-harness --network=picsure \
+  #   -v $PSP/httpd-docker-logs/app/:/app/logs/ \
+  #   -v $PSP/httpd-docker-logs/:/usr/local/apache2/logs/ \
+  #   -v $PSP/httpd-vhosts.conf:/usr/local/apache2/conf/extra/httpd-vhosts.conf \
+  #   -v $PSP/cert/server.crt:/usr/local/apache2/cert/server.crt \
+  #   -v $PSP/cert/server.chain:/usr/local/apache2/cert/server.chain \
+  #   -v $PSP/cert/server.key:/usr/local/apache2/cert/server.key \
+  #   -v $PSP/httpd-docker-logs/ssl_mutex:/usr/local/apache2/logs/ssl_mutex \
+  #   -v $PSP/src:/app/src \
+  #   -v $PSP/.env:/app/.env \
+  #   -e BACKEND_HOST=$BACKEND_HOST \
+  #   -e BACKEND_IP=$BACKEND_IP \
+  #   -e ENV_PORT=$ENV_PORT \
+  #   --add-host $BACKEND_HOST:$BACKEND_IP \
+  #   -p 80:80 \
+  #   -p 443:443 \
+  #   -p 5173:5173 \
+  #   --dns 8.8.8.8 \
+  #   -d hms-dbmi/pic-sure-frontend:dev \
+  #   || exit 2
+
+  # --------------------------------- LOCAL ---------------------------------- #
+  docker run --name=httpd --restart always --network=picsure \
+    -v $DOCKER_CONFIG_DIR/log/httpd-docker-logs/:/app/logs/ \
     -v $DOCKER_CONFIG_DIR/httpd/cert:/usr/local/apache2/cert/ \
-    -v $DOCKER_CONFIG_DIR/httpd/httpd-vhosts.conf:/usr/local/apache2/conf/extra/httpd-vhosts.conf \
-    $CUSTOM_HTTPD_VOLUMES \
+    -v ./initial-configuration/config/httpd/httpd-vhosts.conf:/usr/local/apache2/conf/extra/httpd-vhosts.conf \
+    -v $PSP/src:/app/src \
+    -v $PSP/.env:/app/.env \
+    -e NODE_TLS_REJECT_UNAUTHORIZED=0 \
     -p 443:443 \
-    --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/httpd/httpd.env \
-    -d hms-dbmi/pic-sure-frontend:LATEST \
+    -d hms-dbmi/pic-sure-frontend:dev \
     || exit 2
-docker restart httpd
 
-docker stop psama && docker rm psama
-docker run --name=psama --restart always \
-  --network=picsure \
-  --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/psama/psama.env \
-  -v $DOCKER_CONFIG_DIR/log/psama-docker-logs/:/var/log/ \
-  $EMAIL_TEMPLATE_VOLUME \
-  $PSAMA_DEBUG \
-  $PSAMA_TRUSTSTORE_VOLUME \
-  -d hms-dbmi/psama:LATEST \
-  || exit 2
+  # ------------------------------ Jenkins Built ----------------------------- #
+  # docker stop httpd && docker rm httpd
+  # docker run --name=httpd --restart always --network=picsure \
+  #   -v "$DOCKER_CONFIG_DIR"/log/httpd-docker-logs/:/app/logs/ \
+  #   -v $DOCKER_CONFIG_DIR/httpd/cert:/usr/local/apache2/cert/ \
+  #   -v $DOCKER_CONFIG_DIR/httpd/httpd-vhosts.conf:/usr/local/apache2/conf/extra/httpd-vhosts.conf \
+  #   $CUSTOM_HTTPD_VOLUMES \
+  #   -p 443:443 \
+  #   --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/httpd/httpd.env \
+  #   -d hms-dbmi/pic-sure-frontend:LATEST \
+  #   || exit 2
+  # docker restart httpd
+)
+
+# docker stop psama && docker rm psama
+# docker run --name=psama --restart always \
+#   --network=picsure \
+#   --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/psama/psama.env \
+#   -v $DOCKER_CONFIG_DIR/log/psama-docker-logs/:/var/log/ \
+#   $EMAIL_TEMPLATE_VOLUME \
+#   $PSAMA_DEBUG \
+#   $PSAMA_TRUSTSTORE_VOLUME \
+#   -d hms-dbmi/psama:LATEST \
+#   || exit 2
 
 
-# This ensure the volume is created for existing environments providing some level of "safety" when updating an
-# existing environment.
-if [ -z "$(docker volume ls --format '{{.Name}}' | grep ^wildfly_deployments$)" ]; then
-  echo "Creating docker volume for WildFly"
-  docker volume create wildfly_deployments
-else
-  echo "docker volume for WildFly already exists."
-fi
+# # This ensure the volume is created for existing environments providing some level of "safety" when updating an
+# # existing environment.
+# if [ -z "$(docker volume ls --format '{{.Name}}' | grep ^wildfly_deployments$)" ]; then
+#   echo "Creating docker volume for WildFly"
+#   docker volume create wildfly_deployments
+# else
+#   echo "docker volume for WildFly already exists."
+# fi
 
-docker stop wildfly && docker rm wildfly
-docker run --name=wildfly --restart always --network=picsure --network=hpds --network=dictionary -u root \
-  -v "$DOCKER_CONFIG_DIR"/log/wildfly-docker-logs/:/opt/jboss/wildfly/standalone/log/ \
-  -v /etc/hosts:/etc/hosts \
-  -v "$DOCKER_CONFIG_DIR"/log/wildfly-docker-os-logs/:/var/log/ \
-  -v $DOCKER_CONFIG_DIR/wildfly/passthru/:/opt/jboss/wildfly/standalone/configuration/passthru/ \
-  -v $DOCKER_CONFIG_DIR/wildfly/aggregate-data-sharing/:/opt/jboss/wildfly/standalone/configuration/aggregate-data-sharing/ \
-  -v $DOCKER_CONFIG_DIR/wildfly/visualization/:/opt/jboss/wildfly/standalone/configuration/visualization/ \
-  $WILDFLY_DEBUG \
-  -v $DOCKER_CONFIG_DIR/wildfly/standalone.xml:/opt/jboss/wildfly/standalone/configuration/standalone.xml \
-  $TRUSTSTORE_VOLUME \
-  $EMAIL_TEMPLATE_VOLUME \
-  -v $DOCKER_CONFIG_DIR/wildfly/wildfly_mysql_module.xml:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/module.xml  \
-  -v $DOCKER_CONFIG_DIR/wildfly/mysql-connector-java-5.1.49.jar:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/mysql-connector-java-5.1.49.jar  \
-  -v wildfly_deployments:/opt/jboss/wildfly/standalone/deployments \
-  --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/wildfly/wildfly.env \
-  -d hms-dbmi/pic-sure-wildfly:LATEST \
-  || exit 2
-# Workaround for macOS bind-mount limitations: macOS does not support atomic file moves on mounted volumes,
-# causing "Device or resource busy" errors during hot deployments. We just copy the files into the running container.
-docker cp "${DOCKER_CONFIG_DIR}/wildfly/deployments/." "wildfly:/opt/jboss/wildfly/standalone/deployments/"
+# docker stop wildfly && docker rm wildfly
+# docker run --name=wildfly --restart always --network=picsure --network=hpds --network=dictionary -u root \
+#   -v "$DOCKER_CONFIG_DIR"/log/wildfly-docker-logs/:/opt/jboss/wildfly/standalone/log/ \
+#   -v /etc/hosts:/etc/hosts \
+#   -v "$DOCKER_CONFIG_DIR"/log/wildfly-docker-os-logs/:/var/log/ \
+#   -v $DOCKER_CONFIG_DIR/wildfly/passthru/:/opt/jboss/wildfly/standalone/configuration/passthru/ \
+#   -v $DOCKER_CONFIG_DIR/wildfly/aggregate-data-sharing/:/opt/jboss/wildfly/standalone/configuration/aggregate-data-sharing/ \
+#   -v $DOCKER_CONFIG_DIR/wildfly/visualization/:/opt/jboss/wildfly/standalone/configuration/visualization/ \
+#   $WILDFLY_DEBUG \
+#   -v $DOCKER_CONFIG_DIR/wildfly/standalone.xml:/opt/jboss/wildfly/standalone/configuration/standalone.xml \
+#   $TRUSTSTORE_VOLUME \
+#   $EMAIL_TEMPLATE_VOLUME \
+#   -v $DOCKER_CONFIG_DIR/wildfly/wildfly_mysql_module.xml:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/module.xml  \
+#   -v $DOCKER_CONFIG_DIR/wildfly/mysql-connector-java-5.1.49.jar:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/mysql-connector-java-5.1.49.jar  \
+#   -v wildfly_deployments:/opt/jboss/wildfly/standalone/deployments \
+#   --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/wildfly/wildfly.env \
+#   -d hms-dbmi/pic-sure-wildfly:LATEST \
+#   || exit 2
+# # Workaround for macOS bind-mount limitations: macOS does not support atomic file moves on mounted volumes,
+# # causing "Device or resource busy" errors during hot deployments. We just copy the files into the running container.
+# docker cp "${DOCKER_CONFIG_DIR}/wildfly/deployments/." "wildfly:/opt/jboss/wildfly/standalone/deployments/"
 
-if $INCLUDE_UPLOADER; then
-  docker compose --profile production -f $CURRENT_FS_DOCKER_CONFIG_DIR/uploader/docker-compose.yml up -d
-fi
+# if $INCLUDE_UPLOADER; then
+#   docker compose --profile production -f $CURRENT_FS_DOCKER_CONFIG_DIR/uploader/docker-compose.yml up -d
+# fi
 
-if $INCLUDE_DICTIONARY; then
-  docker start dictionary-db
-  docker stop dictionary-api && docker rm dictionary-api
-  docker run --name dictionary-api --restart always \
-   --network=picsure --network=dictionary \
-   $DICTIONARY_DEBUG \
-    -v $DOCKER_CONFIG_DIR/log/dictionary-docker-logs/:/var/log/ \
-   --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/dictionary/dictionary.env \
-   -d avillach/dictionary-api:latest \
-   || exit 2
-fi
+# if $INCLUDE_DICTIONARY; then
+#   docker start dictionary-db
+#   docker stop dictionary-api && docker rm dictionary-api
+#   docker run --name dictionary-api --restart always \
+#    --network=picsure --network=dictionary \
+#    $DICTIONARY_DEBUG \
+#     -v $DOCKER_CONFIG_DIR/log/dictionary-docker-logs/:/var/log/ \
+#    --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/dictionary/dictionary.env \
+#    -d avillach/dictionary-api:latest \
+#    || exit 2
+# fi
 
-if $INCLUDE_AGG_DICT; then
-  docker stop dictionary-dump && docker rm dictionary-dump
-  docker run --name dictionary-dump --restart always \
-    --network=dictionary \
-    --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/dictionary/dictionary.env \
-    $AGGREGATE_DEBUG \
-    -v $DOCKER_CONFIG_DIR/log/agg-dict-docker-logs/:/var/log/ \
-    -v $DOCKER_CONFIG_DIR/dictionary/dump/application.properties:/application.properties \
-    -d avillach/dictionary-dump:latest \
-   || exit 2
-fi
+# if $INCLUDE_AGG_DICT; then
+#   docker stop dictionary-dump && docker rm dictionary-dump
+#   docker run --name dictionary-dump --restart always \
+#     --network=dictionary \
+#     --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/dictionary/dictionary.env \
+#     $AGGREGATE_DEBUG \
+#     -v $DOCKER_CONFIG_DIR/log/agg-dict-docker-logs/:/var/log/ \
+#     -v $DOCKER_CONFIG_DIR/dictionary/dump/application.properties:/application.properties \
+#     -d avillach/dictionary-dump:latest \
+#    || exit 2
+# fi
 
-if $INCLUDE_PASSTHRU; then
-  docker stop passthru && docker rm passthru
-  docker run --restart always --name passthru --network picsure --network dictionary \
-    -v $DOCKER_CONFIG_DIR/passthru/application.properties:/application.properties \
-    -v $DOCKER_CONFIG_DIR/log/passthru-docker-logs/:/var/log/ \
-    --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/passthru/passthru.env \
-    $PASSTHRU_DEBUG \
-    -d hms-dbmi/pic-sure-passthru:LATEST
-fi
+# if $INCLUDE_PASSTHRU; then
+#   docker stop passthru && docker rm passthru
+#   docker run --restart always --name passthru --network picsure --network dictionary \
+#     -v $DOCKER_CONFIG_DIR/passthru/application.properties:/application.properties \
+#     -v $DOCKER_CONFIG_DIR/log/passthru-docker-logs/:/var/log/ \
+#     --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/passthru/passthru.env \
+#     $PASSTHRU_DEBUG \
+#     -d hms-dbmi/pic-sure-passthru:LATEST
+# fi

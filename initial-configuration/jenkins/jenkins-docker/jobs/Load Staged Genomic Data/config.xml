@@ -39,7 +39,7 @@ if [ &quot;$clean&quot; = &quot;true&quot; ]; then
     rm -rf /usr/local/docker-config/hpds/all/*
 fi
 
-cp -r /usr/local/docker-config/vcf-load/genomic/* /usr/local/docker-config/hpds/all/
+cp -r /usr/local/docker-config/vcf-load/genomic/ /usr/local/docker-config/hpds/all/
             </command>
       <configuredLocalRules/>
     </hudson.tasks.Shell>

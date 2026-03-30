@@ -48,7 +48,7 @@
 GIT_COMMIT_SHORT=`echo ${GIT_COMMIT} | cut -c1-7`
  
 docker run --rm \
-  -v &quot;$DOCKER_CONFIG_DIR/jenkins_home/workspace/PIC-SURE DIctionary-ETL Build/:/app&quot; \
+  -v &quot;$DOCKER_CONFIG_DIR/jenkins_home/workspace/$JOB_NAME/:/app&quot; \
   -v maven_m2_cache:/root/.m2 \
   -w /app \
   --platform=linux/amd64 \

@@ -254,7 +254,7 @@ pipeline {
             steps {
                 script {
                     def result = build job: &apos;Hydrate Data Dictionary Database&apos;, parameters: [
-                        [$class: &apos;BooleanParameterValue&apos;, name: &apos;Include_Default_Facets&apos;, value: params.Include_Dataset_Facets],
+                        [$class: &apos;BooleanParameterValue&apos;, name: &apos;Include_Dataset_Facets&apos;, value: params.Include_Dataset_Facets],
                         [$class: &apos;BooleanParameterValue&apos;, name: &apos;Clear_Dictionary_Database&apos;, value: params.Clear_Dictionary_Database]
                     ]
                 }

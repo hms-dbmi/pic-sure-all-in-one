@@ -61,6 +61,7 @@ docker run --rm \
   maven:3.9-eclipse-temurin-11 \
   sh -lc &quot;mvn clean install -DskipTests&quot;
 
+mkdir -p /usr/local/docker-config/wildfly/deployments
 cp pic-sure-resources/pic-sure-visualization-resource/target/pic-sure-visualization-resource.war /usr/local/docker-config/wildfly/deployments/$RESOURCE_PATH.war
 
 # Make properties config file

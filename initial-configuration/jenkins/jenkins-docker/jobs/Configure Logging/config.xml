@@ -1,0 +1,45 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description>Configure the PIC-SURE Logging Service API key in wildfly standalone.xml. Reads the key from logging.env and replaces the current value in standalone.xml.</description>
+  <keepDependencies>false</keepDependencies>
+  <properties/>
+  <scm class="hudson.scm.NullSCM"/>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>LOGGING_ENV=&quot;/usr/local/docker-config/logging/logging.env&quot;
+STANDALONE=&quot;/usr/local/docker-config/wildfly/standalone.xml&quot;
+
+if [ ! -f &quot;$LOGGING_ENV&quot; ]; then
+    echo &quot;No logging.env found at $LOGGING_ENV - skipping.&quot;
+    exit 0
+fi
+
+NEW_API_KEY=$(grep &apos;^LOGGING_API_KEY=&apos; &quot;$LOGGING_ENV&quot; | cut -d= -f2-)
+if [ -z &quot;$NEW_API_KEY&quot; ]; then
+    echo &quot;LOGGING_API_KEY not set in $LOGGING_ENV - skipping.&quot;
+    exit 0
+fi
+
+# Read current value from standalone.xml
+OLD_API_KEY=$(grep &apos;logging_api_key&apos; &quot;$STANDALONE&quot; | sed &apos;s/.*value=&quot;\([^&quot;]*\)&quot;.*/\1/&apos;)
+
+if [ &quot;$OLD_API_KEY&quot; = &quot;$NEW_API_KEY&quot; ]; then
+    echo &quot;Logging API key already up to date.&quot;
+    exit 0
+fi
+
+echo &quot;Updating logging_api_key in standalone.xml&quot;
+sed -i &quot;s|$OLD_API_KEY|$NEW_API_KEY|g&quot; &quot;$STANDALONE&quot;
+</command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

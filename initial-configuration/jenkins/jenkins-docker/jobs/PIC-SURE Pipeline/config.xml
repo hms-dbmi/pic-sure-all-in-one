@@ -22,7 +22,7 @@ def build_hashes = [
     UPLOADER: false,
     PASSTHRU: false,
     AGGREGATE: false,
-    LOGGING: false,
+    PSL: false,
 ];
 pipeline {
     agent any
@@ -158,10 +158,10 @@ pipeline {
                     },
                     logging:{
                         script {
-                            if (build_hashes[&apos;LOGGING&apos;]) {
+                            if (build_hashes[&apos;PSL&apos;]) {
                                 echo &quot;Building Logging Service&quot;
                                 def result = build job: &apos;PIC-SURE Logging Build and Deploy&apos;, parameters: [
-                                    [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;LOGGING&apos;]],
+                                    [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSL&apos;]],
                                     [$class: &apos;StringParameterValue&apos;, name: &apos;DEPLOY_METHOD&apos;, value: &apos;docker&apos;]
                                 ]
                                 try {
@@ -170,7 +170,7 @@ pipeline {
                                     echo &quot;Configure Logging failed (${e.message}). Continuing pipeline.&quot;
                                 }
                             } else {
-                                echo &quot;No project_job_git_key LOGGING found in build spec. Skipping Logging Service Build&quot;
+                                echo &quot;No project_job_git_key PSL found in build spec. Skipping Logging Service Build&quot;
                             }
                         }
                     }

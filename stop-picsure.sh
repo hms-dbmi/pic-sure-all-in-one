@@ -26,6 +26,8 @@ echo "INCLUDE_DICTIONARY=$INCLUDE_DICTIONARY"
 echo "INCLUDE_AGG_DICT=$INCLUDE_AGG_DICT"
 [[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/passthru" ]] && INCLUDE_PASSTHRU=true || INCLUDE_PASSTHRU=false
 echo "INCLUDE_PASSTHRU=$INCLUDE_PASSTHRU"
+[[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/logging" ]] && INCLUDE_LOGGING=true || INCLUDE_LOGGING=false
+echo "INCLUDE_LOGGING=$INCLUDE_LOGGING"
 
 if $INCLUDE_HPDS; then
   docker stop hpds && docker rm hpds
@@ -45,4 +47,7 @@ if $INCLUDE_AGG_DICT; then
 fi
 if $INCLUDE_PASSTHRU; then
   docker stop passthru && docker rm passthru
+fi
+if $INCLUDE_LOGGING; then
+  docker stop pic-sure-logging && docker rm pic-sure-logging
 fi

@@ -22,6 +22,7 @@ def build_hashes = [
     UPLOADER: false,
     PASSTHRU: false,
     AGGREGATE: false,
+    PSL: false,
 ];
 pipeline {
     agent any
@@ -41,6 +42,19 @@ pipeline {
                     pipelineBuildId = new File(&apos;/var/jenkins_home/workspace/PIC-SURE Pipeline/pipeline_git_commit.txt&apos;).text.trim()
                     for(def build : buildSpec.application){
                         build_hashes[build.project_job_git_key] = build.git_hash
+                    }
+                }
+            }
+        }
+        stage(&apos;Install Logging Client Library&apos;) {
+            steps {
+                script {
+                    try {
+                        build job: &apos;PIC-SURE Logging Client Install&apos;, parameters: [
+                            [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId]
+                        ]
+                    } catch (Exception e) {
+                        echo &quot;Logging client install failed (${e.message}). Downstream builds will proceed without it.&quot;
                     }
                 }
             }
@@ -139,6 +153,24 @@ pipeline {
                                 ]
                             } else {
                                 echo &quot;No project_job_git_key AGGREGATE found in build spec. Skipping Aggregate Resource Build&quot;
+                            }
+                        }
+                    },
+                    logging:{
+                        script {
+                            if (build_hashes[&apos;PSL&apos;]) {
+                                echo &quot;Building Logging Service&quot;
+                                def result = build job: &apos;PIC-SURE Logging Build and Deploy&apos;, parameters: [
+                                    [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSL&apos;]],
+                                    [$class: &apos;StringParameterValue&apos;, name: &apos;DEPLOY_METHOD&apos;, value: &apos;docker&apos;]
+                                ]
+                                try {
+                                    build job: &apos;Configure Logging&apos;
+                                } catch (Exception e) {
+                                    echo &quot;Configure Logging failed (${e.message}). Continuing pipeline.&quot;
+                                }
+                            } else {
+                                echo &quot;No project_job_git_key PSL found in build spec. Skipping Logging Service Build&quot;
                             }
                         }
                     }

@@ -251,6 +251,13 @@ echo $APP_ID_HEX > $DOCKER_CONFIG_DIR/APP_ID_HEX
 echo $RESOURCE_ID > $DOCKER_CONFIG_DIR/RESOURCE_ID_RAW
 echo $RESOURCE_ID_HEX > $DOCKER_CONFIG_DIR/RESOURCE_ID_HEX
 
+# Logging service: enabled by default on fresh installs.
+# The presence of $DOCKER_CONFIG_DIR/logging/ is what start-picsure.sh keys on;
+# existing deployments upgrading without this directory remain opt-in.
+mkdir -p $DOCKER_CONFIG_DIR/logging/logs
+LOGGING_API_KEY=$(openssl rand -hex 32)
+sed_inplace "s/__LOGGING_API_KEY__/$LOGGING_API_KEY/g" $DOCKER_CONFIG_DIR/logging/logging.env
+
 mkdir -p $DOCKER_CONFIG_DIR/hpds_csv
 mkdir -p $DOCKER_CONFIG_DIR/hpds/all
 cp allConcepts.csv.tgz $DOCKER_CONFIG_DIR/hpds_csv/

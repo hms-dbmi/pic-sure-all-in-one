@@ -26,6 +26,8 @@ echo "INCLUDE_DICTIONARY=$INCLUDE_DICTIONARY"
 echo "INCLUDE_AGG_DICT=$INCLUDE_AGG_DICT"
 [[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/passthru" ]] && INCLUDE_PASSTHRU=true || INCLUDE_PASSTHRU=false
 echo "INCLUDE_PASSTHRU=$INCLUDE_PASSTHRU"
+[[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/logging" ]] && INCLUDE_LOGGING=true || INCLUDE_LOGGING=false
+echo "INCLUDE_LOGGING=$INCLUDE_LOGGING"
 
 # Docker Volumes
 export PICSURE_BANNER_VOLUME="-v $DOCKER_CONFIG_DIR/httpd/banner_config.json:/usr/local/apache2/htdocs/picsureui/settings/banner_config.json"
@@ -59,7 +61,33 @@ docker network inspect picsure >/dev/null 2>&1 || docker network create picsure
 docker network inspect dictionary >/dev/null 2>&1 || docker network create --internal dictionary
 docker network inspect hpds >/dev/null 2>&1 || docker network create --internal hpds
 
+
 # Start Commands
+
+# When logging is enabled, every Java service that uses pic-sure-logging-client
+# (hpds, psama, wildfly, dictionary-api) gets LOGGING_API_KEY and
+# LOGGING_SERVICE_URL injected as individual -e flags sourced from logging.env.
+# We deliberately do NOT pass logging.env as a second --env-file to those
+# containers because it also contains PSL-only config (PORT, ENVIRONMENT, etc.)
+# whose names collide with other frameworks (e.g. Spring Boot reads PORT).
+# pic-sure-logging itself still gets the full file via --env-file.
+if $INCLUDE_LOGGING; then
+  set -a
+  . "$CURRENT_FS_DOCKER_CONFIG_DIR/logging/logging.env"
+  set +a
+  LOGGING_ENVS="-e LOGGING_API_KEY=$LOGGING_API_KEY -e LOGGING_SERVICE_URL=$LOGGING_SERVICE_URL"
+  docker stop pic-sure-logging && docker rm pic-sure-logging
+  docker run --name=pic-sure-logging --restart always \
+    --network=picsure \
+    --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/logging/logging.env \
+    -v $DOCKER_CONFIG_DIR/logging/logs:/app/logs \
+    -d hms-dbmi/pic-sure-logging:LATEST \
+    || exit 2
+else
+  LOGGING_ENVS=""
+fi
+
+
 if $INCLUDE_HPDS; then
   docker stop hpds && docker rm hpds
   docker run --name=hpds --restart always --network=picsure --network=hpds \
@@ -70,6 +98,7 @@ if $INCLUDE_HPDS; then
     $HPDS_DEBUG \
     -v $DOCKER_CONFIG_DIR/aws_uploads/:/gic_query_results/ \
     --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/hpds/hpds.env \
+    $LOGGING_ENVS \
     -d hms-dbmi/pic-sure-hpds:LATEST \
     || exit 2
 fi
@@ -90,6 +119,7 @@ docker stop psama && docker rm psama
 docker run --name=psama --restart always \
   --network=picsure \
   --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/psama/psama.env \
+  $LOGGING_ENVS \
   -v $DOCKER_CONFIG_DIR/log/psama-docker-logs/:/var/log/ \
   $EMAIL_TEMPLATE_VOLUME \
   $PSAMA_DEBUG \
@@ -123,6 +153,7 @@ docker run --name=wildfly --restart always --network=picsure --network=hpds --ne
   -v $DOCKER_CONFIG_DIR/wildfly/mysql-connector-java-5.1.49.jar:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/mysql-connector-java-5.1.49.jar  \
   -v wildfly_deployments:/opt/jboss/wildfly/standalone/deployments \
   --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/wildfly/wildfly.env \
+  $LOGGING_ENVS \
   -d hms-dbmi/pic-sure-wildfly:LATEST \
   || exit 2
 # Workaround for macOS bind-mount limitations: macOS does not support atomic file moves on mounted volumes,
@@ -141,6 +172,7 @@ if $INCLUDE_DICTIONARY; then
    $DICTIONARY_DEBUG \
     -v $DOCKER_CONFIG_DIR/log/dictionary-docker-logs/:/var/log/ \
    --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/dictionary/dictionary.env \
+   $LOGGING_ENVS \
    -d avillach/dictionary-api:latest \
    || exit 2
 fi
@@ -164,5 +196,6 @@ if $INCLUDE_PASSTHRU; then
     -v $DOCKER_CONFIG_DIR/log/passthru-docker-logs/:/var/log/ \
     --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/passthru/passthru.env \
     $PASSTHRU_DEBUG \
-    -d hms-dbmi/pic-sure-passthru:LATEST
+    -d hms-dbmi/pic-sure-passthru:LATEST \
+    || exit 2
 fi

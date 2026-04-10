@@ -57,6 +57,22 @@ mkdir -p &quot;$CONFIG_DIR/db/data&quot;
 
 cp ./db/schema.sql &quot;$CONFIG_DIR/db/schema.sql&quot;
 
+docker run --rm \
+  -v &quot;$DOCKER_CONFIG_DIR/jenkins_home/workspace/$JOB_NAME/:/app&quot; \
+  -v maven_m2_cache:/root/.m2 \
+  -w /app \
+  --platform=linux/amd64 \
+  maven:3-amazoncorretto-21 \
+  sh -lc &quot;mvn -B clean package -DskipTests&quot;
+
+docker run --rm \
+  -v &quot;$DOCKER_CONFIG_DIR/jenkins_home/workspace/$JOB_NAME/aggregate/:/app&quot; \
+  -v maven_m2_cache:/root/.m2 \
+  -w /app \
+  --platform=linux/amd64 \
+  maven:3-amazoncorretto-24 \
+  sh -lc &quot;mvn -B clean package -DskipTests&quot;
+
 # Step 1: Handle the .env file logic
 if [ -f dictionary.env ]; then
     echo &quot;A new dictionary.env was loaded.&quot;

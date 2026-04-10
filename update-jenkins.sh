@@ -26,25 +26,31 @@ if [ "$1" = "--rebuild" ]; then
   cd ../
 fi
 
-mkdir -p "$DOCKER_CONFIG_DIR"/jenkins_home_bak
-cp -r "$DOCKER_CONFIG_DIR"/jenkins_home/* "$DOCKER_CONFIG_DIR"/jenkins_home_bak/
-rm -rf "$DOCKER_CONFIG_DIR"/jenkins_home/*
-cp -r initial-configuration/jenkins/jenkins-docker/jobs "$DOCKER_CONFIG_DIR"/jenkins_home/jobs
-cp -r initial-configuration/jenkins/jenkins-docker/config.xml "$DOCKER_CONFIG_DIR"/jenkins_home/
-cp -r initial-configuration/jenkins/jenkins-docker/scriptApproval.xml "$DOCKER_CONFIG_DIR"/jenkins_home/
-cp -r initial-configuration/jenkins/jenkins-docker/hudson.tasks.Maven.xml "$DOCKER_CONFIG_DIR"/jenkins_home/hudson.tasks.Maven.xml
+if [ "$1" = "--jobs-only" ] || [ "$2" = "--jobs-only" ]; then
+  echo "Updating jobs only (preserving Jenkins state)"
+  rm -rf "$DOCKER_CONFIG_DIR"/jenkins_home/jobs
+  cp -r initial-configuration/jenkins/jenkins-docker/jobs "$DOCKER_CONFIG_DIR"/jenkins_home/jobs
+else
+  mkdir -p "$DOCKER_CONFIG_DIR"/jenkins_home_bak
+  cp -r "$DOCKER_CONFIG_DIR"/jenkins_home/* "$DOCKER_CONFIG_DIR"/jenkins_home_bak/
+  rm -rf "$DOCKER_CONFIG_DIR"/jenkins_home/*
+  cp -r initial-configuration/jenkins/jenkins-docker/jobs "$DOCKER_CONFIG_DIR"/jenkins_home/jobs
+  cp -r initial-configuration/jenkins/jenkins-docker/config.xml "$DOCKER_CONFIG_DIR"/jenkins_home/
+  cp -r initial-configuration/jenkins/jenkins-docker/scriptApproval.xml "$DOCKER_CONFIG_DIR"/jenkins_home/
+  cp -r initial-configuration/jenkins/jenkins-docker/hudson.tasks.Maven.xml "$DOCKER_CONFIG_DIR"/jenkins_home/hudson.tasks.Maven.xml
 
-if [ ! -f "$DOCKER_CONFIG_DIR"/wildfly/mysql-connector-java-5.1.49.jar ]; then
-	cp initial-configuration/config/wildfly/mysql-connector-java-5.1.49.jar "$DOCKER_CONFIG_DIR"/wildfly/
-	cp initial-configuration/config/wildfly/wildfly_mysql_module.xml "$DOCKER_CONFIG_DIR"/wildfly/
+  if [ ! -f "$DOCKER_CONFIG_DIR"/wildfly/mysql-connector-java-5.1.49.jar ]; then
+  	cp initial-configuration/config/wildfly/mysql-connector-java-5.1.49.jar "$DOCKER_CONFIG_DIR"/wildfly/
+  	cp initial-configuration/config/wildfly/wildfly_mysql_module.xml "$DOCKER_CONFIG_DIR"/wildfly/
+  fi
+
+  # Pull through previous PICSURE configurations
+  sed_inplace "s|__PROJECT_SPECIFIC_OVERRIDE_REPO__|`cat "$DOCKER_CONFIG_DIR"/jenkins_home_bak/config.xml | grep -A1 project_specific_override_repo | tail -1 | sed 's/<\/*string>//g' | sed 's/ //g' `|g" "$DOCKER_CONFIG_DIR"/jenkins_home/config.xml
+  sed_inplace "s|__RELEASE_CONTROL_REPO__|`cat "$DOCKER_CONFIG_DIR"/jenkins_home_bak/config.xml | grep -A1 release_control_repo | tail -1 | sed 's/<\/*string>//g' | sed 's/ //g' `|g" "$DOCKER_CONFIG_DIR"/jenkins_home/config.xml
+  sed_inplace "s|/usr/local/docker-config/|`cat "$DOCKER_CONFIG_DIR"/jenkins_home_bak/config.xml | grep -A1 DOCKER_CONFIG_DIR | tail -1 | sed 's/<\/*string>//g' | sed 's/ //g' `|g" "$DOCKER_CONFIG_DIR"/jenkins_home/config.xml
+  sed_inplace "s|host|`cat "$DOCKER_CONFIG_DIR"/jenkins_home_bak/config.xml | grep -A1 MYSQL_NETWORK | tail -1 | sed 's/<\/*string>//g' | sed 's/ //g' `|g" "$DOCKER_CONFIG_DIR"/jenkins_home/config.xml
+  sed_inplace "s|*/master|`cat "$DOCKER_CONFIG_DIR"/jenkins_home_bak/config.xml | grep -A1 release_control_branch | tail -1 | sed 's/<\/*string>//g' | sed 's/ //g' `|g" "$DOCKER_CONFIG_DIR"/jenkins_home/config.xml
+  sed_inplace "s|__PROJECT_SPECIFIC_MIGRATION_NAME__|`cat "$DOCKER_CONFIG_DIR"/jenkins_home_bak/config.xml | grep -A1 MIGRATION_NAME | tail -1 | sed 's/<\/*string>//g' | sed 's/ //g' `|g" "$DOCKER_CONFIG_DIR"/jenkins_home/config.xml
 fi
-
-# Pull through previous PICSURE configurations
-sed_inplace "s|__PROJECT_SPECIFIC_OVERRIDE_REPO__|`cat "$DOCKER_CONFIG_DIR"/jenkins_home_bak/config.xml | grep -A1 project_specific_override_repo | tail -1 | sed 's/<\/*string>//g' | sed 's/ //g' `|g" "$DOCKER_CONFIG_DIR"/jenkins_home/config.xml
-sed_inplace "s|__RELEASE_CONTROL_REPO__|`cat "$DOCKER_CONFIG_DIR"/jenkins_home_bak/config.xml | grep -A1 release_control_repo | tail -1 | sed 's/<\/*string>//g' | sed 's/ //g' `|g" "$DOCKER_CONFIG_DIR"/jenkins_home/config.xml
-sed_inplace "s|/usr/local/docker-config/|`cat "$DOCKER_CONFIG_DIR"/jenkins_home_bak/config.xml | grep -A1 DOCKER_CONFIG_DIR | tail -1 | sed 's/<\/*string>//g' | sed 's/ //g' `|g" "$DOCKER_CONFIG_DIR"/jenkins_home/config.xml
-sed_inplace "s|host|`cat "$DOCKER_CONFIG_DIR"/jenkins_home_bak/config.xml | grep -A1 MYSQL_NETWORK | tail -1 | sed 's/<\/*string>//g' | sed 's/ //g' `|g" "$DOCKER_CONFIG_DIR"/jenkins_home/config.xml
-sed_inplace "s|*/master|`cat "$DOCKER_CONFIG_DIR"/jenkins_home_bak/config.xml | grep -A1 release_control_branch | tail -1 | sed 's/<\/*string>//g' | sed 's/ //g' `|g" "$DOCKER_CONFIG_DIR"/jenkins_home/config.xml
-sed_inplace "s|__PROJECT_SPECIFIC_MIGRATION_NAME__|`cat "$DOCKER_CONFIG_DIR"/jenkins_home_bak/config.xml | grep -A1 MIGRATION_NAME | tail -1 | sed 's/<\/*string>//g' | sed 's/ //g' `|g" "$DOCKER_CONFIG_DIR"/jenkins_home/config.xml
 
 ./start-jenkins.sh

@@ -80,7 +80,7 @@ if $INCLUDE_LOGGING; then
   docker run --name=pic-sure-logging --restart always \
     --network=picsure \
     --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/logging/logging.env \
-    -v $DOCKER_CONFIG_DIR/logging/logs:/app/logs \
+    -v $DOCKER_CONFIG_DIR/log/logging-docker-logs/:/app/logs \
     -d hms-dbmi/pic-sure-logging:LATEST \
     || exit 2
 else

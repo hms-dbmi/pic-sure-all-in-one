@@ -76,6 +76,12 @@ if $INCLUDE_LOGGING; then
   . "$CURRENT_FS_DOCKER_CONFIG_DIR/logging/logging.env"
   set +a
   LOGGING_ENVS="-e LOGGING_API_KEY=$LOGGING_API_KEY -e LOGGING_SERVICE_URL=$LOGGING_SERVICE_URL"
+  if [[ -z "${LOGGING_API_KEY:-}" ]]; then
+    echo "WARNING: Logging is enabled but LOGGING_API_KEY is empty in logging.env"
+  fi
+  if [[ -z "${LOGGING_SERVICE_URL:-}" ]]; then
+    echo "WARNING: Logging is enabled but LOGGING_SERVICE_URL is empty in logging.env"
+  fi
   docker stop pic-sure-logging && docker rm pic-sure-logging
   docker run --name=pic-sure-logging --restart always \
     --network=picsure \
@@ -85,6 +91,7 @@ if $INCLUDE_LOGGING; then
     || exit 2
 else
   LOGGING_ENVS=""
+  echo "Logging disabled (no $DOCKER_CONFIG_DIR/logging/ directory)"
 fi
 
 
@@ -111,6 +118,7 @@ docker run --name=httpd --restart always --network=picsure \
     $CUSTOM_HTTPD_VOLUMES \
     -p 443:443 \
     --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/httpd/httpd.env \
+    $LOGGING_ENVS \
     -d hms-dbmi/pic-sure-frontend:LATEST \
     || exit 2
 docker restart httpd

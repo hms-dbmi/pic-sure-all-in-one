@@ -95,19 +95,24 @@ Run `./init.sh` after setting these values — it will generate application user
 To develop on PIC-SURE services locally:
 
 ```bash
-# Clone the repos you need (as siblings to this repo)
-git clone https://github.com/hms-dbmi/pic-sure-hpds ../pic-sure-hpds
-git clone https://github.com/hms-dbmi/pic-sure-auth-microapp ../pic-sure-auth-microapp
-# ... etc
+# Clone all source repos into repos/ (gitignored)
+./clone-repos.sh
 
-# Start everything, building HPDS from local source
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build hpds
+# Build only the frontend from local source
+docker compose -f docker-compose.yml -f docker-compose.dev-httpd.yml up -d --build --no-deps httpd
 
-# Build multiple services from source
-docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build hpds psama wildfly
+# Build multiple services (stack overlay files)
+docker compose -f docker-compose.yml -f docker-compose.dev-httpd.yml -f docker-compose.dev-psama.yml up -d --build httpd psama
+
+# Build ALL services from source (requires all repos cloned + built)
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build
 
 # Use a custom source directory
-HPDS_SRC=/path/to/my/fork docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build hpds
+HPDS_SRC=/path/to/my/fork docker compose -f docker-compose.yml -f docker-compose.dev-hpds.yml up -d --build hpds
+
+# Frontend with HMR (live reload, no rebuild needed)
+docker compose -f docker-compose.yml -f docker-compose.dev-httpd-hmr.yml up -d --no-deps httpd
+# Then browse to http://localhost:3000
 ```
 
 Services not specified with `--build` will use pre-built images.
@@ -127,11 +132,11 @@ Connect your IDE's remote debugger to `localhost:<port>`.
 
 | Variable | Default | Service |
 |---|---|---|
-| `HPDS_SRC` | `../pic-sure-hpds` | hpds |
-| `PSAMA_SRC` | `../pic-sure-auth-microapp` | psama |
-| `WILDFLY_SRC` | `../pic-sure` | wildfly |
-| `FRONTEND_SRC` | `../PIC-SURE-Frontend` | httpd |
-| `DICTIONARY_SRC` | `../picsure-dictionary` | dictionary-api, dictionary-dump |
+| `HPDS_SRC` | `./repos/pic-sure-hpds` | hpds |
+| `PSAMA_SRC` | `./repos/pic-sure-auth-microapp` | psama |
+| `WILDFLY_SRC` | `./repos/pic-sure` | wildfly |
+| `FRONTEND_SRC` | `./repos/PIC-SURE-Frontend` | httpd |
+| `DICTIONARY_SRC` | `./repos/picsure-dictionary` | dictionary-api, dictionary-dump |
 
 ## Operations
 

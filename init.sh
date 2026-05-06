@@ -167,6 +167,9 @@ RESOURCE_ID=$(generate_uuid)
 set_env_var "PICSURE_RESOURCE_ID"    "$RESOURCE_ID" "$FORCE"
 set_env_var "VITE_RESOURCE_HPDS"     "$RESOURCE_ID" "$FORCE"
 
+info "Generating logging API key..."
+set_env_var "LOGGING_API_KEY" "$(openssl rand -hex 32)" "$FORCE"
+
 info "Generating introspection token..."
 # Re-source .env to pick up the APPLICATION_ID we may have just generated
 set -a
@@ -319,6 +322,7 @@ fi
 if [ ! -f "$SCRIPT_DIR/config/wildfly/application.truststore" ] || [ "$FORCE" = "true" ]; then
   info "Generating Java truststore with Let's Encrypt root certs..."
   mkdir -p "$SCRIPT_DIR/config/wildfly" "$SCRIPT_DIR/config/psama"
+  rm -f "$SCRIPT_DIR/config/wildfly/application.truststore" "$SCRIPT_DIR/config/psama/application.truststore"
   docker run --rm \
     -v "$SCRIPT_DIR/config/scripts:/scripts:ro" \
     -v "$SCRIPT_DIR/config/wildfly:/output" \
@@ -335,7 +339,7 @@ fi
 # ---------------------------------------------------------------------------
 
 # ---------------------------------------------------------------------------
-# Generate visualization resource UUID + properties
+# Generate visualization resource UUID
 # ---------------------------------------------------------------------------
 
 info "Configuring visualization resource..."
@@ -349,16 +353,6 @@ set +a
 
 # Update VIZ to match
 set_env_var "VITE_RESOURCE_VIZ" "${PICSURE_VIZ_RESOURCE_ID}" "true"
-
-# Write visualization properties file
-VIZ_PROPS_DIR="$SCRIPT_DIR/config/wildfly/visualization/pic-sure-visualization-resource"
-mkdir -p "$VIZ_PROPS_DIR"
-cat > "$VIZ_PROPS_DIR/resource.properties" <<EOF
-target.origin.id=http://localhost:8080/pic-sure-api-2/PICSURE/
-visualization.resource.id=${PICSURE_VIZ_RESOURCE_ID}
-auth.hpds.resource.id=${PICSURE_RESOURCE_ID}
-open.hpds.resource.id=${PICSURE_RESOURCE_ID}
-EOF
 
 # ---------------------------------------------------------------------------
 # Ensure required directories exist
@@ -391,10 +385,10 @@ echo ""
 IMAGE_TAG="${PICSURE_IMAGE_TAG:-LATEST}"
 MAVEN_CACHE="maven_m2_cache"
 
-HPDS_SRC="${HPDS_SRC:-$SCRIPT_DIR/../pic-sure-hpds}"
-PSAMA_SRC="${PSAMA_SRC:-$SCRIPT_DIR/../pic-sure-auth-microapp}"
-WILDFLY_SRC="${WILDFLY_SRC:-$SCRIPT_DIR/../pic-sure}"
-DICTIONARY_SRC="${DICTIONARY_SRC:-$SCRIPT_DIR/../picsure-dictionary}"
+HPDS_SRC="${HPDS_SRC:-$SCRIPT_DIR/repos/pic-sure-hpds}"
+PSAMA_SRC="${PSAMA_SRC:-$SCRIPT_DIR/repos/pic-sure-auth-microapp}"
+WILDFLY_SRC="${WILDFLY_SRC:-$SCRIPT_DIR/repos/pic-sure}"
+DICTIONARY_SRC="${DICTIONARY_SRC:-$SCRIPT_DIR/repos/picsure-dictionary}"
 
 info "Checking container images..."
 
@@ -445,12 +439,33 @@ docker_build() {
 }
 
 # Build order matters due to Maven dependency chain:
+#   Logging Client → installed first (all Java services depend on it)
 #   pic-sure (Wildfly) → builds pic-sure-resource-api
 #   HPDS → needs resource-api, builds client-api
 #   PSAMA → needs client-api
-# All three publish artifacts to the shared Maven cache volume.
+# All publish artifacts to the shared Maven cache volume.
 # -nsu (no snapshot updates) prevents 401s from GitHub Packages.
 docker volume create "$MAVEN_CACHE" 2>/dev/null || true
+
+# Install logging client library into shared Maven cache (required by all Java services)
+LOG_CLIENT_SRC="${LOG_CLIENT_SRC:-$SCRIPT_DIR/repos/PIC-SURE-Logging-Client}"
+if [ -d "$LOG_CLIENT_SRC" ]; then
+  info "Installing PIC-SURE Logging Client to Maven cache..."
+  docker run --rm \
+    -v "$LOG_CLIENT_SRC:/src:ro" \
+    -v "$MAVEN_CACHE:/root/.m2" \
+    "maven:3.9-eclipse-temurin-11" \
+    bash -c "cp -r /src /build && cd /build && mvn -B clean install -DskipTests" \
+    &> "$BUILD_OUT"
+  info "Logging client installed."
+else
+  warn "PIC-SURE-Logging-Client not found at $LOG_CLIENT_SRC — skipping."
+  warn "Java services may fail to build if they depend on the logging client."
+fi
+
+# Build logging service image (Java 21)
+LOG_SRC="${LOG_SRC:-$SCRIPT_DIR/repos/PIC-SURE-Logging}"
+maven_build "pic-sure-logging" "$LOG_SRC" "$LOG_SRC/Dockerfile" "" "maven:3.9-eclipse-temurin-21"
 
 # Wildfly/pic-sure repo targets Java 11 (javax.* APIs) — must use JDK 11
 maven_build "pic-sure-wildfly" "$WILDFLY_SRC" "$WILDFLY_SRC/docker/all-in-one/all-in-one.Dockerfile" "" "maven:3.9-eclipse-temurin-11"
@@ -512,12 +527,13 @@ EOF
 fi
 maven_build "pic-sure-psama" "$PSAMA_SRC" "$PSAMA_RUNTIME_DF" "-nsu"
 
-# Dictionary images have self-contained multi-stage Dockerfiles
-docker_build "pic-sure-dictionary-api" "$DICTIONARY_SRC" "$DICTIONARY_SRC/Dockerfile"
-docker_build "pic-sure-dictionary-dump" "$DICTIONARY_SRC/aggregate" "$DICTIONARY_SRC/aggregate/Dockerfile"
+# Dictionary: Spring Boot — needs Maven build first, then package with runtime Dockerfile
+maven_build "pic-sure-dictionary-api" "$DICTIONARY_SRC" "$DICTIONARY_SRC/Dockerfile" "" "maven:3.9-eclipse-temurin-21"
+# Dictionary-dump targets Java 24
+maven_build "pic-sure-dictionary-dump" "$DICTIONARY_SRC/aggregate" "$DICTIONARY_SRC/aggregate/Dockerfile" "" "maven:3.9.9-amazoncorretto-24"
 
 # Frontend — filter .env to VITE_* only (no secret leakage into build context)
-FRONTEND_SRC="${FRONTEND_SRC:-$SCRIPT_DIR/../PIC-SURE-Frontend}"
+FRONTEND_SRC="${FRONTEND_SRC:-$SCRIPT_DIR/repos/PIC-SURE-Frontend}"
 FRONTEND_THEME="${PICSURE_THEME:-picsure}"
 
 if ! docker image inspect "hms-dbmi/pic-sure-httpd:$IMAGE_TAG" &>/dev/null || [ "$FORCE" = "true" ]; then

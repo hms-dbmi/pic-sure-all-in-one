@@ -82,7 +82,7 @@ fi
 
 if ! docker image inspect hms-dbmi/pic-sure-dictionary-etl:LATEST >/dev/null 2>&1; then
   info "Building Dictionary ETL image..."
-  DICT_SRC="${DICTIONARY_SRC:-$SCRIPT_DIR/../picsure-dictionary}"
+  DICT_SRC="${DICTIONARY_SRC:-$SCRIPT_DIR/repos/picsure-dictionary}"
   if [ -f "$DICT_SRC/dictionaryweights/Dockerfile" ]; then
     docker build -f "$DICT_SRC/dictionaryweights/Dockerfile" \
       -t hms-dbmi/pic-sure-dictionary-etl:LATEST "$DICT_SRC/dictionaryweights" \
@@ -219,7 +219,7 @@ done
 info "Step 3/4: Hydrating dictionary database..."
 
 # Build dictionary-etl image if not present
-DICT_ETL_SRC="${DICT_ETL_SRC:-$SCRIPT_DIR/../picsure-dictionary-etl}"
+DICT_ETL_SRC="${DICT_ETL_SRC:-$SCRIPT_DIR/repos/picsure-dictionary-etl}"
 if ! docker image inspect hms-dbmi/dictionary-etl:latest >/dev/null 2>&1; then
   if [ -f "$DICT_ETL_SRC/Dockerfile" ]; then
     info "Building dictionary ETL image..."
@@ -297,7 +297,7 @@ if [ "${SKIP_DICT:-}" != "true" ]; then
 
   # Step 3d: Run dictionary weights (required for search to work)
   info "Running dictionary weights..."
-  DICT_WEIGHTS_SRC="${DICTIONARY_SRC:-$SCRIPT_DIR/../picsure-dictionary}/dictionaryweights"
+  DICT_WEIGHTS_SRC="${DICTIONARY_SRC:-$SCRIPT_DIR/repos/picsure-dictionary}/dictionaryweights"
   if ! docker image inspect hms-dbmi/dictionary-weights:latest >/dev/null 2>&1; then
     if [ -f "$DICT_WEIGHTS_SRC/Dockerfile" ]; then
       docker build -f "$DICT_WEIGHTS_SRC/Dockerfile" "$DICT_WEIGHTS_SRC" \
@@ -309,7 +309,7 @@ if [ "${SKIP_DICT:-}" != "true" ]; then
     docker run --rm \
       --name dictionary-weights \
       --network picsure_data \
-      -v "$SCRIPT_DIR/../picsure-dictionary/dictionaryweights/weights.csv:/weights.csv:ro" \
+      -v "$SCRIPT_DIR/repos/picsure-dictionary/dictionaryweights/weights.csv:/weights.csv:ro" \
       -e POSTGRES_HOST=dictionary-db \
       -e POSTGRES_DB=dictionary \
       -e POSTGRES_USER=picsure \

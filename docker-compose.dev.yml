@@ -1,19 +1,21 @@
 # =============================================================================
-# PIC-SURE All-in-One — Developer Overrides
+# PIC-SURE All-in-One — Developer Overrides (ALL services)
 # =============================================================================
-# Build services from local source instead of using pre-built images.
+# Builds ALL services from local source. Requires all sibling repos cloned
+# and their artifacts built (mvn package, etc.).
 #
-# Usage:
-#   # Build HPDS from local source:
-#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build hpds
+# To build only ONE service, use the per-service overlay instead:
+#   docker compose -f docker-compose.yml -f docker-compose.dev-httpd.yml up -d --build httpd
+#   docker compose -f docker-compose.yml -f docker-compose.dev-wildfly.yml up -d --build wildfly
+#   docker compose -f docker-compose.yml -f docker-compose.dev-psama.yml up -d --build psama
+#   docker compose -f docker-compose.yml -f docker-compose.dev-hpds.yml up -d --build hpds
+#   docker compose -f docker-compose.yml -f docker-compose.dev-dictionary.yml up -d --build dictionary-api
+#   docker compose -f docker-compose.yml -f docker-compose.dev-visualization.yml up -d --build visualization
 #
-#   # Build multiple services:
-#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build hpds psama wildfly
+# Stack multiple overlays to build a subset:
+#   docker compose -f docker-compose.yml -f docker-compose.dev-httpd.yml -f docker-compose.dev-psama.yml up -d --build httpd psama
 #
-#   # Custom source directory:
-#   HPDS_SRC=/path/to/my/fork docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build hpds
-#
-# Source directories default to sibling repos (../pic-sure-hpds, etc.)
+# Source directories default to ./repos/ (cloned by ./clone-repos.sh)
 # Override with environment variables: HPDS_SRC, PSAMA_SRC, WILDFLY_SRC, etc.
 # =============================================================================
 
@@ -24,7 +26,7 @@ services:
   # ---------------------------------------------------------------------------
   hpds:
     build:
-      context: ${HPDS_SRC:-../pic-sure-hpds}
+      context: ${HPDS_SRC:-./repos/pic-sure-hpds}
       dockerfile: docker/pic-sure-hpds/Dockerfile
     image: hms-dbmi/pic-sure-hpds:dev
 
@@ -33,7 +35,7 @@ services:
   # ---------------------------------------------------------------------------
   psama:
     build:
-      context: ${PSAMA_SRC:-../pic-sure-auth-microapp}
+      context: ${PSAMA_SRC:-./repos/pic-sure-auth-microapp}
       dockerfile: pic-sure-auth-services/dev.Dockerfile
     image: hms-dbmi/pic-sure-psama:dev
     ports:
@@ -49,7 +51,7 @@ services:
   # ---------------------------------------------------------------------------
   wildfly:
     build:
-      context: ${WILDFLY_SRC:-../pic-sure}
+      context: ${WILDFLY_SRC:-./repos/pic-sure}
       dockerfile: docker/all-in-one/all-in-one.Dockerfile
     image: hms-dbmi/pic-sure-wildfly:dev
     ports:
@@ -67,7 +69,7 @@ services:
   # ---------------------------------------------------------------------------
   httpd:
     build:
-      context: ${FRONTEND_SRC:-../PIC-SURE-Frontend}
+      context: ${FRONTEND_SRC:-./repos/PIC-SURE-Frontend}
       dockerfile: Dockerfile
       args:
         THEME: ${PICSURE_THEME:-picsure}
@@ -78,7 +80,7 @@ services:
   # ---------------------------------------------------------------------------
   dictionary-api:
     build:
-      context: ${DICTIONARY_SRC:-../picsure-dictionary}
+      context: ${DICTIONARY_SRC:-./repos/picsure-dictionary}
       dockerfile: Dockerfile
     image: hms-dbmi/pic-sure-dictionary-api:dev
 
@@ -87,9 +89,18 @@ services:
   # ---------------------------------------------------------------------------
   dictionary-dump:
     build:
-      context: ${DICTIONARY_SRC:-../picsure-dictionary}/aggregate
+      context: ${DICTIONARY_SRC:-./repos/picsure-dictionary}/aggregate
       dockerfile: Dockerfile
     image: hms-dbmi/pic-sure-dictionary-dump:dev
+
+  # ---------------------------------------------------------------------------
+  # Visualization — build from local source
+  # ---------------------------------------------------------------------------
+  visualization:
+    build:
+      context: ${VISUALIZATION_SRC:-./repos/pic-sure-visualization-resource}
+      dockerfile: Dockerfile
+    image: hms-dbmi/pic-sure-visualization:dev
 
   # ---------------------------------------------------------------------------
   # Shared build cache

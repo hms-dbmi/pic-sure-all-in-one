@@ -470,6 +470,10 @@
                 <simple name="java:global/userField" value="sub"/>
                 <simple name="java:global/longTermTokenExpirationTime" value="2592000000"/>
                 <simple name="java:global/tokenExpirationTime" value="3600000"/>
+
+                <!-- Logging service -->
+                <simple name="java:global/logging_service_url" value="${env.LOGGING_SERVICE_URL:http://pic-sure-logging/}"/>
+                <simple name="java:global/logging_api_key" value="${env.LOGGING_API_KEY:disabled}"/>
             </bindings>
             <remote-naming/>
         </subsystem>

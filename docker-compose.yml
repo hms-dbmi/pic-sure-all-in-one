@@ -27,9 +27,13 @@ services:
       - ./certs/server.key:/usr/local/apache2/cert/server.key:ro
       - ./certs/server.chain:/usr/local/apache2/cert/server.chain:ro
       - ./config/httpd/httpd-vhosts.conf:/usr/local/apache2/conf/extra/httpd-vhosts.conf:ro
-      - httpd-logs:/app/logs
+      - ./.data/logs/httpd:/app/logs
     env_file:
       - .env
+    environment:
+      # Logging
+      LOGGING_API_KEY: ${LOGGING_API_KEY:-disabled}
+      LOGGING_SERVICE_URL: ${LOGGING_SERVICE_URL:-http://pic-sure-logging/}
     networks:
       - public
       - app    # Needs to reach wildfly and psama for reverse proxying
@@ -73,7 +77,7 @@ services:
       - ./config/wildfly/mysql-connector-java-5.1.49.jar:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/mysql-connector-java-5.1.49.jar:ro
       - ./config/wildfly/visualization/:/opt/jboss/wildfly/standalone/configuration/visualization/:ro
       - wildfly-deployments:/opt/jboss/wildfly/standalone/deployments
-      - wildfly-logs:/opt/jboss/wildfly/standalone/log
+      - ./.data/logs/wildfly:/opt/jboss/wildfly/standalone/log
     environment:
       # JVM
       JAVA_OPTS: >-
@@ -99,6 +103,9 @@ services:
       SYSTEM_NAME: ${SYSTEM_NAME:-PIC-SURE All-in-one}
       TOS_ENABLED: ${TOS_ENABLED:-false}
       OPEN_ACCESS_ENABLED: ${OPEN_ACCESS_ENABLED:-false}
+      # Logging
+      LOGGING_API_KEY: ${LOGGING_API_KEY:-disabled}
+      LOGGING_SERVICE_URL: ${LOGGING_SERVICE_URL:-http://pic-sure-logging/}
     networks:
       - app
       - data
@@ -118,7 +125,7 @@ services:
     container_name: psama
     restart: always
     volumes:
-      - psama-logs:/var/log
+      - ./.data/logs/psama:/var/log
     environment:
       JAVA_OPTS: ${PSAMA_JAVA_OPTS:--Xms2g -Xmx4g -XX:MetaspaceSize=96M -XX:MaxMetaspaceSize=256m -Djava.net.preferIPv4Stack=true}
       # Database
@@ -142,6 +149,9 @@ services:
       TOS_ENABLED: ${TOS_ENABLED:-false}
       SYSTEM_NAME: ${SYSTEM_NAME:-PIC-SURE All-in-one}
       DENIED_EMAIL_ENABLED: "false"
+      # Logging
+      LOGGING_API_KEY: ${LOGGING_API_KEY:-disabled}
+      LOGGING_SERVICE_URL: ${LOGGING_SERVICE_URL:-http://pic-sure-logging/}
     networks:
       - app
     depends_on:
@@ -162,7 +172,7 @@ services:
       - hpds-genomic:/opt/local/hpds/all
       - hpds-csv:/usr/local/docker-config/hpds_csv
       - hpds-query-results:/gic_query_results
-      - hpds-logs:/var/log
+      - ./.data/logs/hpds:/var/log
     environment:
       JAVA_OPTS: ${HPDS_JAVA_OPTS:--XX:+UseParallelGC -XX:SurvivorRatio=250 -Xms1g -Xmx16g}
       SPRING_PROFILES_ACTIVE: ${HPDS_PROFILE:-}
@@ -177,6 +187,9 @@ services:
       VCF_EXCERPT_ENABLED: ${HPDS_VCF_EXCERPT_ENABLED:-true}
       HPDS_GENOMIC_DATA_DIRECTORY: ${HPDS_GENOMIC_DATA_DIRECTORY:-/opt/local/hpds/all/}
       HPDS_GENOMIC_PROCESSOR_IMPL: localPatientDistributed
+      # Logging
+      LOGGING_API_KEY: ${LOGGING_API_KEY:-disabled}
+      LOGGING_SERVICE_URL: ${LOGGING_SERVICE_URL:-http://pic-sure-logging/}
     networks:
       - app
     # HPDS has no dedicated health endpoint and may crash-loop without data
@@ -191,6 +204,38 @@ services:
       start_period: 60s
 
   # ---------------------------------------------------------------------------
+  # Visualization — Chart/histogram service
+  # ---------------------------------------------------------------------------
+  visualization:
+    image: hms-dbmi/pic-sure-visualization:${PICSURE_IMAGE_TAG:-LATEST}
+    container_name: visualization
+    restart: always
+    volumes:
+      - ./.data/logs/visualization:/var/log
+    environment:
+      JAVA_OPTS: ${VISUALIZATION_JAVA_OPTS:--Xms512m -Xmx1g}
+      # HPDS connection (direct mode — calls HPDS without going through wildfly)
+      HPDS_CALL_MODE: direct
+      HPDS_DIRECT_URL: http://hpds:8080/PIC-SURE
+      # Resource UUIDs
+      HPDS_RESOURCE_AUTHORIZED_UUID: ${PICSURE_RESOURCE_ID}
+      HPDS_RESOURCE_OPEN_UUID: ${HPDS_RESOURCE_OPEN_UUID:-}
+      # Logging
+      LOGGING_API_KEY: ${LOGGING_API_KEY:-disabled}
+      LOGGING_SERVICE_URL: ${LOGGING_SERVICE_URL:-http://pic-sure-logging/}
+    networks:
+      - app
+    depends_on:
+      hpds:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "sh", "-c", "wget -q --spider http://localhost:8080/actuator/health 2>/dev/null"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # ---------------------------------------------------------------------------
   # Dictionary API (Optional)
   # ---------------------------------------------------------------------------
   dictionary-api:
@@ -199,8 +244,12 @@ services:
     restart: always
     env_file:
       - ./config/dictionary/dictionary.env
+    environment:
+      # Logging
+      LOGGING_API_KEY: ${LOGGING_API_KEY:-disabled}
+      LOGGING_SERVICE_URL: ${LOGGING_SERVICE_URL:-http://pic-sure-logging/}
     volumes:
-      - dictionary-logs:/var/log
+      - ./.data/logs/dictionary:/var/log
     networks:
       - app
       - data
@@ -218,7 +267,7 @@ services:
     env_file:
       - ./config/dictionary/dictionary.env
     volumes:
-      - dictionary-logs:/var/log
+      - ./.data/logs/dictionary:/var/log
     networks:
       - data
 
@@ -283,12 +332,12 @@ services:
     volumes:
       - ./config/flyway/run-migrations.sh:/scripts/run-migrations.sh:ro
       # Auth migrations — prefer local repo, fall back to config dir
-      - ${PSAMA_SRC:-../pic-sure-auth-microapp}/pic-sure-auth-db/db/sql:/migrations/auth:ro
+      - ${PSAMA_SRC:-./repos/pic-sure-auth-microapp}/pic-sure-auth-db/db/sql:/migrations/auth:ro
       # PIC-SURE API migrations
-      - ${WILDFLY_SRC:-../pic-sure}/pic-sure-api-data/src/main/resources/db/sql:/migrations/picsure:ro
+      - ${WILDFLY_SRC:-./repos/pic-sure}/pic-sure-api-data/src/main/resources/db/sql:/migrations/picsure:ro
       # Project-specific migrations (optional — mount if using a custom migration repo)
-      # - ../pic-sure-migrations/Baseline/auth:/migrations/custom/auth:ro
-      # - ../pic-sure-migrations/Baseline/picsure:/migrations/custom/picsure:ro
+      # - ./repos/pic-sure-migrations/Baseline/auth:/migrations/custom/auth:ro
+      # - ./repos/pic-sure-migrations/Baseline/picsure:/migrations/custom/picsure:ro
     environment:
       DB_HOST: ${DB_HOST:-picsure-db}
       DB_PORT: ${DB_PORT:-3306}
@@ -299,6 +348,26 @@ services:
       picsure-db:
         condition: service_healthy
     restart: "no"
+
+  # ---------------------------------------------------------------------------
+  # Logging — Audit event collector
+  # ---------------------------------------------------------------------------
+  pic-sure-logging:
+    image: hms-dbmi/pic-sure-logging:${PICSURE_IMAGE_TAG:-LATEST}
+    container_name: pic-sure-logging
+    restart: always
+    volumes:
+      - ./.data/logs/logging:/app/logs
+    environment:
+      LOGGING_API_KEY: ${LOGGING_API_KEY:-disabled}
+      LOGGING_SERVICE_URL: http://pic-sure-logging
+      APP: pic-sure
+      PLATFORM: all-in-one
+      ENVIRONMENT: ${ENVIRONMENT:-production}
+      PORT: 80
+      ALLOWED_ORIGIN: "*"
+    networks:
+      - app
 
 # =============================================================================
 # Networks
@@ -341,9 +410,4 @@ volumes:
   # HPDS query results (GIC file sharing)
   hpds-query-results:
 
-  # Logs
-  httpd-logs:
-  wildfly-logs:
-  psama-logs:
-  hpds-logs:
-  dictionary-logs:
+  # Logs — bind-mounted to .data/logs/<service>/ (see volume mounts above)

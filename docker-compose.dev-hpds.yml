@@ -1,0 +1,8 @@
+# Build HPDS from local source
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev-hpds.yml up -d --build hpds
+services:
+  hpds:
+    build:
+      context: ${HPDS_SRC:-./repos/pic-sure-hpds}
+      dockerfile: docker/pic-sure-hpds/Dockerfile
+    image: hms-dbmi/pic-sure-hpds:dev

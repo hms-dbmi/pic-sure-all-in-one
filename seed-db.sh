@@ -63,7 +63,7 @@ RESOURCE_ID_HEX=$(echo "$RESOURCE_ID" | tr '[:lower:]' '[:upper:]' | sed 's/-//g
 # 1. Baseline Migrations
 # ---------------------------------------------------------------------------
 
-MIGRATIONS_SRC="${MIGRATIONS_SRC:-$SCRIPT_DIR/../PIC-SURE-Migrations}"
+MIGRATIONS_SRC="${MIGRATIONS_SRC:-$SCRIPT_DIR/repos/PIC-SURE-Migrations}"
 
 if [ -d "$MIGRATIONS_SRC/Baseline" ]; then
   info "Running Baseline project-specific migrations..."
@@ -177,16 +177,15 @@ if [ -n "$VIZ_ID" ]; then
   VIZ_ID_HEX=$(echo "$VIZ_ID" | tr '[:lower:]' '[:upper:]' | sed 's/-//g')
 
   EXISTING=$(docker exec picsure-db mysql -uroot -p"$ROOT_PASS" -N -e \
-    "SELECT COUNT(*) FROM picsure.resource WHERE name='PIC-SURE Visualization Resource';" 2>/dev/null || echo "0")
+    "SELECT COUNT(*) FROM picsure.resource WHERE uuid=UNHEX('$VIZ_ID_HEX');" 2>/dev/null || echo "0")
 
   if [ "$EXISTING" = "0" ]; then
     info "Creating visualization resource entry..."
     docker exec picsure-db mysql -uroot -p"$ROOT_PASS" -e "
       INSERT INTO picsure.resource (uuid, targetURL, resourceRSPath, description, name, token, hidden)
       VALUES (
-        UNHEX('$VIZ_ID_HEX'), NULL,
-        'http://wildfly:8080/pic-sure-visualization-resource/pic-sure/visualization/',
-        'PIC-SURE Visualization Resource', 'PIC-SURE Visualization Resource', NULL, TRUE
+        UNHEX('$VIZ_ID_HEX'), NULL, NULL,
+        'PIC-SURE Visualization Resource', 'visualization', NULL, TRUE
       );
     " picsure 2>/dev/null
     info "Visualization resource created."

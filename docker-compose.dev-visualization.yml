@@ -12,4 +12,4 @@ services:
       dockerfile: dev.Dockerfile
       additional_contexts:
         m2_cache: ~/.m2/repository
-    image: hms-dbmi/pic-sure-visualization:dev
+    image: hms-dbmi/pic-sure-visualization:${VISUALIZATION_IMAGE_TAG:-dev}

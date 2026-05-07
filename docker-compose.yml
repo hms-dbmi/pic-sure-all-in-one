@@ -214,6 +214,7 @@ services:
       - ./.data/logs/visualization:/var/log
     environment:
       JAVA_OPTS: ${VISUALIZATION_JAVA_OPTS:--Xms512m -Xmx1g}
+      SERVER_PORT: 80
       # HPDS connection (direct mode — calls HPDS without going through wildfly)
       HPDS_CALL_MODE: direct
       HPDS_DIRECT_URL: http://hpds:8080/PIC-SURE
@@ -229,7 +230,7 @@ services:
       hpds:
         condition: service_started
     healthcheck:
-      test: ["CMD", "sh", "-c", "wget -q --spider http://localhost:8080/actuator/health 2>/dev/null"]
+      test: ["CMD", "sh", "-c", "wget -q --spider http://localhost/actuator/health 2>/dev/null"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -320,10 +321,9 @@ services:
   # ---------------------------------------------------------------------------
   # Flyway — Database Migrations (init container — runs once and exits)
   # ---------------------------------------------------------------------------
-  # Runs auth, picsure, and project-specific migrations in order.
+  # Runs core and project-specific migrations in order.
   # Migration SQL files are mounted from the individual repos.
-  # If repos aren't cloned locally, create config/flyway/{auth,picsure}/sql/
-  # and place migration files there.
+  # Use MIGRATION_NAME to run a non-Baseline project migration directory.
   flyway-init:
     image: flyway/flyway:latest
     container_name: flyway-init
@@ -335,13 +335,17 @@ services:
       - ${PSAMA_SRC:-./repos/pic-sure-auth-microapp}/pic-sure-auth-db/db/sql:/migrations/auth:ro
       # PIC-SURE API migrations
       - ${WILDFLY_SRC:-./repos/pic-sure}/pic-sure-api-data/src/main/resources/db/sql:/migrations/picsure:ro
-      # Project-specific migrations (optional — mount if using a custom migration repo)
-      # - ./repos/pic-sure-migrations/Baseline/auth:/migrations/custom/auth:ro
-      # - ./repos/pic-sure-migrations/Baseline/picsure:/migrations/custom/picsure:ro
+      # Project-specific migrations
+      - ${MIGRATIONS_SRC:-./repos/PIC-SURE-Migrations}/${MIGRATION_NAME:-Baseline}/auth:/migrations/custom/auth:ro
+      - ${MIGRATIONS_SRC:-./repos/PIC-SURE-Migrations}/${MIGRATION_NAME:-Baseline}/picsure:/migrations/custom/picsure:ro
     environment:
       DB_HOST: ${DB_HOST:-picsure-db}
       DB_PORT: ${DB_PORT:-3306}
       DB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      FLYWAY_ACTION: ${FLYWAY_ACTION:-migrate}
+      PICSURE_APPLICATION_ID: ${PICSURE_APPLICATION_ID}
+      PICSURE_RESOURCE_ID: ${PICSURE_RESOURCE_ID}
+      PICSURE_VIZ_RESOURCE_ID: ${PICSURE_VIZ_RESOURCE_ID}
     networks:
       - app
     depends_on:

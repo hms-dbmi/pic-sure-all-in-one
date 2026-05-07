@@ -13,7 +13,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PARENT_DIR="$(dirname "$SCRIPT_DIR")"
+REPOS_DIR="$SCRIPT_DIR/repos"
 
 REPOS=(
   hms-dbmi/pic-sure
@@ -24,6 +24,8 @@ REPOS=(
   hms-dbmi/PIC-SURE-Frontend
   hms-dbmi/PIC-SURE-Migrations
   hms-dbmi/pic-sure-visualization-resource
+  hms-dbmi/PIC-SURE-Logging
+  hms-dbmi/PIC-SURE-Logging-Client
 )
 
 # Colors
@@ -41,7 +43,7 @@ USE_SSH=false
 clone_repo() {
   local full_name="$1"
   local repo_name="${full_name#*/}"
-  local target="$PARENT_DIR/$repo_name"
+  local target="$REPOS_DIR/$repo_name"
 
   if [ -d "$target" ]; then
     skip "$repo_name already exists"
@@ -50,17 +52,18 @@ clone_repo() {
 
   if command -v gh &>/dev/null; then
     info "Cloning $repo_name (gh)..."
-    gh repo clone "$full_name" "$target" -- --depth 1 2>&1
+    gh repo clone "$full_name" "$target" 2>&1
   elif $USE_SSH; then
     info "Cloning $repo_name (git+ssh)..."
-    git clone --depth 1 "git@github.com:${full_name}.git" "$target" 2>&1
+    git clone "git@github.com:${full_name}.git" "$target" 2>&1
   else
     info "Cloning $repo_name (git+https)..."
-    git clone --depth 1 "https://github.com/${full_name}.git" "$target" 2>&1
+    git clone "https://github.com/${full_name}.git" "$target" 2>&1
   fi
 }
 
-info "Cloning sibling repos into $PARENT_DIR"
+mkdir -p "$REPOS_DIR"
+info "Cloning repos into $REPOS_DIR"
 echo ""
 
 for repo in "${REPOS[@]}"; do
@@ -68,4 +71,4 @@ for repo in "${REPOS[@]}"; do
 done
 
 echo ""
-info "Done. All repos are in $PARENT_DIR"
+info "Done. All repos are in $REPOS_DIR"

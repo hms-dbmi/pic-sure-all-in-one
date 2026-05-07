@@ -5,6 +5,8 @@ services:
     build:
       context: ${PSAMA_SRC:-./repos/pic-sure-auth-microapp}
       dockerfile: pic-sure-auth-services/dev.Dockerfile
+      additional_contexts:
+        m2_cache: ~/.m2/repository
     image: hms-dbmi/pic-sure-psama:dev
     ports:
       - "5005:5005"

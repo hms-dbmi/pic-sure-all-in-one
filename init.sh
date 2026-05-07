@@ -389,6 +389,7 @@ HPDS_SRC="${HPDS_SRC:-$SCRIPT_DIR/repos/pic-sure-hpds}"
 PSAMA_SRC="${PSAMA_SRC:-$SCRIPT_DIR/repos/pic-sure-auth-microapp}"
 WILDFLY_SRC="${WILDFLY_SRC:-$SCRIPT_DIR/repos/pic-sure}"
 DICTIONARY_SRC="${DICTIONARY_SRC:-$SCRIPT_DIR/repos/picsure-dictionary}"
+VISUALIZATION_SRC="${VISUALIZATION_SRC:-$SCRIPT_DIR/repos/pic-sure-visualization-resource}"
 
 info "Checking container images..."
 
@@ -435,6 +436,36 @@ docker_build() {
   info "Building $name..."
   docker build -f "$dockerfile" -t "hms-dbmi/$name:$IMAGE_TAG" "$context" \
     &> "$BUILD_OUT"
+  info "Built hms-dbmi/$name:$IMAGE_TAG"
+}
+
+# --- Helper: build with repo-owned Dockerfile that accepts the Maven cache as a named context ---
+docker_build_with_m2_context() {
+  local name="$1" context="$2" dockerfile="$3"
+  local m2_context="$SCRIPT_DIR/.build-$name-m2-cache"
+
+  if docker image inspect "hms-dbmi/$name:$IMAGE_TAG" &>/dev/null && [ "$FORCE" != "true" ]; then
+    info "Image hms-dbmi/$name:$IMAGE_TAG exists. Skipping."
+    return
+  fi
+
+  info "Building $name (Dockerfile + Maven cache context)..."
+  rm -rf "$m2_context"
+  mkdir -p "$m2_context"
+  docker run --rm \
+    -v "$MAVEN_CACHE:/m2:ro" \
+    -v "$m2_context:/cache" \
+    alpine:latest \
+    sh -c "if [ -d /m2/repository ]; then cp -a /m2/repository/. /cache/; fi" \
+    &> "$BUILD_OUT"
+
+  docker buildx build --load \
+    --build-context "m2_cache=$m2_context" \
+    -f "$dockerfile" \
+    -t "hms-dbmi/$name:$IMAGE_TAG" \
+    "$context" \
+    &> "$BUILD_OUT"
+  rm -rf "$m2_context"
   info "Built hms-dbmi/$name:$IMAGE_TAG"
 }
 
@@ -513,19 +544,10 @@ else
   info "Images hms-dbmi/pic-sure-hpds and pic-sure-hpds-etl exist. Skipping."
 fi
 
-# PSAMA: dev.Dockerfile is multi-stage (runs Maven internally) but can't access
-# the Maven cache volume during docker build. So we build with Maven container
-# first, then package with a simple runtime Dockerfile.
-PSAMA_RUNTIME_DF="$SCRIPT_DIR/config/scripts/psama-runtime.Dockerfile"
-if [ ! -f "$PSAMA_RUNTIME_DF" ]; then
-  cat > "$PSAMA_RUNTIME_DF" <<'EOF'
-FROM amazoncorretto:24-alpine
-COPY pic-sure-auth-services/target/pic-sure-auth-services-*.jar /pic-sure-auth-service.jar
-EXPOSE 8090
-ENTRYPOINT ["sh", "-c", "java ${JAVA_OPTS} -jar /pic-sure-auth-service.jar"]
-EOF
-fi
-maven_build "pic-sure-psama" "$PSAMA_SRC" "$PSAMA_RUNTIME_DF" "-nsu"
+# Build PSAMA and visualization with their repo-owned dev Dockerfiles. They
+# consume the Maven artifacts produced above via a named BuildKit context.
+docker_build_with_m2_context "pic-sure-visualization" "$VISUALIZATION_SRC" "$VISUALIZATION_SRC/dev.Dockerfile"
+docker_build_with_m2_context "pic-sure-psama" "$PSAMA_SRC" "$PSAMA_SRC/pic-sure-auth-services/dev.Dockerfile"
 
 # Dictionary: Spring Boot — needs Maven build first, then package with runtime Dockerfile
 maven_build "pic-sure-dictionary-api" "$DICTIONARY_SRC" "$DICTIONARY_SRC/Dockerfile" "" "maven:3.9-eclipse-temurin-21"
@@ -560,12 +582,12 @@ fi
 info "All images ready."
 
 # ---------------------------------------------------------------------------
-# Start services
+# Start database
 # ---------------------------------------------------------------------------
 
-info "Starting services..."
+info "Starting database..."
 cd "$SCRIPT_DIR"
-docker compose up -d &> "$BUILD_OUT"
+docker compose up -d picsure-db &> "$BUILD_OUT"
 
 # Wait for DB to be healthy before seeding
 info "Waiting for database to be healthy..."
@@ -582,18 +604,35 @@ done
 info "Database is healthy."
 
 # ---------------------------------------------------------------------------
-# Seed database
+# Run database migrations
+# ---------------------------------------------------------------------------
+
+info "Running database migrations..."
+"$SCRIPT_DIR/run-migrations.sh" --no-restart
+
+# ---------------------------------------------------------------------------
+# Seed database extras
 # ---------------------------------------------------------------------------
 
 info "Seeding database..."
 "$SCRIPT_DIR/seed-db.sh"
 
 # ---------------------------------------------------------------------------
-# Restart services to pick up seeded data
+# Start services
 # ---------------------------------------------------------------------------
 
-info "Restarting wildfly and psama to pick up seeded data..."
-docker compose restart wildfly psama
+info "Starting services..."
+docker compose up -d \
+  deploy-wars \
+  wildfly \
+  psama \
+  hpds \
+  visualization \
+  dictionary-db \
+  dictionary-api \
+  dictionary-dump \
+  pic-sure-logging \
+  httpd &> "$BUILD_OUT"
 
 # ---------------------------------------------------------------------------
 # Done

@@ -191,7 +191,20 @@ See the [data loading documentation](docs/data-loading.md) for details on CSV fo
 ```bash
 git pull
 docker compose pull    # Pull latest pre-built images
-docker compose up -d   # Restart with new images (migrations run automatically)
+./run-migrations.sh    # Run any newly pulled database migrations
+docker compose up -d   # Restart with new images
+```
+
+To validate migration inputs without touching the database, run:
+
+```bash
+./run-migrations.sh --check
+```
+
+To repair Flyway metadata after resolving a failed migration, run:
+
+```bash
+./run-migrations.sh --repair
 ```
 
 ## Troubleshooting
@@ -233,6 +246,7 @@ pic-sure-all-in-one/
 ├── .env.example                # Configuration template
 ├── .env                        # Your config (git-ignored)
 ├── init.sh                     # One-command setup (secrets, build, start, seed)
+├── run-migrations.sh           # Re-run or repair Flyway migrations
 ├── seed-db.sh                  # DB seeding (called by init.sh, can re-run standalone)
 ├── load-demo-data.sh           # Demo data loader (optional, run after init)
 ├── config/

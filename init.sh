@@ -24,6 +24,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="$SCRIPT_DIR/.env"
 CERTS_DIR="$SCRIPT_DIR/certs"
+PICSURE_ROOT="$SCRIPT_DIR"
+export PICSURE_ROOT
+
+# shellcheck source=scripts/picsure-compose.sh
+source "$SCRIPT_DIR/scripts/picsure-compose.sh"
 
 # Colors
 RED='\033[0;31m'
@@ -97,6 +102,11 @@ if [ ! -f "$ENV_FILE" ]; then
   exit 1
 fi
 
+if ! command -v python3 >/dev/null 2>&1; then
+  error "python3 is required for setup. Install Python 3 and rerun ./init.sh."
+  exit 1
+fi
+
 FORCE=false
 VERBOSE=false
 LOG=false
@@ -164,8 +174,19 @@ set_env_var "DB_AIRFLOW_PASSWORD" "$(generate_password)" "$FORCE"
 info "Generating application UUIDs..."
 set_env_var "PICSURE_APPLICATION_ID" "$(generate_uuid)" "$FORCE"
 RESOURCE_ID=$(generate_uuid)
+AUTH_RESOURCE_ID="$RESOURCE_ID"
+if [ -n "${PICSURE_RESOURCE_ID:-}" ] && [ "$FORCE" != "true" ]; then
+  AUTH_RESOURCE_ID="$PICSURE_RESOURCE_ID"
+fi
 set_env_var "PICSURE_RESOURCE_ID"    "$RESOURCE_ID" "$FORCE"
-set_env_var "VITE_RESOURCE_HPDS"     "$RESOURCE_ID" "$FORCE"
+set_env_var "AUTH_HPDS_RESOURCE_UUID" "$AUTH_RESOURCE_ID" "$FORCE"
+set_env_var "VITE_RESOURCE_HPDS"     "$AUTH_RESOURCE_ID" "$FORCE"
+
+# Re-source .env so later auth-mode logic sees generated/backfilled UUIDs.
+set -a
+# shellcheck disable=SC1090
+source "$ENV_FILE"
+set +a
 
 info "Generating logging API key..."
 set_env_var "LOGGING_API_KEY" "$(openssl rand -hex 32)" "$FORCE"
@@ -182,7 +203,15 @@ if [ -n "${AUTH0_CLIENT_SECRET:-}" ] && [ -n "${PICSURE_APPLICATION_ID:-}" ]; th
   set_env_var "PICSURE_INTROSPECTION_TOKEN" "$INTRO_TOKEN" "$FORCE"
   info "Introspection token generated (365-day expiry)."
   # Also update the DB if picsure-db is running (token must match in .env, standalone.xml, AND the DB)
-  if docker ps --format '{{.Names}}' 2>/dev/null | grep -q picsure-db; then
+  if [ "${DB_MODE:-local}" = "remote" ]; then
+    docker run --rm \
+      -e MYSQL_PWD="${DB_ROOT_PASSWORD:-}" \
+      mysql:8.0 \
+      mysql -h "${DB_HOST}" -P "${DB_PORT:-3306}" -u "${DB_ROOT_USER:-root}" \
+      -e "UPDATE auth.application SET token='$INTRO_TOKEN' WHERE name='PICSURE';" 2>/dev/null && \
+      info "Introspection token updated in remote database." || \
+      warn "Could not update token in remote DB (application table may not exist yet)."
+  elif docker ps --format '{{.Names}}' 2>/dev/null | grep -q picsure-db; then
     db_pass=$(grep "^DB_ROOT_PASSWORD=" "$ENV_FILE" | cut -d= -f2)
     docker exec picsure-db mysql -uroot -p"$db_pass" -e \
       "UPDATE auth.application SET token='$INTRO_TOKEN' WHERE name='PICSURE';" 2>/dev/null && \
@@ -273,6 +302,7 @@ case "${AUTH_MODE:-required}" in
     # Wildfly openAccessEnabled is set via standalone.xml ${env.OPEN_ACCESS_ENABLED}
     set_env_var "OPEN_ACCESS_ENABLED" "true" "true"
     # Open HPDS resource must match the main HPDS resource for unauthenticated queries
+    set_env_var "OPEN_HPDS_RESOURCE_UUID" "${PICSURE_RESOURCE_ID}" "true"
     set_env_var "VITE_RESOURCE_OPEN_HPDS" "${PICSURE_RESOURCE_ID}" "true"
     ;;
   explore)
@@ -285,6 +315,7 @@ case "${AUTH_MODE:-required}" in
     set_env_var "VITE_DISCOVER" "true" "true"
     set_env_var "OPEN_ACCESS_ENABLED" "true" "true"
     # Open HPDS resource must match the main HPDS resource for unauthenticated queries
+    set_env_var "OPEN_HPDS_RESOURCE_UUID" "${PICSURE_RESOURCE_ID}" "true"
     set_env_var "VITE_RESOURCE_OPEN_HPDS" "${PICSURE_RESOURCE_ID}" "true"
     ;;
   required|*)
@@ -296,6 +327,14 @@ case "${AUTH_MODE:-required}" in
     set_env_var "OPEN_ACCESS_ENABLED" "false" "true"
     ;;
 esac
+
+if [ "${TOS_ENABLED:-false}" = "true" ]; then
+  set_env_var "VITE_ENABLE_TOS" "true" "true"
+  set_env_var "VITE_ENFORCE_TOS_ACCEPT" "true" "true"
+else
+  set_env_var "VITE_ENABLE_TOS" "false" "true"
+  set_env_var "VITE_ENFORCE_TOS_ACCEPT" "false" "true"
+fi
 
 # ---------------------------------------------------------------------------
 # Set frontend auth provider vars (VITE_*)
@@ -334,6 +373,29 @@ else
   info "Truststores already exist. Skipping. (Use --force to regenerate)"
 fi
 
+CUSTOM_TRUST_CERTS_DIR="${CUSTOM_TRUST_CERTS_DIR:-certs/trust}"
+if [ -d "$SCRIPT_DIR/$CUSTOM_TRUST_CERTS_DIR" ]; then
+  info "Importing custom trust certificates from $CUSTOM_TRUST_CERTS_DIR..."
+  docker run --rm \
+    -v "$SCRIPT_DIR/$CUSTOM_TRUST_CERTS_DIR:/certs:ro" \
+    -v "$SCRIPT_DIR/config/wildfly:/wildfly" \
+    -v "$SCRIPT_DIR/config/psama:/psama" \
+    amazoncorretto:24-alpine \
+    sh -c '
+      set -e
+      i=0
+      for cert in /certs/*.crt /certs/*.cer /certs/*.pem; do
+        [ -f "$cert" ] || continue
+        i=$((i + 1))
+        alias="custom-$i-$(basename "$cert" | tr -cd "A-Za-z0-9._-")"
+        keytool -delete -keystore /wildfly/application.truststore -storepass password -alias "$alias" >/dev/null 2>&1 || true
+        keytool -delete -keystore /psama/application.truststore -storepass password -alias "$alias" >/dev/null 2>&1 || true
+        keytool -importcert -noprompt -trustcacerts -keystore /wildfly/application.truststore -storepass password -alias "$alias" -file "$cert" >/dev/null
+        keytool -importcert -noprompt -trustcacerts -keystore /psama/application.truststore -storepass password -alias "$alias" -file "$cert" >/dev/null
+      done
+    ' 2>/dev/null
+fi
+
 # ---------------------------------------------------------------------------
 # Ensure required directories exist
 # ---------------------------------------------------------------------------
@@ -368,218 +430,33 @@ mkdir -p "$SCRIPT_DIR/config/hpds"
 # ---------------------------------------------------------------------------
 
 echo ""
+
+# ---------------------------------------------------------------------------
+# Resolve and apply release-control refs
+# ---------------------------------------------------------------------------
+
+if [ -x "$SCRIPT_DIR/release-control.sh" ]; then
+  info "Resolving release-control refs..."
+  "$SCRIPT_DIR/release-control.sh"
+fi
+
 # ---------------------------------------------------------------------------
 # Build container images from source
 # ---------------------------------------------------------------------------
-# PIC-SURE images are not published to any registry — they must be built
-# from the sibling repos. This is automated here so `docker compose up -d`
-# just works.
-#
-# Build order matters: PSAMA depends on hpds:client-api (a Maven artifact
-# in GitHub Packages, which requires auth). We build HPDS first via a Maven
-# container with a shared cache volume, so PSAMA finds client-api locally.
-#
-# Re-runs skip images that already exist. Use --force to rebuild all.
-# ---------------------------------------------------------------------------
 
-IMAGE_TAG="${PICSURE_IMAGE_TAG:-LATEST}"
-MAVEN_CACHE="maven_m2_cache"
-
-HPDS_SRC="${HPDS_SRC:-$SCRIPT_DIR/repos/pic-sure-hpds}"
-PSAMA_SRC="${PSAMA_SRC:-$SCRIPT_DIR/repos/pic-sure-auth-microapp}"
-WILDFLY_SRC="${WILDFLY_SRC:-$SCRIPT_DIR/repos/pic-sure}"
-DICTIONARY_SRC="${DICTIONARY_SRC:-$SCRIPT_DIR/repos/picsure-dictionary}"
-VISUALIZATION_SRC="${VISUALIZATION_SRC:-$SCRIPT_DIR/repos/pic-sure-visualization-resource}"
-
-info "Checking container images..."
-
-# --- Helper: build Java project via Maven container, then package runtime image ---
-maven_build() {
-  local name="$1" src="$2" dockerfile="$3" mvn_flags="${4:-}" maven_image="${5:-maven:3.9.9-amazoncorretto-24}"
-  local build_dir="$SCRIPT_DIR/.build-$name"
-
-  if docker image inspect "hms-dbmi/$name:$IMAGE_TAG" &>/dev/null && [ "$FORCE" != "true" ]; then
-    info "Image hms-dbmi/$name:$IMAGE_TAG exists. Skipping."
-    return
-  fi
-
-  info "Building $name (Maven + Docker)..."
-  rm -rf "$build_dir"
-  mkdir -p "$build_dir"
-  docker volume create "$MAVEN_CACHE" 2>/dev/null || true
-
-  # Run Maven in a container with shared cache — avoids needing local Java/Maven
-  docker run --rm \
-    -v "$src:/src:ro" \
-    -v "$MAVEN_CACHE:/root/.m2" \
-    -v "$build_dir:/build" \
-    -w /build \
-    "$maven_image" \
-    bash -c "cp -r /src/. /build/ && mvn -B clean install -DskipTests $mvn_flags" \
-    &> "$BUILD_OUT"
-
-  docker build -f "$dockerfile" -t "hms-dbmi/$name:$IMAGE_TAG" "$build_dir" \
-    &> "$BUILD_OUT"
-  rm -rf "$build_dir"
-  info "Built hms-dbmi/$name:$IMAGE_TAG"
-}
-
-# --- Helper: build with self-contained multi-stage Dockerfile ---
-docker_build() {
-  local name="$1" context="$2" dockerfile="$3"
-
-  if docker image inspect "hms-dbmi/$name:$IMAGE_TAG" &>/dev/null && [ "$FORCE" != "true" ]; then
-    info "Image hms-dbmi/$name:$IMAGE_TAG exists. Skipping."
-    return
-  fi
-
-  info "Building $name..."
-  docker build -f "$dockerfile" -t "hms-dbmi/$name:$IMAGE_TAG" "$context" \
-    &> "$BUILD_OUT"
-  info "Built hms-dbmi/$name:$IMAGE_TAG"
-}
-
-# --- Helper: build with repo-owned Dockerfile that accepts the Maven cache as a named context ---
-docker_build_with_m2_context() {
-  local name="$1" context="$2" dockerfile="$3"
-  local m2_context="$SCRIPT_DIR/.build-$name-m2-cache"
-
-  if docker image inspect "hms-dbmi/$name:$IMAGE_TAG" &>/dev/null && [ "$FORCE" != "true" ]; then
-    info "Image hms-dbmi/$name:$IMAGE_TAG exists. Skipping."
-    return
-  fi
-
-  info "Building $name (Dockerfile + Maven cache context)..."
-  rm -rf "$m2_context"
-  mkdir -p "$m2_context"
-  docker run --rm \
-    -v "$MAVEN_CACHE:/m2:ro" \
-    -v "$m2_context:/cache" \
-    alpine:latest \
-    sh -c "if [ -d /m2/repository ]; then cp -a /m2/repository/. /cache/; fi" \
-    &> "$BUILD_OUT"
-
-  docker buildx build --load \
-    --build-context "m2_cache=$m2_context" \
-    -f "$dockerfile" \
-    -t "hms-dbmi/$name:$IMAGE_TAG" \
-    "$context" \
-    &> "$BUILD_OUT"
-  rm -rf "$m2_context"
-  info "Built hms-dbmi/$name:$IMAGE_TAG"
-}
-
-# Build order matters due to Maven dependency chain:
-#   Logging Client → installed first (all Java services depend on it)
-#   pic-sure (Wildfly) → builds pic-sure-resource-api
-#   HPDS → needs resource-api, builds client-api
-#   PSAMA → needs client-api
-# All publish artifacts to the shared Maven cache volume.
-# -nsu (no snapshot updates) prevents 401s from GitHub Packages.
-docker volume create "$MAVEN_CACHE" 2>/dev/null || true
-
-# Install logging client library into shared Maven cache (required by all Java services)
-LOG_CLIENT_SRC="${LOG_CLIENT_SRC:-$SCRIPT_DIR/repos/PIC-SURE-Logging-Client}"
-if [ -d "$LOG_CLIENT_SRC" ]; then
-  info "Installing PIC-SURE Logging Client to Maven cache..."
-  docker run --rm \
-    -v "$LOG_CLIENT_SRC:/src:ro" \
-    -v "$MAVEN_CACHE:/root/.m2" \
-    "maven:3.9-eclipse-temurin-11" \
-    bash -c "cp -r /src /build && cd /build && mvn -B clean install -DskipTests" \
-    &> "$BUILD_OUT"
-  info "Logging client installed."
-else
-  warn "PIC-SURE-Logging-Client not found at $LOG_CLIENT_SRC — skipping."
-  warn "Java services may fail to build if they depend on the logging client."
+info "Building container images..."
+build_args=""
+if [ "$FORCE" = "true" ]; then
+  build_args="$build_args --force"
 fi
-
-# Build logging service image (Java 21)
-LOG_SRC="${LOG_SRC:-$SCRIPT_DIR/repos/PIC-SURE-Logging}"
-maven_build "pic-sure-logging" "$LOG_SRC" "$LOG_SRC/Dockerfile" "" "maven:3.9-eclipse-temurin-21"
-
-# Wildfly/pic-sure repo targets Java 11 (javax.* APIs) — must use JDK 11
-maven_build "pic-sure-wildfly" "$WILDFLY_SRC" "$WILDFLY_SRC/docker/all-in-one/all-in-one.Dockerfile" "" "maven:3.9-eclipse-temurin-11"
-# HPDS: builds both the runtime image AND the ETL image from one Maven run.
-# The docker submodule produces fat jars for ETL and runs `git log` (needs git).
-HPDS_NEED_BUILD=false
-if ! docker image inspect "hms-dbmi/pic-sure-hpds:$IMAGE_TAG" &>/dev/null || \
-   ! docker image inspect "hms-dbmi/pic-sure-hpds-etl:$IMAGE_TAG" &>/dev/null || \
-   [ "$FORCE" = "true" ]; then
-  HPDS_NEED_BUILD=true
+if [ "$VERBOSE" = "true" ]; then
+  build_args="$build_args --verbose"
 fi
-
-if [ "$HPDS_NEED_BUILD" = "true" ]; then
-  HPDS_BUILD_DIR="$SCRIPT_DIR/.build-pic-sure-hpds"
-  info "Building HPDS (Maven + Docker)..."
-  rm -rf "$HPDS_BUILD_DIR"
-  mkdir -p "$HPDS_BUILD_DIR"
-  docker run --rm \
-    -v "$HPDS_SRC:/src:ro" \
-    -v "$MAVEN_CACHE:/root/.m2" \
-    -v "$HPDS_BUILD_DIR:/build" \
-    -w /build \
-    maven:3.9.9-amazoncorretto-24 \
-    bash -c "which git >/dev/null 2>&1 || yum install -y git >/dev/null 2>&1; cp -r /src/. /build/ && mvn -B clean install -DskipTests -nsu" \
-    &> "$BUILD_OUT"
-
-  # Runtime image
-  if ! docker image inspect "hms-dbmi/pic-sure-hpds:$IMAGE_TAG" &>/dev/null || [ "$FORCE" = "true" ]; then
-    docker build -f "$HPDS_SRC/docker/pic-sure-hpds/Dockerfile" \
-      -t "hms-dbmi/pic-sure-hpds:$IMAGE_TAG" "$HPDS_BUILD_DIR" \
-      &> "$BUILD_OUT"
-    info "Built hms-dbmi/pic-sure-hpds:$IMAGE_TAG"
-  fi
-
-  # ETL image (fat jars produced by Maven in docker/pic-sure-hpds-etl/)
-  if ! docker image inspect "hms-dbmi/pic-sure-hpds-etl:$IMAGE_TAG" &>/dev/null || [ "$FORCE" = "true" ]; then
-    docker build -f "$HPDS_BUILD_DIR/docker/pic-sure-hpds-etl/Dockerfile" \
-      -t "hms-dbmi/pic-sure-hpds-etl:$IMAGE_TAG" "$HPDS_BUILD_DIR" \
-      &> "$BUILD_OUT"
-    info "Built hms-dbmi/pic-sure-hpds-etl:$IMAGE_TAG"
-  fi
-
-  rm -rf "$HPDS_BUILD_DIR"
-else
-  info "Images hms-dbmi/pic-sure-hpds and pic-sure-hpds-etl exist. Skipping."
+if [ "$LOG" = "true" ]; then
+  build_args="$build_args --log"
 fi
-
-# Build PSAMA and visualization with their repo-owned dev Dockerfiles. They
-# consume the Maven artifacts produced above via a named BuildKit context.
-docker_build_with_m2_context "pic-sure-visualization" "$VISUALIZATION_SRC" "$VISUALIZATION_SRC/dev.Dockerfile"
-docker_build_with_m2_context "pic-sure-psama" "$PSAMA_SRC" "$PSAMA_SRC/pic-sure-auth-services/dev.Dockerfile"
-
-# Dictionary: Spring Boot — needs Maven build first, then package with runtime Dockerfile
-maven_build "pic-sure-dictionary-api" "$DICTIONARY_SRC" "$DICTIONARY_SRC/Dockerfile" "" "maven:3.9-eclipse-temurin-21"
-# Dictionary-dump targets Java 24
-maven_build "pic-sure-dictionary-dump" "$DICTIONARY_SRC/aggregate" "$DICTIONARY_SRC/aggregate/Dockerfile" "" "maven:3.9.9-amazoncorretto-24"
-
-# Frontend — filter .env to VITE_* only (no secret leakage into build context)
-FRONTEND_SRC="${FRONTEND_SRC:-$SCRIPT_DIR/repos/PIC-SURE-Frontend}"
-FRONTEND_THEME="${PICSURE_THEME:-picsure}"
-
-if ! docker image inspect "hms-dbmi/pic-sure-httpd:$IMAGE_TAG" &>/dev/null || [ "$FORCE" = "true" ]; then
-  if [ ! -d "$FRONTEND_SRC" ]; then
-    error "Frontend source not found at $FRONTEND_SRC"
-    exit 1
-  fi
-  info "Building frontend (theme: $FRONTEND_THEME)..."
-  FRONTEND_DEFAULTS="$FRONTEND_SRC/.env.example"
-  {
-    if [ -f "$FRONTEND_DEFAULTS" ]; then grep '^VITE_' "$FRONTEND_DEFAULTS" || true; fi
-    grep '^VITE_' "$ENV_FILE" || true
-  } > "$FRONTEND_SRC/.env"
-  docker build -f "$FRONTEND_SRC/Dockerfile" \
-    --build-arg THEME="$FRONTEND_THEME" \
-    -t "hms-dbmi/pic-sure-httpd:$IMAGE_TAG" \
-    "$FRONTEND_SRC" &> "$BUILD_OUT"
-  rm -f "$FRONTEND_SRC/.env"
-  info "Built hms-dbmi/pic-sure-httpd:$IMAGE_TAG"
-else
-  info "Image hms-dbmi/pic-sure-httpd:$IMAGE_TAG exists. Skipping."
-fi
-
-info "All images ready."
+# shellcheck disable=SC2086
+"$SCRIPT_DIR/build-images.sh" $build_args
 
 # ---------------------------------------------------------------------------
 # Start database
@@ -587,21 +464,11 @@ info "All images ready."
 
 info "Starting database..."
 cd "$SCRIPT_DIR"
-docker compose up -d picsure-db &> "$BUILD_OUT"
-
-# Wait for DB to be healthy before seeding
-info "Waiting for database to be healthy..."
-RETRIES=30
-until docker inspect --format='{{.State.Health.Status}}' picsure-db 2>/dev/null | grep -q healthy; do
-  RETRIES=$((RETRIES - 1))
-  if [ "$RETRIES" -le 0 ]; then
-    error "Database did not become healthy in time."
-    error "Check logs: docker compose logs picsure-db"
-    exit 1
-  fi
-  sleep 2
-done
-info "Database is healthy."
+if [ "${DB_MODE:-local}" = "remote" ]; then
+  "$SCRIPT_DIR/bootstrap-remote-db.sh" &> "$BUILD_OUT"
+else
+  "$SCRIPT_DIR/scripts/db-wait.sh" &> "$BUILD_OUT"
+fi
 
 # ---------------------------------------------------------------------------
 # Run database migrations
@@ -622,7 +489,7 @@ info "Seeding database..."
 # ---------------------------------------------------------------------------
 
 info "Starting services..."
-docker compose up -d \
+picsure_compose up -d \
   deploy-wars \
   wildfly \
   psama \

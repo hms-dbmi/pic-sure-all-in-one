@@ -9,12 +9,18 @@
 #   ./run-migrations.sh --check
 #   ./run-migrations.sh --repair
 #   ./run-migrations.sh --no-restart
+#   ./run-migrations.sh --bootstrap-remote-db
 # =============================================================================
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="$SCRIPT_DIR/.env"
+PICSURE_ROOT="$SCRIPT_DIR"
+export PICSURE_ROOT
+
+# shellcheck source=scripts/picsure-compose.sh
+source "$SCRIPT_DIR/scripts/picsure-compose.sh"
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -53,6 +59,26 @@ require_env_var() {
   fi
 }
 
+check_remote_db_env() {
+  local failed=false
+
+  if [ "${DB_MODE:-local}" != "remote" ]; then
+    return 0
+  fi
+
+  info "Remote DB mode enabled."
+  require_env_var "DB_HOST" || failed=true
+  require_env_var "DB_PORT" || failed=true
+  require_env_var "DB_ROOT_PASSWORD" || failed=true
+  require_env_var "DB_PICSURE_PASSWORD" || failed=true
+  require_env_var "DB_AUTH_PASSWORD" || failed=true
+  require_env_var "DB_AIRFLOW_PASSWORD" || failed=true
+
+  if [ "$failed" = true ]; then
+    return 1
+  fi
+}
+
 check_legacy_tokens() {
   local dir="$1"
   local label="$2"
@@ -84,6 +110,7 @@ run_check() {
   require_env_var "PICSURE_APPLICATION_ID" || failed=true
   require_env_var "PICSURE_RESOURCE_ID" || failed=true
   require_env_var "PICSURE_VIZ_RESOURCE_ID" || failed=true
+  check_remote_db_env || failed=true
 
   require_sql_dir "$auth_dir" "core auth" || failed=true
   require_sql_dir "$picsure_dir" "core picsure" || failed=true
@@ -95,7 +122,7 @@ run_check() {
     check_legacy_tokens "$project_auth_dir" "project auth" || failed=true
   fi
 
-  docker compose config --quiet || failed=true
+  picsure_compose config --quiet || failed=true
 
   if [ "$failed" = true ]; then
     error "Migration check failed."
@@ -118,6 +145,10 @@ while [ "$#" -gt 0 ]; do
     --no-restart)
       RESTART_APPS=false
       ;;
+    --bootstrap-remote-db)
+      "$SCRIPT_DIR/bootstrap-remote-db.sh"
+      exit 0
+      ;;
     -h|--help)
       sed -n '2,12p' "$0"
       exit 0
@@ -136,32 +167,21 @@ if [ ! -f "$ENV_FILE" ]; then
 fi
 
 cd "$SCRIPT_DIR"
+picsure_load_env "$ENV_FILE"
 
 if [ "$ACTION" = "check" ]; then
   run_check
 fi
 
-info "Starting database if needed..."
-docker compose up -d picsure-db >/dev/null
-
-info "Waiting for database to be healthy..."
-retries=30
-until docker inspect --format='{{.State.Health.Status}}' picsure-db 2>/dev/null | grep -q healthy; do
-  retries=$((retries - 1))
-  if [ "$retries" -le 0 ]; then
-    error "Database did not become healthy in time."
-    error "Check logs: docker compose logs picsure-db"
-    exit 1
-  fi
-  sleep 2
-done
+info "Waiting for database..."
+"$SCRIPT_DIR/scripts/db-wait.sh"
 
 info "Running Flyway $ACTION..."
-docker compose rm -sf flyway-init >/dev/null 2>&1 || true
-FLYWAY_ACTION="$ACTION" docker compose up --no-deps --force-recreate --exit-code-from flyway-init flyway-init
+picsure_compose rm -sf flyway-init >/dev/null 2>&1 || true
+FLYWAY_ACTION="$ACTION" picsure_compose up --no-deps --force-recreate --exit-code-from flyway-init flyway-init
 
 if [ "$ACTION" = "migrate" ] && [ "$RESTART_APPS" = true ]; then
-  running_services="$(docker compose ps --services --filter status=running 2>/dev/null || true)"
+  running_services="$(picsure_compose ps --services --filter status=running 2>/dev/null || true)"
   restart_targets=()
   if echo "$running_services" | grep -qx "wildfly"; then
     restart_targets+=("wildfly")
@@ -172,7 +192,7 @@ if [ "$ACTION" = "migrate" ] && [ "$RESTART_APPS" = true ]; then
 
   if [ "${#restart_targets[@]}" -gt 0 ]; then
     info "Restarting services to pick up migrated data: ${restart_targets[*]}"
-    docker compose restart "${restart_targets[@]}"
+    picsure_compose restart "${restart_targets[@]}"
   else
     warn "wildfly and psama are not running; skipping app restarts."
   fi

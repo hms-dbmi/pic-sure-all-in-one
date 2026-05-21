@@ -1,4 +1,4 @@
-# Build HPDS from local source
+# Build HPDS from local source with Java remote debugging enabled.
 # Usage: docker compose -f docker-compose.yml -f docker-compose.dev-hpds.yml up -d --build hpds
 services:
   hpds:
@@ -6,3 +6,9 @@ services:
       context: ${HPDS_SRC:-./repos/pic-sure-hpds}
       dockerfile: docker/pic-sure-hpds/Dockerfile
     image: hms-dbmi/pic-sure-hpds:dev
+    ports:
+      - "5007:5007"
+    environment:
+      JAVA_OPTS: >-
+        ${HPDS_JAVA_OPTS:--XX:+UseParallelGC -XX:SurvivorRatio=250 -Xms1g -Xmx16g}
+        -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5007

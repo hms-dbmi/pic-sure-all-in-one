@@ -17,6 +17,11 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PICSURE_ROOT="$SCRIPT_DIR"
+export PICSURE_ROOT
+
+# shellcheck source=scripts/picsure-compose.sh
+source "$SCRIPT_DIR/scripts/picsure-compose.sh"
 
 # Colors
 GREEN='\033[0;32m'
@@ -47,10 +52,28 @@ set -a
 source "$SCRIPT_DIR/.env"
 set +a
 
+db_mysql() {
+  if [ "${DB_MODE:-local}" = "remote" ]; then
+    docker run --rm \
+      -e MYSQL_PWD="${DB_ROOT_PASSWORD}" \
+      mysql:8.0 \
+      mysql -h "${DB_HOST}" -P "${DB_PORT:-3306}" -u "${DB_ROOT_USER:-root}" "$@"
+  else
+    docker exec picsure-db mysql -uroot -p"${DB_ROOT_PASSWORD}" "$@"
+  fi
+}
+
 # Check DB is running
-if ! docker inspect --format='{{.State.Health.Status}}' picsure-db 2>/dev/null | grep -q healthy; then
-  error "picsure-db is not healthy. Run 'docker compose up -d' first."
-  exit 1
+if [ "${DB_MODE:-local}" = "remote" ]; then
+  if ! db_mysql -e "SELECT 1;" >/dev/null 2>&1; then
+    error "Remote MySQL is not reachable at ${DB_HOST:-unset}:${DB_PORT:-3306}."
+    exit 1
+  fi
+else
+  if ! docker inspect --format='{{.State.Health.Status}}' picsure-db 2>/dev/null | grep -q healthy; then
+    error "picsure-db is not healthy. Run 'docker compose up -d' first."
+    exit 1
+  fi
 fi
 
 ROOT_PASS="${DB_ROOT_PASSWORD}"
@@ -74,24 +97,32 @@ if [ -d "$MIGRATIONS_SRC/Baseline" ]; then
   sed_in_place "s/__APPLICATION_UUID__/$APP_ID_HEX/g" "$TMPDIR/"*.sql 2>/dev/null || true
 
   # Check if already successfully applied (success=1, not failed attempts)
-  ALREADY_DONE=$(docker exec picsure-db mysql -uroot -p"$ROOT_PASS" -N -e \
+  ALREADY_DONE=$(db_mysql -N -e \
     "SELECT COUNT(*) FROM auth.flyway_custom_schema_history WHERE success=1 AND version IS NOT NULL;" 2>/dev/null || echo "0")
 
   if [ "$ALREADY_DONE" = "0" ] || [ "$ALREADY_DONE" = "" ]; then
     # Clean up any failed migration records so Flyway will retry
-    docker exec picsure-db mysql -uroot -p"$ROOT_PASS" -e \
+    db_mysql -e \
       "DELETE FROM auth.flyway_custom_schema_history WHERE success=0;" 2>/dev/null || true
-    docker exec picsure-db mysql -uroot -p"$ROOT_PASS" -e \
+    db_mysql -e \
       "DELETE FROM picsure.flyway_custom_schema_history WHERE success=0;" 2>/dev/null || true
 
     # Run auth baseline
     info "Running auth baseline migrations..."
+    FLYWAY_NETWORK_ARGS=(--network "picsure_app")
+    AUTH_FLYWAY_URL="jdbc:mysql://picsure-db:3306/auth?useSSL=false&allowPublicKeyRetrieval=true"
+    PICSURE_FLYWAY_URL="jdbc:mysql://picsure-db:3306/picsure?useSSL=false&allowPublicKeyRetrieval=true"
+    if [ "${DB_MODE:-local}" = "remote" ]; then
+      FLYWAY_NETWORK_ARGS=()
+      AUTH_FLYWAY_URL="jdbc:mysql://${DB_HOST}:${DB_PORT:-3306}/auth?useSSL=false&allowPublicKeyRetrieval=true"
+      PICSURE_FLYWAY_URL="jdbc:mysql://${DB_HOST}:${DB_PORT:-3306}/picsure?useSSL=false&allowPublicKeyRetrieval=true"
+    fi
     docker run --rm \
-      --network picsure_app \
+      "${FLYWAY_NETWORK_ARGS[@]}" \
       -v "$TMPDIR:/flyway/sql:ro" \
       flyway/flyway:latest \
-      -url="jdbc:mysql://picsure-db:3306/auth?useSSL=false&allowPublicKeyRetrieval=true" \
-      -user=root -password="$ROOT_PASS" \
+      -url="$AUTH_FLYWAY_URL" \
+      -user="${DB_ROOT_USER:-root}" -password="$ROOT_PASS" \
       -schemas=auth \
       -locations="filesystem:/flyway/sql" \
       -baselineOnMigrate=true \
@@ -108,11 +139,11 @@ if [ -d "$MIGRATIONS_SRC/Baseline" ]; then
     sed_in_place "s/16A7B3241CBF4333B65B3EA2AF954313/$RESOURCE_ID_HEX/g" "$TMPDIR_PS/"*.sql 2>/dev/null || true
 
     docker run --rm \
-      --network picsure_app \
+      "${FLYWAY_NETWORK_ARGS[@]}" \
       -v "$TMPDIR_PS:/flyway/sql:ro" \
       flyway/flyway:latest \
-      -url="jdbc:mysql://picsure-db:3306/picsure?useSSL=false&allowPublicKeyRetrieval=true" \
-      -user=root -password="$ROOT_PASS" \
+      -url="$PICSURE_FLYWAY_URL" \
+      -user="${DB_ROOT_USER:-root}" -password="$ROOT_PASS" \
       -schemas=picsure \
       -locations="filesystem:/flyway/sql" \
       -baselineOnMigrate=true \
@@ -139,14 +170,14 @@ ADMIN_EMAIL="${ADMIN_EMAIL:-}"
 
 if [ -n "$ADMIN_EMAIL" ]; then
   # Check if user already exists
-  EXISTING=$(docker exec picsure-db mysql -uroot -p"$ROOT_PASS" -N -e \
+  EXISTING=$(db_mysql -N -e \
     "SELECT COUNT(*) FROM auth.user WHERE email='$ADMIN_EMAIL';" 2>/dev/null || echo "0")
 
   if [ "$EXISTING" = "0" ]; then
     info "Creating admin user: $ADMIN_EMAIL"
     USER_UUID=$(uuidgen | tr '[:lower:]' '[:upper:]' | sed 's/-//g')
 
-    docker exec picsure-db mysql -uroot -p"$ROOT_PASS" -e "
+    db_mysql -e "
       INSERT INTO auth.user (uuid, auth0_metadata, general_metadata, acceptedTOS, connectionId, email, matched, subject, is_active, long_term_token)
       VALUES (
         UNHEX('$USER_UUID'), NULL, '{\"email\":\"$ADMIN_EMAIL\"}', NULL,
@@ -176,12 +207,12 @@ VIZ_ID="${PICSURE_VIZ_RESOURCE_ID:-}"
 if [ -n "$VIZ_ID" ]; then
   VIZ_ID_HEX=$(echo "$VIZ_ID" | tr '[:lower:]' '[:upper:]' | sed 's/-//g')
 
-  EXISTING=$(docker exec picsure-db mysql -uroot -p"$ROOT_PASS" -N -e \
+  EXISTING=$(db_mysql -N -e \
     "SELECT COUNT(*) FROM picsure.resource WHERE uuid=UNHEX('$VIZ_ID_HEX');" 2>/dev/null || echo "0")
 
   if [ "$EXISTING" = "0" ]; then
     info "Creating visualization resource entry..."
-    docker exec picsure-db mysql -uroot -p"$ROOT_PASS" -e "
+    db_mysql -e "
       INSERT INTO picsure.resource (uuid, targetURL, resourceRSPath, description, name, token, hidden)
       VALUES (
         UNHEX('$VIZ_ID_HEX'), NULL, NULL,
@@ -201,7 +232,7 @@ fi
 INTRO_TOKEN="${PICSURE_INTROSPECTION_TOKEN:-}"
 
 if [ -n "$INTRO_TOKEN" ]; then
-  docker exec picsure-db mysql -uroot -p"$ROOT_PASS" -e \
+  db_mysql -e \
     "UPDATE auth.application SET token='$INTRO_TOKEN' WHERE name='PICSURE';" 2>/dev/null
   info "Introspection token synced to database."
 fi

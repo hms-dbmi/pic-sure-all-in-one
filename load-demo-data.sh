@@ -18,6 +18,11 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PICSURE_ROOT="$SCRIPT_DIR"
+export PICSURE_ROOT
+
+# shellcheck source=scripts/picsure-compose.sh
+source "$SCRIPT_DIR/scripts/picsure-compose.sh"
 
 # Parse flags
 VERBOSE=false
@@ -62,9 +67,17 @@ fi
 # Preflight checks
 # ---------------------------------------------------------------------------
 
-if ! docker compose -f "$SCRIPT_DIR/docker-compose.yml" ps picsure-db 2>/dev/null | grep -q healthy; then
-  error "picsure-db is not healthy. Run 'docker compose up -d' first."
-  exit 1
+if [ "${DB_MODE:-local}" = "remote" ]; then
+  if ! docker run --rm -e MYSQL_PWD="${DB_ROOT_PASSWORD}" mysql:8.0 \
+    mysql -h "${DB_HOST}" -P "${DB_PORT:-3306}" -u "${DB_ROOT_USER:-root}" -e "SELECT 1;" >/dev/null 2>&1; then
+    error "Remote MySQL is not reachable at ${DB_HOST:-unset}:${DB_PORT:-3306}."
+    exit 1
+  fi
+else
+  if ! picsure_compose ps picsure-db 2>/dev/null | grep -q healthy; then
+    error "picsure-db is not healthy. Run 'docker compose up -d' first."
+    exit 1
+  fi
 fi
 
 # ---------------------------------------------------------------------------
@@ -173,7 +186,7 @@ info "Step 1/4: Loading data into HPDS (CSV → javabin)..."
 info "This may take 1-5 minutes depending on dataset size."
 
 # Stop HPDS while loading
-docker compose -f "$SCRIPT_DIR/docker-compose.yml" stop hpds 2>/dev/null || true
+picsure_compose stop hpds 2>/dev/null || true
 
 # Copy encryption key into the data volume FIRST (bind mount overlay doesn't persist)
 docker run --rm \
@@ -197,7 +210,7 @@ info "HPDS data loaded."
 # ---------------------------------------------------------------------------
 
 info "Step 2/4: Starting HPDS..."
-docker compose -f "$SCRIPT_DIR/docker-compose.yml" up -d hpds
+picsure_compose up -d hpds
 
 # Wait for healthy
 info "Waiting for HPDS to become healthy..."
@@ -329,7 +342,7 @@ fi
 # ---------------------------------------------------------------------------
 
 info "Step 4/4: Restarting dictionary service..."
-docker compose -f "$SCRIPT_DIR/docker-compose.yml" restart dictionary-api 2>/dev/null || true
+picsure_compose restart dictionary-api 2>/dev/null || true
 
 # ---------------------------------------------------------------------------
 # Done

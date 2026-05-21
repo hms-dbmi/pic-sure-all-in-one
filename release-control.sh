@@ -14,8 +14,9 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ENV_FILE="$SCRIPT_DIR/.env"
-RELEASE_DIR="$SCRIPT_DIR/.data/release-control"
+ENV_FILE="${ENV_FILE:-$SCRIPT_DIR/.env}"
+RELEASE_DIR="${RELEASE_CONTROL_DIR:-$SCRIPT_DIR/.data/release-control}"
+REPOS_DIR="${REPOS_DIR:-$SCRIPT_DIR/repos}"
 
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -202,16 +203,16 @@ apply_refs() {
   source "$ENV_FILE"
   set +a
 
-  checkout_repo_ref "$SCRIPT_DIR/repos/pic-sure" "PICSURE_REF"
-  checkout_repo_ref "$SCRIPT_DIR/repos/pic-sure-hpds" "HPDS_REF"
-  checkout_repo_ref "$SCRIPT_DIR/repos/pic-sure-auth-microapp" "PSAMA_REF"
-  checkout_repo_ref "$SCRIPT_DIR/repos/PIC-SURE-Frontend" "FRONTEND_REF"
-  checkout_repo_ref "$SCRIPT_DIR/repos/PIC-SURE-Migrations" "MIGRATIONS_REF"
-  checkout_repo_ref "$SCRIPT_DIR/repos/picsure-dictionary" "DICTIONARY_REF"
-  checkout_repo_ref "$SCRIPT_DIR/repos/picsure-dictionary-etl" "DICTIONARY_ETL_REF"
-  checkout_repo_ref "$SCRIPT_DIR/repos/PIC-SURE-Logging" "LOGGING_REF"
-  checkout_repo_ref "$SCRIPT_DIR/repos/PIC-SURE-Logging-Client" "LOGGING_CLIENT_REF"
-  checkout_repo_ref "$SCRIPT_DIR/repos/pic-sure-visualization-resource" "VISUALIZATION_REF"
+  checkout_repo_ref "$REPOS_DIR/pic-sure" "PICSURE_REF"
+  checkout_repo_ref "$REPOS_DIR/pic-sure-hpds" "HPDS_REF"
+  checkout_repo_ref "$REPOS_DIR/pic-sure-auth-microapp" "PSAMA_REF"
+  checkout_repo_ref "$REPOS_DIR/PIC-SURE-Frontend" "FRONTEND_REF"
+  checkout_repo_ref "$REPOS_DIR/PIC-SURE-Migrations" "MIGRATIONS_REF"
+  checkout_repo_ref "$REPOS_DIR/picsure-dictionary" "DICTIONARY_REF"
+  checkout_repo_ref "$REPOS_DIR/picsure-dictionary-etl" "DICTIONARY_ETL_REF"
+  checkout_repo_ref "$REPOS_DIR/PIC-SURE-Logging" "LOGGING_REF"
+  checkout_repo_ref "$REPOS_DIR/PIC-SURE-Logging-Client" "LOGGING_CLIENT_REF"
+  checkout_repo_ref "$REPOS_DIR/pic-sure-visualization-resource" "VISUALIZATION_REF"
 }
 
 if [ "$RESOLVE" = "true" ]; then

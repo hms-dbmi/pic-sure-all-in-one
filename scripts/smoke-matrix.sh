@@ -35,6 +35,8 @@ cd "$SCRIPT_DIR"
 echo "[smoke] Shell syntax"
 bash -n init.sh
 bash -n build-images.sh
+bash -n preflight.sh
+bash -n status.sh
 bash -n release-control.sh
 bash -n bootstrap-remote-db.sh
 bash -n run-migrations.sh
@@ -44,9 +46,25 @@ bash -n update.sh
 bash -n etl.sh
 bash -n scripts/picsure-compose.sh
 bash -n scripts/db-wait.sh
+bash -n scripts/check-protected-files.sh
+bash -n scripts/check-env-example.sh
+bash -n scripts/check-secrets.sh
 bash -n config/scripts/generate-introspection-token.sh
+bash -n scripts/test-release-control.sh
 bash -n scripts/smoke-matrix.sh
 bash -n scripts/smoke-remote-db.sh
+
+echo "[smoke] Protected file checks"
+./scripts/check-env-example.sh
+./scripts/check-protected-files.sh
+
+echo "[smoke] Release control tests"
+./scripts/test-release-control.sh
+
+if [ -f .env ]; then
+  echo "[smoke] Update dry run"
+  ./update.sh --dry-run --offline >/dev/null
+fi
 
 echo "[smoke] Compose config"
 if [ -f .env ]; then

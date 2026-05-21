@@ -68,8 +68,14 @@ EOF
 echo "[remote-db-smoke] Waiting for disposable MySQL..."
 ./scripts/db-wait.sh
 
+echo "[remote-db-smoke] Checking remote DB before bootstrap..."
+./bootstrap-remote-db.sh --check
+
 echo "[remote-db-smoke] Bootstrapping remote DB..."
 ./bootstrap-remote-db.sh
+
+echo "[remote-db-smoke] Checking remote DB after bootstrap..."
+./bootstrap-remote-db.sh --check
 
 echo "[remote-db-smoke] Checking migration inputs..."
 ./run-migrations.sh --check

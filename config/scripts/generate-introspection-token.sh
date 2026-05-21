@@ -7,7 +7,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 JWT_CREATOR_REPO="${JWT_CREATOR_REPO:-https://github.com/hms-dbmi/jwt-creator.git}"
-JWT_CREATOR_REF="${JWT_CREATOR_REF:-master}"
+JWT_CREATOR_REF="${JWT_CREATOR_REF:-v1.0.0}"
 JWT_CREATOR_DIR="${JWT_CREATOR_DIR:-$ROOT_DIR/.data/jwt-creator}"
 JWT_CREATOR_JAR="$JWT_CREATOR_DIR/target/generateJwt.jar"
 MAVEN_CACHE="${MAVEN_CACHE:-maven_m2_cache}"

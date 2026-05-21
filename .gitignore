@@ -7,6 +7,11 @@ initial-configuration/pass.tmp
 
 # Compose rewrite — secrets and generated files
 .env
+.env.backup.*
+.env.local
+.env.development
+.env.production
+.env.test
 certs/
 config/dictionary/dictionary.env
 config/hpds/encryption_key
@@ -17,4 +22,12 @@ config/wildfly/visualization/pic-sure-visualization-resource/resource.properties
 .data/
 .build-*/
 init.log
+*.log
+*.dump
+*.dump.gz
+*.bak
+*.backup
+*.sql.gz
+dumps/
+backups/
 repos/

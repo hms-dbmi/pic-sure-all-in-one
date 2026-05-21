@@ -44,6 +44,7 @@ bash -n update.sh
 bash -n etl.sh
 bash -n scripts/picsure-compose.sh
 bash -n scripts/db-wait.sh
+bash -n config/scripts/generate-introspection-token.sh
 bash -n scripts/smoke-matrix.sh
 bash -n scripts/smoke-remote-db.sh
 

@@ -57,8 +57,8 @@ generate_uuid() {
   elif [ -f /proc/sys/kernel/random/uuid ]; then
     cat /proc/sys/kernel/random/uuid
   else
-    # Fallback: python
-    python3 -c "import uuid; print(uuid.uuid4())"
+    error "uuidgen is required on systems without /proc/sys/kernel/random/uuid."
+    exit 1
   fi
 }
 
@@ -99,11 +99,6 @@ fi
 if [ ! -f "$ENV_FILE" ]; then
   error ".env file not found. Run: cp .env.example .env"
   error "Then edit .env with your Auth0 credentials and admin email."
-  exit 1
-fi
-
-if ! command -v python3 >/dev/null 2>&1; then
-  error "python3 is required for setup. Install Python 3 and rerun ./init.sh."
   exit 1
 fi
 
@@ -198,7 +193,7 @@ set -a
 source "$ENV_FILE"
 set +a
 if [ -n "${AUTH0_CLIENT_SECRET:-}" ] && [ -n "${PICSURE_APPLICATION_ID:-}" ]; then
-  INTRO_TOKEN=$(python3 "$SCRIPT_DIR/config/scripts/generate-introspection-token.py" \
+  INTRO_TOKEN=$("$SCRIPT_DIR/config/scripts/generate-introspection-token.sh" \
     "$AUTH0_CLIENT_SECRET" "$PICSURE_APPLICATION_ID" 365)
   set_env_var "PICSURE_INTROSPECTION_TOKEN" "$INTRO_TOKEN" "$FORCE"
   info "Introspection token generated (365-day expiry)."

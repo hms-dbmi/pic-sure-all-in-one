@@ -29,7 +29,8 @@ Browse to **https://localhost** and log in with your configured admin Google acc
 ## Requirements
 
 - Docker Engine 20.10+ with Compose V2
-- Python 3
+- Git
+- `jq` recommended; if absent, `release-control.sh` runs jq through Docker
 - 8 GB RAM minimum (32 GB recommended for production)
 - 100 GB disk, plus space for your data
 

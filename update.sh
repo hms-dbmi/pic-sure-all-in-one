@@ -56,11 +56,6 @@ if [ ! -f "$ENV_FILE" ]; then
   exit 1
 fi
 
-if ! command -v python3 >/dev/null 2>&1; then
-  error "python3 is required for updates. Install Python 3 and rerun ./update.sh."
-  exit 1
-fi
-
 picsure_load_env "$ENV_FILE"
 
 set_env_var() {
@@ -86,7 +81,7 @@ rotate_introspection_token() {
 
   info "Rotating PIC-SURE introspection token..."
   local token
-  token="$(python3 "$SCRIPT_DIR/config/scripts/generate-introspection-token.py" \
+  token="$("$SCRIPT_DIR/config/scripts/generate-introspection-token.sh" \
     "$AUTH0_CLIENT_SECRET" "$PICSURE_APPLICATION_ID" 365)"
   set_env_var "PICSURE_INTROSPECTION_TOKEN" "$token"
   picsure_load_env "$ENV_FILE"

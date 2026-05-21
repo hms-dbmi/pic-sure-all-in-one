@@ -49,11 +49,6 @@ if [ ! -f "$ENV_FILE" ]; then
   exit 1
 fi
 
-if ! command -v python3 >/dev/null 2>&1; then
-  error "python3 is required to parse release-control build-spec.json."
-  exit 1
-fi
-
 set -a
 # shellcheck disable=SC1090
 source "$ENV_FILE"
@@ -76,6 +71,22 @@ set_env_var() {
 
 repo_url="${RELEASE_CONTROL_REPO:-https://github.com/hms-dbmi/pic-sure-baseline-release-control}"
 repo_branch="${RELEASE_CONTROL_BRANCH:-main}"
+JQ_IMAGE="${JQ_IMAGE:-ghcr.io/jqlang/jq:1.7.1}"
+
+run_jq() {
+  local filter="$1"
+  local file="$2"
+
+  if command -v jq >/dev/null 2>&1; then
+    jq -r "$filter" "$file"
+  else
+    if ! command -v docker >/dev/null 2>&1; then
+      error "jq or docker is required to parse release-control build-spec.json."
+      exit 1
+    fi
+    docker run --rm -i "$JQ_IMAGE" -r "$filter" < "$file"
+  fi
+}
 
 resolve_refs() {
   mkdir -p "$(dirname "$RELEASE_DIR")"
@@ -104,50 +115,34 @@ resolve_refs() {
   local release_commit
   release_commit="$(git -C "$RELEASE_DIR" rev-parse HEAD)"
 
-  local resolved
-  resolved="$(python3 - "$spec" <<'PY'
-import json
-import sys
-from pathlib import Path
+  local jq_filter
+  jq_filter='
+    def ref_for($key):
+      first(.application[]? | select(.project_job_git_key == $key and .git_hash) | .git_hash);
+    [
+      ["PICSURE_REF", ref_for("PSA")],
+      ["HPDS_REF", ref_for("PSH")],
+      ["PSAMA_REF", ref_for("PSAMA")],
+      ["FRONTEND_REF", ref_for("PSF")],
+      ["MIGRATIONS_REF", ref_for("PSM")],
+      ["DICTIONARY_REF", ref_for("DICTIONARY")],
+      ["DICTIONARY_ETL_REF", ref_for("DICTIONARY_ETL")],
+      ["VISUALIZATION_REF", null],
+      ["LOGGING_REF", ref_for("PSL")],
+      ["LOGGING_CLIENT_REF", null]
+    ][] |
+    .[0] as $env_name |
+    (.[1] // "main") as $ref |
+    (if .[1] == null then "MISSING" else "FOUND" end) as $marker |
+    "\($env_name)=\($ref)\t\($marker)"
+  '
 
-spec_path = Path(sys.argv[1])
-key_to_env = {
-    "PSA": "PICSURE_REF",
-    "PSH": "HPDS_REF",
-    "PSAMA": "PSAMA_REF",
-    "PSF": "FRONTEND_REF",
-    "PSM": "MIGRATIONS_REF",
-    "DICTIONARY": "DICTIONARY_REF",
-    "DICTIONARY_ETL": "DICTIONARY_ETL_REF",
-    "PSL": "LOGGING_REF",
-}
-defaults = {
-    "PICSURE_REF": "main",
-    "HPDS_REF": "main",
-    "PSAMA_REF": "main",
-    "FRONTEND_REF": "main",
-    "MIGRATIONS_REF": "main",
-    "DICTIONARY_REF": "main",
-    "DICTIONARY_ETL_REF": "main",
-    "VISUALIZATION_REF": "main",
-    "LOGGING_REF": "main",
-    "LOGGING_CLIENT_REF": "main",
-}
-refs = dict(defaults)
-found = set()
-if spec_path.exists():
-    data = json.loads(spec_path.read_text())
-    for item in data.get("application", []):
-        env_name = key_to_env.get(item.get("project_job_git_key"))
-        git_hash = item.get("git_hash")
-        if env_name and git_hash:
-            refs[env_name] = git_hash
-            found.add(env_name)
-for env_name in defaults:
-    marker = "FOUND" if env_name in found else "MISSING"
-    print(f"{env_name}={refs[env_name]}\t{marker}")
-PY
-)"
+  local resolved
+  if [ -f "$spec" ]; then
+    resolved="$(run_jq "$jq_filter" "$spec")"
+  else
+    resolved=$'PICSURE_REF=main\tMISSING\nHPDS_REF=main\tMISSING\nPSAMA_REF=main\tMISSING\nFRONTEND_REF=main\tMISSING\nMIGRATIONS_REF=main\tMISSING\nDICTIONARY_REF=main\tMISSING\nDICTIONARY_ETL_REF=main\tMISSING\nVISUALIZATION_REF=main\tMISSING\nLOGGING_REF=main\tMISSING\nLOGGING_CLIENT_REF=main\tMISSING'
+  fi
 
   set_env_var "RELEASE_CONTROL_REPO" "$repo_url"
   set_env_var "RELEASE_CONTROL_BRANCH" "$repo_branch"

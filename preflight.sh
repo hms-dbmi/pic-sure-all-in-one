@@ -16,20 +16,19 @@ ENV_FILE="$SCRIPT_DIR/.env"
 PICSURE_ROOT="$SCRIPT_DIR"
 export PICSURE_ROOT
 
+LOG_PREFIX="preflight"
+# shellcheck source=scripts/lib/common.sh
+source "$SCRIPT_DIR/scripts/lib/common.sh"
+
 # shellcheck source=scripts/picsure-compose.sh
 source "$SCRIPT_DIR/scripts/picsure-compose.sh"
-
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m'
 
 NETWORK=false
 FAILED=false
 
-ok() { echo -e "${GREEN}[ok]${NC} $*"; }
-warn() { echo -e "${YELLOW}[warn]${NC} $*"; }
-fail() { echo -e "${RED}[fail]${NC} $*" >&2; FAILED=true; }
+ok() { echo -e "${PICSURE_GREEN}[ok]${PICSURE_NC} $*"; }
+warn() { echo -e "${PICSURE_YELLOW}[warn]${PICSURE_NC} $*"; }
+fail() { echo -e "${PICSURE_RED}[fail]${PICSURE_NC} $*" >&2; FAILED=true; }
 
 for arg in "$@"; do
   case "$arg" in

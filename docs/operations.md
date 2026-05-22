@@ -133,6 +133,19 @@ docker compose ps
 ./status.sh
 ```
 
+## Uninstall
+
+```bash
+./uninstall.sh
+./uninstall.sh --yes
+```
+
+`uninstall.sh` removes this checkout's Compose containers, networks, named
+volumes, and generated runtime state. It backs up `.env` before removing it.
+The source checkout is not removed. Use `--images` to also remove local
+PIC-SURE images, `--repos` to remove cloned service repos, or `--keep-env` to
+preserve `.env`.
+
 ## Data Loading
 
 Demo data:

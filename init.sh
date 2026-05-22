@@ -27,18 +27,12 @@ CERTS_DIR="$SCRIPT_DIR/certs"
 PICSURE_ROOT="$SCRIPT_DIR"
 export PICSURE_ROOT
 
+LOG_PREFIX="init"
+# shellcheck source=scripts/lib/common.sh
+source "$SCRIPT_DIR/scripts/lib/common.sh"
+
 # shellcheck source=scripts/picsure-compose.sh
 source "$SCRIPT_DIR/scripts/picsure-compose.sh"
-
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
-
-info()  { echo -e "${GREEN}[init]${NC} $*"; }
-warn()  { echo -e "${YELLOW}[init]${NC} $*"; }
-error() { echo -e "${RED}[init]${NC} $*" >&2; }
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -64,25 +58,7 @@ generate_uuid() {
 
 set_env_var() {
   # Set a variable in .env only if it's currently empty/unset
-  local key="$1"
-  local value="$2"
-  local force="${3:-false}"
-
-  if grep -q "^${key}=" "$ENV_FILE"; then
-    local current
-    current=$(grep "^${key}=" "$ENV_FILE" | cut -d'=' -f2-)
-    if [ -n "$current" ] && [ "$force" != "true" ]; then
-      return 0  # Already set, don't overwrite
-    fi
-    # Replace existing empty value
-    if [[ "$OSTYPE" =~ ^darwin ]]; then
-      sed -i '' "s|^${key}=.*|${key}=${value}|" "$ENV_FILE"
-    else
-      sed -i "s|^${key}=.*|${key}=${value}|" "$ENV_FILE"
-    fi
-  else
-    echo "${key}=${value}" >> "$ENV_FILE"
-  fi
+  picsure_set_env_var "$ENV_FILE" "$1" "$2" "${3:-false}"
 }
 
 # ---------------------------------------------------------------------------

@@ -15,14 +15,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="$SCRIPT_DIR/.env"
 
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m'
-
-info()  { echo -e "${GREEN}[remote-db]${NC} $*"; }
-warn()  { echo -e "${YELLOW}[remote-db]${NC} $*"; }
-error() { echo -e "${RED}[remote-db]${NC} $*" >&2; }
+LOG_PREFIX="remote-db"
+# shellcheck source=scripts/lib/common.sh
+source "$SCRIPT_DIR/scripts/lib/common.sh"
 
 CHECK_ONLY=false
 
@@ -41,11 +36,7 @@ for arg in "$@"; do
 done
 
 require_env_var() {
-  local name="$1"
-  if [ -z "${!name:-}" ]; then
-    error "$name is required for remote DB bootstrap."
-    return 1
-  fi
+  picsure_require_env_var "$1" "$1 is required for remote DB bootstrap."
 }
 
 mysql_root() {

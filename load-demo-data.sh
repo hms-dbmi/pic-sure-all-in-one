@@ -21,6 +21,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PICSURE_ROOT="$SCRIPT_DIR"
 export PICSURE_ROOT
 
+LOG_PREFIX="data"
+# shellcheck source=scripts/lib/common.sh
+source "$SCRIPT_DIR/scripts/lib/common.sh"
+
 # shellcheck source=scripts/picsure-compose.sh
 source "$SCRIPT_DIR/scripts/picsure-compose.sh"
 
@@ -41,16 +45,6 @@ if [ "$VERBOSE" = "true" ]; then
 else
   BUILD_OUT="/dev/null"
 fi
-
-# Colors
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m'
-
-info()  { echo -e "${GREEN}[data]${NC} $*"; }
-warn()  { echo -e "${YELLOW}[data]${NC} $*"; }
-error() { echo -e "${RED}[data]${NC} $*" >&2; }
 
 # Source .env
 if [ -f "$SCRIPT_DIR/.env" ]; then

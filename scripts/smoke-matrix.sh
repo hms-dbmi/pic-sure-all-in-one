@@ -37,6 +37,7 @@ bash -n init.sh
 bash -n build-images.sh
 bash -n preflight.sh
 bash -n status.sh
+bash -n uninstall.sh
 bash -n release-control.sh
 bash -n bootstrap-remote-db.sh
 bash -n run-migrations.sh
@@ -44,6 +45,7 @@ bash -n seed-db.sh
 bash -n load-demo-data.sh
 bash -n update.sh
 bash -n etl.sh
+bash -n scripts/lib/common.sh
 bash -n scripts/picsure-compose.sh
 bash -n scripts/db-wait.sh
 bash -n scripts/check-protected-files.sh

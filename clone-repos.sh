@@ -15,6 +15,10 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPOS_DIR="$SCRIPT_DIR/repos"
 
+LOG_PREFIX="clone"
+# shellcheck source=scripts/lib/common.sh
+source "$SCRIPT_DIR/scripts/lib/common.sh"
+
 REPOS=(
   hms-dbmi/pic-sure
   hms-dbmi/pic-sure-auth-microapp
@@ -28,13 +32,7 @@ REPOS=(
   hms-dbmi/PIC-SURE-Logging-Client
 )
 
-# Colors
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
-
-info()  { echo -e "${GREEN}[clone]${NC} $*"; }
-skip()  { echo -e "${YELLOW}[skip]${NC} $*"; }
+skip()  { echo -e "${PICSURE_YELLOW}[skip]${PICSURE_NC} $*"; }
 
 # Determine clone method
 USE_SSH=false

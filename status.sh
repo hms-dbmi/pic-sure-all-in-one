@@ -16,17 +16,16 @@ ENV_FILE="$SCRIPT_DIR/.env"
 PICSURE_ROOT="$SCRIPT_DIR"
 export PICSURE_ROOT
 
+LOG_PREFIX="status"
+# shellcheck source=scripts/lib/common.sh
+source "$SCRIPT_DIR/scripts/lib/common.sh"
+
 # shellcheck source=scripts/picsure-compose.sh
 source "$SCRIPT_DIR/scripts/picsure-compose.sh"
 
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m'
-
-ok() { echo -e "${GREEN}[ok]${NC} $*"; }
-warn() { echo -e "${YELLOW}[warn]${NC} $*"; }
-bad() { echo -e "${RED}[bad]${NC} $*"; }
+ok() { echo -e "${PICSURE_GREEN}[ok]${PICSURE_NC} $*"; }
+warn() { echo -e "${PICSURE_YELLOW}[warn]${PICSURE_NC} $*"; }
+bad() { echo -e "${PICSURE_RED}[bad]${PICSURE_NC} $*"; }
 
 section() {
   echo ""

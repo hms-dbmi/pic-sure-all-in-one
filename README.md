@@ -48,6 +48,8 @@ account.
 - `./run-migrations.sh --check` validates migration inputs without touching the
   database.
 - `./etl.sh --help` shows Compose replacements for Jenkins data-loading jobs.
+- `./uninstall.sh` previews local Compose and generated-state cleanup;
+  `./uninstall.sh --yes` performs it.
 
 ## Key Docs
 
@@ -64,6 +66,7 @@ docker-compose.remote-db.yml    # Remote MySQL/RDS overlay
 init.sh                         # First install
 preflight.sh                    # Non-mutating host/config checks
 status.sh                       # Read-only stack and release status
+uninstall.sh                    # Local stack removal
 update.sh                       # Safe update path
 release-control.sh              # Build-spec ref resolution
 build-images.sh                 # Local image builds

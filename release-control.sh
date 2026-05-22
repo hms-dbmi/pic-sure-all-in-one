@@ -18,14 +18,9 @@ ENV_FILE="${ENV_FILE:-$SCRIPT_DIR/.env}"
 RELEASE_DIR="${RELEASE_CONTROL_DIR:-$SCRIPT_DIR/.data/release-control}"
 REPOS_DIR="${REPOS_DIR:-$SCRIPT_DIR/repos}"
 
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m'
-
-info()  { echo -e "${GREEN}[release]${NC} $*"; }
-warn()  { echo -e "${YELLOW}[release]${NC} $*"; }
-error() { echo -e "${RED}[release]${NC} $*" >&2; }
+LOG_PREFIX="release"
+# shellcheck source=scripts/lib/common.sh
+source "$SCRIPT_DIR/scripts/lib/common.sh"
 
 RESOLVE=true
 APPLY=true
@@ -56,18 +51,7 @@ source "$ENV_FILE"
 set +a
 
 set_env_var() {
-  local key="$1"
-  local value="$2"
-
-  if grep -q "^${key}=" "$ENV_FILE"; then
-    if [[ "$OSTYPE" =~ ^darwin ]]; then
-      sed -i '' "s|^${key}=.*|${key}=${value}|" "$ENV_FILE"
-    else
-      sed -i "s|^${key}=.*|${key}=${value}|" "$ENV_FILE"
-    fi
-  else
-    echo "${key}=${value}" >> "$ENV_FILE"
-  fi
+  picsure_set_env_var "$ENV_FILE" "$1" "$2" true
 }
 
 repo_url="${RELEASE_CONTROL_REPO:-https://github.com/hms-dbmi/pic-sure-baseline-release-control}"

@@ -19,17 +19,12 @@ ENV_FILE="$SCRIPT_DIR/.env"
 PICSURE_ROOT="$SCRIPT_DIR"
 export PICSURE_ROOT
 
+LOG_PREFIX="migrate"
+# shellcheck source=scripts/lib/common.sh
+source "$SCRIPT_DIR/scripts/lib/common.sh"
+
 # shellcheck source=scripts/picsure-compose.sh
 source "$SCRIPT_DIR/scripts/picsure-compose.sh"
-
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m'
-
-info()  { echo -e "${GREEN}[migrate]${NC} $*"; }
-warn()  { echo -e "${YELLOW}[migrate]${NC} $*"; }
-error() { echo -e "${RED}[migrate]${NC} $*" >&2; }
 
 ACTION="migrate"
 RESTART_APPS=true
@@ -51,12 +46,7 @@ require_sql_dir() {
 }
 
 require_env_var() {
-  local name="$1"
-
-  if [ -z "${!name:-}" ]; then
-    error "$name is required. Run ./init.sh or set it in .env."
-    return 1
-  fi
+  picsure_require_env_var "$1" "$1 is required. Run ./init.sh or set it in .env."
 }
 
 check_remote_db_env() {

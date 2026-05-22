@@ -17,14 +17,9 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="$SCRIPT_DIR/.env"
 
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m'
-
-info()  { echo -e "${GREEN}[build]${NC} $*"; }
-warn()  { echo -e "${YELLOW}[build]${NC} $*"; }
-error() { echo -e "${RED}[build]${NC} $*" >&2; }
+LOG_PREFIX="build"
+# shellcheck source=scripts/lib/common.sh
+source "$SCRIPT_DIR/scripts/lib/common.sh"
 
 FORCE=false
 VERBOSE=false

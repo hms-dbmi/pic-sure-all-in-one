@@ -19,15 +19,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ENV_FILE="$SCRIPT_DIR/.env"
 PROJECT_NAME="${COMPOSE_PROJECT_NAME:-picsure}"
 
-# Colors
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m'
-
-info()  { echo -e "${GREEN}[reset]${NC} $*"; }
-warn()  { echo -e "${YELLOW}[reset]${NC} $*"; }
-error() { echo -e "${RED}[reset]${NC} $*" >&2; }
+LOG_PREFIX="reset"
+# shellcheck source=scripts/lib/common.sh
+source "$SCRIPT_DIR/scripts/lib/common.sh"
 
 WIPE_DB=false
 [[ "${1:-}" == "--all" ]] && WIPE_DB=true

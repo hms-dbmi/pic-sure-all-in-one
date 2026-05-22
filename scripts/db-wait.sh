@@ -14,15 +14,12 @@ ENV_FILE="$SCRIPT_DIR/.env"
 PICSURE_ROOT="$SCRIPT_DIR"
 export PICSURE_ROOT
 
+LOG_PREFIX="db-wait"
+# shellcheck source=scripts/lib/common.sh
+source "$SCRIPT_DIR/scripts/lib/common.sh"
+
 # shellcheck source=scripts/picsure-compose.sh
 source "$SCRIPT_DIR/scripts/picsure-compose.sh"
-
-GREEN='\033[0;32m'
-RED='\033[0;31m'
-NC='\033[0m'
-
-info()  { echo -e "${GREEN}[db-wait]${NC} $*"; }
-error() { echo -e "${RED}[db-wait]${NC} $*" >&2; }
 
 if [ ! -f "$ENV_FILE" ]; then
   error ".env not found. Run: cp .env.example .env"

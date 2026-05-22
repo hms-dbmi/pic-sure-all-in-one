@@ -20,26 +20,16 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PICSURE_ROOT="$SCRIPT_DIR"
 export PICSURE_ROOT
 
+LOG_PREFIX="seed"
+# shellcheck source=scripts/lib/common.sh
+source "$SCRIPT_DIR/scripts/lib/common.sh"
+
 # shellcheck source=scripts/picsure-compose.sh
 source "$SCRIPT_DIR/scripts/picsure-compose.sh"
 
-# Colors
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m'
-
-info()  { echo -e "${GREEN}[seed]${NC} $*"; }
-warn()  { echo -e "${YELLOW}[seed]${NC} $*"; }
-error() { echo -e "${RED}[seed]${NC} $*" >&2; }
-
 # Portable sed -i (macOS needs '' argument)
 sed_in_place() {
-  if [[ "$OSTYPE" =~ ^darwin ]]; then
-    sed -i '' "$@"
-  else
-    sed -i "$@"
-  fi
+  picsure_sed_in_place "$@"
 }
 
 # Source .env

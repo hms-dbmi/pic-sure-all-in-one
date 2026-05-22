@@ -25,17 +25,12 @@ ENV_FILE="$SCRIPT_DIR/.env"
 PICSURE_ROOT="$SCRIPT_DIR"
 export PICSURE_ROOT
 
+LOG_PREFIX="etl"
+# shellcheck source=scripts/lib/common.sh
+source "$SCRIPT_DIR/scripts/lib/common.sh"
+
 # shellcheck source=scripts/picsure-compose.sh
 source "$SCRIPT_DIR/scripts/picsure-compose.sh"
-
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-RED='\033[0;31m'
-NC='\033[0m'
-
-info()  { echo -e "${GREEN}[etl]${NC} $*"; }
-warn()  { echo -e "${YELLOW}[etl]${NC} $*"; }
-error() { echo -e "${RED}[etl]${NC} $*" >&2; }
 
 usage() {
   sed -n '2,18p' "$0"

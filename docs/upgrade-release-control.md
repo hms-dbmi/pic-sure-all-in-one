@@ -22,6 +22,14 @@ To choose a different release-control branch:
 RELEASE_CONTROL_BRANCH=my-release-branch
 ```
 
+For first install, you can also pass it directly:
+
+```bash
+./init.sh --release-control-branch my-release-branch
+```
+
+`init.sh` writes that branch into `.env` before resolving release-control refs.
+
 ## Dry Run
 
 Preview an update without changing real state:

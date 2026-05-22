@@ -14,6 +14,8 @@
 #   --force     Regenerate all secrets (passwords, certs, etc.)
 #   --verbose   Show full build output (Maven, Docker, etc.)
 #   --log       Pipe all output to init.log in the current directory
+#   --release-control-branch BRANCH
+#               Use a non-default release-control branch for this init
 #
 # Re-running init.sh is safe — it will NOT overwrite existing passwords
 # unless you pass --force.
@@ -65,12 +67,39 @@ set_env_var() {
 # Preflight checks
 # ---------------------------------------------------------------------------
 
-# ---------------------------------------------------------------------------
-# Clone sibling repos if missing
-# ---------------------------------------------------------------------------
-if [ -x "$SCRIPT_DIR/clone-repos.sh" ]; then
-  "$SCRIPT_DIR/clone-repos.sh"
-fi
+FORCE=false
+VERBOSE=false
+LOG=false
+INIT_RELEASE_CONTROL_BRANCH=""
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --force) FORCE=true ;;
+    --verbose) VERBOSE=true ;;
+    --log) LOG=true ;;
+    --release-control-branch)
+      shift
+      if [ -z "${1:-}" ]; then
+        error "--release-control-branch requires a branch name."
+        exit 1
+      fi
+      INIT_RELEASE_CONTROL_BRANCH="$1"
+      ;;
+    --release-control-branch=*)
+      INIT_RELEASE_CONTROL_BRANCH="${1#*=}"
+      if [ -z "$INIT_RELEASE_CONTROL_BRANCH" ]; then
+        error "--release-control-branch requires a branch name."
+        exit 1
+      fi
+      ;;
+    -h|--help)
+      sed -n '2,19p' "$0"
+      exit 0
+      ;;
+    *) warn "Unknown flag: $1" ;;
+  esac
+  shift
+done
 
 if [ ! -f "$ENV_FILE" ]; then
   error ".env file not found. Run: cp .env.example .env"
@@ -78,18 +107,12 @@ if [ ! -f "$ENV_FILE" ]; then
   exit 1
 fi
 
-FORCE=false
-VERBOSE=false
-LOG=false
-
-for arg in "$@"; do
-  case "$arg" in
-    --force)   FORCE=true ;;
-    --verbose) VERBOSE=true ;;
-    --log)     LOG=true ;;
-    *)         warn "Unknown flag: $arg" ;;
-  esac
-done
+# ---------------------------------------------------------------------------
+# Clone sibling repos if missing
+# ---------------------------------------------------------------------------
+if [ -x "$SCRIPT_DIR/clone-repos.sh" ]; then
+  "$SCRIPT_DIR/clone-repos.sh"
+fi
 
 # --- Output redirection ---
 # By default, noisy build output (Maven, Docker) is suppressed.
@@ -120,6 +143,12 @@ set -a
 # shellcheck disable=SC1090
 source "$ENV_FILE"
 set +a
+
+if [ -n "$INIT_RELEASE_CONTROL_BRANCH" ]; then
+  info "Using release-control branch: $INIT_RELEASE_CONTROL_BRANCH"
+  set_env_var "RELEASE_CONTROL_BRANCH" "$INIT_RELEASE_CONTROL_BRANCH" "true"
+  export RELEASE_CONTROL_BRANCH="$INIT_RELEASE_CONTROL_BRANCH"
+fi
 
 # Validate required fields
 if [ -z "${AUTH0_CLIENT_ID:-}" ]; then

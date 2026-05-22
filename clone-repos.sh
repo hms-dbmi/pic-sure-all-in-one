@@ -3,7 +3,6 @@
 # PIC-SURE — Clone Sibling Repositories
 # =============================================================================
 # Clones all required sibling repos into the parent directory of this script.
-# Uses `gh` if available, falls back to `git`.
 #
 # Usage:
 #   ./clone-repos.sh            # Clone all repos
@@ -48,10 +47,7 @@ clone_repo() {
     return
   fi
 
-  if command -v gh &>/dev/null; then
-    info "Cloning $repo_name (gh)..."
-    gh repo clone "$full_name" "$target" 2>&1
-  elif $USE_SSH; then
+  if $USE_SSH; then
     info "Cloning $repo_name (git+ssh)..."
     git clone "git@github.com:${full_name}.git" "$target" 2>&1
   else

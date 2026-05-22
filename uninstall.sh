@@ -8,6 +8,7 @@
 # Usage:
 #   ./uninstall.sh                 # Show removal plan
 #   ./uninstall.sh --yes           # Remove containers, networks, volumes, generated files
+#   ./uninstall.sh --yes --keep-env # Keep .env while removing generated files
 #   ./uninstall.sh --yes --images  # Also remove local PIC-SURE images
 #   ./uninstall.sh --yes --repos   # Also remove cloned service repos
 # =============================================================================
@@ -38,7 +39,7 @@ for arg in "$@"; do
     --repos) REMOVE_REPOS=true ;;
     --keep-env) KEEP_ENV=true ;;
     -h|--help)
-      sed -n '2,14p' "$0"
+      sed -n '2,15p' "$0"
       exit 0
       ;;
     *)

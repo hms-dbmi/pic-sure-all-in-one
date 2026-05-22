@@ -195,7 +195,13 @@ else
   info "Images hms-dbmi/pic-sure-hpds and pic-sure-hpds-etl exist. Skipping."
 fi
 
-docker_build_with_m2_context "pic-sure-visualization" "$VISUALIZATION_SRC" "$VISUALIZATION_SRC/dev.Dockerfile"
+if [ -f "$VISUALIZATION_SRC/Dockerfile" ]; then
+  maven_build "pic-sure-visualization" "$VISUALIZATION_SRC" "$VISUALIZATION_SRC/Dockerfile" "" "maven:3.9-amazoncorretto-25"
+else
+  error "Visualization Dockerfile not found at $VISUALIZATION_SRC/Dockerfile"
+  error "Use docker-compose.dev-visualization.yml when building the dev visualization image."
+  exit 1
+fi
 docker_build_with_m2_context "pic-sure-psama" "$PSAMA_SRC" "$PSAMA_SRC/pic-sure-auth-services/dev.Dockerfile"
 
 maven_build "pic-sure-dictionary-api" "$DICTIONARY_SRC" "$DICTIONARY_SRC/Dockerfile" "" "maven:3.9-eclipse-temurin-21"

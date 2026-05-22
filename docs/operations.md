@@ -13,6 +13,12 @@ cp .env.example .env
 `release-control.sh`, calls `build-images.sh`, generates secrets and
 certificates, runs migrations, seeds the first admin, and starts Compose.
 
+To install from a non-default release-control branch:
+
+```bash
+./init.sh --release-control-branch my-release-branch
+```
+
 `preflight.sh` is non-mutating. Use `./preflight.sh --network` when you also
 want to verify the configured release-control and jwt-creator refs are
 reachable.

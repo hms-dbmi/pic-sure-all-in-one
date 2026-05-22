@@ -28,6 +28,28 @@ picsure_compose_files() {
   printf '%s\n' "${files[@]}"
 }
 
+picsure_compose_generated_env_files() {
+  printf '%s\n' \
+    "config/dictionary/dictionary.env"
+}
+
+picsure_compose_missing_generated_files() {
+  local root="${1:-$(picsure_script_dir)}"
+  local missing=false
+  local rel
+
+  while IFS= read -r rel; do
+    if [ ! -f "$root/$rel" ]; then
+      printf '%s\n' "$rel"
+      missing=true
+    fi
+  done <<EOF
+$(picsure_compose_generated_env_files)
+EOF
+
+  [ "$missing" = false ]
+}
+
 picsure_compose() {
   local root="${PICSURE_ROOT:-$(picsure_script_dir)}"
   local files=()

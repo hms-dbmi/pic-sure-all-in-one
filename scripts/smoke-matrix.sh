@@ -72,7 +72,15 @@ echo "[smoke] Compose config"
 if [ -f .env ]; then
   picsure_load_env .env
 fi
-picsure_compose config --quiet
+missing_generated="$(picsure_compose_missing_generated_files "$SCRIPT_DIR" || true)"
+if [ -z "$missing_generated" ]; then
+  picsure_compose config --quiet
+else
+  echo "[smoke] Skipping Compose config because generated init files are missing:"
+  while IFS= read -r path; do
+    echo "[smoke]   $path"
+  done <<< "$missing_generated"
+fi
 
 echo "[smoke] Migration input check"
 if [ -f .env ]; then

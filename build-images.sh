@@ -56,7 +56,7 @@ if [ "$LOG" = "true" ]; then
   exec > >(tee "$LOG_FILE") 2>&1
 fi
 
-if [ "$VERBOSE" = "true" ]; then
+if [ "$VERBOSE" = "true" ] || [ "$LOG" = "true" ]; then
   BUILD_OUT="/dev/stdout"
 else
   BUILD_OUT="/dev/null"
@@ -202,7 +202,7 @@ else
   error "Use docker-compose.dev-visualization.yml when building the dev visualization image."
   exit 1
 fi
-docker_build_with_m2_context "pic-sure-psama" "$PSAMA_SRC" "$PSAMA_SRC/pic-sure-auth-services/dev.Dockerfile"
+maven_build "pic-sure-psama" "$PSAMA_SRC" "$PSAMA_SRC/pic-sure-auth-services/Dockerfile" "" "maven:3.9.9-amazoncorretto-24"
 
 maven_build "pic-sure-dictionary-api" "$DICTIONARY_SRC" "$DICTIONARY_SRC/Dockerfile" "" "maven:3.9-eclipse-temurin-21"
 maven_build "pic-sure-dictionary-dump" "$DICTIONARY_SRC/aggregate" "$DICTIONARY_SRC/aggregate/Dockerfile" "" "maven:3.9.9-amazoncorretto-24"

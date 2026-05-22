@@ -112,7 +112,7 @@ resolve_refs() {
       ["MIGRATIONS_REF", ref_for("PSM")],
       ["DICTIONARY_REF", ref_for("DICTIONARY")],
       ["DICTIONARY_ETL_REF", ref_for("DICTIONARY_ETL")],
-      ["VISUALIZATION_REF", null],
+      ["VISUALIZATION_REF", ref_for("PSV")],
       ["LOGGING_REF", ref_for("PSL")],
       ["LOGGING_CLIENT_REF", null]
     ][] |

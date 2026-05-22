@@ -60,6 +60,7 @@ make_release_repo() {
     { "project_job_git_key": "PSM", "git_hash": "migrations-main" },
     { "project_job_git_key": "DICTIONARY", "git_hash": "dictionary-main" },
     { "project_job_git_key": "DICTIONARY_ETL", "git_hash": "dictionary-etl-main" },
+    { "project_job_git_key": "PSV", "git_hash": "visualization-main" },
     { "project_job_git_key": "PSL", "git_hash": "logging-main" }
   ]
 }
@@ -120,7 +121,7 @@ test_resolve_full_spec() {
   assert_env "$env_file" DICTIONARY_REF dictionary-main
   assert_env "$env_file" DICTIONARY_ETL_REF dictionary-etl-main
   assert_env "$env_file" LOGGING_REF logging-main
-  assert_env "$env_file" VISUALIZATION_REF main
+  assert_env "$env_file" VISUALIZATION_REF visualization-main
   assert_env "$env_file" LOGGING_CLIENT_REF main
   pass "resolved full build spec"
 }

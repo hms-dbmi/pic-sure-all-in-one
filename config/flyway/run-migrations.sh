@@ -54,6 +54,39 @@ uuid_to_hex() {
   echo "$1" | tr '[:lower:]' '[:upper:]' | tr -d '-'
 }
 
+prepare_project_migrations() {
+  local source_dir="$1"
+  local label="$2"
+  local target_dir="$3"
+  local app_uuid_hex
+  local resource_uuid_hex
+  local viz_resource_uuid_hex
+
+  app_uuid_hex="$(uuid_to_hex "$APP_UUID")"
+  resource_uuid_hex="$(uuid_to_hex "$RESOURCE_UUID")"
+  viz_resource_uuid_hex="$(uuid_to_hex "$VIZ_RESOURCE_UUID")"
+
+  rm -rf "$target_dir"
+  mkdir -p "$target_dir"
+  cp -a "$source_dir"/. "$target_dir"/
+
+  if grep -R -n "__APPLICATION_UUID__\|__RESOURCE_UUID__\|__VISUALIZATION_RESOURCE_UUID__" "$target_dir" --include="*.sql" >/dev/null; then
+    echo "[flyway] $label migrations contain legacy Jenkins UUID tokens; substituting them in a temporary copy."
+    find "$target_dir" -type f -name "*.sql" -print0 | while IFS= read -r -d '' file; do
+      sed -i \
+        -e "s/__APPLICATION_UUID__/$app_uuid_hex/g" \
+        -e "s/__RESOURCE_UUID__/$resource_uuid_hex/g" \
+        -e "s/__VISUALIZATION_RESOURCE_UUID__/$viz_resource_uuid_hex/g" \
+        "$file"
+    done
+  fi
+
+  if grep -R -n "__APPLICATION_UUID__\|__RESOURCE_UUID__\|__VISUALIZATION_RESOURCE_UUID__" "$target_dir" --include="*.sql"; then
+    echo "[flyway] Legacy UUID tokens remain after substitution in $label migrations." >&2
+    exit 1
+  fi
+}
+
 run_flyway() {
   local schema="$1"
   local location="$2"
@@ -100,7 +133,7 @@ check_placeholders() {
   local label="$2"
   local failed=false
 
-  if grep -R -n "__APPLICATION_UUID__\|__RESOURCE_UUID__" "$dir" --include="*.sql"; then
+  if grep -R -n "__APPLICATION_UUID__\|__RESOURCE_UUID__\|__VISUALIZATION_RESOURCE_UUID__" "$dir" --include="*.sql"; then
     echo "[flyway] Legacy UUID tokens remain in $label migrations." >&2
     failed=true
   fi
@@ -122,9 +155,15 @@ require_sql "/migrations/custom/picsure" "project-specific picsure"
 require_sql "/migrations/custom/auth" "project-specific auth"
 require_project_uuids
 
+PREPARED_ROOT="/tmp/picsure-project-migrations"
+PREPARED_PICSURE="$PREPARED_ROOT/picsure"
+PREPARED_AUTH="$PREPARED_ROOT/auth"
+prepare_project_migrations "/migrations/custom/picsure" "project-specific picsure" "$PREPARED_PICSURE"
+prepare_project_migrations "/migrations/custom/auth" "project-specific auth" "$PREPARED_AUTH"
+
 if [ "$ACTION" = "check" ]; then
-  check_placeholders "/migrations/custom/picsure" "project-specific picsure"
-  check_placeholders "/migrations/custom/auth" "project-specific auth"
+  check_placeholders "$PREPARED_PICSURE" "project-specific picsure"
+  check_placeholders "$PREPARED_AUTH" "project-specific auth"
   echo "[flyway] Migration inputs look valid."
   exit 0
 fi
@@ -143,9 +182,9 @@ run_flyway "picsure" "/migrations/picsure"
 echo "[flyway] PIC-SURE migrations complete."
 
 echo "[flyway] Running project-specific picsure migrations..."
-run_flyway "picsure" "/migrations/custom/picsure" "flyway_custom_schema_history"
+run_flyway "picsure" "$PREPARED_PICSURE" "flyway_custom_schema_history"
 
 echo "[flyway] Running project-specific auth migrations..."
-run_flyway "auth" "/migrations/custom/auth" "flyway_custom_schema_history"
+run_flyway "auth" "$PREPARED_AUTH" "flyway_custom_schema_history"
 
 echo "[flyway] All migrations complete."

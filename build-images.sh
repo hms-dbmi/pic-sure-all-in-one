@@ -56,11 +56,34 @@ if [ "$LOG" = "true" ]; then
   exec > >(tee "$LOG_FILE") 2>&1
 fi
 
-if [ "$VERBOSE" = "true" ] || [ "$LOG" = "true" ]; then
+if [ "$VERBOSE" = "true" ]; then
   BUILD_OUT="/dev/stdout"
 else
   BUILD_OUT="/dev/null"
 fi
+
+LAST_BUILD_LOG=""
+
+run_step() {
+  local label="$1"
+  shift
+
+  if [ "$VERBOSE" = "true" ]; then
+    "$@"
+    return
+  fi
+
+  local log_file="$SCRIPT_DIR/.data/logs/build/${label}.log"
+  mkdir -p "$(dirname "$log_file")"
+  if "$@" >"$log_file" 2>&1; then
+    LAST_BUILD_LOG="$log_file"
+    return
+  fi
+
+  error "$label failed. See $log_file"
+  tail -40 "$log_file" >&2 || true
+  exit 1
+}
 
 set -a
 # shellcheck disable=SC1090
@@ -92,17 +115,15 @@ maven_build() {
   mkdir -p "$build_dir"
   docker volume create "$MAVEN_CACHE" 2>/dev/null || true
 
-  docker run --rm \
+  run_step "$name-maven" docker run --rm \
     -v "$src:/src:ro" \
     -v "$MAVEN_CACHE:/root/.m2" \
     -v "$build_dir:/build" \
     -w /build \
     "$maven_image" \
-    bash -c "cp -r /src/. /build/ && mvn -B clean install -DskipTests $mvn_flags" \
-    &> "$BUILD_OUT"
+    bash -c "cp -r /src/. /build/ && mvn -B clean install -DskipTests $mvn_flags"
 
-  docker build -f "$dockerfile" -t "hms-dbmi/$name:$IMAGE_TAG" "$build_dir" \
-    &> "$BUILD_OUT"
+  run_step "$name-docker" docker build -f "$dockerfile" -t "hms-dbmi/$name:$IMAGE_TAG" "$build_dir"
   rm -rf "$build_dir"
   info "Built hms-dbmi/$name:$IMAGE_TAG"
 }
@@ -119,19 +140,17 @@ docker_build_with_m2_context() {
   info "Building $name (Dockerfile + Maven cache context)..."
   rm -rf "$m2_context"
   mkdir -p "$m2_context"
-  docker run --rm \
+  run_step "$name-m2-cache" docker run --rm \
     -v "$MAVEN_CACHE:/m2:ro" \
     -v "$m2_context:/cache" \
     alpine:latest \
-    sh -c "if [ -d /m2/repository ]; then cp -a /m2/repository/. /cache/; fi" \
-    &> "$BUILD_OUT"
+    sh -c "if [ -d /m2/repository ]; then cp -a /m2/repository/. /cache/; fi"
 
-  docker buildx build --load \
+  run_step "$name-docker" docker buildx build --load \
     --build-context "m2_cache=$m2_context" \
     -f "$dockerfile" \
     -t "hms-dbmi/$name:$IMAGE_TAG" \
-    "$context" \
-    &> "$BUILD_OUT"
+    "$context"
   rm -rf "$m2_context"
   info "Built hms-dbmi/$name:$IMAGE_TAG"
 }

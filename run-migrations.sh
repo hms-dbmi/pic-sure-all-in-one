@@ -73,9 +73,8 @@ check_legacy_tokens() {
   local dir="$1"
   local label="$2"
 
-  if grep -R -n "__APPLICATION_UUID__\|__RESOURCE_UUID__" "$dir" --include="*.sql"; then
-    error "Legacy UUID tokens remain in $label migrations."
-    return 1
+  if grep -R -n "__APPLICATION_UUID__\|__RESOURCE_UUID__\|__VISUALIZATION_RESOURCE_UUID__" "$dir" --include="*.sql"; then
+    warn "$label migrations contain legacy Jenkins UUID tokens; Flyway will substitute them in a temporary copy."
   fi
 }
 

@@ -2,12 +2,12 @@
 # =============================================================================
 # PIC-SURE All-in-One — Uninstall
 # =============================================================================
-# Removes this checkout's Compose stack and generated runtime state. The source
-# checkout itself is not removed.
+# Removes this checkout's Compose stack, local DB volumes, and generated runtime
+# state. The source checkout itself is not removed.
 #
 # Usage:
 #   ./uninstall.sh                 # Show removal plan
-#   ./uninstall.sh --yes           # Remove containers, networks, volumes, generated files
+#   ./uninstall.sh --yes           # Remove containers, volumes including local DB, generated files
 #   ./uninstall.sh --yes --keep-env # Keep .env while removing generated files
 #   ./uninstall.sh --yes --images  # Also remove local PIC-SURE images
 #   ./uninstall.sh --yes --repos   # Also remove cloned service repos
@@ -87,6 +87,7 @@ print_plan() {
   echo ""
   echo "Will remove:"
   echo "  - Compose containers, networks, and named volumes for this project"
+  echo "  - Local bundled database data in the ${PROJECT_NAME}_picsure-db-data volume"
   echo "  - Generated runtime files under certs/, .data/, and config/"
   if [ "$KEEP_ENV" = "true" ]; then
     echo "  - .env will be kept"
@@ -105,6 +106,7 @@ print_plan() {
   fi
   echo ""
   echo "The repository checkout itself will not be removed."
+  echo "Remote databases are not removed."
 }
 
 remove_path() {
@@ -127,6 +129,7 @@ fi
 
 echo ""
 warn "Removing local Compose resources and generated state for '$PROJECT_NAME'."
+warn "This removes the local bundled database volume (${PROJECT_NAME}_picsure-db-data)."
 
 if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
   info "Stopping and removing Compose resources..."

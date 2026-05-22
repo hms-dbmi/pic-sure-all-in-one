@@ -147,10 +147,11 @@ docker compose ps
 ```
 
 `uninstall.sh` removes this checkout's Compose containers, networks, named
-volumes, and generated runtime state. It backs up `.env` before removing it.
-The source checkout is not removed. Use `--images` to also remove local
-PIC-SURE images, `--repos` to remove cloned service repos, or `--keep-env` to
-preserve `.env`.
+volumes, and generated runtime state. This includes the bundled MySQL data
+volume, so local database contents are deleted. Remote databases are not
+removed. It backs up `.env` before removing it. The source checkout is not
+removed. Use `--images` to also remove local PIC-SURE images, `--repos` to
+remove cloned service repos, or `--keep-env` to preserve `.env`.
 
 ## Data Loading
 

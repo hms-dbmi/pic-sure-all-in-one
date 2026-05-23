@@ -59,6 +59,9 @@ docker run --rm \
   maven:3.9-eclipse-temurin-11 \
   sh -lc &quot;mvn clean install -DskipTests&quot;
 
+mkdir -p /usr/local/docker-config/wildfly/deployments
+cp pic-sure-api-war/target/pic-sure-api-war.war /usr/local/docker-config/wildfly/deployments/pic-sure-api-2.war
+
 docker build \
 -f docker/all-in-one/all-in-one.Dockerfile \
 --build-arg http_proxy=$http_proxy \

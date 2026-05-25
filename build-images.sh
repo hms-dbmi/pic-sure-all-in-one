@@ -217,8 +217,13 @@ fi
 if [ -f "$VISUALIZATION_SRC/Dockerfile" ]; then
   maven_build "pic-sure-visualization" "$VISUALIZATION_SRC" "$VISUALIZATION_SRC/Dockerfile" "" "maven:3.9-amazoncorretto-25"
 else
+  current_ref="$(git -C "$VISUALIZATION_SRC" rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)"
+  if [ "$current_ref" = "HEAD" ]; then
+    current_ref="$(git -C "$VISUALIZATION_SRC" rev-parse --short HEAD 2>/dev/null || echo detached)"
+  fi
   error "Visualization Dockerfile not found at $VISUALIZATION_SRC/Dockerfile"
-  error "Use docker-compose.dev-visualization.yml when building the dev visualization image."
+  error "Current visualization checkout is '$current_ref'; normal builds require a ref with Dockerfile, such as rewrite."
+  error "Check VISUALIZATION_REF in .env and ensure release-control build-spec.json contains project_job_git_key PSV."
   exit 1
 fi
 maven_build "pic-sure-psama" "$PSAMA_SRC" "$PSAMA_SRC/pic-sure-auth-services/Dockerfile" "" "maven:3.9.9-amazoncorretto-24"

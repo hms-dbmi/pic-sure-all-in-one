@@ -9,6 +9,7 @@
 #   ./release-control.sh
 #   ./release-control.sh --resolve-only
 #   ./release-control.sh --apply-only
+#   ./release-control.sh --branch BRANCH
 # =============================================================================
 
 set -euo pipefail
@@ -24,20 +25,37 @@ source "$SCRIPT_DIR/scripts/lib/common.sh"
 
 RESOLVE=true
 APPLY=true
+BRANCH_OVERRIDE=""
 
-for arg in "$@"; do
-  case "$arg" in
+while [ "$#" -gt 0 ]; do
+  case "$1" in
     --resolve-only) APPLY=false ;;
     --apply-only) RESOLVE=false ;;
+    --branch)
+      shift
+      if [ -z "${1:-}" ]; then
+        error "--branch requires a release-control branch name."
+        exit 1
+      fi
+      BRANCH_OVERRIDE="$1"
+      ;;
+    --branch=*)
+      BRANCH_OVERRIDE="${1#*=}"
+      if [ -z "$BRANCH_OVERRIDE" ]; then
+        error "--branch requires a release-control branch name."
+        exit 1
+      fi
+      ;;
     -h|--help)
-      sed -n '2,12p' "$0"
+      sed -n '2,13p' "$0"
       exit 0
       ;;
     *)
-      error "Unknown option: $arg"
+      error "Unknown option: $1"
       exit 1
       ;;
   esac
+  shift
 done
 
 if [ ! -f "$ENV_FILE" ]; then
@@ -50,13 +68,26 @@ set -a
 source "$ENV_FILE"
 set +a
 
+warn_duplicate_env_key() {
+  local key="$1"
+  local matches
+  matches="$(grep -n "^${key}=" "$ENV_FILE" || true)"
+
+  if [ "$(printf '%s\n' "$matches" | sed '/^$/d' | wc -l | tr -d ' ')" -gt 1 ]; then
+    warn "$key appears multiple times in .env; shell parsing uses the last active assignment:"
+    printf '%s\n' "$matches" >&2
+  fi
+}
+
 set_env_var() {
   picsure_set_env_var "$ENV_FILE" "$1" "$2" true
 }
 
 repo_url="${RELEASE_CONTROL_REPO:-https://github.com/hms-dbmi/pic-sure-baseline-release-control}"
-repo_branch="${RELEASE_CONTROL_BRANCH:-main}"
+repo_branch="${BRANCH_OVERRIDE:-${RELEASE_CONTROL_BRANCH:-main}}"
 JQ_IMAGE="${JQ_IMAGE:-ghcr.io/jqlang/jq:1.7.1}"
+warn_duplicate_env_key "RELEASE_CONTROL_BRANCH"
+info "Using release-control branch: $repo_branch"
 
 run_jq() {
   local filter="$1"
@@ -140,6 +171,9 @@ resolve_refs() {
     set_env_var "$key" "$value"
     if [ "$marker" = "MISSING" ]; then
       warn "$key missing from build-spec.json; falling back to $value."
+      if [ "$key" = "VISUALIZATION_REF" ]; then
+        warn "VISUALIZATION_REF fallback 'main' is usually not buildable; add project_job_git_key PSV to build-spec.json."
+      fi
     else
       info "$key=$value"
     fi

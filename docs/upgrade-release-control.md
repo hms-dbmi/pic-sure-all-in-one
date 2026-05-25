@@ -32,6 +32,14 @@ For first install, you can also pass it directly:
 
 ## Dry Run
 
+Preview release-control resolution only, without changing `.env`, the
+release-control cache, or service repo checkouts:
+
+```bash
+./release-control.sh --dry-run
+./release-control.sh --dry-run --branch my-release-branch
+```
+
 Preview an update without changing real state:
 
 ```bash

@@ -69,6 +69,12 @@ access and inspect only the refs already stored in `.env`, run:
 ./update.sh --dry-run --offline
 ```
 
+To preview release-control resolution only, without changing `.env` or repos:
+
+```bash
+./release-control.sh --dry-run
+```
+
 When published images are available:
 
 ```bash

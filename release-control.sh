@@ -7,6 +7,7 @@
 #
 # Usage:
 #   ./release-control.sh
+#   ./release-control.sh --dry-run
 #   ./release-control.sh --resolve-only
 #   ./release-control.sh --apply-only
 #   ./release-control.sh --branch BRANCH
@@ -26,9 +27,22 @@ source "$SCRIPT_DIR/scripts/lib/common.sh"
 RESOLVE=true
 APPLY=true
 BRANCH_OVERRIDE=""
+DRY_RUN=false
+DRY_RUN_TMP=""
+
+cleanup() {
+  if [ -n "$DRY_RUN_TMP" ]; then
+    rm -rf "$DRY_RUN_TMP"
+  fi
+}
+trap cleanup EXIT
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
+    --dry-run)
+      DRY_RUN=true
+      APPLY=false
+      ;;
     --resolve-only) APPLY=false ;;
     --apply-only) RESOLVE=false ;;
     --branch)
@@ -47,7 +61,7 @@ while [ "$#" -gt 0 ]; do
       fi
       ;;
     -h|--help)
-      sed -n '2,13p' "$0"
+      sed -n '2,14p' "$0"
       exit 0
       ;;
     *)
@@ -80,6 +94,11 @@ warn_duplicate_env_key() {
 }
 
 set_env_var() {
+  if [ "$DRY_RUN" = "true" ]; then
+    printf '  %-24s %s\n' "$1" "$2"
+    return 0
+  fi
+
   picsure_set_env_var "$ENV_FILE" "$1" "$2" true
 }
 
@@ -88,6 +107,12 @@ repo_branch="${BRANCH_OVERRIDE:-${RELEASE_CONTROL_BRANCH:-main}}"
 JQ_IMAGE="${JQ_IMAGE:-ghcr.io/jqlang/jq:1.7.1}"
 warn_duplicate_env_key "RELEASE_CONTROL_BRANCH"
 info "Using release-control branch: $repo_branch"
+
+if [ "$DRY_RUN" = "true" ]; then
+  DRY_RUN_TMP="$(mktemp -d "${TMPDIR:-/tmp}/picsure-release-control-dry-run.XXXXXX")"
+  RELEASE_DIR="$DRY_RUN_TMP/release-control"
+  info "Dry run: using temporary release-control checkout at $RELEASE_DIR"
+fi
 
 run_jq() {
   local filter="$1"

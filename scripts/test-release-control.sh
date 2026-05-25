@@ -156,6 +156,25 @@ test_missing_branch_falls_back_to_main() {
   pass "missing release-control branch falls back to main"
 }
 
+test_dry_run_does_not_mutate_env_or_cache() {
+  local release_repo="$1"
+  local env_file="$TEST_ROOT/dry-run.env"
+  local before="$TEST_ROOT/dry-run.env.before"
+  local cache_dir="$TEST_ROOT/dry-run-cache"
+  local output="$TEST_ROOT/dry-run.out"
+
+  write_env "$env_file" "$release_repo" main
+  cp "$env_file" "$before"
+  run_release_control "$env_file" "$cache_dir" "$TEST_ROOT/repos" --dry-run >"$output" 2>&1
+
+  cmp -s "$env_file" "$before" || fail "Expected dry run to leave .env unchanged"
+  [ ! -e "$cache_dir" ] || fail "Expected dry run not to create release-control cache"
+  assert_contains "$output" "Dry run: using temporary release-control checkout"
+  assert_contains "$output" "VISUALIZATION_REF"
+  assert_contains "$output" "visualization-main"
+  pass "dry-run leaves env and cache unchanged"
+}
+
 make_service_origin() {
   local origin="$TEST_ROOT/pic-sure-origin"
   local work="$TEST_ROOT/pic-sure-work"
@@ -234,6 +253,7 @@ service_origin="$(make_service_origin)"
 test_resolve_full_spec "$release_repo"
 test_missing_keys_fall_back_to_main "$release_repo"
 test_missing_branch_falls_back_to_main "$release_repo"
+test_dry_run_does_not_mutate_env_or_cache "$release_repo"
 test_apply_checkout_ref "$service_origin"
 test_dirty_repo_is_not_moved "$service_origin"
 

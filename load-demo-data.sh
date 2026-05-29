@@ -8,6 +8,7 @@
 #   ./load-demo-data.sh                # Load NHANES (default)
 #   ./load-demo-data.sh synthea        # Load Synthea 10k
 #   ./load-demo-data.sh 1000genomes    # Load 1000 Genomes
+#   ./load-demo-data.sh --all          # Load NHANES, Synthea 10k, and 1000 Genomes
 #   ./load-demo-data.sh --verbose      # Show full ETL/Docker output
 #
 # Prerequisites:
@@ -34,6 +35,7 @@ DATASET="nhanes"
 for arg in "$@"; do
   case "$arg" in
     --verbose) VERBOSE=true ;;
+    --all) DATASET="all" ;;
     -*) echo "Unknown flag: $arg"; exit 1 ;;
     *) DATASET="$arg" ;;
   esac
@@ -151,14 +153,51 @@ case "$DATASET" in
       cd "$SCRIPT_DIR"
     fi
     ;;
+  all)
+    info "Preparing all public demo datasets..."
+    ALL_INPUT_DIR="$DATA_DIR/all-public-studies"
+    mkdir -p "$ALL_INPUT_DIR"
+    if [ ! -f "$ALL_INPUT_DIR/nhanes.csv" ] || \
+       [ ! -f "$ALL_INPUT_DIR/synthea.csv" ] || \
+       [ ! -f "$ALL_INPUT_DIR/1000_genomes.csv" ]; then
+      CLONE_DIR="$DATA_DIR/datasets-all"
+      rm -rf "$CLONE_DIR"
+      git clone --depth 1 --filter=blob:none --sparse "$DATASETS_REPO" "$CLONE_DIR" 2>/dev/null
+      cd "$CLONE_DIR" && git sparse-checkout set --no-cone \
+        "NHANES abbreviated allConcepts.csv.tgz" \
+        "synthea_10k_picsure_format.csv.zip" \
+        "open_access-1000Genomes_allConcepts_new_search_with_data_analyzer.csv"
+
+      rm -f "$ALL_INPUT_DIR/nhanes.csv" "$ALL_INPUT_DIR/synthea.csv" "$ALL_INPUT_DIR/1000_genomes.csv"
+      tar -xzf "$CLONE_DIR/NHANES abbreviated allConcepts.csv.tgz" -C "$ALL_INPUT_DIR/"
+      mv "$ALL_INPUT_DIR/allConcepts.csv" "$ALL_INPUT_DIR/nhanes.csv"
+      unzip -o "$CLONE_DIR/synthea_10k_picsure_format.csv.zip" -d "$ALL_INPUT_DIR/" >/dev/null
+      mv "$ALL_INPUT_DIR/synthea_10k_picsure_format.csv" "$ALL_INPUT_DIR/synthea.csv"
+      cp "$CLONE_DIR/open_access-1000Genomes_allConcepts_new_search_with_data_analyzer.csv" "$ALL_INPUT_DIR/1000_genomes.csv"
+      cd "$SCRIPT_DIR"
+    else
+      info "All public demo datasets already prepared."
+    fi
+
+    ALL_CONCEPTS_CSV="$DATA_DIR/allConcepts-all.csv"
+    info "Combining all public demo datasets into one CSV..."
+    head -n 1 "$ALL_INPUT_DIR/nhanes.csv" > "$ALL_CONCEPTS_CSV"
+    tail -n +2 "$ALL_INPUT_DIR/nhanes.csv" >> "$ALL_CONCEPTS_CSV"
+    tail -n +2 "$ALL_INPUT_DIR/synthea.csv" >> "$ALL_CONCEPTS_CSV"
+    tail -n +2 "$ALL_INPUT_DIR/1000_genomes.csv" >> "$ALL_CONCEPTS_CSV"
+    ;;
   *)
     error "Unknown dataset: $DATASET"
-    error "Available: nhanes, synthea, 1000genomes"
+    error "Available: nhanes, synthea, 1000genomes, --all"
     exit 1
     ;;
 esac
 
-info "Dataset ready: $(wc -l < "$DATA_DIR/allConcepts.csv") rows"
+if [ "$DATASET" = "all" ]; then
+  info "Datasets ready: $(wc -l < "$ALL_CONCEPTS_CSV") rows"
+else
+  info "Dataset ready: $(wc -l < "$DATA_DIR/allConcepts.csv") rows"
+fi
 
 # ---------------------------------------------------------------------------
 # Ensure encryption key exists
@@ -182,18 +221,27 @@ info "This may take 1-5 minutes depending on dataset size."
 # Stop HPDS while loading
 picsure_compose stop hpds 2>/dev/null || true
 
-# Copy encryption key into the data volume FIRST (bind mount overlay doesn't persist)
+# Clear prior generated HPDS files, then copy encryption key into the data volume
+# FIRST (bind mount overlay doesn't persist). Keeping stale javabin/temp files can
+# consume large amounts of Docker disk after failed loads.
 docker run --rm \
   -v picsure_hpds-data:/data \
   -v "$HPDS_KEY:/key:ro" \
-  alpine sh -c "cp /key /data/encryption_key"
+  alpine sh -c "rm -f /data/allObservationsStore.javabin /data/allObservationsTemp.javabin /data/columnMeta.javabin /data/columnMeta.csv /data/columnMetaErrors.csv && cp /key /data/encryption_key"
+
+if [ "$DATASET" = "all" ]; then
+  LOAD_CSV="$ALL_CONCEPTS_CSV"
+else
+  LOAD_CSV="$DATA_DIR/allConcepts.csv"
+fi
 
 docker run --rm \
   --name hpds-etl-loader \
   -v picsure_hpds-data:/opt/local/hpds \
-  -v "$DATA_DIR/allConcepts.csv:/opt/local/hpds/allConcepts.csv:ro" \
+  -v "$LOAD_CSV:/opt/local/hpds/allConcepts.csv:ro" \
   -e HEAPSIZE=4096 \
   -e LOADER_NAME=CSVLoaderNewSearch \
+  -e LOADER_ARGS=ROLLUP \
   hms-dbmi/pic-sure-hpds-etl:LATEST \
   &> "$BUILD_OUT"
 

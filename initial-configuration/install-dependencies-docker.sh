@@ -213,7 +213,8 @@ fi
 #                                           MySQL Start                                           #
 #                                 Install Mysql and configure DB                                  #
 #-------------------------------------------------------------------------------------------------#
-./mysql-docker/setup.sh 2>&1 | tee "/var/log/picsure_mysql_init.log"
+mkdir -p "$DOCKER_CONFIG_DIR/log"
+./mysql-docker/setup.sh 2>&1 | tee "$DOCKER_CONFIG_DIR/log/picsure_mysql_init.log"
 
 #-------------------------------------------------------------------------------------------------#
 #                                         Jenkins Install                                         #

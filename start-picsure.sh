@@ -166,7 +166,10 @@ docker run --name=wildfly --restart always --network=picsure --network=hpds --ne
   || exit 2
 # Workaround for macOS bind-mount limitations: macOS does not support atomic file moves on mounted volumes,
 # causing "Device or resource busy" errors during hot deployments. We just copy the files into the running container.
-docker cp "${DOCKER_CONFIG_DIR}/wildfly/deployments/." "wildfly:/opt/jboss/wildfly/standalone/deployments/"
+# This refreshes ALL deployed WARs (pic-sure-api plus any aggregate/visualization resource WARs) from the shared
+# deployments dir. docker cp reads its source from the Jenkins (current) filesystem, so it MUST use
+# CURRENT_FS_DOCKER_CONFIG_DIR -- $DOCKER_CONFIG_DIR is the host path and does not exist inside this container.
+docker cp "${CURRENT_FS_DOCKER_CONFIG_DIR}/wildfly/deployments/." "wildfly:/opt/jboss/wildfly/standalone/deployments/"
 
 if $INCLUDE_UPLOADER; then
   docker compose --profile production -f $CURRENT_FS_DOCKER_CONFIG_DIR/uploader/docker-compose.yml up -d

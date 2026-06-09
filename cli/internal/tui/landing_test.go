@@ -1,0 +1,407 @@
+package tui
+
+import (
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/huh"
+	"github.com/charmbracelet/lipgloss"
+)
+
+func keyEnter() tea.KeyMsg { return tea.KeyMsg{Type: tea.KeyEnter} }
+func keyDownN(l *landing, n int) {
+	for i := 0; i < n; i++ {
+		l.update(tea.KeyMsg{Type: tea.KeyDown})
+	}
+}
+
+func menuIDs(m *menu) []string {
+	ids := make([]string, len(m.items))
+	for i, it := range m.items {
+		ids[i] = it.ID
+	}
+	return ids
+}
+
+func eq(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func TestLandingMenuIsContextAware(t *testing.T) {
+	fresh := newLanding("/tmp/x", false, false)
+	want := []string{"setup", "preflight", "quit"}
+	if got := menuIDs(fresh.menu); !eq(got, want) {
+		t.Errorf("fresh menu = %v, want %v", got, want)
+	}
+	configured := newLanding("/tmp/x", true, false)
+	want = []string{"dashboard", "update", "demo", "preflight", "reconfigure", "devmenu", "quit"}
+	if got := menuIDs(configured.menu); !eq(got, want) {
+		t.Errorf("configured menu = %v, want %v", got, want)
+	}
+}
+
+func TestLandingDevSubmenu(t *testing.T) {
+	l := newLanding("/tmp/x", true, false)
+	keyDownN(l, 5) // select devmenu
+	l.update(keyEnter())
+	want := []string{"migrate", "seed", "etl", "devoverlay", "devrevert", "relctl", "reset", "uninstall", "back"}
+	if got := menuIDs(l.menu); !eq(got, want) {
+		t.Fatalf("dev submenu = %v, want %v", got, want)
+	}
+	// esc returns to the main menu
+	l.update(tea.KeyMsg{Type: tea.KeyEsc})
+	if got := menuIDs(l.menu); len(got) != 7 {
+		t.Fatalf("esc did not return to main menu: %v", got)
+	}
+}
+
+func TestLandingSelectionsEmitRequests(t *testing.T) {
+	l := newLanding("/tmp/x", true, false)
+	// Dashboard (first item)
+	_, cmd := l.update(keyEnter())
+	if _, ok := cmd().(openDashboardMsg); !ok {
+		t.Fatalf("dashboard selection = %T, want openDashboardMsg", cmd())
+	}
+	// Preflight runs immediately (read-only, no confirm)
+	l = newLanding("/tmp/x", true, false)
+	keyDownN(l, 3)
+	_, cmd = l.update(keyEnter())
+	run, ok := cmd().(runActionMsg)
+	if !ok || run.act.Name != "preflight" {
+		t.Fatalf("preflight selection = %#v, want runActionMsg{preflight}", cmd())
+	}
+	// Update opens a light confirm, not an immediate run
+	l = newLanding("/tmp/x", true, false)
+	keyDownN(l, 1)
+	_, _ = l.update(keyEnter())
+	if l.form == nil || l.pending == nil || l.pending.Name != "update" {
+		t.Fatal("update selection did not open a confirm dialog")
+	}
+	// Setup on a fresh checkout opens the embedded wizard
+	l = newLanding("/tmp/x", false, false)
+	_, cmd = l.update(keyEnter())
+	wiz, ok := cmd().(openWizardMsg)
+	if !ok || wiz.reconfigure {
+		t.Fatalf("setup selection = %#v, want openWizardMsg{reconfigure: false}", cmd())
+	}
+}
+
+func TestLandingAnimationTicksSurviveConfirmDialog(t *testing.T) {
+	l := newLanding("/tmp/x", true, true)
+	l.setSize(80, 24)
+	l.startAnimations()
+	keyDownN(l, 1)       // select Update
+	l.update(keyEnter()) // open its confirm dialog
+	if l.form == nil {
+		t.Fatal("confirm did not open")
+	}
+	_, cmd := l.update(starTickMsg{seq: l.star.seq})
+	if cmd == nil {
+		t.Fatal("starfield tick swallowed by open confirm; animation frozen")
+	}
+}
+
+func TestLandingQuitKeys(t *testing.T) {
+	l := newLanding("/tmp/x", true, false)
+	_, cmd := l.update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	if cmd == nil {
+		t.Fatal("q returned no command")
+	}
+	if msg := cmd(); msg != tea.Quit() {
+		t.Fatalf("q = %#v, want tea.Quit", msg)
+	}
+}
+
+func devRoot(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	for _, f := range []string{"docker-compose.dev-httpd-hmr.yml", "docker-compose.dev-wildfly.yml"} {
+		if err := os.WriteFile(filepath.Join(dir, f), []byte("services:\n  x:\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return dir
+}
+
+func TestLandingDevSubmenuHasOverlayEntries(t *testing.T) {
+	l := newLanding("/tmp/x", true, false)
+	keyDownN(l, 5)
+	l.update(keyEnter()) // enter developer options
+	want := []string{"migrate", "seed", "etl", "devoverlay", "devrevert", "relctl", "reset", "uninstall", "back"}
+	if got := menuIDs(l.menu); !eq(got, want) {
+		t.Fatalf("dev submenu = %v, want %v", got, want)
+	}
+}
+
+func TestLandingDevOverlayPickerRunsAction(t *testing.T) {
+	l := newLanding(devRoot(t), true, false)
+	l.dev = true
+	l.rebuildMenu()
+	_, _ = l.choose("devoverlay")
+	if l.form == nil || l.pickerMake == nil {
+		t.Fatal("devoverlay did not open a picker")
+	}
+	// Complete the picker like the dashboard tests drive huh forms.
+	l.picked = "httpd-hmr"
+	l.form.State = huh.StateCompleted
+	_, cmd := l.update(struct{}{})
+	if cmd == nil {
+		t.Fatal("picker completion produced no command")
+	}
+	run, ok := cmd().(runActionMsg)
+	if !ok {
+		t.Fatalf("got %#v, want runActionMsg", cmd())
+	}
+	if want := []string{"dev", "up", "httpd-hmr"}; !eq(run.act.Args, want) {
+		t.Errorf("action args = %v, want %v", run.act.Args, want)
+	}
+}
+
+func TestLandingDevOverlayPickerCancel(t *testing.T) {
+	l := newLanding(devRoot(t), true, false)
+	l.dev = true
+	l.rebuildMenu()
+	_, _ = l.choose("devoverlay")
+	l.picked = "" // Cancel option
+	l.form.State = huh.StateCompleted
+	_, cmd := l.update(struct{}{})
+	if cmd != nil {
+		t.Fatal("cancelled picker must not run anything")
+	}
+	if l.form != nil || l.pickerMake != nil {
+		t.Error("picker state not cleared on cancel")
+	}
+}
+
+func TestLandingDevOverlayPickerNoFiles(t *testing.T) {
+	l := newLanding(t.TempDir(), true, false) // no overlay files
+	l.dev = true
+	l.rebuildMenu()
+	_, _ = l.choose("devoverlay")
+	if l.form != nil {
+		t.Fatal("picker opened with no overlays available")
+	}
+	if l.result == "" {
+		t.Error("expected an explanatory result line")
+	}
+}
+
+// pumpLanding executes a cmd tree and feeds the msgs back, like the runtime
+// (timing ticks discarded after 50ms, as in the wizard tests).
+func pumpLanding(l *landing, cmd tea.Cmd, depth int) *landing {
+	if cmd == nil || depth > 8 {
+		return l
+	}
+	ch := make(chan tea.Msg, 1)
+	go func() { ch <- cmd() }()
+	var msg tea.Msg
+	select {
+	case msg = <-ch:
+	case <-time.After(50 * time.Millisecond):
+		return l
+	}
+	switch m := msg.(type) {
+	case tea.BatchMsg:
+		for _, c := range m {
+			l = pumpLanding(l, c, depth+1)
+		}
+		return l
+	case nil:
+		return l
+	default:
+		var next tea.Cmd
+		l, next = l.update(msg)
+		return pumpLanding(l, next, depth+1)
+	}
+}
+
+func TestLandingEtlPicker(t *testing.T) {
+	l := newLanding("/tmp/x", true, false)
+	l.dev = true
+	l.rebuildMenu()
+	_, _ = l.choose("etl")
+	if l.form == nil || l.pickerMake == nil {
+		t.Fatal("etl entry did not open a picker")
+	}
+	l.picked = "run-weights"
+	l.form.State = huh.StateCompleted
+	_, cmd := l.update(struct{}{})
+	run, ok := cmd().(runActionMsg)
+	if !ok || run.act.Script != "etl.sh" {
+		t.Fatalf("got %#v, want runActionMsg{etl.sh}", cmd())
+	}
+	if want := []string{"run-weights"}; !eq(run.act.Args, want) {
+		t.Errorf("args = %v, want %v", run.act.Args, want)
+	}
+}
+
+func TestLandingDemoOpensDatasetPicker(t *testing.T) {
+	l := newLanding("/tmp/x", true, false)
+	keyDownN(l, 2) // select "Load demo data"
+	_, _ = l.update(keyEnter())
+	if l.form == nil || l.pickerMake == nil {
+		t.Fatal("demo entry did not open a dataset picker")
+	}
+	if l.picked != "nhanes" {
+		t.Errorf("preselect = %q, want nhanes", l.picked)
+	}
+	l.picked = "synthea"
+	l.form.State = huh.StateCompleted
+	_, cmd := l.update(struct{}{})
+	run, ok := cmd().(runActionMsg)
+	if !ok {
+		t.Fatalf("got %#v, want runActionMsg", cmd())
+	}
+	if want := []string{"synthea"}; !eq(run.act.Args, want) {
+		t.Errorf("args = %v, want %v", run.act.Args, want)
+	}
+}
+
+// Regression: the dev picker opened scrolled to its Cancel row (empty
+// initial value matched Cancel; WithWidth froze the group viewport) — every
+// option must be visible on the very first render, cursor on the first one.
+func TestLandingDevPickerShowsAllOptionsInitially(t *testing.T) {
+	l := newLanding(devRoot(t), true, false)
+	l.setSize(100, 35)
+	l.dev = true
+	l.rebuildMenu()
+	_, cmd := l.choose("devoverlay")
+	l = pumpLanding(l, cmd, 0)
+
+	view := wizardANSI.ReplaceAllString(l.view(), "")
+	for _, opt := range []string{"httpd-hmr", "wildfly", "Cancel"} {
+		if !strings.Contains(view, opt) {
+			t.Errorf("initial picker render missing option %q", opt)
+		}
+	}
+	if strings.Contains(view, "> Cancel") {
+		t.Error("picker opened with the cursor on Cancel")
+	}
+	if !strings.Contains(view, "> httpd-hmr") {
+		t.Error("cursor not on the first overlay")
+	}
+}
+
+func TestLandingReleaseControlSubmenu(t *testing.T) {
+	orig := fetchReleaseBranch
+	fetchReleaseBranch = func(string) string { return "release/2.4" }
+	t.Cleanup(func() { fetchReleaseBranch = orig })
+
+	l := newLanding("/tmp/x", true, false)
+	l.dev = true
+	l.rebuildMenu()
+	_, _ = l.choose("relctl")
+	want := []string{"rcapply", "rcdryrun", "rcbranch", "back"}
+	if got := menuIDs(l.menu); !eq(got, want) {
+		t.Fatalf("release-control submenu = %v, want %v", got, want)
+	}
+
+	// Switch branch: one-field input prefilled from status --json.
+	_, _ = l.choose("rcbranch")
+	if l.form == nil || l.inputMake == nil {
+		t.Fatal("rcbranch did not open the input")
+	}
+	if l.inputVal != "release/2.4" {
+		t.Errorf("prefill = %q, want release/2.4", l.inputVal)
+	}
+	l.inputVal = "feature/x"
+	l.form.State = huh.StateCompleted
+	_, cmd := l.update(struct{}{})
+	run, ok := cmd().(runActionMsg)
+	if !ok {
+		t.Fatalf("got %#v, want runActionMsg", cmd())
+	}
+	if want := []string{"--branch", "feature/x"}; !eq(run.act.Args, want) {
+		t.Errorf("args = %v, want %v", run.act.Args, want)
+	}
+
+	// back navigates to the dev submenu
+	l2 := newLanding("/tmp/x", true, false)
+	l2.dev = true
+	l2.rebuildMenu()
+	_, _ = l2.choose("relctl")
+	_, _ = l2.choose("back")
+	if l2.relctl || !l2.dev {
+		t.Error("back did not return to the developer submenu")
+	}
+}
+
+// The landing frame must never exceed the terminal box, dialogs included —
+// composite() clips by construction; this pins it (the dashboard and
+// activity screens carry the same invariant tests).
+func TestLandingFrameStaysInBoxWithDialogs(t *testing.T) {
+	sizes := [][2]int{{60, 16}, {80, 24}, {120, 30}}
+	open := []func(l *landing){
+		func(l *landing) { _, _ = l.choose("demo") },
+		func(l *landing) { l.dev = true; l.rebuildMenu(); _, _ = l.choose("etl") },
+		func(l *landing) { _, _ = l.choose("reset") },
+	}
+	for _, sz := range sizes {
+		for i, openDialog := range open {
+			l := newLanding("/tmp/x", true, false)
+			l.setSize(sz[0], sz[1])
+			openDialog(l)
+			view := l.view()
+			if h := lipgloss.Height(view); h > sz[1] {
+				t.Errorf("size %dx%d dialog %d: frame height %d exceeds %d", sz[0], sz[1], i, h, sz[1])
+			}
+			for n, line := range strings.Split(view, "\n") {
+				if w := lipgloss.Width(line); w > sz[0] {
+					t.Errorf("size %dx%d dialog %d line %d: width %d exceeds %d", sz[0], sz[1], i, n, w, sz[0])
+				}
+			}
+		}
+	}
+}
+
+// huh ships its esc binding disabled (only ctrl+c aborts a form) — the same
+// root cause as the wizard's esc bug. Every landing dialog advertises
+// "esc cancels"; the screen must intercept it.
+func TestLandingEscCancelsEveryDialogKind(t *testing.T) {
+	open := []struct {
+		name string
+		do   func(l *landing)
+	}{
+		{"typed-word confirm (reset)", func(l *landing) { _, _ = l.choose("reset") }},
+		{"light confirm (update)", func(l *landing) { _, _ = l.choose("update") }},
+		{"picker (demo)", func(l *landing) { _, _ = l.choose("demo") }},
+		{"input (release-control branch)", func(l *landing) {
+			orig := fetchReleaseBranch
+			fetchReleaseBranch = func(string) string { return "main" }
+			defer func() { fetchReleaseBranch = orig }()
+			_, _ = l.choose("rcbranch")
+		}},
+	}
+	for _, tc := range open {
+		l := newLanding("/tmp/x", true, false)
+		l.setSize(80, 24)
+		tc.do(l)
+		if l.form == nil {
+			t.Fatalf("%s: dialog did not open", tc.name)
+		}
+		_, cmd := l.update(tea.KeyMsg{Type: tea.KeyEsc})
+		if l.form != nil {
+			t.Errorf("%s: esc did not close the dialog", tc.name)
+		}
+		if l.pending != nil || l.pickerMake != nil || l.inputMake != nil {
+			t.Errorf("%s: dialog state not fully cleared on esc", tc.name)
+		}
+		if cmd != nil {
+			if msg := cmd(); msg != nil {
+				t.Errorf("%s: esc emitted %#v, want nothing", tc.name, msg)
+			}
+		}
+	}
+}

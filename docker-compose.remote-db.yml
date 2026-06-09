@@ -1,0 +1,25 @@
+# Remote MySQL/RDS overlay.
+#
+# Use through the top-level scripts with DB_MODE=remote. It disables the bundled
+# picsure-db service and removes local DB health dependencies so Flyway, WildFly,
+# and PSAMA connect to DB_HOST/DB_PORT directly.
+
+services:
+  wildfly:
+    depends_on:
+      flyway-init:
+        condition: service_completed_successfully
+      deploy-wars:
+        condition: service_completed_successfully
+
+  psama:
+    depends_on:
+      flyway-init:
+        condition: service_completed_successfully
+
+  flyway-init:
+    depends_on: {}
+
+  picsure-db:
+    profiles:
+      - local-db-only

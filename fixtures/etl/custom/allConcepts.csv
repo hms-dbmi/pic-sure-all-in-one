@@ -1,0 +1,5 @@
+"PATIENT_NUM","CONCEPT_PATH","NVAL_NUM","TVAL_CHAR","TIMESTAMP"
+"1","\Synthetic\Demographics\Age\",42,,"1704067200000"
+"1","\Synthetic\Demographics\Sex\",,"Female","1704067200000"
+"2","\Synthetic\Demographics\Age\",37,,"1704067200000"
+"2","\Synthetic\Demographics\Sex\",,"Male","1704067200000"

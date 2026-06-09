@@ -1,0 +1,5 @@
+"dataset_ref","name","display","concept_type","concept_path","parent_concept_path","values","description"
+"synthetic","Synthetic","Synthetic","categorical","\Synthetic\","\",,"Root node"
+"synthetic","Demographics","Demographics","categorical","\Synthetic\Demographics\","\Synthetic\",,"Demographics folder"
+"synthetic","Age","Age","continuous","\Synthetic\Demographics\Age\","\Synthetic\Demographics\","37,42","Age in years"
+"synthetic","Sex","Sex","categorical","\Synthetic\Demographics\Sex\","\Synthetic\Demographics\","Female,Male","Reported sex"

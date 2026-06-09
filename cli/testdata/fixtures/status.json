@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "command": "status",
+  "env": {
+    "file_present": true,
+    "file_valid": true,
+    "compose_project_name": "pic\"sure\\back\ttab",
+    "db_mode": "remote",
+    "db_host": "db.example.com",
+    "db_port": "3307",
+    "auth_mode": "required",
+    "picsure_image_tag": "LATEST"
+  },
+  "release_control": {
+    "repo": "https://github.com/hms-dbmi/pic-sure-baseline-release-control",
+    "branch": "main",
+    "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
+    "refs": {
+      "PICSURE_REF": "main",
+      "HPDS_REF": "v2.1.0",
+      "PSAMA_REF": "main",
+      "FRONTEND_REF": "main",
+      "MIGRATIONS_REF": "main",
+      "DICTIONARY_REF": "main",
+      "DICTIONARY_ETL_REF": "main",
+      "VISUALIZATION_REF": "rewrite",
+      "LOGGING_REF": "main",
+      "LOGGING_CLIENT_REF": "main"
+    }
+  },
+  "repos": [
+    { "name": "pic-sure", "present": true, "current": "feat/we\"ird\\branch", "target": "main", "state": "dirty" },
+    { "name": "pic-sure-hpds", "present": true, "current": "a1b2c3d", "target": "v2.1.0", "state": "clean" },
+    { "name": "pic-sure-auth-microapp", "present": false, "current": null, "target": "main", "state": "missing" }
+  ],
+  "docker": {
+    "cli_present": true,
+    "compose_available": true,
+    "daemon_reachable": true,
+    "compose_config_valid": true
+  },
+  "services": [
+    { "name": "wildfly", "state": "running", "health": null, "exit_code": 0 },
+    { "name": "hpds", "state": "running", "health": "starting", "exit_code": null },
+    { "name": "picsure-db", "state": "exited", "health": "unhealthy", "exit_code": 137 }
+  ],
+  "database": { "mode": "remote", "service": null, "host": "db.example.com", "port": "3307" },
+  "migrations": { "checked": true, "ready": false, "message": "Migration input check failed; run ./run-migrations.sh --check" }
+}

@@ -1,0 +1,41 @@
+# Frontend with HMR — live reload on file changes, no rebuild needed.
+#
+# Replaces httpd with a Vite dev server that proxies API calls to wildfly/psama
+# on the Docker network. Source is mounted as a volume so edits are instant.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.dev-httpd-hmr.yml up -d httpd
+#
+# Then browse to http://localhost:3000 (NOT https://localhost — this is the Vite dev server).
+# The Vite server proxies /picsure/* and /psama/* to wildfly on the internal network.
+#
+# To go back to the normal httpd (production build):
+#   docker compose up -d httpd
+services:
+  httpd:
+    image: node:24.14.1-alpine3.23
+    container_name: httpd
+    working_dir: /app
+    command: sh -c "npm install -g pnpm@10.24.0 && pnpm config set store-dir /pnpm-store && pnpm install && pnpm dev"
+    volumes:
+      - ${FRONTEND_SRC:-./repos/PIC-SURE-Frontend}:/app
+      - frontend_node_modules:/app/node_modules
+      - ./config/httpd/vite.config.dev.ts:/app/vite.config.ts:ro
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: development
+    networks:
+      - public
+      - app
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  frontend_node_modules:

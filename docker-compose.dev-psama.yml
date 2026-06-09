@@ -1,0 +1,17 @@
+# Build psama from local source (requires mvn build in pic-sure-auth-microapp/)
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev-psama.yml up -d --build psama
+services:
+  psama:
+    build:
+      context: ${PSAMA_SRC:-./repos/pic-sure-auth-microapp}
+      dockerfile: pic-sure-auth-services/dev.Dockerfile
+      additional_contexts:
+        m2_cache: ~/.m2/repository
+    image: hms-dbmi/pic-sure-psama:dev
+    ports:
+      - "5005:5005"
+    environment:
+      JAVA_OPTS: >-
+        ${PSAMA_JAVA_OPTS:--Xms1g -Xmx2g -XX:MetaspaceSize=96M -XX:MaxMetaspaceSize=256m}
+        -Djava.net.preferIPv4Stack=true
+        -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005

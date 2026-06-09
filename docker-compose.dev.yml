@@ -1,0 +1,125 @@
+# =============================================================================
+# PIC-SURE All-in-One — Developer Overrides (ALL services)
+# =============================================================================
+# Builds ALL services from local source. Requires all sibling repos cloned
+# and their artifacts built (mvn package, etc.).
+#
+# To build only ONE service, use the per-service overlay instead:
+#   docker compose -f docker-compose.yml -f docker-compose.dev-httpd.yml up -d --build httpd
+#   docker compose -f docker-compose.yml -f docker-compose.dev-wildfly.yml up -d --build wildfly
+#   docker compose -f docker-compose.yml -f docker-compose.dev-psama.yml up -d --build psama
+#   docker compose -f docker-compose.yml -f docker-compose.dev-hpds.yml up -d --build hpds
+#   docker compose -f docker-compose.yml -f docker-compose.dev-dictionary.yml up -d --build dictionary-api
+#   docker compose -f docker-compose.yml -f docker-compose.dev-visualization.yml up -d --build visualization
+#
+# Stack multiple overlays to build a subset:
+#   docker compose -f docker-compose.yml -f docker-compose.dev-httpd.yml -f docker-compose.dev-psama.yml up -d --build httpd psama
+#
+# Source directories default to ./repos/ (cloned by ./clone-repos.sh)
+# Override with environment variables: HPDS_SRC, PSAMA_SRC, WILDFLY_SRC, etc.
+# =============================================================================
+
+services:
+
+  # ---------------------------------------------------------------------------
+  # HPDS — build from local source
+  # ---------------------------------------------------------------------------
+  hpds:
+    build:
+      context: ${HPDS_SRC:-./repos/pic-sure-hpds}
+      dockerfile: docker/pic-sure-hpds/Dockerfile
+    image: hms-dbmi/pic-sure-hpds:dev
+
+  # ---------------------------------------------------------------------------
+  # PSAMA — build from local source
+  # ---------------------------------------------------------------------------
+  psama:
+    build:
+      context: ${PSAMA_SRC:-./repos/pic-sure-auth-microapp}
+      dockerfile: pic-sure-auth-services/dev.Dockerfile
+      additional_contexts:
+        m2_cache: ~/.m2/repository
+    image: hms-dbmi/pic-sure-psama:dev
+    ports:
+      - "5005:5005"  # Java debug port
+    environment:
+      JAVA_OPTS: >-
+        ${PSAMA_JAVA_OPTS:--Xms1g -Xmx2g -XX:MetaspaceSize=96M -XX:MaxMetaspaceSize=256m}
+        -Djava.net.preferIPv4Stack=true
+        -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005
+
+  # ---------------------------------------------------------------------------
+  # Wildfly (pic-sure-api) — build from local source
+  # ---------------------------------------------------------------------------
+  wildfly:
+    build:
+      context: ${WILDFLY_SRC:-./repos/pic-sure}
+      dockerfile: docker/all-in-one/all-in-one.Dockerfile
+    image: hms-dbmi/pic-sure-wildfly:dev
+    ports:
+      - "5006:5006"  # Java debug port (different from psama)
+    volumes:
+      - ${WILDFLY_SRC:-./repos/pic-sure}/pic-sure-api-war/target/pic-sure-api-war.war:/opt/jboss/wildfly/standalone/deployments/pic-sure-api-2.war:ro
+    command: >-
+      sh -c '
+        cd /opt/jboss/wildfly/standalone/deployments &&
+        rm -f pic-sure-api-2.war.deployed pic-sure-api-2.war.failed pic-sure-api-2.war.isdeploying &&
+        touch pic-sure-api-2.war.dodeploy &&
+        exec /opt/jboss/wildfly/bin/standalone.sh -b 0.0.0.0
+      '
+    environment:
+      JAVA_OPTS: >-
+        ${WILDFLY_JAVA_OPTS:--Xms2g -Xmx4g -XX:MetaspaceSize=96M -XX:MaxMetaspaceSize=256m}
+        -Djava.net.preferIPv4Stack=true
+        -Djavax.net.ssl.trustStore=/opt/jboss/wildfly/standalone/configuration/application.truststore
+        -Djavax.net.ssl.trustStorePassword=password
+        -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5006
+
+  # ---------------------------------------------------------------------------
+  # HTTPD / Frontend — build from local source
+  # ---------------------------------------------------------------------------
+  httpd:
+    build:
+      context: ${FRONTEND_SRC:-./repos/PIC-SURE-Frontend}
+      dockerfile: Dockerfile
+      args:
+        THEME: ${PICSURE_THEME:-picsure}
+    image: hms-dbmi/pic-sure-httpd:dev
+
+  # ---------------------------------------------------------------------------
+  # Dictionary API — build from local source
+  # ---------------------------------------------------------------------------
+  dictionary-api:
+    build:
+      context: ${DICTIONARY_SRC:-./repos/picsure-dictionary}
+      dockerfile: Dockerfile
+    image: hms-dbmi/pic-sure-dictionary-api:dev
+
+  # ---------------------------------------------------------------------------
+  # Dictionary Dump — build from local source
+  # ---------------------------------------------------------------------------
+  dictionary-dump:
+    build:
+      context: ${DICTIONARY_SRC:-./repos/picsure-dictionary}/aggregate
+      dockerfile: Dockerfile
+    image: hms-dbmi/pic-sure-dictionary-dump:dev
+
+  # ---------------------------------------------------------------------------
+  # Visualization — build from local source
+  # ---------------------------------------------------------------------------
+  visualization:
+    build:
+      context: ${VISUALIZATION_SRC:-./repos/pic-sure-visualization-resource}
+      dockerfile: Dockerfile
+    image: hms-dbmi/pic-sure-visualization:dev
+
+  # ---------------------------------------------------------------------------
+  # Shared build cache
+  # ---------------------------------------------------------------------------
+  # Maven .m2 cache is shared across builds to avoid re-downloading dependencies
+  # This volume is used by the build Dockerfiles internally
+
+volumes:
+  maven_m2_cache:
+    external: true
+    name: maven_m2_cache

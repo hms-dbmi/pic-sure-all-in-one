@@ -1,0 +1,15 @@
+# Build visualization service from local source
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev-visualization.yml up -d --build visualization
+#
+# Requires: build deps from source first (populates ~/.m2):
+#   cd repos/PIC-SURE-Logging-Client && mvn install -DskipTests
+#   cd repos/pic-sure-hpds && mvn install -pl client-api -am -DskipTests
+#   cd repos/pic-sure && mvn install -pl pic-sure-resources/pic-sure-resource-api -am -DskipTests
+services:
+  visualization:
+    build:
+      context: ${VISUALIZATION_SRC:-./repos/pic-sure-visualization-resource}
+      dockerfile: dev.Dockerfile
+      additional_contexts:
+        m2_cache: ~/.m2/repository
+    image: hms-dbmi/pic-sure-visualization:${VISUALIZATION_IMAGE_TAG:-dev}

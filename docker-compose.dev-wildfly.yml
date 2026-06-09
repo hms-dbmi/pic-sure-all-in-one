@@ -1,0 +1,26 @@
+# Build wildfly/PIC-SURE API from local source (requires mvn build in pic-sure/)
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev-wildfly.yml up -d --build wildfly
+services:
+  wildfly:
+    build:
+      context: ${WILDFLY_SRC:-./repos/pic-sure}
+      dockerfile: docker/all-in-one/all-in-one.Dockerfile
+    image: hms-dbmi/pic-sure-wildfly:dev
+    ports:
+      - "5006:5006"
+    volumes:
+      - ${WILDFLY_SRC:-./repos/pic-sure}/pic-sure-api-war/target/pic-sure-api-war.war:/opt/jboss/wildfly/standalone/deployments/pic-sure-api-2.war:ro
+    command: >-
+      sh -c '
+        cd /opt/jboss/wildfly/standalone/deployments &&
+        rm -f pic-sure-api-2.war.deployed pic-sure-api-2.war.failed pic-sure-api-2.war.isdeploying &&
+        touch pic-sure-api-2.war.dodeploy &&
+        exec /opt/jboss/wildfly/bin/standalone.sh -b 0.0.0.0
+      '
+    environment:
+      JAVA_OPTS: >-
+        ${WILDFLY_JAVA_OPTS:--Xms2g -Xmx4g -XX:MetaspaceSize=96M -XX:MaxMetaspaceSize=256m}
+        -Djava.net.preferIPv4Stack=true
+        -Djavax.net.ssl.trustStore=/opt/jboss/wildfly/standalone/configuration/application.truststore
+        -Djavax.net.ssl.trustStorePassword=password
+        -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5006

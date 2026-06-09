@@ -1,0 +1,14 @@
+# Build dictionary services from local source
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev-dictionary.yml up -d --build dictionary-api
+services:
+  dictionary-api:
+    build:
+      context: ${DICTIONARY_SRC:-./repos/picsure-dictionary}
+      dockerfile: Dockerfile
+    image: hms-dbmi/pic-sure-dictionary-api:dev
+
+  dictionary-dump:
+    build:
+      context: ${DICTIONARY_SRC:-./repos/picsure-dictionary}/aggregate
+      dockerfile: Dockerfile
+    image: hms-dbmi/pic-sure-dictionary-dump:dev

@@ -1,3 +1,0 @@
-FROM jupyter/datascience-notebook:hub-1.1.0
-
-COPY ./page-template.notebook /opt/conda/lib/python3.8/site-packages/notebook/templates/page.html

@@ -1,0 +1,21 @@
+repos:
+  - repo: local
+    hooks:
+      - id: block-sensitive-generated-files
+        name: Block sensitive and generated files
+        entry: scripts/check-protected-files.sh
+        language: script
+        pass_filenames: false
+        stages: [pre-commit]
+      - id: check-env-example
+        name: Check .env.example contains no secrets
+        entry: scripts/check-env-example.sh
+        language: script
+        pass_filenames: false
+        stages: [pre-commit]
+      - id: gitleaks-staged
+        name: Scan staged changes for secrets
+        entry: scripts/check-secrets.sh
+        language: script
+        pass_filenames: false
+        stages: [pre-commit]

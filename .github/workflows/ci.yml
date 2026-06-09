@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  push:
+    branches: [main, compose-no-jenkins, compose-cli]
+  pull_request:
+
+jobs:
+  go:
+    name: CLI (test, lint, smoke)
+    runs-on: ubuntu-latest
+    env:
+      PICSURE_PTY_TEST: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: cli/go.mod
+          cache-dependency-path: cli/go.sum
+
+      # Same pinned version and same `make lint` entry point as local
+      # development — the version lives only in cli/Makefile, and the
+      # installer script is fetched at that same tag (never HEAD).
+      - name: Install golangci-lint
+        run: |
+          version="$(make -s -C cli print-lint-version)"
+          curl -sSfL "https://raw.githubusercontent.com/golangci/golangci-lint/$version/install.sh" \
+            | sh -s -- -b "$(go env GOPATH)/bin" "$version"
+
+      - name: Lint
+        run: make -C cli lint
+
+      # go.mod/go.sum must match the import graph; catches missing
+      # `go mod tidy` (e.g. direct deps mislabeled // indirect).
+      - name: Tidy check
+        run: |
+          (cd cli && go mod tidy)
+          git diff --exit-code cli/go.mod cli/go.sum
+
+      - name: Test
+        run: make -C cli test
+
+      - name: Smoke
+        run: make -C cli smoke
+
+  shell:
+    name: Scripts (shellcheck + JSON contract)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: shellcheck
+        run: |
+          shellcheck --version
+          shellcheck -x \
+            init.sh update.sh status.sh preflight.sh etl.sh reset.sh \
+            uninstall.sh release-control.sh seed-db.sh run-migrations.sh \
+            load-demo-data.sh build-images.sh clone-repos.sh \
+            bootstrap-remote-db.sh \
+            scripts/lib/common.sh scripts/lib/json.sh \
+            scripts/picsure-compose.sh scripts/env-set.sh scripts/compose.sh \
+            scripts/db-wait.sh \
+            cli/install.sh cli/smoke/run.sh
+
+      # Permanent contract check: both JSON modes must emit parseable
+      # documents, including values with quotes/backslashes/tabs, and the
+      # preflight exit code must mirror `passed`.
+      - name: JSON contract
+        run: |
+          set -euo pipefail
+          # Escaping edge case written through the contract entry point:
+          # a double quote, a backslash, and a literal tab in the value.
+          expected=$'pic"sure\\back\ttab'
+          scripts/env-set.sh COMPOSE_PROJECT_NAME "$expected"
+
+          ./status.sh --json > status.json
+          jq -e '.schema_version == 1' status.json
+          got="$(jq -r '.env.compose_project_name' status.json)"
+          if [ "$got" != "$expected" ]; then
+            printf 'escaping round-trip failed:\n  want [%s]\n  got  [%s]\n' "$expected" "$got" >&2
+            exit 1
+          fi
+
+          set +e
+          ./preflight.sh --json > preflight.json
+          rc=$?
+          set -e
+          jq -e '.schema_version == 1' preflight.json
+          passed="$(jq -r '.passed' preflight.json)"
+          if { [ "$passed" = "true" ] && [ "$rc" -ne 0 ]; } || { [ "$passed" = "false" ] && [ "$rc" -eq 0 ]; }; then
+            echo "preflight passed=$passed but exited $rc" >&2
+            exit 1
+          fi
+
+          # A syntactically broken .env must still yield full documents.
+          echo 'BROKEN=(unclosed' >> .env
+          ./status.sh --json 2>/dev/null > broken-status.json
+          jq -e '.env.file_valid == false' broken-status.json
+          set +e
+          ./preflight.sh --json 2>/dev/null > broken-preflight.json
+          set -e
+          jq -e '[.checks[] | select(.name == "env.parse" and .status == "fail")] | length == 1' broken-preflight.json
+
+          rm -f .env status.json preflight.json broken-status.json broken-preflight.json

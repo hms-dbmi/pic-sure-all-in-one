@@ -1,0 +1,90 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  check:
+    name: Test + lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: cli/go.mod
+          cache-dependency-path: cli/go.sum
+
+      - name: Install golangci-lint
+        run: |
+          version="$(make -s -C cli print-lint-version)"
+          curl -sSfL "https://raw.githubusercontent.com/golangci/golangci-lint/$version/install.sh" \
+            | sh -s -- -b "$(go env GOPATH)/bin" "$version"
+
+      - name: Lint
+        run: make -C cli lint
+
+      - name: Test
+        run: make -C cli test
+
+  build:
+    name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
+    needs: check
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goos: [linux, darwin]
+        goarch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: cli/go.mod
+          cache-dependency-path: cli/go.sum
+
+      # Asset naming is a contract with cli/install.sh:
+      # pic-sure_<os>_<arch>.tar.gz
+      - name: Build
+        run: |
+          make -C cli build-release \
+            GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} \
+            VERSION=${{ github.ref_name }}
+          tar -C cli/dist -czf "pic-sure_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz" pic-sure
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pic-sure_${{ matrix.goos }}_${{ matrix.goarch }}
+          path: pic-sure_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz
+          if-no-files-found: error
+
+  publish:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Checksums
+        run: |
+          cd dist
+          sha256sum pic-sure_*.tar.gz > checksums.txt
+          cat checksums.txt
+
+      - name: Create release with assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" \
+            --verify-tag \
+            --generate-notes \
+            dist/pic-sure_*.tar.gz dist/checksums.txt

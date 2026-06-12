@@ -21,19 +21,29 @@ DB_HOST_VALUE=""
 cleanup() {
   docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
   if [ -n "$BACKUP_ENV" ] && [ -f "$BACKUP_ENV" ]; then
+    # We have a verified backup of a pre-existing .env: restore it.
     mv "$BACKUP_ENV" "$ENV_FILE"
-  else
+  elif [ "$ENV_EXISTED" = "false" ]; then
+    # Only the .env this script created is safe to delete. If a real .env
+    # existed but the backup never completed, leave it untouched.
     rm -f "$ENV_FILE"
   fi
 }
-trap cleanup EXIT
 
 cd "$SCRIPT_DIR"
 
+# Back up the operator's .env BEFORE installing the cleanup trap. If the trap
+# were armed first, a failure in the backup window (mktemp/cp under set -e, or
+# a Ctrl-C) would fire cleanup with BACKUP_ENV empty and delete the real .env.
 if [ -f "$ENV_FILE" ]; then
+  ENV_EXISTED=true
   BACKUP_ENV="$(mktemp)"
   cp "$ENV_FILE" "$BACKUP_ENV"
+else
+  ENV_EXISTED=false
 fi
+
+trap cleanup EXIT
 
 docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
 docker run -d \

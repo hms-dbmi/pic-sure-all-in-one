@@ -48,6 +48,20 @@ func TestParseInitArgs(t *testing.T) {
 			wantPass:   []string{"--log"},
 		},
 		{
+			// Everything after the -- barrier passes through to init.sh
+			// verbatim, even names that match wizard field flags (B12).
+			name:       "post-barrier args are not parsed as fields",
+			in:         []string{"--force", "--", "--admin-email", "x@y.org"},
+			wantFields: map[string]string{},
+			wantPass:   []string{"--force", "--admin-email", "x@y.org"},
+		},
+		{
+			name:       "barrier first: nothing is a field",
+			in:         []string{"--", "--wizard", "--skip-auth"},
+			wantFields: map[string]string{},
+			wantPass:   []string{"--wizard", "--skip-auth"},
+		},
+		{
 			name:    "field flag without value errors",
 			in:      []string{"--auth0-client-id"},
 			wantErr: true,

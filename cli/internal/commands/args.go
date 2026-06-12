@@ -28,9 +28,14 @@ func ScanGlobalArgs(args []string) ([]string, GlobalOptions, error) {
 		case arg == "--":
 			// Passthrough barrier: everything after a literal -- reaches the
 			// script byte-verbatim, even the reserved global names (so e.g.
-			// `pic-sure etl -- --root x` hands --root to etl.sh). The barrier
-			// itself is consumed. Place it after the subcommand name.
-			cleaned = append(cleaned, args[i+1:]...)
+			// `pic-sure etl -- --root x` hands --root to etl.sh). Stop global
+			// scanning here, but PRESERVE the barrier token and the remainder
+			// verbatim: Cobra runs subcommands with DisableFlagParsing, so the
+			// literal -- survives untouched into RunE, where splitBarrier lets
+			// the dispatch layer exempt post-barrier args from the -h/--help
+			// intercept and (for init) field parsing before stripping the
+			// barrier. Place it after the subcommand name.
+			cleaned = append(cleaned, args[i:]...)
 			return cleaned, opts, nil
 		case arg == "--root":
 			if i+1 >= len(args) {
@@ -52,6 +57,22 @@ func ScanGlobalArgs(args []string) ([]string, GlobalOptions, error) {
 		}
 	}
 	return cleaned, opts, nil
+}
+
+// splitBarrier divides a subcommand's args at the first `--` passthrough
+// barrier. pre is everything before it; post is everything after the first
+// `--` (any further `--` are literal and stay in post, per the byte-verbatim
+// contract). hasBarrier reports whether a barrier was present at all. When
+// absent, pre is the full slice and post is nil. The returned slices alias the
+// input — callers must not mutate them. The barrier token itself is dropped:
+// callers reconstruct the script argv as pre ++ post.
+func splitBarrier(args []string) (pre, post []string, hasBarrier bool) {
+	for i, arg := range args {
+		if arg == "--" {
+			return args[:i:i], args[i+1:], true
+		}
+	}
+	return args, nil, false
 }
 
 // ScriptCommand maps one subcommand to its backing script.

@@ -23,11 +23,14 @@ type InitArgs struct {
 }
 
 // ParseInitArgs splits args into wizard concerns and init.sh passthrough.
-// Field flags accept both `--flag VALUE` and `--flag=VALUE`.
+// Field flags accept both `--flag VALUE` and `--flag=VALUE`. Everything after
+// a `--` passthrough barrier is forwarded to init.sh verbatim, never parsed as
+// a wizard field — even tokens that match a field flag (B12).
 func ParseInitArgs(args []string) (InitArgs, error) {
 	out := InitArgs{FieldValues: map[string]string{}}
-	for i := 0; i < len(args); i++ {
-		arg := args[i]
+	pre, post, hasBarrier := splitBarrier(args)
+	for i := 0; i < len(pre); i++ {
+		arg := pre[i]
 		switch arg {
 		case "--wizard":
 			out.Wizard = true
@@ -43,15 +46,20 @@ func ParseInitArgs(args []string) (InitArgs, error) {
 				out.FieldValues[f.Key] = inlineValue
 				continue
 			}
-			if i+1 >= len(args) {
+			if i+1 >= len(pre) {
 				return out, fmt.Errorf("%s requires a value", flag)
 			}
 			i++
-			out.FieldValues[f.Key] = args[i]
+			out.FieldValues[f.Key] = pre[i]
 			continue
 		}
 
 		out.Passthrough = append(out.Passthrough, arg)
+	}
+	if hasBarrier {
+		// Post-barrier args reach init.sh byte-verbatim, after any pre-barrier
+		// passthrough flags, preserving the user's order.
+		out.Passthrough = append(out.Passthrough, post...)
 	}
 	return out, nil
 }
@@ -83,7 +91,11 @@ Common init.sh flags (passed through verbatim, like everything else):
 		Long:               long,
 		DisableFlagParsing: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			for _, arg := range args {
+			// Only PRE-barrier -h/--help is the binary's help; anything after
+			// the `--` passthrough barrier reaches init.sh byte-verbatim
+			// (ParseInitArgs handles the barrier for field parsing).
+			pre, _, _ := splitBarrier(args)
+			for _, arg := range pre {
 				if arg == "-h" || arg == "--help" {
 					return cmd.Help()
 				}

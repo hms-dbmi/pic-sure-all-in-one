@@ -80,8 +80,10 @@ Global flags (accepted anywhere on the command line):
   --no-animations      static TUI (no starfield motion / logo shine)
 
 These names are reserved; to hand one of them to a script literally, put a
--- after the subcommand: everything past it passes through byte-verbatim
-(e.g. pic-sure etl -- --root /data).`, project.MarkersList()),
+-- after the subcommand: everything past it passes through byte-verbatim,
+including --help (e.g. pic-sure etl -- --help shows etl.sh's own usage;
+pic-sure etl -- --root /data hands --root to etl.sh). A -- before any
+subcommand is ignored (place it after the subcommand name).`, project.MarkersList()),
 		Version:      fmt.Sprintf("%s (commit %s, built %s)", a.info.Version, a.info.Commit, a.info.Date),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -144,13 +146,22 @@ func (a *app) newScriptCommand(sc ScriptCommand) *cobra.Command {
 		// `--flag=value` plus positionals; Cobra must not touch them.
 		DisableFlagParsing: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			for _, arg := range args {
+			// Only PRE-barrier -h/--help is the binary's help; anything after
+			// the `--` passthrough barrier reaches the script byte-verbatim
+			// (so `pic-sure etl -- --help` shows etl.sh's own usage). The
+			// barrier token is dropped; pre and post both forward to the script.
+			pre, post, hasBarrier := splitBarrier(args)
+			for _, arg := range pre {
 				if arg == "-h" || arg == "--help" {
 					return cmd.Help()
 				}
 			}
+			scriptArgs := args
+			if hasBarrier {
+				scriptArgs = append(append([]string{}, pre...), post...)
+			}
 
-			argv, err := BuildScriptArgs(sc, args, a.opts, a.isInteractive())
+			argv, err := BuildScriptArgs(sc, scriptArgs, a.opts, a.isInteractive())
 			if err != nil {
 				return err
 			}

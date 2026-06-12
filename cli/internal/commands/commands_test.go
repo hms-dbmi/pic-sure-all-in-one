@@ -1,6 +1,9 @@
 package commands
 
 import (
+	"io"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -22,14 +25,18 @@ func TestScanGlobalArgs(t *testing.T) {
 			wantArgs: []string{"update", "--dry-run", "--offline"},
 		},
 		{
-			name:     "-- stops global scanning; remainder passes verbatim",
+			// The literal -- barrier is PRESERVED in the cleaned args (no
+			// global-flag extraction past it). The subcommand layer strips the
+			// first -- and forwards the rest byte-verbatim, so positional
+			// information survives all the way to the help intercept (B12/B21).
+			name:     "-- stops global scanning and is preserved; remainder passes verbatim",
 			in:       []string{"etl", "--", "--root", "/x", "--yes"},
-			wantArgs: []string{"etl", "--root", "/x", "--yes"},
+			wantArgs: []string{"etl", "--", "--root", "/x", "--yes"},
 		},
 		{
-			name:     "globals before -- still apply",
+			name:     "globals before -- still apply; barrier preserved",
 			in:       []string{"--root", "/r", "reset", "--", "--yes"},
-			wantArgs: []string{"reset", "--yes"},
+			wantArgs: []string{"reset", "--", "--yes"},
 			wantOpts: GlobalOptions{Root: "/r"},
 		},
 		{
@@ -96,6 +103,64 @@ func TestScanGlobalArgs(t *testing.T) {
 			}
 			if opts != tt.wantOpts {
 				t.Errorf("opts = %+v, want %+v", opts, tt.wantOpts)
+			}
+		})
+	}
+}
+
+func TestSplitBarrier(t *testing.T) {
+	tests := []struct {
+		name        string
+		in          []string
+		wantPre     []string
+		wantPost    []string
+		wantBarrier bool
+	}{
+		{
+			name:    "no barrier",
+			in:      []string{"--help", "foo"},
+			wantPre: []string{"--help", "foo"},
+		},
+		{
+			name:        "barrier first",
+			in:          []string{"--", "--help"},
+			wantPre:     []string{},
+			wantPost:    []string{"--help"},
+			wantBarrier: true,
+		},
+		{
+			name:        "barrier in the middle",
+			in:          []string{"load-csv", "--", "--root", "/x"},
+			wantPre:     []string{"load-csv"},
+			wantPost:    []string{"--root", "/x"},
+			wantBarrier: true,
+		},
+		{
+			name:        "only the first -- is the barrier; later -- pass verbatim",
+			in:          []string{"--", "--", "--help"},
+			wantPre:     []string{},
+			wantPost:    []string{"--", "--help"},
+			wantBarrier: true,
+		},
+		{
+			name:        "trailing barrier with nothing after it",
+			in:          []string{"foo", "--"},
+			wantPre:     []string{"foo"},
+			wantPost:    []string{},
+			wantBarrier: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pre, post, hasBarrier := splitBarrier(tt.in)
+			if hasBarrier != tt.wantBarrier {
+				t.Errorf("hasBarrier = %v, want %v", hasBarrier, tt.wantBarrier)
+			}
+			if !reflect.DeepEqual(pre, tt.wantPre) {
+				t.Errorf("pre = %v, want %v", pre, tt.wantPre)
+			}
+			if !reflect.DeepEqual(post, tt.wantPost) {
+				t.Errorf("post = %v, want %v", post, tt.wantPost)
 			}
 		})
 	}
@@ -223,6 +288,159 @@ func TestBuildScriptArgs(t *testing.T) {
 		}
 		if !reflect.DeepEqual(argv, in) {
 			t.Errorf("argv = %v, want %v", argv, in)
+		}
+	})
+}
+
+// scriptRunApp builds an app whose script runs are captured (not executed),
+// then runs the full cobra path (ScanGlobalArgs → root.Execute → RunE). The
+// argv slice it returns is nil when no script was invoked (e.g. the -h/--help
+// intercept fired and printed Cobra help instead). osArgs excludes the binary
+// name, exactly like os.Args[1:].
+func scriptRunApp(t *testing.T, interactive bool) (*app, *string, *[]string) {
+	t.Helper()
+	var ranScript string
+	var ranArgs []string
+	ranArgs = nil
+	a := &app{
+		findRoot:      func(start, override string) (string, error) { return "/fake/root", nil },
+		isInteractive: func() bool { return interactive },
+		runScript: func(root, script string, args []string) (int, error) {
+			ranScript = script
+			ranArgs = args
+			return 0, nil
+		},
+	}
+	return a, &ranScript, &ranArgs
+}
+
+// runCLI threads osArgs through ScanGlobalArgs and the cobra tree, mirroring
+// Execute() so the -h/--help intercept and barrier handling are exercised.
+func runCLI(t *testing.T, a *app, osArgs []string) error {
+	t.Helper()
+	cleaned, opts, err := ScanGlobalArgs(osArgs)
+	if err != nil {
+		return err
+	}
+	a.opts = opts
+	root := a.rootCommand()
+	root.SetArgs(cleaned)
+	root.SetOut(io.Discard)
+	root.SetErr(io.Discard)
+	return root.Execute()
+}
+
+func TestScriptHelpInterceptOnlyBeforeBarrier(t *testing.T) {
+	t.Run("--help with no barrier shows CLI help, script NOT run", func(t *testing.T) {
+		a, script, args := scriptRunApp(t, true)
+		if err := runCLI(t, a, []string{"etl", "--help"}); err != nil {
+			t.Fatal(err)
+		}
+		if *script != "" {
+			t.Errorf("script ran (%q, %v); --help before barrier must show CLI help", *script, *args)
+		}
+	})
+
+	t.Run("etl -- --help reaches the script verbatim", func(t *testing.T) {
+		a, script, args := scriptRunApp(t, true)
+		if err := runCLI(t, a, []string{"etl", "--", "--help"}); err != nil {
+			t.Fatal(err)
+		}
+		if *script != "etl.sh" {
+			t.Fatalf("script = %q, want etl.sh (post-barrier --help must reach the script)", *script)
+		}
+		if want := []string{"--help"}; !reflect.DeepEqual(*args, want) {
+			t.Errorf("etl.sh argv = %v, want %v", *args, want)
+		}
+	})
+
+	t.Run("--yes reset -- --whatever extracts --yes, passes --whatever", func(t *testing.T) {
+		a, script, args := scriptRunApp(t, true)
+		if err := runCLI(t, a, []string{"--yes", "reset", "--", "--whatever"}); err != nil {
+			t.Fatal(err)
+		}
+		if *script != "reset.sh" {
+			t.Fatalf("script = %q, want reset.sh", *script)
+		}
+		// reset supports --yes, so the global --yes is translated and appended;
+		// --whatever passes through verbatim, the barrier is consumed.
+		if want := []string{"--whatever", "--yes"}; !reflect.DeepEqual(*args, want) {
+			t.Errorf("reset.sh argv = %v, want %v", *args, want)
+		}
+	})
+
+	t.Run("post-barrier -h still reaches the script", func(t *testing.T) {
+		a, script, args := scriptRunApp(t, true)
+		if err := runCLI(t, a, []string{"status", "--", "-h"}); err != nil {
+			t.Fatal(err)
+		}
+		if *script != "status.sh" {
+			t.Fatalf("script = %q, want status.sh", *script)
+		}
+		if want := []string{"-h"}; !reflect.DeepEqual(*args, want) {
+			t.Errorf("status.sh argv = %v, want %v", *args, want)
+		}
+	})
+}
+
+// A `--` before any subcommand is misuse (the README says to place it after
+// the subcommand). Cobra — which parses the root command normally — strips the
+// leading `--` and treats the remainder as positional args to the root, so the
+// bare-invocation path runs (landing TUI on a terminal) and no script is
+// dispatched. Documented as degenerate, non-destructive behavior.
+func TestBarrierBeforeSubcommandIsBareInvocation(t *testing.T) {
+	a, captured := tuiApp(t)
+	if err := runCLI(t, a, []string{"--", "etl"}); err != nil {
+		t.Fatal(err)
+	}
+	if captured.Start != tui.ScreenLanding {
+		t.Errorf("`pic-sure -- etl` start = %v, want ScreenLanding (degenerate bare invocation)", captured.Start)
+	}
+}
+
+func TestInitHelpInterceptOnlyBeforeBarrier(t *testing.T) {
+	root := initFixtureRoot(t)
+	// .env exists so init.sh runs directly and post-barrier args pass through.
+	if err := os.WriteFile(filepath.Join(root, ".env"), []byte("DB_MODE=local\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("init -- --admin-email x passes verbatim, not parsed as a field", func(t *testing.T) {
+		a, calls := fakeApp(t, root, true)
+		if err := a.runInit([]string{"--", "--admin-email", "x@y.org"}); err != nil {
+			t.Fatal(err)
+		}
+		// No env-set writes: --admin-email was NOT parsed as a wizard field.
+		if sets := envSetCalls(*calls); len(sets) != 0 {
+			t.Errorf("env-set calls = %v, want none (post-barrier args are not fields)", sets)
+		}
+		last := (*calls)[len(*calls)-1]
+		if last.script != "init.sh" {
+			t.Fatalf("last call = %+v, want init.sh", last)
+		}
+		if want := []string{"--admin-email", "x@y.org"}; !reflect.DeepEqual(last.args, want) {
+			t.Errorf("init.sh argv = %v, want %v (verbatim passthrough)", last.args, want)
+		}
+	})
+
+	t.Run("field flag before barrier consumed; --force after passes through", func(t *testing.T) {
+		a, calls := fakeApp(t, root, true)
+		err := a.runInit([]string{"--release-control-branch", "X", "--", "--force"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var wroteBranch bool
+		for _, c := range envSetCalls(*calls) {
+			if c.args[0] == "RELEASE_CONTROL_BRANCH" {
+				wroteBranch = true
+			}
+		}
+		if !wroteBranch {
+			t.Error("pre-barrier --release-control-branch must be consumed as a field write")
+		}
+		last := (*calls)[len(*calls)-1]
+		if last.script != "init.sh" || !reflect.DeepEqual(last.args, []string{"--force"}) {
+			t.Errorf("init.sh argv = %v, want [--force] (post-barrier verbatim)", last.args)
 		}
 	})
 }

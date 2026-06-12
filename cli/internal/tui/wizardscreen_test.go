@@ -29,6 +29,38 @@ func wizardRoot(t *testing.T, withEnv bool) string {
 	return dir
 }
 
+// drainForWritesDone pumps the cmd chain (following huh's intermediate
+// nextField/nextGroup cmds and the U7 tea.Batch of write+tick) until it yields
+// a wizardWritesDoneMsg, the write phase's terminal message. Batch messages are
+// flattened so the write cmd inside the batch is found alongside the dot tick.
+func drainForWritesDone(t *testing.T, s *wizardScreen, cmd tea.Cmd) *wizardWritesDoneMsg {
+	t.Helper()
+	queue := []tea.Cmd{cmd}
+	for i := 0; i < 20 && len(queue) > 0; i++ {
+		c := queue[0]
+		queue = queue[1:]
+		if c == nil {
+			continue
+		}
+		switch msg := c().(type) {
+		case wizardWritesDoneMsg:
+			return &msg
+		case tea.BatchMsg:
+			for _, sub := range msg {
+				queue = append(queue, sub)
+			}
+		case wizardWriteTickMsg:
+			// The animation tick: don't follow it (it would loop forever) and
+			// don't feed it back through update.
+			continue
+		default:
+			_, next := s.update(msg)
+			queue = append(queue, next)
+		}
+	}
+	return nil
+}
+
 func TestWizardScreenSeedsFromExampleMergedWithEnv(t *testing.T) {
 	s, err := newWizardScreen(wizardRoot(t, false), false)
 	if err != nil {
@@ -117,15 +149,7 @@ func TestWizardScreenConfirmYesWritesThenRunsInit(t *testing.T) {
 	// wizardWritesDoneMsg or exhaust the pump.
 	_, _ = s.update(tea.KeyMsg{Type: tea.KeyLeft})
 	_, cmd := s.update(tea.KeyMsg{Type: tea.KeyEnter})
-	var done *wizardWritesDoneMsg
-	for i := 0; i < 10 && cmd != nil && done == nil; i++ {
-		result := cmd()
-		if d, ok := result.(wizardWritesDoneMsg); ok {
-			done = &d
-			break
-		}
-		_, cmd = s.update(result)
-	}
+	done := drainForWritesDone(t, s, cmd)
 	if done == nil {
 		t.Fatal("confirm completion did not produce wizardWritesDoneMsg within 10 pumps")
 	}
@@ -140,6 +164,53 @@ func TestWizardScreenConfirmYesWritesThenRunsInit(t *testing.T) {
 	}
 	if _, again := s.update(struct{}{}); again != nil {
 		t.Error("message during wizardWriting fired another command (double write/init)")
+	}
+}
+
+// TestWizardWritingFeedback (U7): the write phase shows a key count and dots
+// that grow across ticks, so a stall reads as work-in-progress, not a freeze.
+func TestWizardWritingFeedback(t *testing.T) {
+	s := &wizardScreen{phase: wizardWriting, writeKeys: 11}
+
+	// Key count present, pluralized correctly.
+	if got := s.writingLine(); !strings.Contains(got, "writing 11 config keys") {
+		t.Errorf("writing line = %q, want the 11-key count", got)
+	}
+	s.writeKeys = 1
+	if got := s.writingLine(); !strings.Contains(got, "writing 1 config key") || strings.Contains(got, "keys") {
+		t.Errorf("singular key not handled: %q", got)
+	}
+	s.writeKeys = 11
+
+	// Dots grow across ticks (trimming the fixed-width padding to compare).
+	var seen []string
+	for i := 0; i <= wizardWriteMaxDots+1; i++ {
+		seen = append(seen, strings.TrimRight(s.writingLine(), " "))
+		ns, cmd := s.update(wizardWriteTickMsg{})
+		s = ns
+		if cmd == nil {
+			t.Fatal("write tick produced no follow-up tick (animation would stall)")
+		}
+	}
+	// First few frames must have strictly growing dot runs (0,1,2,3), then wrap.
+	dotCount := func(line string) int { return strings.Count(line, ".") }
+	if dotCount(seen[0]) != 0 || dotCount(seen[1]) != 1 || dotCount(seen[2]) != 2 || dotCount(seen[3]) != 3 {
+		t.Errorf("dots did not grow 0,1,2,3 across ticks: %q", seen)
+	}
+	if dotCount(seen[4]) != 0 {
+		t.Errorf("dots did not reset after the max: %q", seen)
+	}
+
+	// The padded line keeps a constant width so the centered layout never jumps.
+	w := -1
+	s2 := &wizardScreen{phase: wizardWriting, writeKeys: 11}
+	for i := 0; i <= wizardWriteMaxDots; i++ {
+		if w < 0 {
+			w = len(s2.writingLine())
+		} else if len(s2.writingLine()) != w {
+			t.Errorf("writing line width changes with dots (%d vs %d): %q", len(s2.writingLine()), w, s2.writingLine())
+		}
+		s2.writeDots = (s2.writeDots + 1) % (wizardWriteMaxDots + 1)
 	}
 }
 

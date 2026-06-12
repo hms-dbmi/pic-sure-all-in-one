@@ -1,7 +1,10 @@
 package tui
 
 import (
+	"fmt"
 	"path/filepath"
+	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
@@ -35,6 +38,21 @@ type wizardClosedMsg struct{ aborted bool }
 // wizardWritesDoneMsg reports the env-set.sh write batch.
 type wizardWritesDoneMsg struct{ err error }
 
+// wizardWriteTickMsg drives the animated "writing …" dots during the
+// otherwise-static write phase, so a stall reads as work-in-progress rather
+// than a frozen screen. The screen owns no other tick, so this small loop runs
+// only while wizardWriting and stops as soon as the phase changes.
+type wizardWriteTickMsg struct{}
+
+const (
+	wizardWriteTickRate = 350 * time.Millisecond
+	wizardWriteMaxDots  = 3
+)
+
+func wizardWriteTick() tea.Cmd {
+	return tea.Tick(wizardWriteTickRate, func(time.Time) tea.Msg { return wizardWriteTickMsg{} })
+}
+
 // runWizardWrites is a seam (tests stub it); production writes through the
 // single wizard write path with quiet runners — the TUI owns the terminal.
 var runWizardWrites = func(root string, current, desired map[string]string) error {
@@ -59,6 +77,12 @@ type wizardScreen struct {
 	// a 13-field form is not silently thrown away by a reflexive esc. A
 	// pristine form skips the confirm and closes immediately.
 	discarding bool
+
+	// writeKeys is the number of .env keys being written (captured when the
+	// write phase starts) and writeDots cycles 0..wizardWriteMaxDots to animate
+	// the "writing N config keys…" line.
+	writeKeys int
+	writeDots int
 
 	width, height int
 }
@@ -192,17 +216,46 @@ func (s *wizardScreen) update(msg tea.Msg) (*wizardScreen, tea.Cmd) {
 			}
 			// Terminal transition BEFORE issuing the cmd — see wizardWriting.
 			s.phase = wizardWriting
-			return s, s.writeCmd()
+			// Capture how many keys this write touches so the progress line can
+			// say "writing N config keys…" (only the changed keys are written).
+			s.writeKeys = len(wizard.ChangedKeys(s.current, s.wf.Desired()))
+			s.writeDots = 0
+			// Issue the write AND start the dot animation; the write runs in its
+			// own cmd, the ticks animate the screen until wizardWritesDoneMsg.
+			return s, tea.Batch(s.writeCmd(), wizardWriteTick())
 		}
 		return s, cmd
 
-	default: // wizardWriting — writes in flight; swallow everything
+	default: // wizardWriting — writes in flight
+		// Animate the dots; swallow everything else (a stray huh blink tick
+		// arriving here must not re-enter StateCompleted and fire a second
+		// write batch — see wizardWriting). wizardWritesDoneMsg is handled by
+		// the app, which leaves this screen, so the tick loop ends naturally.
+		if _, ok := msg.(wizardWriteTickMsg); ok {
+			s.writeDots = (s.writeDots + 1) % (wizardWriteMaxDots + 1)
+			return s, wizardWriteTick()
+		}
 		return s, nil
 	}
 }
 
 func closeWizard(aborted bool) tea.Cmd {
 	return func() tea.Msg { return wizardClosedMsg{aborted: aborted} }
+}
+
+// writingLine renders the animated write-progress text: a key count plus a
+// trailing run of dots that grows each tick (then resets), so the screen
+// visibly works rather than sitting on a static string. The dots are padded to
+// a fixed width so the line length — and thus the centered layout — never
+// shifts as they cycle.
+func (s *wizardScreen) writingLine() string {
+	noun := "keys"
+	if s.writeKeys == 1 {
+		noun = "key"
+	}
+	dots := strings.Repeat(".", s.writeDots)
+	pad := strings.Repeat(" ", wizardWriteMaxDots-s.writeDots)
+	return fmt.Sprintf("writing %d config %s%s%s", s.writeKeys, noun, dots, pad)
 }
 
 func (s *wizardScreen) writeCmd() tea.Cmd {
@@ -221,7 +274,7 @@ func (s *wizardScreen) view() string {
 	var body, footer string
 	switch s.phase {
 	case wizardWriting:
-		body = "writing configuration…"
+		body = s.writingLine()
 		footer = ""
 	case wizardConfirm:
 		body = s.wf.Confirm.View()

@@ -34,6 +34,10 @@ type Form struct {
 
 	// Main is phase 1: the IdP selector and every field group.
 	Main *huh.Form
+	// groups are Main's groups, retained so the section intros (group
+	// Title/Description) are inspectable without driving the whole form (huh's
+	// Form does not expose its groups). Only read in tests today.
+	groups []*huh.Group
 	// Confirm is phase 2, built by BuildConfirm once Main completes (its
 	// summary must reflect the final phase-1 values).
 	Confirm *huh.Form
@@ -56,27 +60,52 @@ func NewForm(initial map[string]string, skipAuth bool) *Form {
 
 	idp := huh.NewSelect[bool]().
 		Title("Identity provider").
-		Description("PIC-SURE supports other identity providers, but this distribution wires the Auth0 path.").
+		Description("PIC-SURE supports other providers; skip to wire one up manually.").
 		Options(
 			huh.NewOption("Auth0 (recommended for evaluation)", false),
 			huh.NewOption("Skip — I'll configure an identity provider manually", true),
 		).
 		Value(&f.skip)
 
+	// Each group carries a one-sentence intro (huh renders the group Title +
+	// Description as a header above its fields) so the form reads as a guided
+	// flow with narrative per section rather than a flat wall of 13 inputs. A
+	// dynamic "Step N of M" indicator is intentionally NOT added: huh v1.0.0
+	// has no built-in group progress, and two groups here are conditionally
+	// hidden (Auth0 when skipped, the remote-DB details when DB_MODE!=remote),
+	// so any static count would mislead the moment a group is hidden — computing
+	// the visible index would mean reimagining huh's group selector. See report.
 	groups := []*huh.Group{
-		huh.NewGroup(idp),
+		huh.NewGroup(idp).
+			Title("Identity provider").
+			Description("Choose how users sign in. This distribution wires the Auth0 path."),
 		huh.NewGroup(inputsFor(GroupAuth0, false, f.ptrs)...).
+			Title("Auth0 credentials").
+			Description("From your Auth0 application — the client ID and its paired secret.").
 			WithHideFunc(func() bool { return f.skip }),
-		huh.NewGroup(inputsFor(GroupAdmin, false, f.ptrs)...),
-		huh.NewGroup(inputsFor(GroupPorts, false, f.ptrs)...),
-		huh.NewGroup(inputsFor(GroupAuth, false, f.ptrs)...),
-		huh.NewGroup(inputsFor(GroupDB, false, f.ptrs)...),
+		huh.NewGroup(inputsFor(GroupAdmin, false, f.ptrs)...).
+			Title("Admin account").
+			Description("The first administrator; sign in with this account after setup."),
+		huh.NewGroup(inputsFor(GroupPorts, false, f.ptrs)...).
+			Title("Ports").
+			Description("Host ports the frontend binds — change these if 80/443 are taken."),
+		huh.NewGroup(inputsFor(GroupAuth, false, f.ptrs)...).
+			Title("Auth mode").
+			Description("How much of PIC-SURE is reachable without signing in."),
+		huh.NewGroup(inputsFor(GroupDB, false, f.ptrs)...).
+			Title("Database").
+			Description("Local runs a bundled MySQL; remote points at your own server."),
 		// Remote connection details only when DB_MODE=remote.
 		huh.NewGroup(inputsFor(GroupDB, true, f.ptrs)...).
+			Title("Remote database connection").
+			Description("Where to reach your external MySQL and the admin credentials.").
 			WithHideFunc(func() bool { return *f.ptrs["DB_MODE"] != "remote" }),
 		// Release-control repo/branch is orthogonal to DB mode — always shown.
-		huh.NewGroup(inputsFor(GroupReleaseControl, false, f.ptrs)...),
+		huh.NewGroup(inputsFor(GroupReleaseControl, false, f.ptrs)...).
+			Title("Release control").
+			Description("Pins which component versions are built — keep the defaults unless you fork it."),
 	}
+	f.groups = groups
 	f.Main = huh.NewForm(groups...)
 	// Capture the baseline AFTER construction: huh normalises select values
 	// (an out-of-range seed snaps to a valid option) while building the

@@ -3,6 +3,8 @@ package wizard
 import (
 	"strings"
 	"testing"
+
+	"github.com/charmbracelet/x/ansi"
 )
 
 // Amendment 1 (spec): exactly one form definition serves both hosts. This
@@ -76,6 +78,47 @@ func TestReleaseControlFieldsSeedAndSummarize(t *testing.T) {
 	} {
 		if !strings.Contains(s, want) {
 			t.Errorf("summary missing %q\n--- summary ---\n%s", want, s)
+		}
+	}
+}
+
+// TestGroupIntrosRender: every field section carries a one-sentence intro
+// (group Title + Description) so the wizard reads as a guided flow rather than a
+// flat wall. The first group's header is asserted through a live huh render
+// (proving the mechanism), and every group's header is checked via Group.Header
+// (huh renders Title+Description there regardless of focus).
+func TestGroupIntrosRender(t *testing.T) {
+	wf := NewForm(map[string]string{"DB_MODE": "local"}, false)
+
+	// Live render of the focused (first) group shows its intro through huh.
+	wf.Main.Init()
+	first := ansi.Strip(wf.Main.View())
+	if !strings.Contains(first, "Choose how users sign in") {
+		t.Errorf("first group's intro did not render in the live form view:\n%s", first)
+	}
+
+	// Every section's intro sentence appears in some group header. A group is
+	// the conditionally-hidden remote-DB group or the always-shown rest; either
+	// way Header() renders the Title+Description.
+	headers := make([]string, 0, len(wf.groups))
+	for _, g := range wf.groups {
+		headers = append(headers, ansi.Strip(g.Header()))
+	}
+	joined := strings.Join(headers, "\n----\n")
+
+	wantIntros := []string{
+		"Choose how users sign in",                              // Identity provider
+		"From your Auth0 application",                           // Auth0 credentials
+		"The first administrator",                               // Admin account
+		"Host ports the frontend binds",                         // Ports
+		"How much of PIC-SURE is reachable without signing in",  // Auth mode
+		"Local runs a bundled MySQL; remote points at your own", // Database
+		"Where to reach your external MySQL",                    // Remote database connection
+		"Pins which component versions are built",               // Release control
+	}
+	for _, want := range wantIntros {
+		if !strings.Contains(joined, want) {
+			t.Errorf("no group header contains the intro %q\n--- headers ---\n%s", want, joined)
 		}
 	}
 }

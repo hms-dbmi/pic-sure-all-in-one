@@ -345,9 +345,8 @@ func TestActionPanePreservesManualScroll(t *testing.T) {
 	}
 	m.actionOut.Feed([]byte(b.String()))
 	m.refreshActionPane()
-	if m.actionView.AtBottom() {
-		// Sanity: a fresh feed tails to the bottom (the at-bottom default).
-	} else {
+	// Sanity: a fresh feed tails to the bottom (the at-bottom default).
+	if !m.actionView.AtBottom() {
 		t.Fatal("first batch should have tailed to the bottom")
 	}
 

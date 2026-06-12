@@ -132,6 +132,7 @@ info "Generated config removed."
 # -------------------------------------------------------------------------
 if [ "$WIPE_DB" = "true" ]; then
   info "Removing PIC-SURE images..."
+  # Keep in sync with uninstall.sh's images=() list (the two have drifted before).
   for img in pic-sure-hpds pic-sure-psama pic-sure-wildfly pic-sure-httpd \
              pic-sure-dictionary-api pic-sure-dictionary-dump pic-sure-hpds-etl \
              pic-sure-visualization pic-sure-logging; do

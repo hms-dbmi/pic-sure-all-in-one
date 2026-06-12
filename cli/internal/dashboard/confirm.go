@@ -51,6 +51,9 @@ func (m *model) startConfirm(act actions.Action) (tea.Model, tea.Cmd) {
 // group viewport heights on every WindowSizeMsg (WithWidth would freeze them).
 func (m *model) sizeForm(f *huh.Form) *huh.Form {
 	_, cols := m.actionPaneSize() // form-pane content width = m.width-leftWidth-8
+	// -5 = the frame's chrome rows around the form pane content: header (1) +
+	// pane border top/bottom (2) + footer help line (1), plus 1 row of slack
+	// so the composed frame can never exceed the terminal box.
 	height := max(m.height-5, 8)
 	mm, _ := f.Update(tea.WindowSizeMsg{Width: cols, Height: height})
 	if ff, ok := mm.(*huh.Form); ok {

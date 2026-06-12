@@ -69,6 +69,7 @@ generated_paths=(
   "$SCRIPT_DIR/config/wildfly/visualization/pic-sure-visualization-resource/resource.properties"
 )
 
+# Keep in sync with reset.sh's --all image list (the two have drifted before).
 images=(
   "hms-dbmi/pic-sure-hpds:$IMAGE_TAG"
   "hms-dbmi/pic-sure-hpds-etl:$IMAGE_TAG"

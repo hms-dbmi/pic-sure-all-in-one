@@ -266,6 +266,10 @@ func (m *model) actionPane() string {
 }
 
 func (m *model) formPane() string {
+	// Styled width minus paneStyle's 2 padding cols = m.width-leftWidth-8,
+	// the content width sizeForm feeds the form via actionPaneSize(). Keep
+	// these in lockstep or the form re-wraps inside the pane and shears the
+	// frame (TestDialogFitsNarrowPane guards this).
 	width := max(m.width-leftWidth-6, 20)
 	return paneStyle.Width(width).Render(m.form.View())
 }

@@ -168,14 +168,15 @@ services:
     depends_on:
       flyway-init:
         condition: service_completed_successfully
-    # TCP-level probe: PSAMA (Spring Boot, amazoncorretto:24-alpine) exposes
-    # no unauthenticated 2xx GET — Spring Security 401s everything except
-    # /actuator/health (404: actuator is not on the classpath) and
-    # /authentication/**, and wget --spider fails on any non-2xx.  busybox
-    # nc is in the alpine base.  Catches a dead process, not app-level
-    # failures (e.g. a broken DB connection after startup).
+    # Real HTTP probe: GET /auth/tos/latest is allowlisted unauthenticated in
+    # PSAMA's SecurityConfig (repos/pic-sure-auth-microapp .../config/
+    # SecurityConfig.java) and TermsOfServiceController returns 200 even with
+    # an empty TOS table.  Unlike a TCP check this exercises the full Spring
+    # context and the DB path — a broken datasource turns the request into a
+    # 5xx, which wget --spider treats as failure.  busybox wget is in the
+    # corretto-alpine base.
     healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "8090"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8090/auth/tos/latest"]
       interval: 30s
       timeout: 10s
       retries: 5

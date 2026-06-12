@@ -306,8 +306,8 @@ func (l *landing) choose(id string) (*landing, tea.Cmd) {
 	case "seed":
 		return l.startConfirm(actions.SeedDB())
 	case "etl":
-		return l.startSelectPicker("ETL operations",
-			"Parameterless etl.sh steps; subcommands that take file arguments\n(load-csv, load-vcf, ...) are CLI-only — see `pic-sure etl --help`.",
+		return l.startSelectPicker("Load your data",
+			"Parameterless etl.sh operations; subcommands that take file arguments\n(load-csv, load-vcf, ...) are CLI-only — see `pic-sure etl --help`.",
 			"hydrate-dictionary",
 			[]huh.Option[string]{
 				huh.NewOption("hydrate-dictionary", "hydrate-dictionary"),

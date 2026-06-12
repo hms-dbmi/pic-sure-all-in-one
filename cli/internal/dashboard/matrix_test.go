@@ -1,14 +1,18 @@
 package dashboard
 
-// U13 size/NO_COLOR verification matrix for the dashboard help line (U12).
+// U13 size/color verification matrix for the dashboard help line (U12).
 // Renders at 80×24, 120×30, and 200×50 in modeNormal and confirms:
 //   - At <100 cols: the reduced hint set is shown.
 //   - At ≥100 cols: the full legend is shown.
 //   - In both cases: the view stays within the terminal box.
 //
-// A NO_COLOR sub-test verifies no ANSI SGR sequences survive rendering.
+// Color emission is pinned around EXPLICIT lipgloss color profiles (see
+// TestDashboardColorProfileSGR): in a test binary stdout is not a TTY, so
+// lipgloss auto-detects the Ascii profile and emits zero SGR regardless of
+// NO_COLOR — an env-var-based NO_COLOR assertion would be vacuous.
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 	"testing"
@@ -16,6 +20,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
+	"github.com/muesli/termenv"
 )
 
 // dashAnsiSGR matches any ANSI SGR escape sequence.
@@ -36,7 +41,7 @@ var dashMatrixSizes = [][2]int{
 func TestDashboardHelpLineMatrix(t *testing.T) {
 	for _, sz := range dashMatrixSizes {
 		w, h := sz[0], sz[1]
-		t.Run("", func(t *testing.T) {
+		t.Run(fmt.Sprintf("%dx%d", w, h), func(t *testing.T) {
 			m := testModel(t)
 			mm, _ := m.Update(tea.WindowSizeMsg{Width: w, Height: h})
 			m = mm.(*model)
@@ -81,26 +86,44 @@ func TestDashboardHelpLineMatrix(t *testing.T) {
 	}
 }
 
-// TestDashboardNOCOLOR renders the dashboard under NO_COLOR=1 at 80×24 and
-// 200×50, asserts no panic, and checks that the ANSI-stripped output contains
-// no raw SGR sequences.
-func TestDashboardNOCOLOR(t *testing.T) {
-	t.Setenv("NO_COLOR", "1")
+// TestDashboardColorProfileSGR pins both sides of color emission around
+// EXPLICIT lipgloss color profiles. A t.Setenv("NO_COLOR")-based test would be
+// vacuous here: the test binary's stdout is not a TTY, so lipgloss's
+// auto-detected profile is already Ascii (zero SGR no matter what), and the
+// default renderer caches its detected profile via sync.Once anyway. Instead,
+// lipgloss.SetColorProfile — the documented testing hook for exactly this —
+// forces the default renderer (which the dashboard's package-level styles
+// render through) to:
+//   - termenv.TrueColor: the styled dashboard MUST emit SGR (proves the
+//     styling is real, so the Ascii side below cannot pass trivially);
+//   - termenv.Ascii (what lipgloss resolves NO_COLOR to): zero SGR, and
+//     rendering must not panic.
+//
+// No test in this package uses t.Parallel, so mutating the default renderer's
+// profile with a Cleanup restore is safe.
+func TestDashboardColorProfileSGR(t *testing.T) {
+	restore := lipgloss.ColorProfile()
+	t.Cleanup(func() { lipgloss.SetColorProfile(restore) })
+
 	for _, sz := range [][2]int{{80, 24}, {200, 50}} {
 		w, h := sz[0], sz[1]
-		func() {
-			defer func() {
-				if r := recover(); r != nil {
-					t.Errorf("%dx%d NO_COLOR: dashboard.View() panicked: %v", w, h, r)
-				}
-			}()
-			m := testModel(t)
-			mm, _ := m.Update(tea.WindowSizeMsg{Width: w, Height: h})
-			m = mm.(*model)
-			view := m.View()
-			if dashAnsiSGR.MatchString(view) {
-				t.Errorf("%dx%d NO_COLOR: raw ANSI SGR sequences present in output", w, h)
-			}
-		}()
+
+		// Color profile: styling must actually emit SGR.
+		lipgloss.SetColorProfile(termenv.TrueColor)
+		m := testModel(t)
+		mm, _ := m.Update(tea.WindowSizeMsg{Width: w, Height: h})
+		m = mm.(*model)
+		if view := m.View(); !dashAnsiSGR.MatchString(view) {
+			t.Errorf("%dx%d TrueColor: styled dashboard emitted no SGR (styling lost?)", w, h)
+		}
+
+		// Ascii profile (the NO_COLOR resolution): zero SGR.
+		lipgloss.SetColorProfile(termenv.Ascii)
+		m = testModel(t)
+		mm, _ = m.Update(tea.WindowSizeMsg{Width: w, Height: h})
+		m = mm.(*model)
+		if view := m.View(); dashAnsiSGR.MatchString(view) {
+			t.Errorf("%dx%d Ascii (NO_COLOR): raw ANSI SGR sequences present in output", w, h)
+		}
 	}
 }

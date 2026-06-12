@@ -1,19 +1,22 @@
 package tui
 
-// U13 size/NO_COLOR verification matrix for landing and activity surfaces.
-// Each matrix sub-test renders at 80×24, 120×30, and 200×50 and asserts the
-// view-specific properties described by the audit.  A separate NO_COLOR test
-// checks that rendering under NO_COLOR=1 neither panics nor emits raw ANSI
-// SGR sequences — lipgloss strips color automatically when NO_COLOR is set,
-// so no layout changes are expected.
+// U13 size/color verification matrix for landing and activity surfaces.
+// Each matrix sub-test renders at the canonical sizes and asserts the
+// view-specific properties described by the audit. Color emission is pinned
+// around EXPLICIT lipgloss color profiles (see TestLandingColorProfileSGR):
+// in a test binary stdout is not a TTY, so lipgloss auto-detects the Ascii
+// profile and emits zero SGR regardless of NO_COLOR — an env-var-based
+// NO_COLOR assertion would be vacuous (it could never fail).
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 
 	"github.com/hms-dbmi/pic-sure-all-in-one/cli/internal/actions"
 )
@@ -30,14 +33,19 @@ var matrixSizes = [][2]int{
 
 // TestLandingNarrowLogoMatrix renders the landing at each canonical size and
 // asserts:
-//   - At widths where the full block-art logo doesn't fit (< logoWidth()+4),
-//     the compact "▌ PIC-SURE ▐" wordmark is present.
+//   - At widths where the full block-art logo doesn't fit (< logoWidth()+4 =
+//     70), the compact "▌ PIC-SURE ▐" wordmark is present.
 //   - At widths where the full logo fits, the block-art logo is used (no ▌/▐).
 //   - The view stays within the terminal box at every size.
+//
+// The canonical matrix (80/120/200 cols) is all-wide for the 70-col logo
+// threshold, so a 60×16 size is prepended to actually exercise the narrow
+// branch (U9's whole point).
 func TestLandingNarrowLogoMatrix(t *testing.T) {
-	for _, sz := range matrixSizes {
+	sizes := append([][2]int{{60, 16}}, matrixSizes...)
+	for _, sz := range sizes {
 		w, h := sz[0], sz[1]
-		t.Run("", func(t *testing.T) {
+		t.Run(fmt.Sprintf("%dx%d", w, h), func(t *testing.T) {
 			l := newLanding("/tmp/x", true, false)
 			l.setSize(w, h)
 			view := l.view()
@@ -54,6 +62,7 @@ func TestLandingNarrowLogoMatrix(t *testing.T) {
 
 			plain := ansiSGR.ReplaceAllString(view, "")
 			if w < logoWidth()+4 {
+				t.Logf("%dx%d: narrow branch exercised (compact wordmark; logo threshold %d cols)", w, h, logoWidth()+4)
 				// Narrow: compact wordmark must be present.
 				if !strings.Contains(plain, "PIC-SURE") {
 					t.Errorf("%dx%d narrow: compact wordmark not found in view", w, h)
@@ -157,29 +166,43 @@ func TestActivityFooterMatrix(t *testing.T) {
 	}
 }
 
-// TestLandingNOCOLOR renders the landing under NO_COLOR=1 at 80×24 and 200×50,
-// asserts no panic, and checks that the ANSI-stripped output contains no raw
-// SGR sequences (lipgloss strips color when NO_COLOR is set in os.Environ —
-// t.Setenv propagates it into os.Getenv which lipgloss reads at render time).
-func TestLandingNOCOLOR(t *testing.T) {
-	t.Setenv("NO_COLOR", "1")
-	// lipgloss reads NO_COLOR via os.Getenv at render time; the env var is now set.
-	for _, sz := range [][2]int{{80, 24}, {200, 50}} {
+// TestLandingColorProfileSGR pins both sides of color emission around
+// EXPLICIT lipgloss color profiles. A t.Setenv("NO_COLOR")-based test would
+// be vacuous here: the test binary's stdout is not a TTY, so lipgloss's
+// auto-detected profile is already Ascii (zero SGR no matter what), and the
+// default renderer caches its detected profile via sync.Once anyway. Instead,
+// lipgloss.SetColorProfile — the documented testing hook for exactly this —
+// forces the default renderer (which all the views' package-level styles
+// render through) to:
+//   - termenv.TrueColor: the styled landing MUST emit SGR (proves the
+//     styling is real, so the Ascii side below cannot pass trivially);
+//   - termenv.Ascii (what lipgloss resolves NO_COLOR to): zero SGR, and
+//     rendering must not panic.
+//
+// No test in this package uses t.Parallel, so mutating the default renderer's
+// profile with a Cleanup restore is safe.
+func TestLandingColorProfileSGR(t *testing.T) {
+	restore := lipgloss.ColorProfile()
+	t.Cleanup(func() { lipgloss.SetColorProfile(restore) })
+
+	for _, sz := range [][2]int{{60, 16}, {80, 24}, {200, 50}} {
 		w, h := sz[0], sz[1]
-		func() {
-			defer func() {
-				if r := recover(); r != nil {
-					t.Errorf("%dx%d NO_COLOR: landing.view() panicked: %v", w, h, r)
-				}
-			}()
-			l := newLanding("/tmp/x", true, false)
-			l.setSize(w, h)
-			view := l.view()
-			// lipgloss strips color under NO_COLOR; no raw SGR should remain.
-			if ansiSGR.MatchString(view) {
-				t.Errorf("%dx%d NO_COLOR: raw ANSI SGR sequences present in output", w, h)
-			}
-		}()
+
+		// Color profile: styling must actually emit SGR.
+		lipgloss.SetColorProfile(termenv.TrueColor)
+		l := newLanding("/tmp/x", true, false)
+		l.setSize(w, h)
+		if view := l.view(); !ansiSGR.MatchString(view) {
+			t.Errorf("%dx%d TrueColor: styled landing emitted no SGR (styling lost?)", w, h)
+		}
+
+		// Ascii profile (the NO_COLOR resolution): zero SGR.
+		lipgloss.SetColorProfile(termenv.Ascii)
+		l = newLanding("/tmp/x", true, false)
+		l.setSize(w, h)
+		if view := l.view(); ansiSGR.MatchString(view) {
+			t.Errorf("%dx%d Ascii (NO_COLOR): raw ANSI SGR sequences present in output", w, h)
+		}
 	}
 }
 

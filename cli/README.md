@@ -234,10 +234,15 @@ headless via `pic-sure etl load-phenotype …` / `pic-sure etl load-genomic …`
 3. **JVM heap.** Prefilled `4096` (MB) — the floor for <1M rows; raise to
    `8000`+ for larger CSVs.
 4. **Dictionary.** Pick **Auto** — rebuild the dictionary from the loaded data
-   (recommended) — or **Custom**, which then asks for `datasets.csv` and
-   `concepts.zip` (and optionally the facet trio: `facet_categories.csv`,
-   `facets.csv`, `facet_concepts.csv` — all three together or none; examples
-   sit alongside the CSV fixture under `fixtures/etl/custom/`).
+   (recommended) — or **Custom**, which then asks for `datasets.csv` and a
+   concepts archive. The concepts archive must be a **`.zip` you provide
+   containing `concepts_*.csv` entries** — `load-dictionary-csv` unzips it and
+   reads the `concepts_*.csv` inside, and the file browser only lists `.zip`.
+   Optionally supply the facet trio (`facet_categories.csv`, `facets.csv`,
+   `facet_concepts.csv` — all three together or none). The example fixtures
+   under `fixtures/etl/custom/` ship the raw `concepts_0.csv` (zip it yourself,
+   e.g. `zip concepts.zip concepts_0.csv`) alongside ready-to-use `datasets.csv`
+   and facet CSVs.
 5. **Confirm.** The summary spells out that this **REPLACES existing HPDS
    phenotype data**; that summary is the consent.
 
@@ -251,6 +256,7 @@ Headless equivalent:
 
 ```sh
 pic-sure etl load-phenotype --file /path/allConcepts.csv          # auto dictionary
+# custom: --concepts must be a zip of concepts_*.csv (zip concepts.zip concepts_0.csv)
 pic-sure etl load-phenotype --file /path/allConcepts.csv \
   --dictionary custom --datasets /path/datasets.csv --concepts /path/concepts.zip
 ```

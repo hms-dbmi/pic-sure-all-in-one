@@ -200,8 +200,11 @@ func (a *app) runInit(args []string) error {
 		// An untouched template is still a valid starting point (e.g.
 		// --skip-auth with defaults): make sure .env exists for init.sh.
 		if _, err := os.Stat(envPath); err != nil {
-			if code, err := a.runScript(root, scripts.EnvSet, []string{"DB_MODE", desired["DB_MODE"]}); err != nil || code != 0 {
-				return fmt.Errorf("creating .env via scripts/env-set.sh failed (exit %d): %v", code, err)
+			if code, runErr := a.runScript(root, scripts.EnvSet, []string{"DB_MODE", desired["DB_MODE"]}); runErr != nil || code != 0 {
+				if runErr != nil {
+					return fmt.Errorf("creating .env via scripts/env-set.sh: %w", runErr)
+				}
+				return fmt.Errorf("creating .env via scripts/env-set.sh: exited %d", code)
 			}
 		}
 	}

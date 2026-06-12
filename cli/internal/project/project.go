@@ -60,3 +60,10 @@ func isRoot(dir string) bool {
 func markersList() string {
 	return strings.Join(markers, " + ")
 }
+
+// MarkersList returns the human-readable list of marker files that identify
+// the repository root, for use in help text. Calling MarkersList() instead of
+// duplicating the string keeps help text and the actual detection logic in sync.
+func MarkersList() string {
+	return markersList()
+}

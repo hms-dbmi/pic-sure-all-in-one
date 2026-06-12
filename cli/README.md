@@ -345,7 +345,7 @@ them first via `scripts/env-set.sh KEY --stdin` and then run
 | `not inside a pic-sure-all-in-one checkout: no directory containing .env.example + docker-compose.yml + scripts/picsure-compose.sh found` | run from inside the checkout or pass `--root DIR` |
 | `the dashboard needs a terminal` | TUI commands require a TTY; on a pipe use `status --json` etc. |
 | `parsing status JSON: invalid character '='` | the binary is pointed at an **old checkout** whose `status.sh` predates `--json`; update that checkout |
-| Landing shows "Set up PIC-SURE" though you configured before | no `.env` in *this* checkout root — check which root was discovered (`pic-sure status \| head`) |
+| Landing shows "Set up PIC-SURE" though you configured before | no `.env` in *this* checkout root — status values come from the discovered root; pass `--root DIR` to pin it |
 | `.env: INVALID shell syntax` in the dashboard / `env.parse` preflight failure | the `.env` no longer parses as shell; fix it or restore the backup (`.env.bak.*`) |
 | Animations off unexpectedly | you're on SSH; `PIC_SURE_NO_ANIMATIONS=0` re-enables |
 | Star glyphs render as boxes | your terminal font lacks the configured glyph; unset `PIC_SURE_STAR_GLYPHS` (default `✦` is universal) |

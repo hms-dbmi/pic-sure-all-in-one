@@ -93,7 +93,7 @@ while [ "$#" -gt 0 ]; do
       fi
       ;;
     -h|--help)
-      sed -n '2,19p' "$0"
+      sed -n '2,22p' "$0"
       exit 0
       ;;
     *) warn "Unknown flag: $1" ;;

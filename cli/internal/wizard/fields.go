@@ -84,7 +84,7 @@ var Fields = []Field{
 		Flag:     "--admin-email",
 		Group:    GroupAdmin,
 		Title:    "Admin email",
-		Help:     "Initial admin user for the Auth0/Google login path — must be a Google account",
+		Help:     "Initial admin user (must be a Google account when using the Auth0 path)",
 		Required: true,
 		Validate: validEmail,
 	},

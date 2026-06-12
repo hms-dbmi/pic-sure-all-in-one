@@ -66,14 +66,14 @@ func (a *app) rootCommand() *cobra.Command {
 	root := &cobra.Command{
 		Use:   "pic-sure",
 		Short: "Manage a PIC-SURE All-in-One deployment",
-		Long: `pic-sure is a frontend for the PIC-SURE All-in-One deployment scripts.
+		Long: fmt.Sprintf(`pic-sure is a frontend for the PIC-SURE All-in-One deployment scripts.
 
 Every operation runs the corresponding bash script from the checkout root;
 the scripts remain fully usable on their own.
 
 Global flags (accepted anywhere on the command line):
   --root DIR           checkout root (default: walk up from the working
-                       directory looking for .env.example + docker-compose.yml)
+                       directory looking for %s)
   --yes, --non-interactive
                        never prompt; translated to the script's own --yes
                        where supported (reset, uninstall)
@@ -81,7 +81,7 @@ Global flags (accepted anywhere on the command line):
 
 These names are reserved; to hand one of them to a script literally, put a
 -- after the subcommand: everything past it passes through byte-verbatim
-(e.g. pic-sure etl -- --root /data).`,
+(e.g. pic-sure etl -- --root /data).`, project.MarkersList()),
 		Version:      fmt.Sprintf("%s (commit %s, built %s)", a.info.Version, a.info.Commit, a.info.Date),
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -180,7 +180,7 @@ func scriptCommandLong(sc ScriptCommand) string {
 		long = fmt.Sprintf("Runs `%s %s` from the checkout root.\n", sc.Script, sc.Prepend[0])
 	}
 	if sc.FlagsHelp != "" {
-		long += fmt.Sprintf("\nCommon flags:\n  %s\n", sc.FlagsHelp)
+		long += fmt.Sprintf("\nCommon arguments:\n  %s\n", sc.FlagsHelp)
 	}
 	long += fmt.Sprintf("\nAll arguments pass through to the script verbatim; see `%s --help`\nfor the authoritative list.", sc.Script)
 	if sc.Prompts {

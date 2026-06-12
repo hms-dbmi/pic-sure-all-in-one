@@ -36,7 +36,7 @@ for arg in "$@"; do
   case "$arg" in
     --verbose) VERBOSE=true ;;
     --all) DATASET="all" ;;
-    -*) echo "Unknown flag: $arg"; exit 1 ;;
+    -*) error "Unknown flag: $arg"; exit 1 ;;
     *) DATASET="$arg" ;;
   esac
 done

@@ -593,6 +593,9 @@ func (l *landing) contentLines(withLogo bool) []string {
 }
 
 func (l *landing) footer() string {
+	if l.form != nil {
+		return "↑/↓ · enter · esc cancel"
+	}
 	if l.dev || l.relctl {
 		return "↑/↓ select · enter · esc back · q quit"
 	}

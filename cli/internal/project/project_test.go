@@ -69,3 +69,14 @@ func TestFindRootNotFound(t *testing.T) {
 		t.Errorf("error should mention --root, got: %v", err)
 	}
 }
+
+// TestMarkersListContainsAllMarkers ensures MarkersList() names every file
+// that isRoot actually checks — so help text derived from it cannot drift.
+func TestMarkersListContainsAllMarkers(t *testing.T) {
+	list := MarkersList()
+	for _, m := range markers {
+		if !strings.Contains(list, m) {
+			t.Errorf("MarkersList() = %q: missing marker %q", list, m)
+		}
+	}
+}

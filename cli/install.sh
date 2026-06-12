@@ -129,9 +129,13 @@ case ":$PATH:" in
   *)
     say ""
     say "Note: $BIN_DIR is not on your PATH. Add it with:"
-    say "  export PATH=\"$BIN_DIR:\$PATH\""
+    say "  bash/zsh:  export PATH=\"$BIN_DIR:\$PATH\""
+    say "  fish:      fish_add_path \"$BIN_DIR\""
     ;;
 esac
 
 say ""
-say "Get started: run 'pic-sure' inside a pic-sure-all-in-one checkout."
+say "Get started:"
+say "  git clone https://github.com/hms-dbmi/pic-sure-all-in-one"
+say "  cd pic-sure-all-in-one"
+say "  pic-sure"

@@ -33,6 +33,7 @@ NETWORK=false
 FAILED=false
 JSON=false
 CHECKS=()
+DAEMON_OK=false
 
 # Detect --json first so result helpers know the mode even if an unknown
 # option appears before it on the command line.
@@ -179,6 +180,7 @@ else
 fi
 
 if docker info >/dev/null 2>&1; then
+  DAEMON_OK=true
   ok host.daemon "Docker daemon is reachable."
 else
   fail host.daemon "Docker daemon is not reachable."
@@ -244,7 +246,9 @@ else
 fi
 
 psection "Compose"
-if compose_config_ready; then
+if [ "$DAEMON_OK" != "true" ]; then
+  warn compose.config "Skipping Compose config validation; Docker daemon is not reachable."
+elif compose_config_ready; then
   if picsure_compose config --quiet; then
     ok compose.config "Compose config is valid."
   else

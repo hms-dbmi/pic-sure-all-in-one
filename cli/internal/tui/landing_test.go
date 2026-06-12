@@ -721,6 +721,36 @@ func TestLandingFrameStaysInBoxWithDialogs(t *testing.T) {
 	}
 }
 
+// TestLandingFooterSwitchesWhenDialogIsOpen guards the footer copy: while a
+// dialog is open 'q' types into the input, so the default "q quit" hint is
+// wrong. The footer must switch to a dialog-appropriate hint ("esc cancel")
+// when l.form != nil, and revert to the normal hints once the dialog closes.
+func TestLandingFooterSwitchesWhenDialogIsOpen(t *testing.T) {
+	l := newLanding("/tmp/x", true, false)
+	// No dialog: normal footer.
+	if got := l.footer(); got != "↑/↓ select · enter · q quit" {
+		t.Errorf("no-dialog footer = %q, want hint with q quit", got)
+	}
+	// Open a confirm dialog (update).
+	_, _ = l.choose("update")
+	if l.form == nil {
+		t.Fatal("update did not open a dialog")
+	}
+	// Dialog open: must NOT show "q quit".
+	got := l.footer()
+	if strings.Contains(got, "q quit") {
+		t.Errorf("dialog-open footer still shows 'q quit': %q", got)
+	}
+	if !strings.Contains(got, "esc") {
+		t.Errorf("dialog-open footer missing 'esc': %q", got)
+	}
+	// After esc closes the dialog the footer reverts.
+	l.update(tea.KeyMsg{Type: tea.KeyEsc})
+	if got := l.footer(); got != "↑/↓ select · enter · q quit" {
+		t.Errorf("after-close footer = %q, want hint with q quit", got)
+	}
+}
+
 // huh ships its esc binding disabled (only ctrl+c aborts a form) — the same
 // root cause as the wizard's esc bug. Every landing dialog advertises
 // "esc cancels"; the screen must intercept it.

@@ -153,6 +153,14 @@ func (l *landing) setEnvExists(exists bool) {
 func (l *landing) setSize(width, height int) {
 	l.width, l.height = width, height
 	l.star.resize(width, height)
+	// An open dialog is sized once at open time; huh recomputes its group
+	// viewport geometry only in its WindowSizeMsg handler, so re-feed the
+	// live form the synthetic resize on every change (as wizardScreen does).
+	// Without this, shrinking the terminal while a dialog is open leaves it
+	// laid out for the old size, clipping content below the fold.
+	if l.form != nil {
+		l.form = l.sizeForm(l.form)
+	}
 }
 
 func (l *landing) update(msg tea.Msg) (*landing, tea.Cmd) {

@@ -98,6 +98,44 @@ func TestLandingDevMenuNoWrapAt80(t *testing.T) {
 	}
 }
 
+// TestLandingResizeReflowsOpenDialog verifies that resizing the terminal
+// while a dialog is open re-sizes the live form. huh recomputes its group
+// viewport geometry only in its WindowSizeMsg handler; without re-feeding the
+// synthetic resize from setSize, a dialog opened wide and then shrunk keeps
+// rendering at the old budget (content clipped below the fold).
+func TestLandingResizeReflowsOpenDialog(t *testing.T) {
+	l := newLanding("/tmp/x", true, false)
+	l.setSize(120, 40)
+	keyDownN(l, 5) // dev submenu
+	l.update(keyEnter())
+	// Open the reset dialog (a tall select+input group).
+	keyDownN(l, 6) // migrate, seed, etl, devoverlay, devrevert, relctl, reset
+	l.update(keyEnter())
+	if l.form == nil || !l.resetting {
+		t.Fatalf("reset dialog did not open (form=%v resetting=%v)", l.form != nil, l.resetting)
+	}
+
+	wide := maxLineWidth(l.form.View())
+
+	// Shrink the terminal while the dialog is open.
+	l.setSize(50, 40)
+	narrow := maxLineWidth(l.form.View())
+
+	if narrow >= wide {
+		t.Errorf("open dialog was not reflowed on resize: wide width=%d, narrow width=%d", wide, narrow)
+	}
+}
+
+func maxLineWidth(s string) int {
+	w := 0
+	for _, line := range splitLines(s) {
+		if lw := lipgloss.Width(line); lw > w {
+			w = lw
+		}
+	}
+	return w
+}
+
 func TestLandingSelectionsEmitRequests(t *testing.T) {
 	l := newLanding("/tmp/x", true, false)
 	// Dashboard (first item)

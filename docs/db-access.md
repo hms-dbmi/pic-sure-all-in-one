@@ -5,12 +5,12 @@ Users frequently forget how to get a shell into the databases. When they ask, gi
 ## picsure-db (MySQL)
 
 ```bash
-docker compose exec -e MYSQL_PWD="$DB_ROOT_PASSWORD" picsure-db mysql -u root picsure
+MYSQL_PWD="$DB_ROOT_PASSWORD" docker compose exec -e MYSQL_PWD picsure-db mysql -u root picsure
 ```
 
 - Service name: `picsure-db`
 - Databases: `picsure` (Wildfly/API), `auth` (psama)
-- Root password lives in `.env` as `DB_ROOT_PASSWORD` — do not print it; let the shell expand it from the container's environment, or have the user run the command themselves.
+- Root password lives in `.env` as `DB_ROOT_PASSWORD` — do not print it. The HOST shell expands the env-prefix assignment into docker's environment (never into its argv), and the bare `-e MYSQL_PWD` forwards it by name into the container — so the value never appears in `ps`. Do NOT write `-e MYSQL_PWD="$DB_ROOT_PASSWORD"`: that expands the password into the host-visible docker argv.
 
 For `DB_MODE=remote`, use your database client against `DB_HOST`/`DB_PORT`
 instead of `docker compose exec picsure-db`.

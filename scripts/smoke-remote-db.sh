@@ -90,8 +90,8 @@ echo "[remote-db-smoke] Checking migration inputs..."
 ./run-migrations.sh --check
 
 echo "[remote-db-smoke] Verifying schemas and users..."
-verify_count="$(docker run --rm \
-  -e MYSQL_PWD="$ROOT_PASSWORD" \
+verify_count="$(MYSQL_PWD="$ROOT_PASSWORD" docker run --rm \
+  -e MYSQL_PWD \
   mysql:8.0 \
   mysql -h "$DB_HOST_VALUE" -P 3306 -uroot -N -e "
     SELECT COUNT(*) FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME IN ('auth', 'picsure');

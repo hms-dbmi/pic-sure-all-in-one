@@ -33,8 +33,10 @@ SLEEP_SECONDS="${DB_WAIT_SLEEP_SECONDS:-2}"
 
 if [ "${DB_MODE:-local}" = "remote" ]; then
   info "Waiting for remote MySQL at ${DB_HOST:-unset}:${DB_PORT:-3306}..."
-  until docker run --rm \
-    -e MYSQL_PWD="${DB_ROOT_PASSWORD:-}" \
+  # Env-prefix + bare -e: the host shell puts the password in docker's
+  # environment (not argv); docker forwards it by name into the container.
+  until MYSQL_PWD="${DB_ROOT_PASSWORD:-}" docker run --rm \
+    -e MYSQL_PWD \
     mysql:8.0 \
     mysql -h "${DB_HOST}" -P "${DB_PORT:-3306}" -u "${DB_ROOT_USER:-root}" -e "SELECT 1;" >/dev/null 2>&1; do
     RETRIES=$((RETRIES - 1))

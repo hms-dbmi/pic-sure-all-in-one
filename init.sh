@@ -208,12 +208,14 @@ if [ -n "${AUTH0_CLIENT_SECRET:-}" ] && [ -n "${PICSURE_APPLICATION_ID:-}" ]; th
   set_env_var "PICSURE_INTROSPECTION_TOKEN" "$INTRO_TOKEN" "$FORCE"
   info "Introspection token generated (365-day expiry)."
   # Also update the DB if picsure-db is running (token must match in .env, standalone.xml, AND the DB)
-  # The password crosses the docker boundary via MYSQL_PWD (-e), and the SQL —
-  # which embeds the secret token — is fed on stdin, so neither the password nor
-  # the token ever reaches the host `docker` process listing (ps).
+  # The HOST shell expands the password into docker's environment via the
+  # env-prefix assignment (never into argv); the BARE `-e MYSQL_PWD` makes
+  # docker forward it from its own environment into the container. The SQL —
+  # which embeds the secret token — is fed on stdin. So neither the password
+  # nor the token ever reaches the host `docker` process listing (ps).
   if [ "${DB_MODE:-local}" = "remote" ]; then
-    if docker run --rm -i \
-      -e MYSQL_PWD="${DB_ROOT_PASSWORD:-}" \
+    if MYSQL_PWD="${DB_ROOT_PASSWORD:-}" docker run --rm -i \
+      -e MYSQL_PWD \
       mysql:8.0 \
       mysql -h "${DB_HOST}" -P "${DB_PORT:-3306}" -u "${DB_ROOT_USER:-root}" \
       2>/dev/null <<SQL; then
@@ -225,7 +227,7 @@ SQL
     fi
   elif docker ps --format '{{.Names}}' 2>/dev/null | grep -q picsure-db; then
     db_pass=$(grep "^DB_ROOT_PASSWORD=" "$ENV_FILE" | cut -d= -f2-)
-    if docker exec -i -e MYSQL_PWD="$db_pass" picsure-db mysql -uroot \
+    if MYSQL_PWD="$db_pass" docker exec -i -e MYSQL_PWD picsure-db mysql -uroot \
       2>/dev/null <<SQL; then
 UPDATE auth.application SET token='$INTRO_TOKEN' WHERE name='PICSURE';
 SQL

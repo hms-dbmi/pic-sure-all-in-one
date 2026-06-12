@@ -76,18 +76,20 @@ rotate_introspection_token() {
   set_env_var "PICSURE_INTROSPECTION_TOKEN" "$token"
   picsure_load_env "$ENV_FILE"
 
-  # The password crosses the docker boundary via MYSQL_PWD (-e), and the SQL —
-  # which embeds the secret token — is fed on stdin, so neither the password nor
-  # the token ever reaches the host `docker` process listing (ps).
+  # The HOST shell expands the password into docker's environment via the
+  # env-prefix assignment (never into argv); the BARE `-e MYSQL_PWD` makes
+  # docker forward it from its own environment into the container. The SQL —
+  # which embeds the secret token — is fed on stdin. So neither the password
+  # nor the token ever reaches the host `docker` process listing (ps).
   if [ "${DB_MODE:-local}" = "remote" ]; then
-    docker run --rm -i \
-      -e MYSQL_PWD="${DB_ROOT_PASSWORD}" \
+    MYSQL_PWD="${DB_ROOT_PASSWORD}" docker run --rm -i \
+      -e MYSQL_PWD \
       mysql:8.0 \
       mysql -h "${DB_HOST}" -P "${DB_PORT:-3306}" -u "${DB_ROOT_USER:-root}" <<SQL
 UPDATE auth.application SET token='$token' WHERE name='PICSURE';
 SQL
   else
-    docker exec -i -e MYSQL_PWD="${DB_ROOT_PASSWORD}" picsure-db mysql -uroot <<SQL
+    MYSQL_PWD="${DB_ROOT_PASSWORD}" docker exec -i -e MYSQL_PWD picsure-db mysql -uroot <<SQL
 UPDATE auth.application SET token='$token' WHERE name='PICSURE';
 SQL
   fi

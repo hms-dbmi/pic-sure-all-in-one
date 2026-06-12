@@ -39,9 +39,12 @@ require_env_var() {
   picsure_require_env_var "$1" "$1 is required for remote DB bootstrap."
 }
 
+# Env-prefix + bare -e: the host shell puts the password in docker's
+# environment (not argv); docker forwards it by name into the container, so
+# host ps never shows the value.
 mysql_root() {
-  docker run --rm -i \
-    -e MYSQL_PWD="${DB_ROOT_PASSWORD}" \
+  MYSQL_PWD="${DB_ROOT_PASSWORD}" docker run --rm -i \
+    -e MYSQL_PWD \
     mysql:8.0 \
     mysql -h "${DB_HOST}" -P "${DB_PORT:-3306}" -u "${DB_ROOT_USER:-root}" "$@"
 }
@@ -51,8 +54,8 @@ mysql_app() {
   local password="$2"
   local database="$3"
 
-  docker run --rm \
-    -e MYSQL_PWD="$password" \
+  MYSQL_PWD="$password" docker run --rm \
+    -e MYSQL_PWD \
     mysql:8.0 \
     mysql -h "${DB_HOST}" -P "${DB_PORT:-3306}" -u "$user" "$database" -e "SELECT 1;" >/dev/null
 }

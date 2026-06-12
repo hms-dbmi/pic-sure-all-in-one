@@ -42,20 +42,22 @@ set -a
 source "$SCRIPT_DIR/.env"
 set +a
 
-# db_mysql: run mysql as root. The password is passed via the MYSQL_PWD env
-# var (crossing the docker boundary with -e) rather than mysql's -p argv flag,
-# so it never shows up in the host `docker` process listing (ps). The -i flag
+# db_mysql: run mysql as root. The HOST shell expands the password into
+# docker's environment via the env-prefix assignment — never into its argv —
+# and the BARE `-e MYSQL_PWD` (no =value) tells docker to forward the variable
+# from its own environment into the container, so host ps shows only the name.
+# (`-e MYSQL_PWD="$pass"` would expand the value into host argv.) The -i flag
 # lets callers stream SQL on stdin, so secret-bearing statements (e.g. the
 # introspection token, the admin email) stay out of argv as well.
 db_mysql() {
   if [ "${DB_MODE:-local}" = "remote" ]; then
-    docker run --rm -i \
-      -e MYSQL_PWD="${DB_ROOT_PASSWORD}" \
+    MYSQL_PWD="${DB_ROOT_PASSWORD}" docker run --rm -i \
+      -e MYSQL_PWD \
       mysql:8.0 \
       mysql -h "${DB_HOST}" -P "${DB_PORT:-3306}" -u "${DB_ROOT_USER:-root}" "$@"
   else
-    docker exec -i \
-      -e MYSQL_PWD="${DB_ROOT_PASSWORD}" \
+    MYSQL_PWD="${DB_ROOT_PASSWORD}" docker exec -i \
+      -e MYSQL_PWD \
       picsure-db mysql -uroot "$@"
   fi
 }

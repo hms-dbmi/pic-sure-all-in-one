@@ -69,7 +69,9 @@ HPDS_ETL_IMAGE="hms-dbmi/pic-sure-hpds-etl:${PICSURE_IMAGE_TAG:-LATEST}"
 # ---------------------------------------------------------------------------
 
 if [ "${DB_MODE:-local}" = "remote" ]; then
-  if ! docker run --rm -e MYSQL_PWD="${DB_ROOT_PASSWORD}" mysql:8.0 \
+  # Env-prefix + bare -e: the host shell puts the password in docker's
+  # environment (not argv); docker forwards it by name into the container.
+  if ! MYSQL_PWD="${DB_ROOT_PASSWORD}" docker run --rm -e MYSQL_PWD mysql:8.0 \
     mysql -h "${DB_HOST}" -P "${DB_PORT:-3306}" -u "${DB_ROOT_USER:-root}" -e "SELECT 1;" >/dev/null 2>&1; then
     error "Remote MySQL is not reachable at ${DB_HOST:-unset}:${DB_PORT:-3306}."
     exit 1

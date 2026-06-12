@@ -279,6 +279,151 @@ func Uninstall() Action {
 	}
 }
 
+// PhenotypeOpts holds all optional parameters for LoadPhenotype. Only the
+// File field is required; every other field is omitted from the argv when
+// empty/zero, letting etl.sh's own defaults take effect.
+type PhenotypeOpts struct {
+	// File is the path to the phenotype CSV (required).
+	File string
+	// Heap is the JVM heap size string passed verbatim as --heap (e.g. "16g").
+	// Empty means: let etl.sh default.
+	Heap string
+	// CustomDictionary switches from auto-hydrate mode to custom-dictionary
+	// mode. When true, Datasets+Concepts (and optionally Facets* fields) are
+	// forwarded as --datasets/--concepts/--facets-categories/--facets/
+	// --facet-concepts.
+	CustomDictionary bool
+	// Datasets and Concepts are the custom CSV/ZIP paths; only used when
+	// CustomDictionary is true.
+	Datasets string
+	Concepts string
+	// FacetCategories, Facets, FacetConcepts are the three optional facet
+	// CSVs; only forwarded when CustomDictionary is true and each field is
+	// non-empty.
+	FacetCategories string
+	Facets          string
+	FacetConcepts   string
+	// SkipWeights omits the search-weight rebuild step when true.
+	SkipWeights bool
+}
+
+// GenomicOpts holds all parameters for LoadGenomic. Partition and VCFIndex
+// are required; everything else is omitted from the argv when empty/zero.
+type GenomicOpts struct {
+	// Partition is the named genomic partition (required).
+	Partition string
+	// VCFIndex is the path to the VCF index TSV (required).
+	VCFIndex string
+	// VCFDir is an optional directory override for VCF files.
+	VCFDir string
+	// Heap is the JVM heap size string passed verbatim as --heap. Empty means
+	// let etl.sh default.
+	Heap string
+	// Promote runs the promote step (backup-safe: stages atomically).
+	Promote bool
+	// EnableProfile activates JVM profiling; caveat: may degrade throughput.
+	EnableProfile bool
+}
+
+// LoadPhenotype loads a phenotype CSV into HPDS and rebuilds the dictionary.
+//
+// Destructive note: this action REPLACES existing HPDS phenotype data.  The
+// wizard's confirm-summary is the consent screen (same pattern as Init and
+// DemoData), so Destructive and ConfirmWord are left unset — the caller owns
+// the consent step. The Describe text makes the replacement explicit so the
+// wizard author can surface it prominently.
+func LoadPhenotype(o PhenotypeOpts) Action {
+	args := []string{"load-phenotype", "--file", o.File}
+	if o.Heap != "" {
+		args = append(args, "--heap", o.Heap)
+	}
+	if o.CustomDictionary {
+		args = append(args, "--dictionary", "custom")
+		if o.Datasets != "" {
+			args = append(args, "--datasets", o.Datasets)
+		}
+		if o.Concepts != "" {
+			args = append(args, "--concepts", o.Concepts)
+		}
+		if o.FacetCategories != "" {
+			args = append(args, "--facets-categories", o.FacetCategories)
+		}
+		if o.Facets != "" {
+			args = append(args, "--facets", o.Facets)
+		}
+		if o.FacetConcepts != "" {
+			args = append(args, "--facet-concepts", o.FacetConcepts)
+		}
+	}
+	if o.SkipWeights {
+		args = append(args, "--skip-weights")
+	}
+
+	describe := "REPLACES existing HPDS phenotype data with the provided CSV, then\n" +
+		"rebuilds the dictionary database"
+	if o.CustomDictionary {
+		describe += " using the supplied custom dictionary CSVs"
+	} else {
+		describe += " via auto-hydrate"
+	}
+	describe += ".\nFinal step: recomputes search weights"
+	if o.SkipWeights {
+		describe += " (skipped by --skip-weights)."
+	} else {
+		describe += "."
+	}
+
+	return Action{
+		Name:   "load phenotype data",
+		Script: scripts.Etl,
+		Args:   args,
+		// Destructive/ConfirmWord intentionally unset: the load-your-data
+		// wizard confirm-summary is the consent step, matching the Init and
+		// DemoData pattern. The Describe text above calls out the replacement
+		// explicitly so the wizard can surface it.
+		Describe:  describe,
+		AbortNote: "partial load possible; phenotype CSV may be loaded but dictionary not rebuilt — re-run from Load your data or `pic-sure etl hydrate-dictionary`.",
+	}
+}
+
+// LoadGenomic loads VCF data for a named genomic partition.
+func LoadGenomic(o GenomicOpts) Action {
+	args := []string{"load-genomic", "--partition", o.Partition, "--vcf-index", o.VCFIndex}
+	if o.VCFDir != "" {
+		args = append(args, "--vcf-dir", o.VCFDir)
+	}
+	if o.Heap != "" {
+		args = append(args, "--heap", o.Heap)
+	}
+	if o.Promote {
+		args = append(args, "--promote")
+	}
+	if o.EnableProfile {
+		args = append(args, "--enable-profile")
+	}
+
+	describe := fmt.Sprintf("Loads VCF data for genomic partition %q into HPDS staging.", o.Partition)
+	if o.Promote {
+		describe += "\n--promote is set: the staged data is promoted into the live volume\n" +
+			"atomically (backup-safe — the previous data volume is preserved as a\n" +
+			"sibling until explicitly removed)."
+	} else {
+		describe += "\nStaging only — run `pic-sure etl promote-genomic` to make it live."
+	}
+	if o.EnableProfile {
+		describe += "\n--enable-profile is set: JVM profiling is active — throughput may be\n" +
+			"reduced; disable for production loads."
+	}
+
+	return Action{
+		Name:      "load genomic data",
+		Script:    scripts.Etl,
+		Args:      args,
+		Describe:  describe,
+		AbortNote: fmt.Sprintf("partial VCF load possible for partition %q; staging is incomplete — re-run LoadGenomic to restart, or `pic-sure etl promote-genomic` if load finished but promote was skipped.", o.Partition),
+	}
+}
+
 // ConfirmAccepted decides whether a completed confirm dialog authorizes the
 // action: destructive actions require the typed word to match exactly (the
 // yes/no flag is never bound for them); everything else uses the flag.

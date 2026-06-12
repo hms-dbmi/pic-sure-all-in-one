@@ -133,6 +133,10 @@ func TestEveryActionHasAbortNote(t *testing.T) {
 		Reset(), ResetAll(), ResetWith(false, true), ResetWith(true, true), Uninstall(),
 		Etl("hydrate-dictionary"), Etl("run-weights"), Etl("promote-genomic"), Etl("public-1000genomes"),
 		ReleaseControlApply(), ReleaseControlDryRun(), ReleaseControlBranch("main"),
+		LoadPhenotype(PhenotypeOpts{File: "data.csv"}),
+		LoadPhenotype(PhenotypeOpts{File: "data.csv", CustomDictionary: true, Datasets: "d.csv", Concepts: "c.zip"}),
+		LoadGenomic(GenomicOpts{Partition: "p", VCFIndex: "idx.tsv"}),
+		LoadGenomic(GenomicOpts{Partition: "p", VCFIndex: "idx.tsv", Promote: true, EnableProfile: true}),
 	}
 	for _, a := range acts {
 		if a.AbortNote == "" {
@@ -141,5 +145,163 @@ func TestEveryActionHasAbortNote(t *testing.T) {
 		if a.Describe == "" {
 			t.Errorf("action %q has no Describe", a.Name)
 		}
+	}
+}
+
+// ---------------------------------------------------------------------------
+// LoadPhenotype argv tests
+// ---------------------------------------------------------------------------
+
+func argsEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
+}
+
+func TestLoadPhenotypeArgs(t *testing.T) {
+	cases := []struct {
+		name string
+		opts PhenotypeOpts
+		want []string
+	}{
+		{
+			name: "auto minimal",
+			opts: PhenotypeOpts{File: "pheno.csv"},
+			want: []string{"load-phenotype", "--file", "pheno.csv"},
+		},
+		{
+			name: "auto with heap",
+			opts: PhenotypeOpts{File: "pheno.csv", Heap: "16g"},
+			want: []string{"load-phenotype", "--file", "pheno.csv", "--heap", "16g"},
+		},
+		{
+			name: "custom with facets",
+			opts: PhenotypeOpts{
+				File:             "pheno.csv",
+				CustomDictionary: true,
+				Datasets:         "datasets.csv",
+				Concepts:         "concepts.zip",
+				FacetCategories:  "facet-cats.csv",
+				Facets:           "facets.csv",
+				FacetConcepts:    "facet-concepts.csv",
+			},
+			want: []string{
+				"load-phenotype", "--file", "pheno.csv",
+				"--dictionary", "custom",
+				"--datasets", "datasets.csv",
+				"--concepts", "concepts.zip",
+				"--facets-categories", "facet-cats.csv",
+				"--facets", "facets.csv",
+				"--facet-concepts", "facet-concepts.csv",
+			},
+		},
+		{
+			name: "custom without facets",
+			opts: PhenotypeOpts{
+				File:             "pheno.csv",
+				CustomDictionary: true,
+				Datasets:         "datasets.csv",
+				Concepts:         "concepts.zip",
+			},
+			want: []string{
+				"load-phenotype", "--file", "pheno.csv",
+				"--dictionary", "custom",
+				"--datasets", "datasets.csv",
+				"--concepts", "concepts.zip",
+			},
+		},
+		{
+			name: "auto skip-weights",
+			opts: PhenotypeOpts{File: "pheno.csv", SkipWeights: true},
+			want: []string{"load-phenotype", "--file", "pheno.csv", "--skip-weights"},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			a := LoadPhenotype(c.opts)
+			if a.Script != Etl("load-phenotype").Script {
+				t.Errorf("Script = %q, want etl script", a.Script)
+			}
+			if !argsEqual(a.Args, c.want) {
+				t.Errorf("Args =\n  %v\nwant\n  %v", a.Args, c.want)
+			}
+		})
+	}
+}
+
+// ---------------------------------------------------------------------------
+// LoadGenomic argv tests
+// ---------------------------------------------------------------------------
+
+func TestLoadGenomicArgs(t *testing.T) {
+	base := []string{"load-genomic", "--partition", "chr22", "--vcf-index", "idx.tsv"}
+
+	cases := []struct {
+		name string
+		opts GenomicOpts
+		want []string
+	}{
+		{
+			name: "minimal",
+			opts: GenomicOpts{Partition: "chr22", VCFIndex: "idx.tsv"},
+			want: base,
+		},
+		{
+			name: "with vcf-dir",
+			opts: GenomicOpts{Partition: "chr22", VCFIndex: "idx.tsv", VCFDir: "/data/vcf"},
+			want: append(append([]string{}, base...), "--vcf-dir", "/data/vcf"),
+		},
+		{
+			name: "with heap",
+			opts: GenomicOpts{Partition: "chr22", VCFIndex: "idx.tsv", Heap: "32g"},
+			want: append(append([]string{}, base...), "--heap", "32g"),
+		},
+		{
+			name: "promote",
+			opts: GenomicOpts{Partition: "chr22", VCFIndex: "idx.tsv", Promote: true},
+			want: append(append([]string{}, base...), "--promote"),
+		},
+		{
+			name: "enable-profile",
+			opts: GenomicOpts{Partition: "chr22", VCFIndex: "idx.tsv", EnableProfile: true},
+			want: append(append([]string{}, base...), "--enable-profile"),
+		},
+		{
+			name: "all toggles",
+			opts: GenomicOpts{
+				Partition:     "chr22",
+				VCFIndex:      "idx.tsv",
+				VCFDir:        "/data/vcf",
+				Heap:          "32g",
+				Promote:       true,
+				EnableProfile: true,
+			},
+			want: []string{
+				"load-genomic", "--partition", "chr22", "--vcf-index", "idx.tsv",
+				"--vcf-dir", "/data/vcf",
+				"--heap", "32g",
+				"--promote",
+				"--enable-profile",
+			},
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			a := LoadGenomic(c.opts)
+			if a.Script != Etl("load-genomic").Script {
+				t.Errorf("Script = %q, want etl script", a.Script)
+			}
+			if !argsEqual(a.Args, c.want) {
+				t.Errorf("Args =\n  %v\nwant\n  %v", a.Args, c.want)
+			}
+		})
 	}
 }

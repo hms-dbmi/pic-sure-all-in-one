@@ -53,6 +53,7 @@ bash -n scripts/check-env-example.sh
 bash -n scripts/check-secrets.sh
 bash -n config/scripts/generate-introspection-token.sh
 bash -n scripts/test-release-control.sh
+bash -n scripts/test-repo-reset.sh
 bash -n scripts/smoke-matrix.sh
 bash -n scripts/smoke-remote-db.sh
 
@@ -62,6 +63,9 @@ echo "[smoke] Protected file checks"
 
 echo "[smoke] Release control tests"
 ./scripts/test-release-control.sh
+
+echo "[smoke] Repo reset tests"
+./scripts/test-repo-reset.sh
 
 if [ -f .env ]; then
   echo "[smoke] Update dry run"

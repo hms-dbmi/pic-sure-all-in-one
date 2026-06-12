@@ -10,7 +10,9 @@
 #   ./uninstall.sh --yes           # Remove containers, volumes including local DB, generated files
 #   ./uninstall.sh --yes --keep-env # Keep .env while removing generated files
 #   ./uninstall.sh --yes --images  # Also remove local PIC-SURE images
-#   ./uninstall.sh --yes --repos   # Also remove cloned service repos
+#   ./uninstall.sh --yes --repos   # Also remove cloned service repos (DELETES
+#                                  # local git history — use reset.sh --repos
+#                                  # to reset working trees while keeping it)
 # =============================================================================
 
 set -euo pipefail
@@ -103,7 +105,8 @@ print_plan() {
     echo "  - Local PIC-SURE images will be kept"
   fi
   if [ "$REMOVE_REPOS" = "true" ]; then
-    echo "  - Cloned service repos under repos/"
+    echo "  - Cloned service repos under repos/ INCLUDING their local git history"
+    echo "    (to reset working trees but KEEP history, use: reset.sh --repos)"
   else
     echo "  - Cloned service repos under repos/ will be kept"
   fi

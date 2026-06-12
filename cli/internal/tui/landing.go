@@ -142,7 +142,7 @@ func (l *landing) rebuildMenu() {
 		l.menu = newMenu(
 			menuItem{ID: "migrate", Label: "Run migrations"},
 			menuItem{ID: "seed", Label: "Seed database"},
-			menuItem{ID: "etl", Label: "ETL operations…"},
+			menuItem{ID: "demo", Label: "Load demo data…"},
 			menuItem{ID: "devoverlay", Label: "Apply dev overlay…"},
 			menuItem{ID: "devrevert", Label: "Revert dev overlay…"},
 			menuItem{ID: "relctl", Label: "Release control…"},
@@ -154,7 +154,7 @@ func (l *landing) rebuildMenu() {
 		l.menu = newMenu(
 			menuItem{ID: "dashboard", Label: "Dashboard"},
 			menuItem{ID: "update", Label: "Update"},
-			menuItem{ID: "demo", Label: "Load demo data"},
+			menuItem{ID: "etl", Label: "Load your data…"},
 			menuItem{ID: "preflight", Label: "Preflight check"},
 			menuItem{ID: "reconfigure", Label: "Reconfigure"},
 			menuItem{ID: "devmenu", Label: "Developer options…"},

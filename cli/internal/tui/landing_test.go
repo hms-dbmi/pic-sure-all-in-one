@@ -27,6 +27,23 @@ func menuIDs(m *menu) []string {
 	return ids
 }
 
+func menuLabels(m *menu) []string {
+	labels := make([]string, len(m.items))
+	for i, it := range m.items {
+		labels[i] = it.Label
+	}
+	return labels
+}
+
+func contains(ss []string, want string) bool {
+	for _, s := range ss {
+		if s == want {
+			return true
+		}
+	}
+	return false
+}
+
 func eq(a, b []string) bool {
 	if len(a) != len(b) {
 		return false
@@ -46,9 +63,18 @@ func TestLandingMenuIsContextAware(t *testing.T) {
 		t.Errorf("fresh menu = %v, want %v", got, want)
 	}
 	configured := newLanding("/tmp/x", true, false)
-	want = []string{"dashboard", "update", "demo", "preflight", "reconfigure", "devmenu", "quit"}
+	want = []string{"dashboard", "update", "etl", "preflight", "reconfigure", "devmenu", "quit"}
 	if got := menuIDs(configured.menu); !eq(got, want) {
 		t.Errorf("configured menu = %v, want %v", got, want)
+	}
+	// The configured main menu now carries "Load your data…" (the ETL picker,
+	// promoted from Developer options) and no longer "Load demo data".
+	labels := menuLabels(configured.menu)
+	if !contains(labels, "Load your data…") {
+		t.Errorf("configured menu labels = %v, want one to be %q", labels, "Load your data…")
+	}
+	if contains(labels, "Load demo data") {
+		t.Errorf("configured menu still offers %q; it moved to Developer options", "Load demo data")
 	}
 }
 
@@ -56,9 +82,18 @@ func TestLandingDevSubmenu(t *testing.T) {
 	l := newLanding("/tmp/x", true, false)
 	keyDownN(l, 5) // select devmenu
 	l.update(keyEnter())
-	want := []string{"migrate", "seed", "etl", "devoverlay", "devrevert", "relctl", "reset", "uninstall", "back"}
+	want := []string{"migrate", "seed", "demo", "devoverlay", "devrevert", "relctl", "reset", "uninstall", "back"}
 	if got := menuIDs(l.menu); !eq(got, want) {
 		t.Fatalf("dev submenu = %v, want %v", got, want)
+	}
+	// "Load demo data…" lives here now; "ETL operations…" was promoted to the
+	// main menu as "Load your data…".
+	labels := menuLabels(l.menu)
+	if !contains(labels, "Load demo data…") {
+		t.Errorf("dev submenu labels = %v, want one to be %q", labels, "Load demo data…")
+	}
+	if contains(labels, "ETL operations…") {
+		t.Errorf("dev submenu still offers %q; it moved to the main menu", "ETL operations…")
 	}
 	// esc returns to the main menu
 	l.update(tea.KeyMsg{Type: tea.KeyEsc})
@@ -218,7 +253,7 @@ func TestLandingDevSubmenuHasOverlayEntries(t *testing.T) {
 	l := newLanding("/tmp/x", true, false)
 	keyDownN(l, 5)
 	l.update(keyEnter()) // enter developer options
-	want := []string{"migrate", "seed", "etl", "devoverlay", "devrevert", "relctl", "reset", "uninstall", "back"}
+	want := []string{"migrate", "seed", "demo", "devoverlay", "devrevert", "relctl", "reset", "uninstall", "back"}
 	if got := menuIDs(l.menu); !eq(got, want) {
 		t.Fatalf("dev submenu = %v, want %v", got, want)
 	}
@@ -349,9 +384,8 @@ func pumpLanding(l *landing, cmd tea.Cmd, depth int) *landing {
 }
 
 func TestLandingEtlPicker(t *testing.T) {
+	// "Load your data…" (the ETL picker) lives on the configured main menu now.
 	l := newLanding("/tmp/x", true, false)
-	l.dev = true
-	l.rebuildMenu()
 	_, _ = l.choose("etl")
 	if l.form == nil || l.pickerMake == nil {
 		t.Fatal("etl entry did not open a picker")
@@ -369,9 +403,11 @@ func TestLandingEtlPicker(t *testing.T) {
 }
 
 func TestLandingDemoOpensDatasetPicker(t *testing.T) {
+	// "Load demo data…" now lives in the Developer options submenu.
 	l := newLanding("/tmp/x", true, false)
-	keyDownN(l, 2) // select "Load demo data"
-	_, _ = l.update(keyEnter())
+	l.dev = true
+	l.rebuildMenu()
+	_, _ = l.choose("demo")
 	if l.form == nil || l.pickerMake == nil {
 		t.Fatal("demo entry did not open a dataset picker")
 	}
@@ -903,8 +939,8 @@ func TestLandingBranchPrefillFailure(t *testing.T) {
 func TestLandingFrameStaysInBoxWithDialogs(t *testing.T) {
 	sizes := [][2]int{{60, 16}, {80, 24}, {120, 30}}
 	open := []func(l *landing){
-		func(l *landing) { _, _ = l.choose("demo") },
-		func(l *landing) { l.dev = true; l.rebuildMenu(); _, _ = l.choose("etl") },
+		func(l *landing) { l.dev = true; l.rebuildMenu(); _, _ = l.choose("demo") },
+		func(l *landing) { _, _ = l.choose("etl") },
 		func(l *landing) { _, _ = l.choose("reset") },
 	}
 	for _, sz := range sizes {

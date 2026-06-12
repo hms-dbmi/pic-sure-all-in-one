@@ -41,7 +41,14 @@ source "$SCRIPT_DIR/scripts/lib/common.sh"
 source "$SCRIPT_DIR/scripts/picsure-compose.sh"
 
 usage() {
-  sed -n '2,26p' "$0"
+  # Print the header comment block (from line 2) up to but not including the
+  # first non-comment line, then trim the trailing `# ===` divider that closes
+  # the block. Sentinel-based so adding header lines never truncates the help.
+  awk 'NR == 1 { next }
+       /^#/ { buf[n++] = $0; next }
+       { exit }
+       END { end = n; if (n > 0 && buf[n-1] ~ /^# =+$/) end = n - 1;
+             for (i = 0; i < end; i++) print buf[i] }' "$0"
 }
 
 require_file() {

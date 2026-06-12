@@ -75,7 +75,7 @@ func TestActivityAbortRaceWithCompletion(t *testing.T) {
 	if a.aborted || fr.interrupted {
 		t.Fatal("'y' after completion must not abort the finished run")
 	}
-	if !strings.Contains(a.view(), "enter: open dashboard") {
+	if !strings.Contains(a.view(), "enter: dashboard") {
 		t.Error("success footer lost after the abort/completion race")
 	}
 }
@@ -98,7 +98,7 @@ func TestActivityOutputSanitizedAndVisible(t *testing.T) {
 func TestActivitySuccessEnterOpensDashboard(t *testing.T) {
 	a, _ := runningActivity(t)
 	_, _ = a.update(actions.DoneMsg{Code: 0})
-	if !strings.Contains(a.view(), "enter: open dashboard") {
+	if !strings.Contains(a.view(), "enter: dashboard") {
 		t.Error("success footer missing dashboard hint")
 	}
 	_, cmd := a.update(tea.KeyMsg{Type: tea.KeyEnter})

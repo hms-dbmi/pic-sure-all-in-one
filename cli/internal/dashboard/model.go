@@ -55,10 +55,20 @@ const (
 )
 
 const (
-	leftWidth     = 36
+	leftWidthMin  = 36 // floor: fits the services row format below
+	leftWidthMax  = 50 // ceiling: don't starve the logs/status panes on huge terminals
 	summaryHeight = 11
 	maxLogLines   = 2000
 )
+
+// leftWidth is the responsive width of the services pane (U5): a quarter of the
+// terminal, clamped to [leftWidthMin, leftWidthMax]. Wider terminals get a
+// roomier services list (longer service names fit) without the right-hand
+// logs/status panes shrinking past the point of usefulness; narrow terminals
+// keep the original 36-col floor. All pane geometry derives from this.
+func (m *model) leftWidth() int {
+	return min(max(m.width/4, leftWidthMin), leftWidthMax)
+}
 
 type model struct {
 	root          string

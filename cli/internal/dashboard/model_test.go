@@ -678,7 +678,7 @@ func TestLogLinesResetBackoff(t *testing.T) {
 	m.logSvc = "wildfly"
 	m.logRetryDelay = 16 * time.Second // as if several failures had accrued
 	ch := make(chan string, 1)
-	ch <- "next" // keep waitLines from blocking when the returned cmd runs
+	ch <- "next"                                                    // keep waitLines from blocking when the returned cmd runs
 	m.logSession = &logSession{id: 7, cancel: func() {}, lines: ch} // failed=false: real session
 
 	m, _ = update(t, m, logLinesMsg{sessionID: 7, lines: []string{"wildfly | up"}})
@@ -923,73 +923,103 @@ func TestLogPaneFloodKeepsFrameInBox(t *testing.T) {
 	frameFits(t, m.View(), 100, 30)
 }
 
-// TestServicesPaneRowsNoWrap verifies that every service row in the services
-// pane occupies exactly one visual line, even with the widest health values.
-// lipgloss .Width() excludes the border (drawn outside it), so the content
-// wrap width is leftWidth(36) − padding(1+1) = 34. Each row is 1 cursor col +
-// formatted fields; if the formatted content exceeds 33 visible cols lipgloss
-// wraps and the cursor ends up on a different visual line than the service.
+// TestLeftWidthResponsive pins the responsive services-pane width (U5):
+// width/4 clamped to [leftWidthMin, leftWidthMax]. Narrow terminals keep the
+// 36-col floor; huge ones cap at 50 so the right-hand panes are not starved.
+func TestLeftWidthResponsive(t *testing.T) {
+	tests := []struct {
+		cols int
+		want int
+	}{
+		{80, leftWidthMin},  // 80/4=20 → floor 36
+		{100, leftWidthMin}, // 100/4=25 → floor 36
+		{144, 36},           // 144/4=36 → exactly the floor
+		{148, 37},           // 148/4=37 → one past the floor; pic-sure-logging fits
+		{160, 40},           // 160/4=40
+		{200, leftWidthMax}, // 200/4=50 → exactly the ceiling
+		{220, leftWidthMax}, // 220/4=55 → ceiling 50
+	}
+	for _, tt := range tests {
+		m := testModel(t)
+		m.width = tt.cols
+		if got := m.leftWidth(); got != tt.want {
+			t.Errorf("leftWidth() at %d cols = %d, want %d", tt.cols, got, tt.want)
+		}
+	}
+}
+
+// TestServicesPaneRowsNoWrap verifies that every service row occupies exactly
+// one visual line, even with the widest health values, across the responsive
+// width range (U5). lipgloss .Width() excludes the border, so the content wrap
+// width is leftWidth − padding(1+1). The service column flexes with leftWidth
+// (svcCol = leftWidth − 21), so the row budget is preserved at every width;
+// "pic-sure-logging" (16 chars) clips to 15 at the 36-col floor but fits in full
+// once leftWidth ≥ 37 (terminals ≥ 148 cols).
 func TestServicesPaneRowsNoWrap(t *testing.T) {
 	services := []contract.ComposeService{
 		{Service: "very-long-service-name", State: "running", Health: "unhealthy"},
-		// Real service (docker-compose.yml) at 16 chars: one past svcCol=15.
+		// Real service (docker-compose.yml) at 16 chars: one past the floor svcCol=15.
 		{Service: "pic-sure-logging", State: "running", Health: "healthy"},
 		{Service: "wildfly", State: "running", Health: "healthy"},
 		{Service: "hpds", State: "running", Health: "starting"},
 		{Service: "short", State: "exited", Health: ""},
 	}
 
-	m := testModel(t)
-	// Use a small height so Height(max(h-5,8))=8; border+content rows then
-	// show wrapping clearly without height-padding masking the problem.
-	m.height = 13 // max(13-5, 8) = 8 inner rows = title + 5 services + 2 empty
-	m.layout()
-	m.services = services
-	m.selected = 0
+	// 100/160/220 cols → leftWidth 36/40/50. At ≥37 the full name shows.
+	for _, cols := range []int{100, 160, 220} {
+		t.Run(fmt.Sprintf("%dcols", cols), func(t *testing.T) {
+			m := testModel(t)
+			m.width = cols
+			// Small height so Height(max(h-5,8))=8; border+content rows then show
+			// wrapping clearly without height-padding masking the problem.
+			m.height = 13
+			m.layout()
+			m.services = services
+			m.selected = 0
 
-	pane := m.servicesPane()
+			lw := m.leftWidth()
+			pane := m.servicesPane()
 
-	// paneStyle uses RoundedBorder (1 col each side) so outer width = leftWidth+2.
-	const outerWidth = leftWidth + 2 // 38
-	paneLines := strings.Split(pane, "\n")
-	for i, line := range paneLines {
-		if w := lipgloss.Width(line); w > outerWidth {
-			t.Errorf("services pane line %d width %d exceeds outer width %d: %q", i, w, outerWidth, line)
-		}
-	}
-
-	// Verify no health keyword appears alone on its own inner line (which
-	// would happen if a row wraps). Each inner line (between border rows) is
-	// "│ <content> │"; we extract content by stripping ANSI then using rune
-	// indexing to skip the 2-rune "│ " prefix and 2-rune " │" suffix.
-	innerLines := paneLines[1 : len(paneLines)-1] // strip top/bottom border
-	healthWords := []string{"unhealthy", "healthy", "starting"}
-	for i, rawLine := range innerLines {
-		// ansi.Strip removes escape codes; border chars (│, ╭, etc.) are plain Unicode
-		plain := ansi.Strip(rawLine)
-		runes := []rune(plain)
-		// Each inner line: "│" + " " + <content> + " " + "│" = 2+content+2 runes
-		if len(runes) >= 4 {
-			// Drop "│ " prefix (2 runes) and " │" suffix (2 runes)
-			content := strings.TrimRight(string(runes[2:len(runes)-2]), " ")
-			for _, hw := range healthWords {
-				if content == hw {
-					t.Errorf("inner line %d contains only health word %q — row is wrapping: full line %q",
-						i, hw, rawLine)
+			// paneStyle uses RoundedBorder (1 col each side): outer = leftWidth+2.
+			outerWidth := lw + 2
+			paneLines := strings.Split(pane, "\n")
+			for i, line := range paneLines {
+				if w := lipgloss.Width(line); w > outerWidth {
+					t.Errorf("services pane line %d width %d exceeds outer width %d: %q", i, w, outerWidth, line)
 				}
 			}
-		}
-	}
 
-	// Pin the accepted svcCol=15 tradeoff: "pic-sure-logging" (16 chars)
-	// clips by one char to "pic-sure-loggin" rather than wrapping — the
-	// 34-col budget cannot fit 16 + full state(8) + full health(9).
-	plainPane := ansi.Strip(pane)
-	if !strings.Contains(plainPane, "pic-sure-loggin ") {
-		t.Error(`clipped "pic-sure-loggin" row not found in services pane`)
-	}
-	if strings.Contains(plainPane, "pic-sure-logging") {
-		t.Error(`full "pic-sure-logging" found — expected it clipped to 15 chars`)
+			// No health keyword may appear alone on its own inner line (which
+			// would happen if a row wrapped). Each inner line is "│ <content> │".
+			innerLines := paneLines[1 : len(paneLines)-1]
+			healthWords := []string{"unhealthy", "healthy", "starting"}
+			for i, rawLine := range innerLines {
+				plain := ansi.Strip(rawLine)
+				runes := []rune(plain)
+				if len(runes) >= 4 {
+					content := strings.TrimRight(string(runes[2:len(runes)-2]), " ")
+					for _, hw := range healthWords {
+						if content == hw {
+							t.Errorf("inner line %d contains only health word %q — row is wrapping: full line %q",
+								i, hw, rawLine)
+						}
+					}
+				}
+			}
+
+			// pic-sure-logging fits fully at ≥37 (leftWidth here is 40/50 for
+			// 160/220 cols); at the 36-col floor (100 cols) it clips by one char.
+			plainPane := ansi.Strip(pane)
+			if lw >= 37 {
+				if !strings.Contains(plainPane, "pic-sure-logging") {
+					t.Errorf("full %q not found at leftWidth %d (svcCol %d)", "pic-sure-logging", lw, lw-21)
+				}
+			} else {
+				if !strings.Contains(plainPane, "pic-sure-loggin ") || strings.Contains(plainPane, "pic-sure-logging") {
+					t.Errorf("expected %q clipped to 15 chars at the floor leftWidth %d", "pic-sure-logging", lw)
+				}
+			}
+		})
 	}
 }
 
@@ -1051,11 +1081,12 @@ func TestServicesEmptyStateActionable(t *testing.T) {
 				}
 			}
 
-			// Every empty-state line must fit the 34-col content width so it
-			// does not wrap past two lines in the pane.
+			// Every empty-state line must fit the narrowest (floor) content
+			// width — leftWidthMin-2 = 34 — so it never wraps past two lines at
+			// any responsive width.
 			for _, line := range strings.Split(ansi.Strip(m.servicesEmptyState()), "\n") {
-				if w := lipgloss.Width(line); w > leftWidth-2 {
-					t.Errorf("empty-state line %q width %d exceeds the %d-col pane budget", line, w, leftWidth-2)
+				if w := lipgloss.Width(line); w > leftWidthMin-2 {
+					t.Errorf("empty-state line %q width %d exceeds the %d-col pane budget", line, w, leftWidthMin-2)
 				}
 			}
 		})
@@ -1097,7 +1128,7 @@ func TestDashboardEscCancelsConfirmAndPicker(t *testing.T) {
 // TestDialogFitsNarrowPane guards against forms laid out wider than the form
 // pane they render in. Below 120 cols the old WithWidth(min(width-4,76)) sized
 // the form to the terminal, so lipgloss re-wrapped every line inside the
-// narrower pane (content width = width-leftWidth-8) and the frame overflowed.
+// narrower pane (content width = width-leftWidth()-8) and the frame overflowed.
 // At width 100 the pane content is only 56 cols, well under the old 76.
 func TestDialogFitsNarrowPane(t *testing.T) {
 	const w, h = 100, 30

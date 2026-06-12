@@ -28,7 +28,7 @@ var (
 
 // layout recomputes viewport dimensions after a resize.
 func (m *model) layout() {
-	rightWidth := max(m.width-leftWidth-6, 20)
+	rightWidth := max(m.width-m.leftWidth()-6, 20)
 	logHeight := max(m.height-summaryHeight-7, 3)
 
 	// Viewport content width = styled pane width minus its 2 padding cols.
@@ -82,7 +82,7 @@ func (m *model) refreshActionPane() {
 // viewport sized to the styled width re-wraps inside the pane and the frame
 // outgrows the terminal — bubbletea then scrolls the UI out of view).
 func (m *model) actionPaneSize() (rows, cols int) {
-	cols = max(m.width-leftWidth-8, 20)
+	cols = max(m.width-m.leftWidth()-8, 20)
 	rows = max(m.height-7, 5)
 	return rows, cols
 }
@@ -132,19 +132,22 @@ func (m *model) servicesPane() string {
 		b.WriteString(m.servicesEmptyState())
 	}
 
-	// Row layout: cursor(1) + service(15) + space(1) + state(7) + space(1) + health(9) = 34
-	// = content wrap width. lipgloss .Width() excludes the border (drawn
-	// outside it), so wrap width = leftWidth(36) − padding(1+1) = 34.
-	// To adjust when leftWidth changes: keep cursor=1, rebalance the three
-	// column widths so they (plus 2 separator spaces) sum to leftWidth − 2 − 1.
-	// Tradeoff: svcCol=15 clips the real service "pic-sure-logging" (16 chars)
-	// to "pic-sure-loggin" — accepted, since 16 + full state(8) + full
-	// health(9) + separators cannot fit the 34-col budget.
+	// Row layout: cursor(1) + service(svcCol) + space(1) + state(7) + space(1) +
+	// health(9). lipgloss .Width() excludes the border (drawn outside it), so the
+	// content wrap width = leftWidth − padding(1+1). The cursor takes 1 col, two
+	// separator spaces take 2, and state+health are fixed at 7+9; the service
+	// column flexes to absorb the rest:
+	//   svcCol = (leftWidth−2) − 1 − 2 − 7 − 9 = leftWidth − 21.
+	// At the leftWidthMin floor (36) svcCol=15 — which clips the real service
+	// "pic-sure-logging" (16 chars) to "pic-sure-loggin"; one extra column
+	// (leftWidth≥37, reached on any terminal ≥148 cols, or just above the floor)
+	// shows it in full. Wider terminals keep widening svcCol up to leftWidthMax.
+	lw := m.leftWidth()
 	const (
-		svcCol    = 15
 		stateCol  = 7
 		healthCol = 9
 	)
+	svcCol := lw - 21
 	for i, s := range m.services {
 		health := s.Health
 		if health == "" {
@@ -170,7 +173,7 @@ func (m *model) servicesPane() string {
 		b.WriteString(line + "\n")
 	}
 
-	return paneStyle.Width(leftWidth).Height(max(m.height-5, 8)).Render(b.String())
+	return paneStyle.Width(lw).Height(max(m.height-5, 8)).Render(b.String())
 }
 
 // servicesEmptyState returns a cause-specific, actionable message for the
@@ -179,8 +182,9 @@ func (m *model) servicesPane() string {
 // --json (which exits 0 even when docker/.env are not ready) tells us whether
 // the daemon is reachable and whether .env exists; servicesErr (an opaque
 // compose-ps exec failure) is the fallback when status has not landed yet.
-// Messages are kept within the 34-col pane content width (leftWidth-2), wrapped
-// to at most two lines and styled as warnings rather than faint help.
+// Messages are kept within the narrowest pane content width (leftWidthMin-2 =
+// 34 cols), wrapped to at most two lines and styled as warnings rather than
+// faint help. Sized to the floor so they fit at every responsive width.
 func (m *model) servicesEmptyState() string {
 	switch {
 	case m.status != nil && !m.status.Env.FilePresent:
@@ -203,7 +207,7 @@ func (m *model) servicesEmptyState() string {
 }
 
 func (m *model) summaryPane() string {
-	width := max(m.width-leftWidth-6, 20)
+	width := max(m.width-m.leftWidth()-6, 20)
 	var b strings.Builder
 	b.WriteString(paneTitle.Render("Status") + "\n")
 
@@ -278,7 +282,7 @@ func (m *model) summaryPane() string {
 }
 
 func (m *model) logPane() string {
-	width := max(m.width-leftWidth-6, 20)
+	width := max(m.width-m.leftWidth()-6, 20)
 	title := paneTitle.Render("Logs")
 	if m.logSvc != "" {
 		title = paneTitle.Render("Logs — " + m.logSvc)
@@ -287,7 +291,7 @@ func (m *model) logPane() string {
 }
 
 func (m *model) actionPane() string {
-	width := max(m.width-leftWidth-6, 20)
+	width := max(m.width-m.leftWidth()-6, 20)
 	title := paneTitle.Render("Running: " + m.actionName)
 
 	var footer string
@@ -315,11 +319,11 @@ func (m *model) actionPane() string {
 }
 
 func (m *model) formPane() string {
-	// Styled width minus paneStyle's 2 padding cols = m.width-leftWidth-8,
+	// Styled width minus paneStyle's 2 padding cols = m.width-leftWidth()-8,
 	// the content width sizeForm feeds the form via actionPaneSize(). Keep
 	// these in lockstep or the form re-wraps inside the pane and shears the
 	// frame (TestDialogFitsNarrowPane guards this).
-	width := max(m.width-leftWidth-6, 20)
+	width := max(m.width-m.leftWidth()-6, 20)
 	return paneStyle.Width(width).Render(m.form.View())
 }
 

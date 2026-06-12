@@ -45,13 +45,13 @@ func (m *model) startConfirm(act actions.Action) (tea.Model, tea.Cmd) {
 }
 
 // sizeForm feeds a dialog form the synthetic resize huh expects, sized to the
-// FORM PANE it renders in (m.width-leftWidth-8), not the whole terminal. Using
+// FORM PANE it renders in (m.width-leftWidth()-8), not the whole terminal. Using
 // WithWidth, or sizing to the terminal, lays the form out wider than the pane
 // so lipgloss re-wraps every line inside it, mangling titles/descriptions
 // below 120 cols. As with landing.sizeForm: no WithWidth, so huh recomputes
 // group viewport heights on every WindowSizeMsg (WithWidth would freeze them).
 func (m *model) sizeForm(f *huh.Form) *huh.Form {
-	_, cols := m.actionPaneSize() // form-pane content width = m.width-leftWidth-8
+	_, cols := m.actionPaneSize() // form-pane content width = m.width-leftWidth()-8
 	// -5 = the frame's chrome rows around the form pane content: header (1) +
 	// pane border top/bottom (2) + footer help line (1), plus 1 row of slack
 	// so the composed frame can never exceed the terminal box.

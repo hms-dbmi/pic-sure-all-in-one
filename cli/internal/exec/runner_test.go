@@ -79,8 +79,8 @@ read -r -p "ok? " x
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer master.Close()
-	defer slave.Close()
+	defer func() { _ = master.Close() }()
+	defer func() { _ = slave.Close() }()
 
 	type result struct {
 		code int
@@ -133,8 +133,8 @@ func TestRunOnTTYForwardsSIGTERMToChild(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer master.Close()
-	defer slave.Close()
+	defer func() { _ = master.Close() }()
+	defer func() { _ = slave.Close() }()
 
 	type result struct {
 		code int
@@ -177,8 +177,8 @@ func TestRunOnTTYSurvivesSIGINT(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer master.Close()
-	defer slave.Close()
+	defer func() { _ = master.Close() }()
+	defer func() { _ = slave.Close() }()
 
 	type result struct {
 		code int

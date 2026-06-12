@@ -1,7 +1,10 @@
 package tui
 
 import (
+	"bytes"
 	"fmt"
+	"regexp"
+	"strings"
 	"time"
 
 	"github.com/charmbracelet/bubbles/viewport"
@@ -10,6 +13,7 @@ import (
 	"github.com/charmbracelet/x/ansi"
 
 	"github.com/hms-dbmi/pic-sure-all-in-one/cli/internal/actions"
+	"github.com/hms-dbmi/pic-sure-all-in-one/cli/internal/scripts"
 )
 
 var (
@@ -20,6 +24,44 @@ var (
 	activityBadStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("1")).Bold(true).Padding(0, 1)
 	activityWarnStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("3")).Bold(true).Padding(0, 1)
 )
+
+// initFooterNote sets first-run expectations on the init screen specifically,
+// where the build/clone/seed pipeline can run 20–30 minutes (the dashboard and
+// other actions finish in seconds-to-minutes, so they get no such note).
+const initFooterNote = "first run takes ~20–30 minutes"
+
+// phaseLinePattern matches the scripts' own info() markers after ANSI is
+// stripped: "[PREFIX] message", where PREFIX is one of the init pipeline's log
+// prefixes (scripts/lib/common.sh's info() emits "[$LOG_PREFIX] $*", with the
+// bracket wrapped in green that we strip first). Capturing only these known
+// prefixes keeps unrelated bracketed output (e.g. docker/maven "[INFO]" lines)
+// from being mistaken for a phase. Tolerant by construction: anything that does
+// not match leaves the current phase unchanged.
+var phaseLinePattern = regexp.MustCompile(`^\[(init|clone|build|seed|migrate)\]\s+(.*)$`)
+
+// phaseDecoration matches a marker message that is pure decoration (the banner
+// rules like "======") or empty — surfacing those as a phase would be noise.
+var phaseDecoration = regexp.MustCompile(`^[^\p{L}\p{N}]*$`)
+
+// detectPhase extracts a short phase hint from one raw output line, or "" if
+// the line is not a recognized step marker (the caller then leaves the phase
+// unchanged). It strips ANSI first, matches the scripts' "[prefix] message"
+// info() format, and returns the message lowercased and trimmed — surfacing the
+// scripts' own words rather than inventing phase names. Cheap: one ANSI strip
+// and one regexp match per line. Kept as a free function so it is unit-testable
+// against real captured marker strings.
+func detectPhase(line string) string {
+	line = strings.TrimSpace(ansi.Strip(line))
+	m := phaseLinePattern.FindStringSubmatch(line)
+	if m == nil {
+		return ""
+	}
+	msg := strings.TrimSpace(m[2])
+	if phaseDecoration.MatchString(msg) {
+		return "" // banner rule or empty info line: not a phase
+	}
+	return strings.ToLower(msg)
+}
 
 // activityClosedMsg tells the app to leave the activity screen.
 type activityClosedMsg struct{ openDashboard bool }
@@ -68,6 +110,14 @@ type activity struct {
 	width, height int
 	started       time.Time
 	elapsed       time.Duration
+
+	// phase is the latest step marker matched from the script's output, shown
+	// in the running header so a long run (init) is not just "running 0s" over
+	// raw logs. phaseScan accumulates the trailing partial line across output
+	// chunks so a marker split mid-line is still matched once it completes. Both
+	// are only maintained for actions whose pipeline emits markers (init today).
+	phase     string
+	phaseScan []byte
 
 	confirmingAbort bool
 	aborted         bool
@@ -130,10 +180,52 @@ func (a *activity) paneSize() (rows, cols int) {
 	return max(a.height-6, 5), max(a.width-6, 20)
 }
 
+// tracksPhases reports whether this action's pipeline emits step markers worth
+// surfacing in the header (and the long-run footer note). Only init.sh's
+// clone/build/seed/migrate pipeline runs long enough and prints enough top-level
+// markers to warrant it; other actions stay on the plain "running 0s" header.
+func (a *activity) tracksPhases() bool {
+	return a.act.Script == scripts.Init
+}
+
+// scanPhase updates a.phase from the new raw chunk only (never the whole
+// buffer), so it stays cheap on a chatty stream. It splits the accumulated
+// trailing partial + new bytes on newlines, runs detectPhase on each COMPLETE
+// line, and keeps the last (unterminated) fragment for the next chunk — so a
+// marker split across chunks is matched once it completes. An unrecognized line
+// leaves a.phase unchanged.
+func (a *activity) scanPhase(data []byte) {
+	if !a.tracksPhases() {
+		return
+	}
+	a.phaseScan = append(a.phaseScan, data...)
+	for {
+		i := bytes.IndexByte(a.phaseScan, '\n')
+		if i < 0 {
+			break
+		}
+		line := string(a.phaseScan[:i])
+		a.phaseScan = a.phaseScan[i+1:]
+		if p := detectPhase(line); p != "" {
+			a.phase = p
+		}
+	}
+	// Cap the unterminated fragment so a never-newline stream can't grow it
+	// without bound (matches the output buffer's pathological-line guard).
+	if len(a.phaseScan) > maxPhaseScanLen {
+		a.phaseScan = a.phaseScan[len(a.phaseScan)-maxPhaseScanLen:]
+	}
+}
+
+// maxPhaseScanLen bounds the carried partial line; a marker line is never this
+// long, so truncation only ever discards leading junk on a pathological stream.
+const maxPhaseScanLen = 8 * 1024
+
 func (a *activity) update(msg tea.Msg) (*activity, tea.Cmd) {
 	switch msg := msg.(type) {
 	case actions.OutputMsg:
 		a.out.Feed(msg.Data)
+		a.scanPhase(msg.Data)
 		a.refreshContent()
 		if a.runner != nil {
 			return a, a.runner.WaitData()
@@ -256,7 +348,25 @@ func (a *activity) headerLine() string {
 	if a.done {
 		return fmt.Sprintf("%s — finished", a.act.Name)
 	}
-	return fmt.Sprintf("%s — running %s", a.act.Name, a.elapsed)
+	base := fmt.Sprintf("%s — running %s", a.act.Name, a.elapsed)
+	if a.phase == "" {
+		return base
+	}
+	// Append the latest matched phase, truncated so the header never exceeds
+	// the screen width and wraps (which would shear the layout). The title
+	// style adds 1 col of padding each side; budget for that plus the " · "
+	// separator. With no known width yet, fall back to a generous default so
+	// the phase still shows in tests that render before the first resize.
+	width := a.width
+	if width <= 0 {
+		width = 80
+	}
+	const sep = " · "
+	avail := width - 2 - lipgloss.Width(base) - lipgloss.Width(sep)
+	if avail < 8 {
+		return base // too narrow to add a phase legibly
+	}
+	return base + sep + ansi.Truncate(a.phase, avail, "…")
 }
 
 func (a *activity) footerLine() string {
@@ -271,7 +381,17 @@ func (a *activity) footerLine() string {
 		return activityWarnStyle.Render("aborting — sent ctrl-c, waiting for the child to exit…") +
 			activityHelpStyle.Render("  pgup/pgdn scroll")
 	case !a.done:
-		return activityHelpStyle.Render("esc/ctrl+c abort · pgup/pgdn scroll")
+		help := "esc/ctrl+c abort · pgup/pgdn scroll"
+		// Append the first-run note only on the init screen and only when it
+		// fits the width — at narrow widths the longer footer would wrap and
+		// shear the frame (the abort/scroll hint always takes priority).
+		if a.tracksPhases() {
+			withNote := help + " · " + initFooterNote
+			if a.width <= 0 || lipgloss.Width(withNote)+2 <= a.width {
+				help = withNote
+			}
+		}
+		return activityHelpStyle.Render(help)
 	case a.aborted:
 		return activityWarnStyle.Render("aborted — "+a.act.AbortNote) +
 			activityHelpStyle.Render("  esc/q: back to menu")

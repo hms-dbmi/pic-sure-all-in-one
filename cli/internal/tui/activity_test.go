@@ -242,6 +242,139 @@ func TestActivityCtrlCOnFinishedScreenQuits(t *testing.T) {
 	}
 }
 
+// initActivity returns a sized activity for the init action (the one whose
+// pipeline emits step markers), with a live fake runner.
+func initActivity(t *testing.T) (*activity, *fakeRunner) {
+	t.Helper()
+	a := newActivity(t.TempDir(), actions.Init())
+	a.setSize(80, 24)
+	fr := &fakeRunner{}
+	a.runner = fr
+	return a, fr
+}
+
+// TestDetectPhase feeds REAL info() marker strings as they arrive over the PTY
+// — the green-wrapped "[prefix]" exactly as scripts/lib/common.sh emits it
+// (\033[0;32m[init]\033[0m message) — plus the sub-scripts' own prefixes, and
+// asserts the extracted phase. Unrecognized output yields "".
+func TestDetectPhase(t *testing.T) {
+	const g = "\x1b[0;32m" // PICSURE_GREEN
+	const nc = "\x1b[0m"    // PICSURE_NC
+	tests := []struct {
+		name string
+		line string
+		want string
+	}{
+		// init.sh top-level phases (real strings from init.sh).
+		{"init clone", g + "[clone]" + nc + " Cloning repos into /x/repos", "cloning repos into /x/repos"},
+		{"init build", g + "[init]" + nc + " Building container images...", "building container images..."},
+		{"init start-db", g + "[init]" + nc + " Starting database...", "starting database..."},
+		{"init migrate", g + "[init]" + nc + " Running database migrations...", "running database migrations..."},
+		{"init seed", g + "[init]" + nc + " Seeding database...", "seeding database..."},
+		{"init services", g + "[init]" + nc + " Starting services...", "starting services..."},
+		// Sub-script prefixes (build-images.sh / seed-db.sh / run-migrations.sh).
+		{"build image", g + "[build]" + nc + " Building pic-sure-hpds (Maven + Docker)...", "building pic-sure-hpds (maven + docker)..."},
+		{"seed admin", g + "[seed]" + nc + " Creating admin user: a@b.org", "creating admin user: a@b.org"},
+		{"migrate flyway", g + "[migrate]" + nc + " Running Flyway migrate...", "running flyway migrate..."},
+		// Already-stripped line (no ANSI) still matches.
+		{"no ansi", "[init] Generating database passwords...", "generating database passwords..."},
+		// Decoration / empty info lines are not phases.
+		{"banner rule", g + "[seed]" + nc + " ======================================", ""},
+		{"empty info", g + "[init]" + nc + " ", ""},
+		// Unrelated bracketed output (maven/docker) must NOT match.
+		{"maven info", "[INFO] Building jar", ""},
+		{"docker step", "Step 3/8 : RUN make", ""},
+		{"unknown prefix", g + "[deploy]" + nc + " doing things", ""},
+		{"plain log", "cloning into 'pic-sure-hpds'...", ""},
+		{"blank", "", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := detectPhase(tt.line); got != tt.want {
+				t.Errorf("detectPhase(%q) = %q, want %q", tt.line, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestActivityHeaderShowsPhase: a marker chunk surfaces the phase in the running
+// header; unrecognized output leaves it unchanged; the init footer carries the
+// long-run note.
+func TestActivityHeaderShowsPhase(t *testing.T) {
+	a, _ := initActivity(t)
+	if strings.Contains(a.headerLine(), "·") {
+		t.Fatalf("header shows a phase before any marker: %q", a.headerLine())
+	}
+	if !strings.Contains(a.footerLine(), initFooterNote) {
+		t.Errorf("init footer missing the long-run note: %q", a.footerLine())
+	}
+
+	_, _ = a.update(actions.OutputMsg{Data: []byte("\x1b[0;32m[init]\x1b[0m Building container images...\r\n")})
+	if !strings.Contains(a.headerLine(), "building container images") {
+		t.Errorf("header did not surface the build phase: %q", a.headerLine())
+	}
+
+	// Unrecognized output must leave the phase unchanged.
+	_, _ = a.update(actions.OutputMsg{Data: []byte("some raw maven noise\r\n[INFO] downloading\r\n")})
+	if !strings.Contains(a.headerLine(), "building container images") {
+		t.Errorf("unrecognized output changed the phase: %q", a.headerLine())
+	}
+
+	// A later recognized marker advances to the latest phase.
+	_, _ = a.update(actions.OutputMsg{Data: []byte("\x1b[0;32m[init]\x1b[0m Seeding database...\r\n")})
+	if !strings.Contains(a.headerLine(), "seeding database") {
+		t.Errorf("header did not advance to the latest phase: %q", a.headerLine())
+	}
+}
+
+// TestActivityPhaseAcrossChunks: a marker split across two output chunks is
+// still matched once the line completes.
+func TestActivityPhaseAcrossChunks(t *testing.T) {
+	a, _ := initActivity(t)
+	_, _ = a.update(actions.OutputMsg{Data: []byte("\x1b[0;32m[init]\x1b[0m Starting ser")})
+	if strings.Contains(a.headerLine(), "starting ser") {
+		t.Fatal("phase matched on an incomplete (unterminated) line")
+	}
+	_, _ = a.update(actions.OutputMsg{Data: []byte("vices...\r\n")})
+	if !strings.Contains(a.headerLine(), "starting services") {
+		t.Errorf("split marker not matched after completion: %q", a.headerLine())
+	}
+}
+
+// TestActivityNonInitHasNoPhase: actions outside the init pipeline neither track
+// phases nor show the long-run footer note.
+func TestActivityNonInitHasNoPhase(t *testing.T) {
+	a, _ := runningActivity(t) // actions.Update()
+	_, _ = a.update(actions.OutputMsg{Data: []byte("\x1b[0;32m[init]\x1b[0m Building container images...\r\n")})
+	if strings.Contains(a.headerLine(), "·") {
+		t.Errorf("non-init action surfaced a phase: %q", a.headerLine())
+	}
+	if strings.Contains(a.footerLine(), initFooterNote) {
+		t.Errorf("non-init footer carries the init long-run note: %q", a.footerLine())
+	}
+}
+
+// TestActivityPhaseTruncatedToWidth: a long phase is truncated so the header
+// never exceeds the screen width (which would wrap and shear the layout).
+func TestActivityPhaseTruncatedToWidth(t *testing.T) {
+	a, _ := initActivity(t)
+	a.setSize(50, 24)
+	long := "Building " + strings.Repeat("very-long-image-name ", 10) + "now"
+	_, _ = a.update(actions.OutputMsg{Data: []byte("\x1b[0;32m[build]\x1b[0m " + long + "\r\n")})
+	if w := lipgloss.Width(a.headerLine()); w > 50 {
+		t.Errorf("header width %d exceeds the 50-col screen: %q", w, a.headerLine())
+	}
+	if !strings.Contains(a.headerLine(), "…") {
+		t.Errorf("over-long phase was not truncated with an ellipsis: %q", a.headerLine())
+	}
+	// The whole rendered view stays in the box too.
+	for i, line := range strings.Split(a.view(), "\n") {
+		if w := lipgloss.Width(line); w > 50 {
+			t.Errorf("view line %d width %d exceeds 50: %q", i, w, line)
+		}
+	}
+}
+
 func TestActivityFrameStaysInBox(t *testing.T) {
 	a, _ := runningActivity(t)
 	var b strings.Builder

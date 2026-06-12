@@ -38,11 +38,25 @@ func (m *model) startConfirm(act actions.Action) (tea.Model, tea.Cmd) {
 			Value(&m.confirmOK)
 	}
 
-	m.form = huh.NewForm(huh.NewGroup(field)).
-		WithWidth(min(m.width-4, 76)).
-		WithShowHelp(true)
+	m.form = m.sizeForm(huh.NewForm(huh.NewGroup(field)).WithShowHelp(true))
 	m.mode = modeConfirm
 	return m, m.form.Init()
+}
+
+// sizeForm feeds a dialog form the synthetic resize huh expects, sized to the
+// FORM PANE it renders in (m.width-leftWidth-8), not the whole terminal. Using
+// WithWidth, or sizing to the terminal, lays the form out wider than the pane
+// so lipgloss re-wraps every line inside it, mangling titles/descriptions
+// below 120 cols. As with landing.sizeForm: no WithWidth, so huh recomputes
+// group viewport heights on every WindowSizeMsg (WithWidth would freeze them).
+func (m *model) sizeForm(f *huh.Form) *huh.Form {
+	_, cols := m.actionPaneSize() // form-pane content width = m.width-leftWidth-8
+	height := max(m.height-5, 8)
+	mm, _ := f.Update(tea.WindowSizeMsg{Width: cols, Height: height})
+	if ff, ok := mm.(*huh.Form); ok {
+		return ff
+	}
+	return f
 }
 
 // startPicker opens the ETL dataset picker (the only parameterless ETL
@@ -54,7 +68,7 @@ func (m *model) startPicker() (tea.Model, tea.Cmd) {
 	// option ("") and opens the picker scrolled to the bottom with the
 	// cursor out of sight.
 	m.pickedDataset = "nhanes"
-	m.form = huh.NewForm(huh.NewGroup(
+	m.form = m.sizeForm(huh.NewForm(huh.NewGroup(
 		huh.NewSelect[string]().
 			Title("Load demo data").
 			Description("Replaces current HPDS phenotype data; other ETL operations\n(load-csv, load-vcf, ...) take file arguments — use `pic-sure etl`.").
@@ -66,7 +80,7 @@ func (m *model) startPicker() (tea.Model, tea.Cmd) {
 				huh.NewOption("All three combined", "all"),
 				huh.NewOption("Cancel", ""),
 			),
-	)).WithWidth(min(m.width-4, 76))
+	)))
 	m.mode = modePick
 	return m, m.form.Init()
 }

@@ -481,3 +481,40 @@ func TestDashboardEscCancelsConfirmAndPicker(t *testing.T) {
 		t.Errorf("esc did not cancel the picker: mode=%v", m.mode)
 	}
 }
+
+// TestDialogFitsNarrowPane guards against forms laid out wider than the form
+// pane they render in. Below 120 cols the old WithWidth(min(width-4,76)) sized
+// the form to the terminal, so lipgloss re-wrapped every line inside the
+// narrower pane (content width = width-leftWidth-8) and the frame overflowed.
+// At width 100 the pane content is only 56 cols, well under the old 76.
+func TestDialogFitsNarrowPane(t *testing.T) {
+	const w, h = 100, 30
+	tests := []struct {
+		name string
+		open func(*model) (tea.Model, tea.Cmd)
+	}{
+		{"destructive confirm", func(m *model) (tea.Model, tea.Cmd) { return m.startConfirm(actions.Reset()) }},
+		{"yes/no confirm", func(m *model) (tea.Model, tea.Cmd) { return m.startConfirm(actions.Update()) }},
+		{"etl picker", func(m *model) (tea.Model, tea.Cmd) { return m.startPicker() }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := testModel(t)
+			mm, _ := m.Update(tea.WindowSizeMsg{Width: w, Height: h})
+			m = mm.(*model)
+			tt.open(m)
+			if m.form == nil {
+				t.Fatal("dialog did not open")
+			}
+
+			// The form must fit the pane's content width, or it re-wraps inside
+			// the pane and shears the frame.
+			_, paneContent := m.actionPaneSize()
+			if fw := lipgloss.Width(m.form.View()); fw > paneContent {
+				t.Errorf("form view width %d exceeds pane content width %d (will re-wrap)", fw, paneContent)
+			}
+			// And the whole rendered frame must stay inside the terminal box.
+			frameFits(t, m.View(), w, h)
+		})
+	}
+}

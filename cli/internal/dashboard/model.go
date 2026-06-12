@@ -76,6 +76,12 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			rows, cols := m.actionPaneSize()
 			m.runner.Resize(rows, cols)
 		}
+		// Re-size an open dialog to the new pane width; huh recomputes its
+		// group viewport geometry only in its WindowSizeMsg handler, and this
+		// branch returns without routing the resize to the form.
+		if m.form != nil && (m.mode == modeConfirm || m.mode == modePick) {
+			m.form = m.sizeForm(m.form)
+		}
 		return m, nil
 
 	case servicesTickMsg:

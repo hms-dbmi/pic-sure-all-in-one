@@ -112,8 +112,13 @@ services:
         condition: service_completed_successfully
       deploy-wars:
         condition: service_completed_successfully
+    # TCP-level probe only: the jboss/wildfly:23 base image ships no
+    # wget/curl/nc (only bash), and its Dockerfile lives upstream in repos/
+    # so we cannot add one.  This catches a dead or hung process but NOT a
+    # failed WAR deployment — the API context (/pic-sure-api-2/PICSURE/)
+    # can be absent while port 8080 still accepts connections.
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/PIC-SURE/"]
+      test: ["CMD", "bash", "-c", "</dev/tcp/localhost/8080"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -163,8 +168,14 @@ services:
     depends_on:
       flyway-init:
         condition: service_completed_successfully
+    # TCP-level probe: PSAMA (Spring Boot, amazoncorretto:24-alpine) exposes
+    # no unauthenticated 2xx GET — Spring Security 401s everything except
+    # /actuator/health (404: actuator is not on the classpath) and
+    # /authentication/**, and wget --spider fails on any non-2xx.  busybox
+    # nc is in the alpine base.  Catches a dead process, not app-level
+    # failures (e.g. a broken DB connection after startup).
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8090/auth/"]
+      test: ["CMD", "nc", "-z", "localhost", "8090"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -202,14 +213,17 @@ services:
       LOGGING_SERVICE_URL: ${LOGGING_SERVICE_URL:-http://pic-sure-logging/}
     networks:
       - app
-    # HPDS starts slowly (data loading) and may crash-loop without data
-    # (especially with bch-dev profile).  A long start_period lets compose
-    # defer evaluation until HPDS is expected to be ready; after that window,
-    # a failed probe is a real failure.  The /PIC-SURE/ context root responds
-    # 200 once the servlet is accepting traffic.
+    # TCP-level probe.  This replaces the old `wget … || exit 0` check that
+    # could never fail (the dashboard showed healthy even when HPDS was down).
+    # HPDS has no GET-able health endpoint (its handlers are subpaths, mostly
+    # POST; bare /PIC-SURE/ is unmapped → 404, which fails wget --spider), so
+    # nc -z catches a dead/hung process only — not app-level failures.  HPDS
+    # starts slowly (data loading) and may crash-loop without data (especially
+    # with bch-dev profile); the long start_period defers evaluation until it
+    # is expected to be up.
     # TODO: Add a proper /health endpoint to HPDS and tighten this probe.
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/PIC-SURE/"]
+      test: ["CMD", "nc", "-z", "localhost", "8080"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -274,10 +288,13 @@ services:
     depends_on:
       dictionary-db:
         condition: service_healthy
+    # TCP-level probe: dictionary-api (Spring Boot, server.port=80) does not
+    # include spring-boot-starter-actuator, so there is no /actuator/health
+    # endpoint (unlike the visualization service, which has it).  busybox nc
+    # is in the corretto-alpine base.  Catches a dead process only — not
+    # app-level failures.
     healthcheck:
-      # dictionary-api is a Spring Boot service on port 80 (SERVER_PORT default).
-      # Uses the same actuator/health pattern as the visualization service.
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost/actuator/health"]
+      test: ["CMD", "nc", "-z", "localhost", "80"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -415,9 +432,10 @@ services:
     networks:
       - app
     healthcheck:
-      # pic-sure-logging is a Node/Express service on PORT 80.
-      # A GET / returns 200 when the server is ready to accept events.
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost/"]
+      # pic-sure-logging is a Java/Javalin service on PORT 80 with a real
+      # GET /health endpoint — the same probe its own image HEALTHCHECK uses
+      # (repos/PIC-SURE-Logging/Dockerfile).
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost/health"]
       interval: 30s
       timeout: 10s
       retries: 3

@@ -99,10 +99,14 @@ picsure_db_exec_mysql() {
   local user="${DB_ROOT_USER:-root}"
   local pass="${DB_ROOT_PASSWORD:-}"
 
+  # Pass the password via the MYSQL_PWD env var rather than mysql's -p argv
+  # flag, so it never appears in the host `docker` process listing (ps). For
+  # docker run/exec the env must cross the container boundary, hence -e. Use
+  # -i so callers may stream SQL on stdin (keeping secret SQL out of argv too).
   if [ "${DB_MODE:-local}" = "remote" ]; then
-    docker run --rm mysql:8.0 \
-      mysql -h "$host" -P "$port" -u "$user" -p"$pass" "$@"
+    docker run --rm -i -e MYSQL_PWD="$pass" mysql:8.0 \
+      mysql -h "$host" -P "$port" -u "$user" "$@"
   else
-    docker exec picsure-db mysql -u"$user" -p"$pass" "$@"
+    docker exec -i -e MYSQL_PWD="$pass" picsure-db mysql -u"$user" "$@"
   fi
 }

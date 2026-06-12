@@ -208,20 +208,27 @@ if [ -n "${AUTH0_CLIENT_SECRET:-}" ] && [ -n "${PICSURE_APPLICATION_ID:-}" ]; th
   set_env_var "PICSURE_INTROSPECTION_TOKEN" "$INTRO_TOKEN" "$FORCE"
   info "Introspection token generated (365-day expiry)."
   # Also update the DB if picsure-db is running (token must match in .env, standalone.xml, AND the DB)
+  # The password crosses the docker boundary via MYSQL_PWD (-e), and the SQL —
+  # which embeds the secret token — is fed on stdin, so neither the password nor
+  # the token ever reaches the host `docker` process listing (ps).
   if [ "${DB_MODE:-local}" = "remote" ]; then
-    if docker run --rm \
+    if docker run --rm -i \
       -e MYSQL_PWD="${DB_ROOT_PASSWORD:-}" \
       mysql:8.0 \
       mysql -h "${DB_HOST}" -P "${DB_PORT:-3306}" -u "${DB_ROOT_USER:-root}" \
-      -e "UPDATE auth.application SET token='$INTRO_TOKEN' WHERE name='PICSURE';" 2>/dev/null; then
+      2>/dev/null <<SQL; then
+UPDATE auth.application SET token='$INTRO_TOKEN' WHERE name='PICSURE';
+SQL
       info "Introspection token updated in remote database."
     else
       warn "Could not update token in remote DB (application table may not exist yet)."
     fi
   elif docker ps --format '{{.Names}}' 2>/dev/null | grep -q picsure-db; then
     db_pass=$(grep "^DB_ROOT_PASSWORD=" "$ENV_FILE" | cut -d= -f2-)
-    if docker exec picsure-db mysql -uroot -p"$db_pass" -e \
-      "UPDATE auth.application SET token='$INTRO_TOKEN' WHERE name='PICSURE';" 2>/dev/null; then
+    if docker exec -i -e MYSQL_PWD="$db_pass" picsure-db mysql -uroot \
+      2>/dev/null <<SQL; then
+UPDATE auth.application SET token='$INTRO_TOKEN' WHERE name='PICSURE';
+SQL
       info "Introspection token updated in database."
     else
       warn "Could not update token in DB (application table may not exist yet)."

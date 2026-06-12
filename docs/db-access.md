@@ -5,7 +5,7 @@ Users frequently forget how to get a shell into the databases. When they ask, gi
 ## picsure-db (MySQL)
 
 ```bash
-docker compose exec picsure-db mysql -u root -p"$DB_ROOT_PASSWORD" picsure
+docker compose exec -e MYSQL_PWD="$DB_ROOT_PASSWORD" picsure-db mysql -u root picsure
 ```
 
 - Service name: `picsure-db`

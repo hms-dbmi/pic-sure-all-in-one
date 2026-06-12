@@ -333,7 +333,10 @@ services:
     networks:
       - app
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-uroot", "-p${DB_ROOT_PASSWORD}"]
+      # Pass the password via MYSQL_PWD (read from the container's own
+      # MYSQL_ROOT_PASSWORD env) instead of -p on argv, so it does not appear in
+      # the container's process listing on every probe.
+      test: ["CMD-SHELL", "MYSQL_PWD=\"$$MYSQL_ROOT_PASSWORD\" mysqladmin ping -uroot"]
       timeout: 20s
       retries: 10
       start_period: 15s

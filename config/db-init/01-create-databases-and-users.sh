@@ -14,13 +14,13 @@
 set -e
 
 echo "[picsure-init] Creating databases..."
-mysql -u root -p"$MYSQL_ROOT_PASSWORD" <<-EOSQL
+MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -u root <<-EOSQL
     CREATE DATABASE IF NOT EXISTS auth;
     CREATE DATABASE IF NOT EXISTS picsure;
 EOSQL
 
 echo "[picsure-init] Creating application users..."
-mysql -u root -p"$MYSQL_ROOT_PASSWORD" <<-EOSQL
+MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -u root <<-EOSQL
     CREATE USER IF NOT EXISTS 'picsure'@'%' IDENTIFIED BY '${DB_PICSURE_PASSWORD}';
     GRANT ALL PRIVILEGES ON picsure.* TO 'picsure'@'%';
 

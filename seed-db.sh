@@ -42,15 +42,32 @@ set -a
 source "$SCRIPT_DIR/.env"
 set +a
 
+# db_mysql: run mysql as root. The password is passed via the MYSQL_PWD env
+# var (crossing the docker boundary with -e) rather than mysql's -p argv flag,
+# so it never shows up in the host `docker` process listing (ps). The -i flag
+# lets callers stream SQL on stdin, so secret-bearing statements (e.g. the
+# introspection token, the admin email) stay out of argv as well.
 db_mysql() {
   if [ "${DB_MODE:-local}" = "remote" ]; then
-    docker run --rm \
+    docker run --rm -i \
       -e MYSQL_PWD="${DB_ROOT_PASSWORD}" \
       mysql:8.0 \
       mysql -h "${DB_HOST}" -P "${DB_PORT:-3306}" -u "${DB_ROOT_USER:-root}" "$@"
   else
-    docker exec picsure-db mysql -uroot -p"${DB_ROOT_PASSWORD}" "$@"
+    docker exec -i \
+      -e MYSQL_PWD="${DB_ROOT_PASSWORD}" \
+      picsure-db mysql -uroot "$@"
   fi
+}
+
+# sql_escape_quotes: double single quotes for safe interpolation into a SQL
+# string literal (bash-3.2-safe). Values come from the trusted .env, but an
+# apostrophe in e.g. ADMIN_EMAIL would otherwise break the statement.
+sql_escape_quotes() {
+  # Pattern \' matches a literal single quote; replacement '' is two literal
+  # single quotes. (Bash 3.2 takes \' in the replacement literally as a
+  # backslash-quote, so do not escape the quotes on the replacement side.)
+  printf '%s' "${1//\'/''}"
 }
 
 # Check DB is running
@@ -167,26 +184,33 @@ fi
 ADMIN_EMAIL="${ADMIN_EMAIL:-}"
 
 if [ -n "$ADMIN_EMAIL" ]; then
+  # Escape single quotes so an apostrophe in the (trusted) email cannot break
+  # the SQL string literal. The same escaped value is also valid inside the
+  # JSON literal, since JSON does not treat single quotes specially.
+  ADMIN_EMAIL_SQL=$(sql_escape_quotes "$ADMIN_EMAIL")
+
   # Check if user already exists
   EXISTING=$(db_mysql -N -e \
-    "SELECT COUNT(*) FROM auth.user WHERE email='$ADMIN_EMAIL';" 2>/dev/null || echo "0")
+    "SELECT COUNT(*) FROM auth.user WHERE email='$ADMIN_EMAIL_SQL';" 2>/dev/null || echo "0")
 
   if [ "$EXISTING" = "0" ]; then
     info "Creating admin user: $ADMIN_EMAIL"
     USER_UUID=$(uuidgen | tr '[:lower:]' '[:upper:]' | sed 's/-//g')
 
-    db_mysql -e "
+    # SQL is fed on stdin (not -e argv) so the email never reaches the host
+    # process listing.
+    db_mysql 2>/dev/null <<SQL || { error "Failed to create admin user $ADMIN_EMAIL (are baseline migrations applied?)."; exit 1; }
       INSERT INTO auth.user (uuid, auth0_metadata, general_metadata, acceptedTOS, connectionId, email, matched, subject, is_active, long_term_token)
       VALUES (
-        UNHEX('$USER_UUID'), NULL, '{\"email\":\"$ADMIN_EMAIL\"}', NULL,
+        UNHEX('$USER_UUID'), NULL, '{"email":"$ADMIN_EMAIL_SQL"}', NULL,
         (SELECT uuid FROM auth.connection WHERE label='Google'),
-        '$ADMIN_EMAIL', 0, NULL, 1, NULL
+        '$ADMIN_EMAIL_SQL', 0, NULL, 1, NULL
       );
       INSERT INTO auth.user_role (user_id, role_id)
       VALUES (UNHEX('$USER_UUID'), UNHEX('002DC366B0D8420F998F885D0ED797FD'));
       INSERT INTO auth.user_role (user_id, role_id)
       VALUES (UNHEX('$USER_UUID'), UNHEX('797FD002DC366B0D8420F998F885D0ED'));
-    " 2>/dev/null || { error "Failed to create admin user $ADMIN_EMAIL (are baseline migrations applied?)."; exit 1; }
+SQL
 
     info "Admin user created with Top Admin + User roles."
   else
@@ -230,9 +254,12 @@ fi
 INTRO_TOKEN="${PICSURE_INTROSPECTION_TOKEN:-}"
 
 if [ -n "$INTRO_TOKEN" ]; then
-  db_mysql -e \
-    "UPDATE auth.application SET token='$INTRO_TOKEN' WHERE name='PICSURE';" 2>/dev/null \
-    || { error "Failed to sync introspection token to database."; exit 1; }
+  INTRO_TOKEN_SQL=$(sql_escape_quotes "$INTRO_TOKEN")
+  # Feed the UPDATE on stdin so the token (a secret) never appears in the host
+  # process listing.
+  db_mysql 2>/dev/null <<SQL || { error "Failed to sync introspection token to database."; exit 1; }
+    UPDATE auth.application SET token='$INTRO_TOKEN_SQL' WHERE name='PICSURE';
+SQL
   info "Introspection token synced to database."
 fi
 

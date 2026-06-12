@@ -58,9 +58,10 @@ func NewForm(initial map[string]string, skipAuth bool) *Form {
 		f.ptrs[fl.Key] = &huhV
 	}
 
+	// No field-level Title/Description: the group header directly above carries
+	// the "Identity provider" intro, and repeating it on the field read doubled
+	// when rendered (TestGroupIntrosRender pins this).
 	idp := huh.NewSelect[bool]().
-		Title("Identity provider").
-		Description("PIC-SURE supports other providers; skip to wire one up manually.").
 		Options(
 			huh.NewOption("Auth0 (recommended for evaluation)", false),
 			huh.NewOption("Skip — I'll configure an identity provider manually", true),
@@ -89,8 +90,11 @@ func NewForm(initial map[string]string, skipAuth bool) *Form {
 		huh.NewGroup(inputsFor(GroupPorts, false, f.ptrs)...).
 			Title("Ports").
 			Description("Host ports the frontend binds — change these if 80/443 are taken."),
+		// Titled "Access control" (the concern), not "Auth mode" (the knob):
+		// the single field inside is itself titled "Auth mode", and the same
+		// title twice in a row read doubled when rendered.
 		huh.NewGroup(inputsFor(GroupAuth, false, f.ptrs)...).
-			Title("Auth mode").
+			Title("Access control").
 			Description("How much of PIC-SURE is reachable without signing in."),
 		huh.NewGroup(inputsFor(GroupDB, false, f.ptrs)...).
 			Title("Database").

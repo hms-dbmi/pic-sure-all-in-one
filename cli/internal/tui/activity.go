@@ -30,35 +30,57 @@ var (
 // other actions finish in seconds-to-minutes, so they get no such note).
 const initFooterNote = "first run takes ~20–30 minutes"
 
-// phaseLinePattern matches the scripts' own info() markers after ANSI is
-// stripped: "[PREFIX] message", where PREFIX is one of the init pipeline's log
-// prefixes (scripts/lib/common.sh's info() emits "[$LOG_PREFIX] $*", with the
-// bracket wrapped in green that we strip first). Capturing only these known
-// prefixes keeps unrelated bracketed output (e.g. docker/maven "[INFO]" lines)
-// from being mistaken for a phase. Tolerant by construction: anything that does
-// not match leaves the current phase unchanged.
-var phaseLinePattern = regexp.MustCompile(`^\[(init|clone|build|seed|migrate)\]\s+(.*)$`)
+// phaseInitPrefixes are the init pipeline's LOG_PREFIX values; capturing only
+// these keeps unrelated bracketed output (docker/maven "[INFO]" lines) from
+// being mistaken for a phase.
+const phaseInitPrefixes = `init|clone|build|seed|migrate`
+
+// phaseMarkerColored matches scripts/lib/common.sh's info() output BEFORE ANSI
+// stripping: "\x1b[0;32m[$LOG_PREFIX]\x1b[0m $*" — the bracket wrapped in
+// PICSURE_GREEN specifically. warn() and error() emit the identical bracket in
+// yellow/red, so gating on the green SGR is what keeps "AUTH0_CLIENT_ID is not
+// set in .env" or "hpds failed. See …" from masquerading as a phase.
+var phaseMarkerColored = regexp.MustCompile(`^\x1b\[0;32m\[(` + phaseInitPrefixes + `)\]\x1b\[0m\s+(.*)$`)
+
+// phaseMarkerPlain is the fallback for lines carrying no SGR at all (NO_COLOR
+// or pre-stripped streams): the bare "[prefix] message" form. Without color the
+// prefix alone cannot distinguish info from warn/error, so detectPhase
+// additionally skips warning-styled messages (⚠ …) — see below.
+var phaseMarkerPlain = regexp.MustCompile(`^\[(` + phaseInitPrefixes + `)\]\s+(.*)$`)
 
 // phaseDecoration matches a marker message that is pure decoration (the banner
 // rules like "======") or empty — surfacing those as a phase would be noise.
 var phaseDecoration = regexp.MustCompile(`^[^\p{L}\p{N}]*$`)
 
 // detectPhase extracts a short phase hint from one raw output line, or "" if
-// the line is not a recognized step marker (the caller then leaves the phase
-// unchanged). It strips ANSI first, matches the scripts' "[prefix] message"
-// info() format, and returns the message lowercased and trimmed — surfacing the
-// scripts' own words rather than inventing phase names. Cheap: one ANSI strip
-// and one regexp match per line. Kept as a free function so it is unit-testable
-// against real captured marker strings.
+// the line is not a recognized info() step marker (the caller then leaves the
+// phase unchanged). The match runs BEFORE ANSI stripping so the green SGR that
+// only info() emits can gate out warn()/error() lines, which share the same
+// bracket format in yellow/red. Lines with no SGR at all (NO_COLOR-style
+// output) fall back to the bare bracket form, minus ⚠-prefixed warnings. The
+// message is returned lowercased and trimmed — the scripts' own words, not
+// invented phase names. Cheap: at most two regexp matches and one strip per
+// line. Kept as a free function so it is unit-testable against real captured
+// marker strings.
 func detectPhase(line string) string {
-	line = strings.TrimSpace(ansi.Strip(line))
-	m := phaseLinePattern.FindStringSubmatch(line)
-	if m == nil {
+	var msg string
+	if m := phaseMarkerColored.FindStringSubmatch(strings.TrimSpace(line)); m != nil {
+		msg = m[2]
+	} else if !strings.Contains(line, "\x1b[") {
+		m := phaseMarkerPlain.FindStringSubmatch(strings.TrimSpace(line))
+		if m == nil {
+			return ""
+		}
+		msg = m[2]
+	} else {
+		// Colored, but not the green info() wrap: warn/error or unrelated.
 		return ""
 	}
-	msg := strings.TrimSpace(m[2])
-	if phaseDecoration.MatchString(msg) {
-		return "" // banner rule or empty info line: not a phase
+	msg = strings.TrimSpace(ansi.Strip(msg))
+	// ⚠ marks a warning regardless of path; without color (the fallback) it is
+	// the only signal left, and even a green-wrapped one is not a step.
+	if strings.HasPrefix(msg, "⚠") || phaseDecoration.MatchString(msg) {
+		return ""
 	}
 	return strings.ToLower(msg)
 }

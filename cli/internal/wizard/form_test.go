@@ -111,7 +111,7 @@ func TestGroupIntrosRender(t *testing.T) {
 		"From your Auth0 application",                           // Auth0 credentials
 		"The first administrator",                               // Admin account
 		"Host ports the frontend binds",                         // Ports
-		"How much of PIC-SURE is reachable without signing in",  // Auth mode
+		"How much of PIC-SURE is reachable without signing in",  // Access control
 		"Local runs a bundled MySQL; remote points at your own", // Database
 		"Where to reach your external MySQL",                    // Remote database connection
 		"Pins which component versions are built",               // Release control
@@ -119,6 +119,27 @@ func TestGroupIntrosRender(t *testing.T) {
 	for _, want := range wantIntros {
 		if !strings.Contains(joined, want) {
 			t.Errorf("no group header contains the intro %q\n--- headers ---\n%s", want, joined)
+		}
+	}
+
+	// Regression guard: a group's title must not reappear as a field title
+	// directly beneath its header — the IdP select used to repeat "Identity
+	// provider" (and the Auth mode group its single field's title), which read
+	// doubled when rendered. Compare whole trimmed lines so e.g. the "Database"
+	// title cannot false-positive against the "Database mode" field.
+	if c := strings.Count(first, "Identity provider"); c != 1 {
+		t.Errorf("live render shows %d \"Identity provider\" titles, want exactly 1:\n%s", c, first)
+	}
+	for i, g := range wf.groups {
+		title := strings.TrimSpace(strings.SplitN(ansi.Strip(g.Header()), "\n", 2)[0])
+		if title == "" {
+			continue
+		}
+		for _, raw := range strings.Split(ansi.Strip(g.Content()), "\n") {
+			line := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(raw), "┃"))
+			if line == title {
+				t.Errorf("group %d: title %q repeats as a field line right under the header — reads doubled", i, title)
+			}
 		}
 	}
 }

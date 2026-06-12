@@ -253,13 +253,18 @@ func initActivity(t *testing.T) (*activity, *fakeRunner) {
 	return a, fr
 }
 
-// TestDetectPhase feeds REAL info() marker strings as they arrive over the PTY
-// — the green-wrapped "[prefix]" exactly as scripts/lib/common.sh emits it
+// TestDetectPhase feeds REAL marker strings as they arrive over the PTY — the
+// green-wrapped "[prefix]" exactly as scripts/lib/common.sh's info() emits it
 // (\033[0;32m[init]\033[0m message) — plus the sub-scripts' own prefixes, and
-// asserts the extracted phase. Unrecognized output yields "".
+// asserts the extracted phase. warn()/error() share the bracket format in
+// yellow/red and must NOT match; lines with no SGR at all are the NO_COLOR
+// fallback, where ⚠-prefixed warnings are skipped. Anything unrecognized
+// yields "".
 func TestDetectPhase(t *testing.T) {
-	const g = "\x1b[0;32m" // PICSURE_GREEN
-	const nc = "\x1b[0m"    // PICSURE_NC
+	const g = "\x1b[0;32m" // PICSURE_GREEN (info)
+	const y = "\x1b[1;33m" // PICSURE_YELLOW (warn)
+	const r = "\x1b[0;31m" // PICSURE_RED (error)
+	const nc = "\x1b[0m"   // PICSURE_NC
 	tests := []struct {
 		name string
 		line string
@@ -276,8 +281,17 @@ func TestDetectPhase(t *testing.T) {
 		{"build image", g + "[build]" + nc + " Building pic-sure-hpds (Maven + Docker)...", "building pic-sure-hpds (maven + docker)..."},
 		{"seed admin", g + "[seed]" + nc + " Creating admin user: a@b.org", "creating admin user: a@b.org"},
 		{"migrate flyway", g + "[migrate]" + nc + " Running Flyway migrate...", "running flyway migrate..."},
-		// Already-stripped line (no ANSI) still matches.
-		{"no ansi", "[init] Generating database passwords...", "generating database passwords..."},
+		// warn()/error() lines — same bracket, yellow/red — must NOT become
+		// the phase (real strings: init.sh:160, common.sh picsure_run_logged).
+		{"warn yellow", y + "[init]" + nc + " AUTH0_CLIENT_ID is not set in .env", ""},
+		{"warn force", y + "[init]" + nc + " Force mode — will regenerate all secrets", ""},
+		{"error red", r + "[build]" + nc + " hpds failed. See .data/logs/build/hpds.log", ""},
+		{"error env", r + "[build]" + nc + " .env not found. Run: cp .env.example .env", ""},
+		// NO_COLOR fallback: a bare (no-SGR) marker still matches…
+		{"no color info", "[init] Generating database passwords...", "generating database passwords..."},
+		{"no color clone", "[clone] Cloning repos into /x/repos", "cloning repos into /x/repos"},
+		// …but ⚠-prefixed warnings are skipped (color can't disambiguate here).
+		{"no color warn", "[init] ⚠ AUTH0_CLIENT_ID is not set", ""},
 		// Decoration / empty info lines are not phases.
 		{"banner rule", g + "[seed]" + nc + " ======================================", ""},
 		{"empty info", g + "[init]" + nc + " ", ""},

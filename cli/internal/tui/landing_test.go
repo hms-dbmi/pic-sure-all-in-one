@@ -474,17 +474,32 @@ func TestLandingReleaseControlSubmenu(t *testing.T) {
 		t.Fatalf("release-control submenu = %v, want %v", got, want)
 	}
 
-	// Switch branch: one-field input prefilled from status --json.
-	_, _ = l.choose("rcbranch")
+	// Switch branch: the one-field input opens IMMEDIATELY (the prefill read is
+	// slow and runs off the update path), then the prefill arrives as a message.
+	_, cmd := l.choose("rcbranch")
 	if l.form == nil || l.inputMake == nil {
 		t.Fatal("rcbranch did not open the input")
 	}
+	if l.inputVal != "" {
+		t.Errorf("input opened with a synchronous prefill %q, want empty (async)", l.inputVal)
+	}
+	if cmd == nil {
+		t.Fatal("rcbranch did not dispatch the prefill fetch command")
+	}
+	// The dispatched batch must carry a branchPrefillMsg with the fetched branch.
+	if !batchEmitsBranchPrefill(cmd, "release/2.4") {
+		t.Fatal("rcbranch command did not deliver the fetched branch as a branchPrefillMsg")
+	}
+
+	// Deliver the prefill: the input is still open and untouched, so it applies.
+	l, _ = l.update(branchPrefillMsg{seq: l.branchSeq, branch: "release/2.4"})
 	if l.inputVal != "release/2.4" {
 		t.Errorf("prefill = %q, want release/2.4", l.inputVal)
 	}
+
 	l.inputVal = "feature/x"
 	l.form.State = huh.StateCompleted
-	_, cmd := l.update(struct{}{})
+	_, cmd = l.update(struct{}{})
 	run, ok := cmd().(runActionMsg)
 	if !ok {
 		t.Fatalf("got %#v, want runActionMsg", cmd())
@@ -501,6 +516,115 @@ func TestLandingReleaseControlSubmenu(t *testing.T) {
 	_, _ = l2.choose("back")
 	if l2.relctl || !l2.dev {
 		t.Error("back did not return to the developer submenu")
+	}
+}
+
+// batchEmitsBranchPrefill runs cmd (possibly a tea.Batch) and reports whether
+// any emitted message is a branchPrefillMsg carrying wantBranch.
+func batchEmitsBranchPrefill(cmd tea.Cmd, wantBranch string) bool {
+	if cmd == nil {
+		return false
+	}
+	switch m := cmd().(type) {
+	case tea.BatchMsg:
+		for _, c := range m {
+			if batchEmitsBranchPrefill(c, wantBranch) {
+				return true
+			}
+		}
+	case branchPrefillMsg:
+		return m.branch == wantBranch
+	}
+	return false
+}
+
+// TestLandingBranchInputOpensImmediately verifies the slow status.sh read no
+// longer blocks the update path: rcbranch opens the input synchronously, with a
+// placeholder and an empty value, and only schedules the prefill fetch.
+func TestLandingBranchInputOpensImmediately(t *testing.T) {
+	called := make(chan struct{}, 1)
+	orig := fetchReleaseBranch
+	fetchReleaseBranch = func(string) string {
+		called <- struct{}{}
+		return "release/9.9"
+	}
+	t.Cleanup(func() { fetchReleaseBranch = orig })
+
+	l := newLanding("/tmp/x", true, false)
+	l.setSize(80, 24)
+	l.dev = true
+	l.rebuildMenu()
+
+	_, cmd := l.choose("rcbranch")
+	// The input is open at once — fetchReleaseBranch has NOT run on the update path.
+	select {
+	case <-called:
+		t.Fatal("fetchReleaseBranch ran synchronously inside choose() — it must run in a tea.Cmd")
+	default:
+	}
+	if l.form == nil || l.inputMake == nil {
+		t.Fatal("rcbranch did not open the input immediately")
+	}
+	if l.inputVal != "" {
+		t.Errorf("opened with value %q, want empty pending the async prefill", l.inputVal)
+	}
+	if !strings.Contains(wizardANSI.ReplaceAllString(l.view(), ""), "reading current branch") {
+		t.Errorf("input did not show the reading-branch placeholder:\n%s", wizardANSI.ReplaceAllString(l.view(), ""))
+	}
+	// The fetch is dispatched as a command (and does deliver the branch).
+	if !batchEmitsBranchPrefill(cmd, "release/9.9") {
+		t.Fatal("rcbranch did not dispatch the prefill fetch as a command")
+	}
+}
+
+// TestLandingBranchPrefillStaleness pins the three staleness guards: a prefill
+// applies to the open, untouched input; a prefill for a since-superseded
+// opening (stale seq) is dropped; and a prefill never clobbers a value the user
+// has already typed.
+func TestLandingBranchPrefillStaleness(t *testing.T) {
+	orig := fetchReleaseBranch
+	fetchReleaseBranch = func(string) string { return "release/2.4" }
+	t.Cleanup(func() { fetchReleaseBranch = orig })
+
+	open := func() *landing {
+		l := newLanding("/tmp/x", true, false)
+		l.setSize(80, 24)
+		l.dev = true
+		l.rebuildMenu()
+		_, _ = l.choose("rcbranch")
+		if l.form == nil {
+			t.Fatal("rcbranch did not open the input")
+		}
+		return l
+	}
+
+	// Happy path: still open, untouched → prefill applies.
+	l := open()
+	l, _ = l.update(branchPrefillMsg{seq: l.branchSeq, branch: "release/2.4"})
+	if l.inputVal != "release/2.4" {
+		t.Errorf("prefill not applied: inputVal = %q, want release/2.4", l.inputVal)
+	}
+
+	// Stale seq: a prefill for an earlier opening must be dropped (the input was
+	// closed and reopened, bumping branchSeq).
+	l = open()
+	staleSeq := l.branchSeq
+	l.inputMake, l.form = nil, nil // close
+	_, _ = l.choose("rcbranch")    // reopen → branchSeq++
+	if l.branchSeq == staleSeq {
+		t.Fatal("reopening the input did not bump branchSeq")
+	}
+	l, _ = l.update(branchPrefillMsg{seq: staleSeq, branch: "release/2.4"})
+	if l.inputVal != "" {
+		t.Errorf("stale-seq prefill clobbered the reopened input: inputVal = %q, want empty", l.inputVal)
+	}
+
+	// User typed before the prefill arrived: never clobber their input.
+	l = open()
+	l.inputVal = "feature/typed-first"
+	l, _ = l.update(branchPrefillMsg{seq: l.branchSeq, branch: "release/2.4"})
+	if l.inputVal != "feature/typed-first" {
+		t.Errorf("prefill clobbered typed input: inputVal = %q, want feature/typed-first", l.inputVal)
 	}
 }
 

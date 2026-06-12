@@ -22,6 +22,15 @@ import (
 type openDashboardMsg struct{}
 type runActionMsg struct{ act actions.Action }
 
+// branchPrefillMsg carries the current release-control branch read off the hot
+// path (status.sh --json is slow). seq stamps the branch-input opening it was
+// fetched for, so a prefill that arrives after the input was closed and another
+// reopened cannot land in the wrong dialog.
+type branchPrefillMsg struct {
+	seq    int
+	branch string
+}
+
 var (
 	landingBoxStyle    = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(1, 4)
 	landingFooterStyle = lipgloss.NewStyle().Faint(true)
@@ -30,8 +39,9 @@ var (
 
 // fetchReleaseBranch reads the current release-control branch for the
 // switch-branch prefill (read-only; status.sh --json is the contract).
-// NOTE: synchronous and not cheap (~1s — status.sh forks git per repo); fine
-// for this one-shot dev-submenu path, but do not copy onto a hot path.
+// NOTE: synchronous and not cheap — status.sh forks git per repo and probes
+// docker, taking seconds on jq-less hosts — so it MUST run inside a tea.Cmd
+// (startBranchInput dispatches it off the update path), never in Update itself.
 var fetchReleaseBranch = func(root string) string {
 	code, out, err := picexec.RunOutput(root, scripts.Status, []string{"--json"})
 	if err != nil || code != 0 {
@@ -69,6 +79,7 @@ type landing struct {
 	pickerMake  func(string) actions.Action // non-nil while a picker is open
 	inputVal    string                      // text-input value
 	inputMake   func(string) actions.Action // non-nil while a text-input is open
+	branchSeq   int                         // stamps each branch-input opening for prefill staleness
 
 	result        string
 	width, height int
@@ -174,6 +185,10 @@ func (l *landing) update(msg tea.Msg) (*landing, tea.Cmd) {
 		return l, l.star.update(msg)
 	case logoShineStartMsg, logoShineStepMsg:
 		return l, l.logo.update(msg)
+	case branchPrefillMsg:
+		// Handled before the form gate: the prefill must reach the open input
+		// (the gate would otherwise route it into the form, which ignores it).
+		return l.applyBranchPrefill(msg)
 	}
 
 	// Confirm dialog consumes everything else while open.
@@ -366,16 +381,48 @@ func (l *landing) startDevPicker(title, description string, makeAction func(stri
 
 // startBranchInput is the one-field release-control branch input (the menu
 // growth rule's ceiling: one input, prefilled, mapping 1:1 to
-// release-control.sh --branch).
+// release-control.sh --branch). The prefill (the current branch) is read by
+// fetchReleaseBranch, which forks git per repo and probes docker — far too slow
+// to run inside Update. So the input opens immediately with a placeholder and
+// the prefill is fetched in a tea.Cmd that delivers a branchPrefillMsg.
 func (l *landing) startBranchInput() (*landing, tea.Cmd) {
-	l.inputVal = fetchReleaseBranch(l.root)
+	l.inputVal = ""
 	l.inputMake = actions.ReleaseControlBranch
-	l.form = l.sizeForm(huh.NewForm(huh.NewGroup(
+	l.branchSeq++
+	l.form = l.sizeForm(l.buildBranchForm("(reading current branch…)"))
+	seq, root := l.branchSeq, l.root
+	fetch := func() tea.Msg {
+		return branchPrefillMsg{seq: seq, branch: fetchReleaseBranch(root)}
+	}
+	return l, tea.Batch(l.form.Init(), fetch)
+}
+
+// buildBranchForm constructs the branch-input form, seeding the textinput from
+// the current l.inputVal (huh reads the bound value at construction, so a
+// prefill arriving later must rebuild the form, not just mutate l.inputVal).
+func (l *landing) buildBranchForm(placeholder string) *huh.Form {
+	return huh.NewForm(huh.NewGroup(
 		huh.NewInput().
 			Title("Switch release-control branch").
 			Description("Switches, resolves, and applies the branch's refs\n(empty input cancels; esc cancels).").
+			Placeholder(placeholder).
 			Value(&l.inputVal),
-	)))
+	))
+}
+
+// applyBranchPrefill lands the asynchronously-fetched branch into the open
+// input, but ONLY if it is still the right, untouched input: the branch input
+// must still be open, the seq must match the opening the fetch was issued for
+// (a stale fetch for a since-closed/reopened dialog is dropped), and the user
+// must not have typed yet (a non-empty inputVal means they did — never clobber
+// it). huh seeds its textinput from the bound value at construction, so the
+// form is rebuilt to display the prefill.
+func (l *landing) applyBranchPrefill(msg branchPrefillMsg) (*landing, tea.Cmd) {
+	if l.form == nil || l.inputMake == nil || msg.seq != l.branchSeq || l.inputVal != "" || msg.branch == "" {
+		return l, nil
+	}
+	l.inputVal = msg.branch
+	l.form = l.sizeForm(l.buildBranchForm(""))
 	return l, l.form.Init()
 }
 

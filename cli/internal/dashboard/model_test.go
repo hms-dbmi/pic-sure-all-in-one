@@ -993,6 +993,75 @@ func TestServicesPaneRowsNoWrap(t *testing.T) {
 	}
 }
 
+// TestServicesEmptyStateActionable: the services pane's empty state is
+// cause-specific and tells the user the next command, distinguishing the three
+// causes the model can actually tell apart from its status doc + servicesErr.
+// Each message also fits the 34-col pane content width (≤2 lines).
+func TestServicesEmptyStateActionable(t *testing.T) {
+	envPresent := contract.StatusEnv{FilePresent: true}
+	envMissing := contract.StatusEnv{FilePresent: false}
+	tests := []struct {
+		name        string
+		status      *contract.Status
+		servicesErr error
+		wantContain []string
+		wantAbsent  []string
+	}{
+		{
+			name:        "env missing",
+			status:      &contract.Status{Env: envMissing, Docker: contract.Docker{DaemonReachable: true}},
+			wantContain: []string{"Not configured yet", "pic-sure init"},
+			wantAbsent:  []string{"pic-sure up"},
+		},
+		{
+			name:        "docker unreachable",
+			status:      &contract.Status{Env: envPresent, Docker: contract.Docker{DaemonReachable: false}},
+			wantContain: []string{"Docker is not running", "pic-sure up"},
+			wantAbsent:  []string{"pic-sure init"},
+		},
+		{
+			name:        "configured and reachable but empty",
+			status:      &contract.Status{Env: envPresent, Docker: contract.Docker{DaemonReachable: true}},
+			wantContain: []string{"No services running", "pic-sure up"},
+			wantAbsent:  []string{"pic-sure init"},
+		},
+		{
+			name:        "compose ps failed before status landed",
+			status:      nil,
+			servicesErr: fmt.Errorf("exit status 1"),
+			wantContain: []string{"unavailable", "pic-sure up"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			m := testModel(t)
+			m.status = tt.status
+			m.servicesErr = tt.servicesErr
+			m.services = nil // empty: the empty-state path
+
+			plain := ansi.Strip(m.servicesPane())
+			for _, want := range tt.wantContain {
+				if !strings.Contains(plain, want) {
+					t.Errorf("empty state missing %q:\n%s", want, plain)
+				}
+			}
+			for _, absent := range tt.wantAbsent {
+				if strings.Contains(plain, absent) {
+					t.Errorf("empty state should not mention %q:\n%s", absent, plain)
+				}
+			}
+
+			// Every empty-state line must fit the 34-col content width so it
+			// does not wrap past two lines in the pane.
+			for _, line := range strings.Split(ansi.Strip(m.servicesEmptyState()), "\n") {
+				if w := lipgloss.Width(line); w > leftWidth-2 {
+					t.Errorf("empty-state line %q width %d exceeds the %d-col pane budget", line, w, leftWidth-2)
+				}
+			}
+		})
+	}
+}
+
 // Same huh root cause as the landing/wizard: esc must cancel the dashboard's
 // confirm, picker, and reset dialogs (the help line advertises "esc cancel").
 func TestDashboardEscCancelsConfirmAndPicker(t *testing.T) {

@@ -122,11 +122,8 @@ func (m *model) servicesPane() string {
 	var b strings.Builder
 	b.WriteString(paneTitle.Render("Services") + "\n")
 
-	if m.servicesErr != nil {
-		b.WriteString(warnStyle.Render("unavailable") + "\n")
-		b.WriteString(helpStyle.Render("(docker or .env not ready)"))
-	} else if len(m.services) == 0 {
-		b.WriteString(helpStyle.Render("no services running"))
+	if m.servicesErr != nil || len(m.services) == 0 {
+		b.WriteString(m.servicesEmptyState())
 	}
 
 	// Row layout: cursor(1) + service(15) + space(1) + state(7) + space(1) + health(9) = 34
@@ -168,6 +165,35 @@ func (m *model) servicesPane() string {
 	}
 
 	return paneStyle.Width(leftWidth).Height(max(m.height-5, 8)).Render(b.String())
+}
+
+// servicesEmptyState returns a cause-specific, actionable message for the
+// services pane when no services are listed — replacing the old faint
+// dead-end. The cause is read from the state the model actually has: status.sh
+// --json (which exits 0 even when docker/.env are not ready) tells us whether
+// the daemon is reachable and whether .env exists; servicesErr (an opaque
+// compose-ps exec failure) is the fallback when status has not landed yet.
+// Messages are kept within the 34-col pane content width (leftWidth-2), wrapped
+// to at most two lines and styled as warnings rather than faint help.
+func (m *model) servicesEmptyState() string {
+	switch {
+	case m.status != nil && !m.status.Env.FilePresent:
+		// .env missing: nothing is configured yet.
+		return warnStyle.Render("Not configured yet") + "\n" +
+			warnStyle.Render("run: pic-sure init")
+	case m.status != nil && !m.status.Docker.DaemonReachable:
+		// Docker daemon down (status.sh saw it, or compose-ps failed for it).
+		return warnStyle.Render("Docker is not running") + "\n" +
+			warnStyle.Render("start Docker, then: pic-sure up")
+	case m.servicesErr != nil && m.status == nil:
+		// compose ps failed and status has not landed to disambiguate the cause.
+		return warnStyle.Render("Services unavailable") + "\n" +
+			warnStyle.Render("check Docker, then: pic-sure up")
+	default:
+		// Configured, daemon reachable, but nothing is up.
+		return warnStyle.Render("No services running") + "\n" +
+			warnStyle.Render("start the stack: pic-sure up")
+	}
 }
 
 func (m *model) summaryPane() string {

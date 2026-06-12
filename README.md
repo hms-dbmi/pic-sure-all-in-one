@@ -17,6 +17,7 @@ and run the first-time setup for you:
 curl -fsSL https://raw.githubusercontent.com/hms-dbmi/pic-sure-all-in-one/main/cli/install.sh | bash
 # or build from source: make -C cli build
 
+git clone https://github.com/hms-dbmi/pic-sure-all-in-one
 cd pic-sure-all-in-one
 pic-sure          # opens the TUI; choose "Set up PIC-SURE" to run the wizard
 ```
@@ -64,10 +65,10 @@ and adds checkout-root discovery, TTY safety, and `--json` / `--yes` pass-throug
 | `./preflight.sh` | `pic-sure preflight` | Check host tools, config shape, Compose validity, and pinned refs |
 | `./status.sh` | `pic-sure status` | Print read-only stack, release-control, repo, DB, and migration readiness |
 | `./update.sh --dry-run` | `pic-sure update --dry-run` | Resolve release-control and preview an update |
-| `./update.sh` | `pic-sure update` | Apply release-control refs, rebuild/pull images, run migrations, restart services |
+| `./update.sh` | `pic-sure update` | Apply release-control refs, rebuild/pull images, run migrations, rotate introspection token, restart services |
 | `./run-migrations.sh --check` | `pic-sure migrate --check` | Validate migration inputs without touching the database |
-| `./etl.sh --help` | `pic-sure etl` | Compose replacements for Jenkins data-loading jobs |
-| `./uninstall.sh` / `./uninstall.sh --yes` | `pic-sure uninstall` / `pic-sure --yes uninstall` | Preview or perform local Compose and generated-state cleanup |
+| `./etl.sh --help` | `pic-sure etl --help` | Compose replacements for Jenkins data-loading jobs |
+| `./uninstall.sh` / `./uninstall.sh --yes` | `pic-sure uninstall` / `pic-sure uninstall --yes` | Preview or perform local Compose and generated-state cleanup |
 
 ## Key Docs
 

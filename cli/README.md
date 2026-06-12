@@ -85,18 +85,22 @@ centered menu.
 Keys: `↑/↓` or `k/j` select · `enter` choose · `esc` back (in submenus) ·
 `q`/`ctrl+c` quit.
 
-**Load your data…** opens a picker over the parameterless `etl.sh`
-subcommands: `hydrate-dictionary`, `run-weights`, `promote-genomic`, and
-`public-1000genomes` (instructions-only — prints the manual genomic-load
-steps, downloads nothing). Subcommands that take file arguments
-(`load-csv`, `load-vcf`, …) are CLI-only — see `pic-sure etl --help`.
+**Load your data…** opens the guided load wizard (see
+[Load your data](#load-your-data) for the full walkthrough): a step-by-step
+screen that collects a phenotype CSV or a genomic VCF load, shows a confirm
+summary, then streams the matching `etl.sh` orchestrator. The parameterless
+maintenance/recovery ETL operations (`hydrate-dictionary`, `run-weights`,
+`promote-genomic`, `public-1000genomes`) moved under **Developer options →
+Maintenance / adv. ETL…**.
 
 Consent model, in increasing friction:
 
 - **Preflight** is read-only and runs immediately.
 - **Mutating actions** (Update, Migrate, Seed, release-control apply) show a
   one-keystroke confirm describing exactly what the script does.
-- **Pickers** (demo dataset, ETL operation, dev overlays): the selection *is*
+- **The load wizard** collects its inputs step by step and ends on a confirm
+  summary that *is* the consent (it spells out the replacement / caveats).
+- **Pickers** (demo dataset, maintenance ETL, dev overlays): the selection *is*
   the consent; every picker includes Cancel.
 - **Destructive actions** (Reset, Uninstall) require typing the action name.
 
@@ -111,6 +115,7 @@ menu):
 | Run migrations | `run-migrations.sh` |
 | Seed database | `seed-db.sh` |
 | Load demo data… | picker over the demo datasets (NHANES, Synthea 10k, 1000 Genomes, or all three); runs `load-demo-data.sh`, **replacing** the phenotype data in the hpds-data volume, then re-hydrates the dictionary |
+| Maintenance / adv. ETL… | picker over the parameterless `etl.sh` operations — `hydrate-dictionary`, `run-weights`, `promote-genomic`, `public-1000genomes` (instructions-only; prints the manual genomic-load steps, downloads nothing). Subcommands that take file arguments (`load-csv`, `load-vcf`, …) are CLI-only — see `pic-sure etl -- --help`. To load actual data use **Load your data…** on the main menu |
 | Apply dev overlay… | picker over `docker-compose.dev-*.yml`; runs `scripts/compose.sh dev up <overlay>` — the overlay's service is recreated **from local source** (`up -d --no-deps --build`) |
 | Revert dev overlay… | `scripts/compose.sh dev off <name>` — recreate from the release image |
 | Release control… | nested submenu: Re-apply current branch · Dry run · Switch branch… (one-field input, prefilled with the current branch from `status --json`; expect a ~1s pause while it reads) |
@@ -208,6 +213,84 @@ Precedence: flag > env > SSH auto-detect > on.
 
 ---
 
+## Load your data
+
+The headline day-2 workflow. On a configured stack the main menu offers
+**Load your data…**, a guided wizard that walks you through a phenotype CSV
+load or a genomic VCF load step by step, ends on a confirm summary, then
+streams the matching `etl.sh` orchestrator in the activity screen. Each step
+prefills a sensible default; `esc` backs out. Both paths are equally available
+headless via `pic-sure etl load-phenotype …` / `pic-sure etl load-genomic …`
+(see [`docs/etl.md`](../docs/etl.md) for the full flag reference).
+
+### Phenotype CSV (end to end)
+
+1. **Main menu → Load your data… → Phenotype data (CSV).**
+2. **Browse to your `allConcepts.csv`.** A file browser opens; pick the CSV.
+   The file is a header row plus one row per fact, with these columns:
+   `PATIENT_NUM`, `CONCEPT_PATH`, `NVAL_NUM`, `TVAL_CHAR`, `TIMESTAMP`. A tiny
+   non-sensitive example lives at
+   [`fixtures/etl/custom/allConcepts.csv`](../fixtures/etl/custom/allConcepts.csv).
+3. **JVM heap.** Prefilled `4096` (MB) — the floor for <1M rows; raise to
+   `8000`+ for larger CSVs.
+4. **Dictionary.** Pick **Auto** — rebuild the dictionary from the loaded data
+   (recommended) — or **Custom**, which then asks for `datasets.csv` and
+   `concepts.zip` (and optionally the facet trio: `facet_categories.csv`,
+   `facets.csv`, `facet_concepts.csv` — all three together or none; examples
+   sit alongside the CSV fixture under `fixtures/etl/custom/`).
+5. **Confirm.** The summary spells out that this **REPLACES existing HPDS
+   phenotype data**; that summary is the consent.
+
+On confirm it streams `etl.sh load-phenotype`, which chains the happy path:
+`load-csv` (loads the CSV into HPDS) → the dictionary step (`hydrate-dictionary
+--clear` for auto, or `load-dictionary-csv … --clear` + optional `load-facets`
+for custom) → `run-weights` (recomputes search weights). When it finishes,
+search works against the newly loaded concepts.
+
+Headless equivalent:
+
+```sh
+pic-sure etl load-phenotype --file /path/allConcepts.csv          # auto dictionary
+pic-sure etl load-phenotype --file /path/allConcepts.csv \
+  --dictionary custom --datasets /path/datasets.csv --concepts /path/concepts.zip
+```
+
+### Genomic VCF
+
+1. **Main menu → Load your data… → Genomic data (VCF).**
+2. **Browse to your `vcfIndex.tsv`.** The VCF index TSV that lists the load.
+3. **VCF directory (optional).** Point at a directory of VCF files, or skip it
+   if the index already uses absolute paths.
+4. **Genomic partition.** A name matching `^[A-Za-z0-9_-]+$`.
+5. **JVM heap.** Prefilled `16000` (MB) — genomic loads need more headroom than
+   phenotype; raise for large partitions.
+6. **Promote this load to live now?** If yes, the staged data is promoted into
+   the live genomic volume **with a backup** — the previous genomic data volume
+   is kept until you remove it (promote is backup-safe).
+7. **Enable the genomic HPDS profile now?** Enabling it sets
+   `HPDS_PROFILE=bch-dev` and restarts HPDS so loaded genomic data is
+   queryable. **Caveat: enabling the profile before genomic data is present
+   crash-loops HPDS** — only enable it once promoted genomic data exists (the
+   confirm summary surfaces a prominent warning if you enable the profile
+   without promoting this load).
+8. **Confirm**, then it streams `etl.sh load-genomic`: stage the VCF
+   (`load-vcf`) → optional `promote-genomic --backup-current-data` → optional
+   set `HPDS_PROFILE=bch-dev` + restart HPDS.
+
+Headless equivalent:
+
+```sh
+pic-sure etl load-genomic --partition my_partition --vcf-index /path/vcfIndex.tsv \
+  [--vcf-dir /path/to/vcfs] [--heap 16000] [--promote] [--enable-profile]
+```
+
+The orchestrators validate **all** inputs up front, before any HPDS mutation,
+and on a step failure tell you the single command to re-run just that step. The
+lower-level atomic `etl.sh` subcommands stay available for advanced/recovery
+use — see [`docs/etl.md`](../docs/etl.md).
+
+---
+
 ## CLI reference
 
 ### Global flags
@@ -235,7 +318,7 @@ or by running the script directly (`./etl.sh --help`).
 | `update` | `update.sh` | `--dry-run --offline --no-rebuild --pull-images --verbose` |
 | `status` | `status.sh` | `--json` (machine-readable, passed through untouched) |
 | `preflight` | `preflight.sh` | `--network --json` |
-| `etl` | `etl.sh` | `SUBCOMMAND [flags]` — run with no arguments for the list |
+| `etl` | `etl.sh` | `SUBCOMMAND [flags]` — run with no arguments for the list. High-level entry points: **`load-phenotype --file …`** and **`load-genomic --partition … --vcf-index …`** orchestrate the full load (see [Load your data](#load-your-data) and [`docs/etl.md`](../docs/etl.md)); the atomic subcommands (`load-csv`, `load-vcf`, `hydrate-dictionary`, `run-weights`, `promote-genomic`, …) are for advanced/recovery use |
 | `reset` | `reset.sh` | `--all --repos --yes`; prompts without `--yes` (refused pre-exec on a non-TTY). `--repos` git-resets the sibling checkouts to their release refs — discards uncommitted changes, **keeps** local branches & history (never deletes `.git`) |
 | `uninstall` | `uninstall.sh` | `--yes` required to act (plan-only otherwise) · `--keep-env --images --repos`. **`--repos` here DELETES `repos/` including git history** — use `reset --repos` to reset working trees instead |
 | `release-control` | `release-control.sh` | `--dry-run --resolve-only --apply-only --branch BRANCH` |

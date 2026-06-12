@@ -11,6 +11,11 @@ typo never half-loads the stack, then run the atomic steps in order and surface
 which step failed (with the single command to re-run just that step). The
 atomic subcommands documented below remain available for advanced/recovery use.
 
+These are the same orchestrators the `pic-sure` CLI's guided **Load your data**
+wizard streams — see the
+[walkthrough in `cli/README.md`](../cli/README.md#load-your-data) for the
+end-to-end TUI flow (the wizard simply collects these flags for you).
+
 ### `load-phenotype`
 
 Load a phenotype CSV, hydrate or load the dictionary, then run weights:
@@ -52,7 +57,14 @@ profile:
   data crash-loops HPDS, so the orchestrator warns when `--enable-profile` is
   set without `--promote`.
 
-## Phenotype HPDS Loads
+## Advanced / atomic operations
+
+The subcommands below are the individual steps the orchestrators above chain
+together. Prefer `load-phenotype` / `load-genomic` for normal loads; reach for
+these directly only for advanced or recovery use (e.g. re-running a single
+failed step).
+
+### Phenotype HPDS Loads
 
 Single CSV:
 
@@ -78,7 +90,7 @@ RDBMS source:
 These commands replace phenotype HPDS data, matching the old Jenkins loader
 behavior. Large HPDS backups are not automatic.
 
-## Dictionary Loads
+### Dictionary Loads
 
 Hydrate dictionary metadata from HPDS:
 
@@ -110,7 +122,7 @@ Run dictionary weights:
 ./etl.sh run-weights
 ```
 
-## Genomic Loads
+### Genomic Loads
 
 Load VCF data into the staging area:
 

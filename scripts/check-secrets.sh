@@ -14,4 +14,12 @@ EOF
   exit 1
 fi
 
-gitleaks protect --staged --redact --verbose
+# gitleaks 8.19 deprecated `protect` in favour of `git --pre-commit`; the old
+# subcommand is dropped entirely in later releases. Prefer the modern form,
+# probing the installed binary's own help so this works across versions
+# without parsing version strings.
+if gitleaks git --help 2>/dev/null | grep -q -- '--pre-commit'; then
+  gitleaks git --pre-commit --staged --redact --verbose
+else
+  gitleaks protect --staged --redact --verbose
+fi

@@ -11,6 +11,10 @@ jobs:
   check:
     name: Test + lint
     runs-on: ubuntu-latest
+    # Mirror ci.yml so the release gate is no weaker than the per-PR gate:
+    # the PTY end-to-end test runs here too instead of self-skipping under CI.
+    env:
+      PICSURE_PTY_TEST: "1"
     steps:
       - uses: actions/checkout@v4
 
@@ -30,6 +34,11 @@ jobs:
 
       - name: Test
         run: make -C cli test
+
+      # Same end-to-end smoke the per-PR CI runs (builds the binary, exercises
+      # script dispatch + install.sh against a local build, no docker needed).
+      - name: Smoke
+        run: make -C cli smoke
 
   build:
     name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
@@ -55,6 +64,18 @@ jobs:
             GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} \
             VERSION=${{ github.ref_name }}
           tar -C cli/dist -czf "pic-sure_${{ matrix.goos }}_${{ matrix.goarch }}.tar.gz" pic-sure
+
+      # The runner is linux/amd64, so only that artifact is directly runnable.
+      # Assert the tag was wired into the binary via the Makefile ldflags
+      # (-X main.version): catches a broken ldflags/variable-name mismatch or
+      # an un-embedded "dev" default before the release is published.
+      - name: Verify embedded version matches the tag
+        if: matrix.goos == 'linux' && matrix.goarch == 'amd64'
+        run: |
+          out="$(cli/dist/pic-sure --version)"
+          echo "$out"
+          echo "$out" | grep -F -- "${{ github.ref_name }}" \
+            || { echo "::error::--version output '$out' does not contain the tag ${{ github.ref_name }}" >&2; exit 1; }
 
       - uses: actions/upload-artifact@v4
         with:

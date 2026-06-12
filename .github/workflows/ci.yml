@@ -61,7 +61,23 @@ jobs:
             scripts/lib/common.sh scripts/lib/json.sh \
             scripts/picsure-compose.sh scripts/env-set.sh scripts/compose.sh \
             scripts/db-wait.sh \
+            scripts/smoke-matrix.sh scripts/smoke-remote-db.sh \
+            scripts/test-release-control.sh scripts/test-repo-reset.sh \
+            scripts/test-db-secrets.sh \
+            scripts/check-env-example.sh scripts/check-protected-files.sh \
+            scripts/check-secrets.sh \
+            config/scripts/generate-introspection-token.sh \
             cli/install.sh cli/smoke/run.sh
+
+      # Hermetic script tests — no network, no docker, no real checkout
+      # mutation (each creates its own temp fixtures and shims docker/git).
+      # smoke-matrix.sh runs these too, but it needs a live stack for its
+      # other steps; here we run only the self-contained ones.
+      - name: Hermetic script tests
+        run: |
+          ./scripts/test-release-control.sh
+          ./scripts/test-repo-reset.sh
+          ./scripts/test-db-secrets.sh
 
       # Permanent contract check: both JSON modes must emit parseable
       # documents, including values with quotes/backslashes/tabs, and the

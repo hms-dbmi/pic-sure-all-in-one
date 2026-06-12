@@ -6,18 +6,24 @@ import (
 
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
+
+	"github.com/hms-dbmi/pic-sure-all-in-one/cli/internal/styles"
 )
 
 var (
-	titleStyle    = lipgloss.NewStyle().Bold(true).Padding(0, 1)
+	// titleStyle is the top-of-screen header; paneTitle the per-pane headers.
+	// Both carry the shared brand color so the dashboard reads as one product
+	// with the logo, not a generic table.
+	titleStyle    = lipgloss.NewStyle().Bold(true).Foreground(styles.Brand).Padding(0, 1)
 	paneStyle     = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1)
-	paneTitle     = lipgloss.NewStyle().Bold(true)
+	paneTitle     = lipgloss.NewStyle().Bold(true).Foreground(styles.Brand)
 	selectedStyle = lipgloss.NewStyle().Reverse(true)
-	okStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("2"))
-	warnStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
-	badStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("1"))
-	helpStyle     = lipgloss.NewStyle().Faint(true).Padding(0, 1)
-	resultStyle   = lipgloss.NewStyle().Bold(true).Padding(0, 1)
+	// Status colors come from the shared palette (ANSI 2/3/1, theme-remappable).
+	okStyle     = styles.OK
+	warnStyle   = styles.Warn
+	badStyle    = styles.Bad
+	helpStyle   = lipgloss.NewStyle().Faint(true).Padding(0, 1)
+	resultStyle = lipgloss.NewStyle().Bold(true).Padding(0, 1)
 )
 
 // layout recomputes viewport dimensions after a resize.

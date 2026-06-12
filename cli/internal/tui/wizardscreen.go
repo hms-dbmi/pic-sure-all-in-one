@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	picexec "github.com/hms-dbmi/pic-sure-all-in-one/cli/internal/exec"
+	"github.com/hms-dbmi/pic-sure-all-in-one/cli/internal/styles"
 	"github.com/hms-dbmi/pic-sure-all-in-one/cli/internal/wizard"
 )
 
@@ -41,7 +42,7 @@ var runWizardWrites = func(root string, current, desired map[string]string) erro
 }
 
 var (
-	wizardTitleStyle  = lipgloss.NewStyle().Bold(true).Padding(0, 1)
+	wizardTitleStyle  = lipgloss.NewStyle().Bold(true).Foreground(styles.Brand).Padding(0, 1)
 	wizardFooterStyle = lipgloss.NewStyle().Faint(true).Padding(0, 1)
 )
 

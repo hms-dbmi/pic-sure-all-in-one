@@ -6,6 +6,8 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+
+	"github.com/hms-dbmi/pic-sure-all-in-one/cli/internal/styles"
 )
 
 const (
@@ -18,11 +20,10 @@ const (
 
 var (
 	logoBaseStyle = lipgloss.NewStyle().Faint(true)
-	// Shine sweeps in the PIC-SURE brand hue (--color-primary-500,
-	// oklch(43.14% 0.13 260.55)): exact #224D96 on light terminals; on dark
-	// ones the same hue lifted to oklch 70% lightness (#6F9EEF) so the
-	// sweep stays visible over faint gray glyphs.
-	logoShineStyle = lipgloss.NewStyle().Foreground(lipgloss.AdaptiveColor{Light: "#224D96", Dark: "#6F9EEF"})
+	// Shine sweeps in the shared PIC-SURE brand hue (styles.Brand): exact
+	// #224D96 on light terminals; on dark ones the same hue lifted to oklch 70%
+	// lightness (#6F9EEF) so the sweep stays visible over faint gray glyphs.
+	logoShineStyle = lipgloss.NewStyle().Foreground(styles.Brand)
 )
 
 var logoArt = []string{

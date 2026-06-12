@@ -16,6 +16,7 @@ import (
 	"github.com/hms-dbmi/pic-sure-all-in-one/cli/internal/dialog"
 	picexec "github.com/hms-dbmi/pic-sure-all-in-one/cli/internal/exec"
 	"github.com/hms-dbmi/pic-sure-all-in-one/cli/internal/scripts"
+	"github.com/hms-dbmi/pic-sure-all-in-one/cli/internal/styles"
 )
 
 // Navigation/action requests the landing emits; the app routes them.
@@ -575,7 +576,9 @@ func (l *landing) contentLines(withLogo bool) []string {
 		content = append(content, strings.Split(l.logo.view(), "\n")...)
 		content = append(content, "")
 	default:
-		content = append(content, lipgloss.NewStyle().Bold(true).Render("P I C - S U R E"), "")
+		// Compact wordmark when the block art doesn't fit: brand-colored so the
+		// identity survives the narrow-terminal fallback (matches the logo hue).
+		content = append(content, lipgloss.NewStyle().Bold(true).Foreground(styles.Brand).Render("P I C - S U R E"), "")
 	}
 
 	if l.form != nil {

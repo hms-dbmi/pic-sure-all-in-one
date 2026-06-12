@@ -14,15 +14,18 @@ import (
 
 	"github.com/hms-dbmi/pic-sure-all-in-one/cli/internal/actions"
 	"github.com/hms-dbmi/pic-sure-all-in-one/cli/internal/scripts"
+	"github.com/hms-dbmi/pic-sure-all-in-one/cli/internal/styles"
 )
 
 var (
-	activityTitleStyle = lipgloss.NewStyle().Bold(true).Padding(0, 1)
+	activityTitleStyle = lipgloss.NewStyle().Bold(true).Foreground(styles.Brand).Padding(0, 1)
 	activityPaneStyle  = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(0, 1)
 	activityHelpStyle  = lipgloss.NewStyle().Faint(true).Padding(0, 1)
-	activityOKStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("2")).Bold(true).Padding(0, 1)
-	activityBadStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("1")).Bold(true).Padding(0, 1)
-	activityWarnStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("3")).Bold(true).Padding(0, 1)
+	// Status footers reuse the shared palette (ANSI 2/3/1) with the screen's
+	// bold+padded chrome.
+	activityOKStyle   = lipgloss.NewStyle().Foreground(styles.StatusOK).Bold(true).Padding(0, 1)
+	activityBadStyle  = lipgloss.NewStyle().Foreground(styles.StatusBad).Bold(true).Padding(0, 1)
+	activityWarnStyle = lipgloss.NewStyle().Foreground(styles.StatusWarn).Bold(true).Padding(0, 1)
 )
 
 // initFooterNote sets first-run expectations on the init screen specifically,

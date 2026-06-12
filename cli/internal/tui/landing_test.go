@@ -67,6 +67,37 @@ func TestLandingDevSubmenu(t *testing.T) {
 	}
 }
 
+// TestLandingDevMenuNoWrapAt80 guards against a dev-menu label that is wide
+// enough to wrap inside the menu box at the default 80-column width: the
+// selected row renders as "▸ " + label + " ◂" (label+4 cells) centered into
+// menuWidth, so any label longer than menuWidth-4 wraps to a second line and
+// shears the box. At width 80, menuWidth = min(max(80/3,28),80-8) = 28.
+func TestLandingDevMenuNoWrapAt80(t *testing.T) {
+	l := newLanding("/tmp/x", true, false)
+	l.setSize(80, 40)
+	keyDownN(l, 5) // open the dev submenu
+	l.update(keyEnter())
+
+	// Same menuWidth formula as contentLines at width 80.
+	menuWidth := min(max(l.width/3, 28), l.width-8)
+	n := len(l.menu.items)
+
+	for i := 0; i < n; i++ {
+		l.menu.selected = i
+		lines := strings.Split(l.menu.view(menuWidth), "\n")
+		if len(lines) != n {
+			t.Errorf("dev menu with item %d (%q) selected rendered %d lines, want %d (label wraps in the box)",
+				i, l.menu.items[i].Label, len(lines), n)
+		}
+		for j, line := range lines {
+			if w := lipgloss.Width(line); w > menuWidth {
+				t.Errorf("dev menu line %d width %d exceeds menuWidth %d with item %d selected: %q",
+					j, w, menuWidth, i, line)
+			}
+		}
+	}
+}
+
 func TestLandingSelectionsEmitRequests(t *testing.T) {
 	l := newLanding("/tmp/x", true, false)
 	// Dashboard (first item)

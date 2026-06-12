@@ -99,7 +99,7 @@ func (l *landing) rebuildMenu() {
 			menuItem{ID: "seed", Label: "Seed database"},
 			menuItem{ID: "etl", Label: "ETL operations…"},
 			menuItem{ID: "devoverlay", Label: "Apply dev overlay…"},
-			menuItem{ID: "devrevert", Label: "Revert service to release…"},
+			menuItem{ID: "devrevert", Label: "Revert dev overlay…"},
 			menuItem{ID: "relctl", Label: "Release control…"},
 			menuItem{ID: "reset", Label: "Reset…"},
 			menuItem{ID: "uninstall", Label: "Uninstall…"},

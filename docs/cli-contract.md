@@ -254,6 +254,15 @@ scripts/compose.sh dev off NAME           # base files only, up -d --no-deps;
   frontends pass names only. `dev up` with a missing/unknown overlay exits 1
   listing the available names.
 
+### `dev list` output format (stable)
+
+`scripts/compose.sh dev list` prints the available overlay names to stdout,
+**one name per line** (no header, no trailing punctuation). Each name `N`
+corresponds to a `docker-compose.dev-N.yml` file in the checkout root.
+Exit code is `0`; stdout is empty when no overlays exist. Consumers must
+parse tolerantly: ignore blank lines and leading/trailing whitespace per line.
+This format is a **stable contract surface** — consumers may depend on it.
+
 ---
 
 ## Exit codes by script

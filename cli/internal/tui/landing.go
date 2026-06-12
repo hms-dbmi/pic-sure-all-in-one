@@ -3,7 +3,6 @@ package tui
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"sort"
 	"strings"
 
@@ -32,6 +31,14 @@ type branchPrefillMsg struct {
 	branch string
 }
 
+// devOverlaysFillMsg carries the overlay list fetched from
+// `scripts/compose.sh dev list` off the update hot-path. seq guards against
+// a stale fetch landing in a since-closed/reopened picker.
+type devOverlaysFillMsg struct {
+	seq      int
+	overlays []string
+}
+
 var (
 	landingBoxStyle    = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).Padding(1, 4)
 	landingFooterStyle = lipgloss.NewStyle().Faint(true)
@@ -55,6 +62,27 @@ var fetchReleaseBranch = func(root string) string {
 	return st.ReleaseControl.Branch
 }
 
+// fetchDevOverlays invokes the documented contract surface
+// `scripts/compose.sh dev list` to get the available overlay names. It must
+// run inside a tea.Cmd (never in Update) because it forks a bash process.
+// Output is one overlay name per line; blank lines and lines that would parse
+// as empty are silently dropped.
+var fetchDevOverlays = func(root string) []string {
+	code, out, err := picexec.RunOutput(root, scripts.Compose, []string{"dev", "list"})
+	if err != nil || code != 0 {
+		return nil
+	}
+	var names []string
+	for _, line := range strings.Split(out, "\n") {
+		name := strings.TrimSpace(line)
+		if name != "" {
+			names = append(names, name)
+		}
+	}
+	sort.Strings(names)
+	return names
+}
+
 // landing is the starfield + logo + menu home screen. Menu growth rule
 // (spec, Constraints): an entry collects at most one input and maps 1:1 to a
 // script invocation already exposed by the CLI.
@@ -76,11 +104,14 @@ type landing struct {
 	resetting   bool                        // true while the combined reset dialog is open
 	resetScope  string                      // "keep" or "all" — set only while resetting is true
 	resetRepos  bool                        // reset-sibling-repos toggle — set only while resetting is true
-	picked      string                      // picker selection value
-	pickerMake  func(string) actions.Action // non-nil while a picker is open
-	inputVal    string                      // text-input value
-	inputMake   func(string) actions.Action // non-nil while a text-input is open
-	branchSeq   int                         // stamps each branch-input opening for prefill staleness
+	picked          string                      // picker selection value
+	pickerMake      func(string) actions.Action // non-nil while a picker is open
+	devPickerSeq    int                         // stamps each dev-picker opening for overlay-fill staleness
+	devPickerTitle  string                      // stashed for form rebuild when the async fill arrives
+	devPickerDesc   string                      // stashed for form rebuild when the async fill arrives
+	inputVal        string                      // text-input value
+	inputMake       func(string) actions.Action // non-nil while a text-input is open
+	branchSeq       int                         // stamps each branch-input opening for prefill staleness
 
 	result        string
 	width, height int
@@ -190,6 +221,10 @@ func (l *landing) update(msg tea.Msg) (*landing, tea.Cmd) {
 		// Handled before the form gate: the prefill must reach the open input
 		// (the gate would otherwise route it into the form, which ignores it).
 		return l.applyBranchPrefill(msg)
+	case devOverlaysFillMsg:
+		// Handled before the form gate: the fill must reach the open picker
+		// (the gate would otherwise route it into the form, which ignores it).
+		return l.applyDevOverlaysFill(msg)
 	}
 
 	// Confirm dialog consumes everything else while open.
@@ -327,24 +362,6 @@ func (l *landing) sizeForm(f *huh.Form) *huh.Form {
 	return f
 }
 
-// devOverlays lists the available dev compose overlay names. Only the
-// NAMES come from Go (a file-listing convenience for the picker); what an
-// overlay means — file selection, service resolution, compose invocation —
-// lives entirely in scripts/compose.sh.
-func devOverlays(root string) []string {
-	matches, err := filepath.Glob(filepath.Join(root, "docker-compose.dev-*.yml"))
-	if err != nil {
-		return nil
-	}
-	names := make([]string, 0, len(matches))
-	for _, m := range matches {
-		base := strings.TrimSuffix(filepath.Base(m), ".yml")
-		names = append(names, strings.TrimPrefix(base, "docker-compose.dev-"))
-	}
-	sort.Strings(names)
-	return names
-}
-
 // startSelectPicker opens a single-select dialog; the selection is the
 // consent (menu growth rule: one input, mapping 1:1 to a CLI-exposed script
 // invocation). Remember the huh gotcha: Value is bound BEFORE Options.
@@ -361,23 +378,70 @@ func (l *landing) startSelectPicker(title, description, preselect string, opts [
 	return l, l.form.Init()
 }
 
-// startDevPicker opens an overlay picker; the selection is the consent (like
-// the demo-data picker) and maps 1:1 to a scripts/compose.sh dev invocation.
-func (l *landing) startDevPicker(title, description string, makeAction func(string) actions.Action) (*landing, tea.Cmd) {
-	overlays := devOverlays(l.root)
-	if len(overlays) == 0 {
-		l.result = "no docker-compose.dev-*.yml overlays found in this checkout"
-		return l, nil
-	}
+// buildDevPickerForm constructs the dev-picker form, seeding it from the
+// given overlays. Mirrors buildBranchForm: Value is bound before Options,
+// and the form is rebuilt when the overlay list arrives from the async fetch.
+func (l *landing) buildDevPickerForm(title, description string, overlays []string) *huh.Form {
 	opts := make([]huh.Option[string], 0, len(overlays)+1)
 	for _, o := range overlays {
 		opts = append(opts, huh.NewOption(o, o))
 	}
 	opts = append(opts, huh.NewOption("Cancel", ""))
+	return huh.NewForm(huh.NewGroup(
+		huh.NewSelect[string]().
+			Title(title).
+			Description(description).
+			Value(&l.picked).
+			Options(opts...),
+	))
+}
 
-	// Delegate to startSelectPicker; pre-selects the first overlay so the
-	// cursor is not pinned to the Cancel row on open.
-	return l.startSelectPicker(title, description, overlays[0], opts, makeAction)
+// startDevPicker opens an overlay picker; the selection is the consent (like
+// the demo-data picker) and maps 1:1 to a scripts/compose.sh dev invocation.
+// The overlay list is fetched asynchronously via `scripts/compose.sh dev list`
+// (the documented contract surface) so the picker opens immediately with a
+// placeholder — matching the fetchReleaseBranch / startBranchInput pattern.
+func (l *landing) startDevPicker(title, description string, makeAction func(string) actions.Action) (*landing, tea.Cmd) {
+	l.picked = ""
+	l.pickerMake = makeAction
+	l.devPickerTitle = title
+	l.devPickerDesc = description
+	l.devPickerSeq++
+
+	// Open immediately with a placeholder option so the dialog is visible at
+	// once; the real list replaces it when the fetch delivers devOverlaysFillMsg.
+	l.form = l.sizeForm(l.buildDevPickerForm(title, description,
+		[]string{"(loading overlays…)"}))
+
+	seq, root := l.devPickerSeq, l.root
+	fetch := func() tea.Msg {
+		return devOverlaysFillMsg{seq: seq, overlays: fetchDevOverlays(root)}
+	}
+	return l, tea.Batch(l.form.Init(), fetch)
+}
+
+// applyDevOverlaysFill lands the asynchronously-fetched overlay list into the
+// open picker. Mirrors applyBranchPrefill: staleness is guarded by seq (a
+// fetch for a since-closed/reopened picker is dropped), and an empty result
+// (script call failed or no overlays exist) shows an explanatory result line
+// and closes the picker instead of leaving the placeholder up forever.
+func (l *landing) applyDevOverlaysFill(msg devOverlaysFillMsg) (*landing, tea.Cmd) {
+	if l.form == nil || l.pickerMake == nil || msg.seq != l.devPickerSeq {
+		return l, nil
+	}
+	if len(msg.overlays) == 0 {
+		// Fetch failed or checkout has no dev overlays — close the picker and
+		// explain, mirroring the "no overlays" path from the old synchronous impl.
+		l.form = nil
+		l.pickerMake = nil
+		l.result = "no dev overlays available (scripts/compose.sh dev list returned nothing)"
+		return l, nil
+	}
+	// Rebuild the picker with the real overlay list. Pre-select the first
+	// overlay so the cursor is not pinned to the Cancel row on open.
+	l.picked = msg.overlays[0]
+	l.form = l.sizeForm(l.buildDevPickerForm(l.devPickerTitle, l.devPickerDesc, msg.overlays))
+	return l, l.form.Init()
 }
 
 // startBranchInput is the one-field release-control branch input (the menu

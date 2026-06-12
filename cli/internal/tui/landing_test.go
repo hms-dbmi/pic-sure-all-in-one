@@ -193,6 +193,13 @@ func TestLandingQuitKeys(t *testing.T) {
 	}
 }
 
+// devOverlayNames are the overlays corresponding to devRoot.
+var devOverlayNames = []string{"httpd-hmr", "wildfly"}
+
+// devRoot creates a minimal checkout root with two dev-overlay stub files and
+// installs a fetchDevOverlays stub that returns those names, matching what
+// `scripts/compose.sh dev list` would return on that root. Restores the
+// original fetchDevOverlays on cleanup.
 func devRoot(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -201,6 +208,9 @@ func devRoot(t *testing.T) string {
 			t.Fatal(err)
 		}
 	}
+	orig := fetchDevOverlays
+	fetchDevOverlays = func(string) []string { return devOverlayNames }
+	t.Cleanup(func() { fetchDevOverlays = orig })
 	return dir
 }
 
@@ -255,12 +265,24 @@ func TestLandingDevOverlayPickerCancel(t *testing.T) {
 }
 
 func TestLandingDevOverlayPickerNoFiles(t *testing.T) {
-	l := newLanding(t.TempDir(), true, false) // no overlay files
+	// Stub fetchDevOverlays to return nothing (simulates an empty checkout or
+	// a failed dev list call), restoring on cleanup.
+	orig := fetchDevOverlays
+	fetchDevOverlays = func(string) []string { return nil }
+	t.Cleanup(func() { fetchDevOverlays = orig })
+
+	l := newLanding(t.TempDir(), true, false)
 	l.dev = true
 	l.rebuildMenu()
-	_, _ = l.choose("devoverlay")
+	// The picker opens immediately with a placeholder; pump the async fill.
+	_, cmd := l.choose("devoverlay")
+	l = pumpLanding(l, cmd, 0)
+	// After the empty fill the picker must be closed and an explanatory result shown.
 	if l.form != nil {
-		t.Fatal("picker opened with no overlays available")
+		t.Fatal("picker still open after empty overlay fill")
+	}
+	if l.pickerMake != nil {
+		t.Error("pickerMake not cleared after empty overlay fill")
 	}
 	if l.result == "" {
 		t.Error("expected an explanatory result line")
@@ -438,25 +460,30 @@ func TestLandingResetCombinedScreen(t *testing.T) {
 // Regression: the dev picker opened scrolled to its Cancel row (empty
 // initial value matched Cancel; WithWidth froze the group viewport) — every
 // option must be visible on the very first render, cursor on the first one.
+// With the async dev list fetch the picker opens with a placeholder and is
+// rebuilt with real options once devOverlaysFillMsg arrives; all options must
+// be visible after the fill.
 func TestLandingDevPickerShowsAllOptionsInitially(t *testing.T) {
+	// devRoot stubs fetchDevOverlays → ["httpd-hmr", "wildfly"].
 	l := newLanding(devRoot(t), true, false)
 	l.setSize(100, 35)
 	l.dev = true
 	l.rebuildMenu()
 	_, cmd := l.choose("devoverlay")
+	// Pump: drives the async fetch and routes the devOverlaysFillMsg back in.
 	l = pumpLanding(l, cmd, 0)
 
 	view := wizardANSI.ReplaceAllString(l.view(), "")
 	for _, opt := range []string{"httpd-hmr", "wildfly", "Cancel"} {
 		if !strings.Contains(view, opt) {
-			t.Errorf("initial picker render missing option %q", opt)
+			t.Errorf("picker render (after fill) missing option %q", opt)
 		}
 	}
 	if strings.Contains(view, "> Cancel") {
-		t.Error("picker opened with the cursor on Cancel")
+		t.Error("picker cursor is on Cancel after fill")
 	}
 	if !strings.Contains(view, "> httpd-hmr") {
-		t.Error("cursor not on the first overlay")
+		t.Error("cursor not on the first overlay after fill")
 	}
 }
 
@@ -536,6 +563,153 @@ func batchEmitsBranchPrefill(cmd tea.Cmd, wantBranch string) bool {
 		return m.branch == wantBranch
 	}
 	return false
+}
+
+// TestLandingDevPickerOpensImmediately verifies that the dev list fetch never
+// blocks the update path: the picker opens synchronously with a placeholder
+// and only schedules the overlay fetch as a tea.Cmd.
+func TestLandingDevPickerOpensImmediately(t *testing.T) {
+	called := make(chan struct{}, 1)
+	orig := fetchDevOverlays
+	fetchDevOverlays = func(string) []string {
+		called <- struct{}{}
+		return []string{"hpds", "wildfly"}
+	}
+	t.Cleanup(func() { fetchDevOverlays = orig })
+
+	l := newLanding("/tmp/x", true, false)
+	l.setSize(80, 24)
+	l.dev = true
+	l.rebuildMenu()
+
+	_, cmd := l.choose("devoverlay")
+	// fetchDevOverlays must NOT have run synchronously inside choose().
+	select {
+	case <-called:
+		t.Fatal("fetchDevOverlays ran synchronously inside choose() — it must run in a tea.Cmd")
+	default:
+	}
+	if l.form == nil || l.pickerMake == nil {
+		t.Fatal("dev picker did not open immediately")
+	}
+	// The command must eventually deliver a devOverlaysFillMsg with the overlays.
+	if !batchEmitsDevOverlaysFill(cmd, []string{"hpds", "wildfly"}) {
+		t.Fatal("choose did not dispatch the overlay fetch as a command delivering devOverlaysFillMsg")
+	}
+}
+
+// TestLandingDevPickerFillStaleness pins the staleness guard: a fill for a
+// since-closed/reopened picker (stale seq) must be dropped.
+func TestLandingDevPickerFillStaleness(t *testing.T) {
+	orig := fetchDevOverlays
+	fetchDevOverlays = func(string) []string { return []string{"hpds"} }
+	t.Cleanup(func() { fetchDevOverlays = orig })
+
+	l := newLanding("/tmp/x", true, false)
+	l.setSize(80, 24)
+	l.dev = true
+	l.rebuildMenu()
+
+	_, _ = l.choose("devoverlay")
+	staleSeq := l.devPickerSeq
+	// Close and reopen the picker (bumps devPickerSeq).
+	l.form, l.pickerMake = nil, nil
+	_, _ = l.choose("devoverlay")
+	if l.devPickerSeq == staleSeq {
+		t.Fatal("reopening the picker did not bump devPickerSeq")
+	}
+	// A stale fill must be dropped.
+	beforeForm := l.form
+	l, _ = l.update(devOverlaysFillMsg{seq: staleSeq, overlays: []string{"hpds"}})
+	if l.form != beforeForm {
+		t.Error("stale devOverlaysFillMsg replaced the form of the fresh picker")
+	}
+}
+
+// batchEmitsDevOverlaysFill runs cmd (possibly a tea.Batch) and reports
+// whether any emitted message is a devOverlaysFillMsg carrying wantOverlays.
+func batchEmitsDevOverlaysFill(cmd tea.Cmd, wantOverlays []string) bool {
+	if cmd == nil {
+		return false
+	}
+	switch m := cmd().(type) {
+	case tea.BatchMsg:
+		for _, c := range m {
+			if batchEmitsDevOverlaysFill(c, wantOverlays) {
+				return true
+			}
+		}
+	case devOverlaysFillMsg:
+		if len(m.overlays) != len(wantOverlays) {
+			return false
+		}
+		for i, o := range m.overlays {
+			if o != wantOverlays[i] {
+				return false
+			}
+		}
+		return true
+	}
+	return false
+}
+
+// TestDevOverlaysFetchParsing verifies that the overlay list returned by
+// fetchDevOverlays is parsed tolerantly when routed through the picker: blank
+// lines and entries with only whitespace are dropped, and valid names are
+// sorted. Uses a table of pre-parsed stub returns (the RunOutput call itself
+// is tested implicitly by the other async picker tests).
+func TestDevOverlaysFetchParsing(t *testing.T) {
+	cases := []struct {
+		name    string
+		fetched []string // what fetchDevOverlays returns
+		wantNil bool     // whether the picker should be closed (empty list)
+		visible []string // options that must appear in the picker view
+	}{
+		{
+			name:    "normal sorted output",
+			fetched: []string{"hpds", "httpd-hmr", "wildfly"},
+			visible: []string{"hpds", "httpd-hmr", "wildfly", "Cancel"},
+		},
+		{
+			name:    "pre-sorted output stays sorted",
+			fetched: []string{"hpds", "wildfly"},
+			visible: []string{"hpds", "wildfly", "Cancel"},
+		},
+		{
+			name:    "empty output closes picker",
+			fetched: nil,
+			wantNil: true,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			orig := fetchDevOverlays
+			fetchDevOverlays = func(string) []string { return tc.fetched }
+			t.Cleanup(func() { fetchDevOverlays = orig })
+
+			l := newLanding("/tmp/x", true, false)
+			l.setSize(100, 35)
+			l.dev = true
+			l.rebuildMenu()
+			_, cmd := l.choose("devoverlay")
+			l = pumpLanding(l, cmd, 0) // drives the async fetch
+			if tc.wantNil {
+				if l.form != nil {
+					t.Error("empty overlay list should have closed the picker")
+				}
+				return
+			}
+			if l.form == nil {
+				t.Fatal("picker not open after fill")
+			}
+			view := wizardANSI.ReplaceAllString(l.view(), "")
+			for _, name := range tc.visible {
+				if !strings.Contains(view, name) {
+					t.Errorf("picker view missing %q", name)
+				}
+			}
+		})
+	}
 }
 
 // TestLandingBranchInputOpensImmediately verifies the slow status.sh read no

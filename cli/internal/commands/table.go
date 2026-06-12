@@ -35,7 +35,7 @@ var scriptCommandTable = []ScriptCommand{
 		Name:        "reset",
 		Script:      scripts.Reset,
 		Short:       "Tear down containers and generated config (keeps the DB unless --all)",
-		FlagsHelp:   "--all  --yes",
+		FlagsHelp:   "--all  --repos (git-reset sibling repos; keeps local branches & history)  --yes",
 		SupportsYes: true,
 		Prompts:     true,
 	},
@@ -43,7 +43,7 @@ var scriptCommandTable = []ScriptCommand{
 		Name:        "uninstall",
 		Script:      scripts.Uninstall,
 		Short:       "Remove the stack, volumes (incl. DB), and generated state",
-		FlagsHelp:   "--yes (required to act)  --keep-env  --images  --repos",
+		FlagsHelp:   "--yes (required to act)  --keep-env  --images  --repos (DELETES git history; `reset --repos` keeps it)",
 		SupportsYes: true,
 	},
 	{

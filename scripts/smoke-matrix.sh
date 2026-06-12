@@ -55,6 +55,7 @@ bash -n config/scripts/generate-introspection-token.sh
 bash -n scripts/test-release-control.sh
 bash -n scripts/test-repo-reset.sh
 bash -n scripts/test-db-secrets.sh
+bash -n scripts/test-etl-orchestrators.sh
 bash -n scripts/smoke-matrix.sh
 bash -n scripts/smoke-remote-db.sh
 
@@ -70,6 +71,9 @@ echo "[smoke] Repo reset tests"
 
 echo "[smoke] DB secret-exposure tests"
 ./scripts/test-db-secrets.sh
+
+echo "[smoke] ETL orchestrator tests"
+./scripts/test-etl-orchestrators.sh
 
 if [ -f .env ]; then
   echo "[smoke] Update dry run"

@@ -75,7 +75,7 @@ Setup flags (each maps to one .env key):`
   --wizard                 run the guided setup even though .env exists
 
 Common init.sh flags (passed through verbatim, like everything else):
-  --force  --verbose  --log  --release-control-branch BRANCH`
+  --force  --verbose  --log`
 
 	return &cobra.Command{
 		Use:                "init",

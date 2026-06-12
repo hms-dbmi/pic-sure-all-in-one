@@ -125,7 +125,8 @@ then the field groups), and a confirm summary of the final values. Notes:
   go via `KEY --stdin` and never appear in a process argument list.
 - Reconfigure seeds from `.env.example` defaults with your current `.env`
   merged over them, so a sparse hand-edited file presents defaults instead
-  of empty fields.
+  of empty fields. This includes the release-control repo and branch/tag,
+  prefilled with their current values.
 - After consent, `init.sh` streams in the activity screen — the summary was
   the consent, there is no second dialog.
 - Known upstream (huh) behavior: you cannot `shift+tab` backwards out of a
@@ -221,7 +222,7 @@ authoritative.
 
 | Command | Script | Common flags / notes |
 |---|---|---|
-| `init` | `init.sh` | guided setup (below) + passthrough `--force --verbose --log --release-control-branch BRANCH` |
+| `init` | `init.sh` | guided setup (below) + passthrough `--force --verbose --log` |
 | `update` | `update.sh` | `--dry-run --offline --no-rebuild --pull-images --verbose` |
 | `status` | `status.sh` | `--json` (machine-readable, passed through untouched) |
 | `preflight` | `preflight.sh` | `--network --json` |
@@ -256,6 +257,8 @@ values are validated even against an existing `.env`.
 | `--db-mode` | `DB_MODE` | `local` \| `remote` |
 | `--db-host` / `--db-port` | `DB_HOST` / `DB_PORT` | required when `--db-mode remote` |
 | `--db-root-user` / `--db-root-password` | `DB_ROOT_USER` / `DB_ROOT_PASSWORD` | remote only; password required & secret |
+| `--release-control-repo` | `RELEASE_CONTROL_REPO` | repo holding `build-spec.json`; change only if you fork the release control |
+| `--release-control-branch` | `RELEASE_CONTROL_BRANCH` | branch or tag pinning component versions (default `main`); written to `.env` before `init.sh` runs |
 | `--skip-auth` | — | create `.env` without Auth0 credentials (deliberate alternate-IdP setup) |
 | `--wizard` | — | run the wizard over an existing `.env` |
 

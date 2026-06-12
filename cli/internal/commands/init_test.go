@@ -33,10 +33,19 @@ func TestParseInitArgs(t *testing.T) {
 			wantSkip:   true,
 		},
 		{
-			name:       "init.sh flags pass through verbatim incl equals form",
-			in:         []string{"--release-control-branch=release/2.4", "--log"},
+			name:       "init.sh flags pass through verbatim",
+			in:         []string{"--force", "--log"},
 			wantFields: map[string]string{},
-			wantPass:   []string{"--release-control-branch=release/2.4", "--log"},
+			wantPass:   []string{"--force", "--log"},
+		},
+		{
+			// --release-control-branch is a wizard Field flag (writes the key to
+			// .env before init.sh runs), NOT a passthrough to init.sh. Both flag
+			// forms map to the key; nothing reaches init.sh's argv.
+			name:       "release-control flags map to keys, never passed through",
+			in:         []string{"--release-control-branch=release/2.4", "--release-control-repo", "https://example.com/fork", "--log"},
+			wantFields: map[string]string{"RELEASE_CONTROL_BRANCH": "release/2.4", "RELEASE_CONTROL_REPO": "https://example.com/fork"},
+			wantPass:   []string{"--log"},
 		},
 		{
 			name:    "field flag without value errors",
@@ -128,6 +137,8 @@ DB_HOST=picsure-db
 DB_PORT=3306
 DB_ROOT_USER=root
 DB_ROOT_PASSWORD=
+RELEASE_CONTROL_REPO=https://github.com/hms-dbmi/pic-sure-baseline-release-control
+RELEASE_CONTROL_BRANCH=main
 `
 	if err := os.WriteFile(filepath.Join(dir, ".env.example"), []byte(example), 0o644); err != nil {
 		t.Fatal(err)
@@ -198,6 +209,46 @@ func TestInitNonInteractiveAllFlags(t *testing.T) {
 	last := (*calls)[len(*calls)-1]
 	if last.script != "init.sh" || !reflect.DeepEqual(last.args, []string{"--force"}) {
 		t.Errorf("final call = %+v, want init.sh [--force]", last)
+	}
+}
+
+// --release-control-branch used to be a passthrough to init.sh; it is now a
+// wizard Field flag. The value must be written to .env (so init.sh sources it
+// and release-control.sh resolves against it) and must NOT appear in init.sh's
+// argv. This is the precedence-equivalence guarantee for the flag's migration.
+func TestInitReleaseControlBranchWritesEnvNotArgv(t *testing.T) {
+	root := initFixtureRoot(t)
+	a, calls := fakeApp(t, root, false)
+
+	err := a.runInit([]string{
+		"--skip-auth", "--admin-email", "a@b.com",
+		"--release-control-branch", "release/2.4",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var wroteBranch bool
+	for _, c := range envSetCalls(*calls) {
+		if c.args[0] == "RELEASE_CONTROL_BRANCH" {
+			wroteBranch = true
+			if len(c.args) != 3 || c.args[1] != "--" || c.args[2] != "release/2.4" {
+				t.Errorf("env-set %v, want [RELEASE_CONTROL_BRANCH -- release/2.4]", c.args)
+			}
+		}
+	}
+	if !wroteBranch {
+		t.Error("RELEASE_CONTROL_BRANCH must be written to .env before init.sh runs")
+	}
+
+	last := (*calls)[len(*calls)-1]
+	if last.script != "init.sh" {
+		t.Fatalf("last call = %+v, want init.sh", last)
+	}
+	for _, a := range last.args {
+		if strings.HasPrefix(a, "--release-control-branch") {
+			t.Errorf("init.sh argv = %v, must not contain --release-control-branch (it goes via .env)", last.args)
+		}
 	}
 }
 

@@ -22,6 +22,11 @@ type logSession struct {
 	id     int
 	cancel context.CancelFunc
 	lines  chan string
+	// failed is true for a stub session that could not start the follower (it
+	// only ever delivers a single error line then closes). The retry loop uses
+	// it to tell a real, briefly-lived session (reset the backoff) apart from a
+	// hard startup failure (keep backing off).
+	failed bool
 }
 
 func startLogSession(root, service string, id int) *logSession {
@@ -43,12 +48,12 @@ func startLogSession(root, service string, id int) *logSession {
 	lines := make(chan string, 256)
 
 	// On startup failure, surface the error as a log line instead of
-	// leaving the pane silently empty, then close (servicesTick retries).
+	// leaving the pane silently empty, then close (the retry loop backs off).
 	failed := func(stage string, err error) *logSession {
 		cancel()
 		lines <- fmt.Sprintf("[log follower] %s failed: %v", stage, err)
 		close(lines)
-		return &logSession{id: id, cancel: func() {}, lines: lines}
+		return &logSession{id: id, cancel: func() {}, lines: lines, failed: true}
 	}
 
 	stdout, err := cmd.StdoutPipe()

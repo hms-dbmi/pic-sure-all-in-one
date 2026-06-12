@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/huh"
@@ -607,6 +608,135 @@ func TestEscInNormalModeEmitsBackMsg(t *testing.T) {
 	if _, ok := cmd().(BackMsg); !ok {
 		t.Fatalf("esc in normal mode = %T, want BackMsg", cmd())
 	}
+}
+
+// TestNextLogRetryDelay pins the backoff schedule: start at the base, double up
+// to the cap, then stay capped (a pure function so the schedule is asserted
+// without sleeping).
+func TestNextLogRetryDelay(t *testing.T) {
+	got := []time.Duration{}
+	d := time.Duration(0)
+	for i := 0; i < 6; i++ {
+		d = nextLogRetryDelay(d)
+		got = append(got, d)
+	}
+	want := []time.Duration{2 * time.Second, 4 * time.Second, 8 * time.Second, 16 * time.Second, 30 * time.Second, 30 * time.Second}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("delay[%d] = %v, want %v (full schedule %v)", i, got[i], want[i], got)
+		}
+	}
+}
+
+// TestLogClosedBacksOffAndKeepsScrollback verifies bug-fix #2: a follower that
+// keeps dying no longer wipes the pane and re-renders the error every 2s.
+// Instead logClosedMsg preserves the existing scrollback + last error line and
+// schedules a restart after a delay that grows on each consecutive failure.
+func TestLogClosedBacksOffAndKeepsScrollback(t *testing.T) {
+	m := testModel(t)
+	m.logSvc = "wildfly"
+	// Existing scrollback incl. a follower error line (as startLogSession's
+	// failed-stub would have appended before closing).
+	m.logLines = []string{"wildfly | booting", "[log follower] start failed: boom"}
+	before := append([]string(nil), m.logLines...)
+	m.logSession = &logSession{id: m.logSeq, cancel: func() {}, lines: make(chan string)}
+
+	// First closure: schedules a restart at the base delay, scrollback intact.
+	m, cmd := update(t, m, logClosedMsg{sessionID: m.logSeq})
+	if m.logSession != nil {
+		t.Fatal("logClosedMsg did not drop the dead session")
+	}
+	if !equalStrings(m.logLines, before) {
+		t.Errorf("scrollback was wiped on retry: got %v, want %v", m.logLines, before)
+	}
+	if m.logRetryDelay != logRetryBase {
+		t.Errorf("first backoff = %v, want %v", m.logRetryDelay, logRetryBase)
+	}
+	// A restart is scheduled (a tea.Tick — not executed here: it would sleep for
+	// the delay. The delay is asserted via m.logRetryDelay above and below).
+	if cmd == nil {
+		t.Fatal("logClosedMsg did not schedule a restart")
+	}
+
+	// A second consecutive failure (no successful lines in between) grows the
+	// delay — the retry schedule backs off rather than hammering every 2s.
+	prevDelay := m.logRetryDelay
+	m.logSession = &logSession{id: m.logSeq, cancel: func() {}, lines: make(chan string)}
+	m, _ = update(t, m, logClosedMsg{sessionID: m.logSeq})
+	if m.logRetryDelay <= prevDelay {
+		t.Errorf("second backoff %v did not grow past the first %v", m.logRetryDelay, prevDelay)
+	}
+	if !equalStrings(m.logLines, before) {
+		t.Errorf("scrollback wiped on second retry: got %v", m.logLines)
+	}
+}
+
+// TestLogLinesResetBackoff verifies the backoff resets once a real (non-stub)
+// session delivers lines, so a later transient drop retries quickly again.
+func TestLogLinesResetBackoff(t *testing.T) {
+	m := testModel(t)
+	m.logSvc = "wildfly"
+	m.logRetryDelay = 16 * time.Second // as if several failures had accrued
+	ch := make(chan string, 1)
+	ch <- "next" // keep waitLines from blocking when the returned cmd runs
+	m.logSession = &logSession{id: 7, cancel: func() {}, lines: ch} // failed=false: real session
+
+	m, _ = update(t, m, logLinesMsg{sessionID: 7, lines: []string{"wildfly | up"}})
+	if m.logRetryDelay != 0 {
+		t.Errorf("real lines did not reset the backoff: logRetryDelay = %v, want 0", m.logRetryDelay)
+	}
+
+	// A failed-stub session delivering its single error line must NOT reset it.
+	m.logRetryDelay = 16 * time.Second
+	m.logSession = &logSession{id: 8, cancel: func() {}, lines: make(chan string), failed: true}
+	m, _ = update(t, m, logLinesMsg{sessionID: 8, lines: []string{"[log follower] start failed: boom"}})
+	if m.logRetryDelay != 16*time.Second {
+		t.Errorf("failed-stub line reset the backoff: logRetryDelay = %v, want unchanged 16s", m.logRetryDelay)
+	}
+}
+
+// TestLogRetryMsgSeqGuard verifies the scheduled restart fires only for the
+// current service: a tick stamped with a since-superseded logSeq (the user
+// switched services) is dropped, and restartLogs keeps the scrollback.
+func TestLogRetryMsgSeqGuard(t *testing.T) {
+	m := testModel(t)
+	m.logSvc = "wildfly"
+	m.logLines = []string{"wildfly | line", "[log follower] start failed: boom"}
+	keep := append([]string(nil), m.logLines...)
+	m.logSession = nil
+	staleSeq := m.logSeq
+
+	// Stale tick (user has since switched, bumping logSeq): no-op.
+	m.logSeq = staleSeq + 1
+	m, cmd := update(t, m, logRetryMsg{seq: staleSeq})
+	if cmd != nil {
+		t.Error("stale logRetryMsg scheduled a restart")
+	}
+	if m.logSession != nil {
+		t.Error("stale logRetryMsg started a session")
+	}
+
+	// Current tick: restarts the follower WITHOUT wiping the scrollback.
+	m, cmd = update(t, m, logRetryMsg{seq: m.logSeq})
+	if cmd == nil || m.logSession == nil {
+		t.Fatal("current logRetryMsg did not restart the follower")
+	}
+	if !equalStrings(m.logLines, keep) {
+		t.Errorf("restart wiped scrollback: got %v, want %v", m.logLines, keep)
+	}
+	m.cleanup() // reap the spawned (fast-failing) follower
+}
+
+func equalStrings(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func TestPollInflightGuards(t *testing.T) {

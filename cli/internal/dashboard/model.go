@@ -77,6 +77,11 @@ type model struct {
 	logSvc     string
 	logSession *logSession
 	logSeq     int
+	// logRetryDelay is the current follower-restart backoff: it doubles on each
+	// consecutive failed restart (up to logRetryMax) and resets once a session
+	// delivers real lines. Restarts on failure preserve the existing scrollback
+	// instead of wiping it, so the pane no longer flickers the error every 2s.
+	logRetryDelay time.Duration
 
 	mode          mode
 	form          *huh.Form
@@ -141,10 +146,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.pollingServices = true
 			cmds = append(cmds, pollServices(m.root))
 		}
-		// Restart a dead log follower for the still-selected service.
-		if m.logSession == nil && m.logSvc != "" {
-			cmds = append(cmds, m.followLogs(m.logSvc))
-		}
+		// A dead follower is restarted by the backoff-scheduled logRetryMsg, not
+		// here, so a persistently-failing follower is retried with growing delay
+		// instead of every 2s.
 		return m, tea.Batch(cmds...)
 
 	case statusTickMsg:
@@ -177,6 +181,11 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.logSession == nil || msg.sessionID != m.logSession.id {
 			return m, nil // stale session
 		}
+		// A real (non-stub) session that delivers lines means the follower came
+		// up: reset the restart backoff so a later transient drop retries fast.
+		if !m.logSession.failed {
+			m.logRetryDelay = 0
+		}
 		m.logLines = append(m.logLines, msg.lines...)
 		if len(m.logLines) > maxLogLines {
 			m.logLines = m.logLines[len(m.logLines)-maxLogLines:]
@@ -185,10 +194,28 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, m.logSession.waitLines()
 
 	case logClosedMsg:
-		if m.logSession != nil && msg.sessionID == m.logSession.id {
-			m.logSession = nil // servicesTick will restart it
+		if m.logSession == nil || msg.sessionID != m.logSession.id {
+			return m, nil // stale closure
 		}
-		return m, nil
+		m.logSession = nil
+		if m.logSvc == "" {
+			return m, nil
+		}
+		// Schedule a restart after a growing backoff (instead of every 2s) and
+		// keep the existing scrollback + error line in place — the restart no
+		// longer wipes the pane, so a persistently-failing follower stops
+		// flickering the error.
+		m.logRetryDelay = nextLogRetryDelay(m.logRetryDelay)
+		return m, logRetry(m.logSeq, m.logRetryDelay)
+
+	case logRetryMsg:
+		// Restart the follower for the still-current service. Ignore a tick for
+		// a service the user has since switched away from (logSeq bumps on every
+		// switch) or one already restarted.
+		if msg.seq != m.logSeq || m.logSession != nil || m.logSvc == "" {
+			return m, nil
+		}
+		return m, m.restartLogs(m.logSvc)
 
 	case actions.OutputMsg:
 		if m.actionOut == nil {
@@ -395,6 +422,7 @@ func (m *model) selectedService() string {
 }
 
 // followLogs switches the log pane to a service, replacing any live session.
+// A deliberate switch clears the scrollback and resets the restart backoff.
 func (m *model) followLogs(service string) tea.Cmd {
 	if m.logSession != nil {
 		m.logSession.stop()
@@ -402,7 +430,21 @@ func (m *model) followLogs(service string) tea.Cmd {
 	m.logSeq++
 	m.logSvc = service
 	m.logLines = nil
+	m.logRetryDelay = 0
 	m.logView.SetContent("")
+	m.logSession = startLogSession(m.root, service, m.logSeq)
+	return m.logSession.waitLines()
+}
+
+// restartLogs reopens the follower for the SAME service after it died, keeping
+// the existing scrollback and the last error line (unlike followLogs, which
+// wipes for a deliberate switch) so the pane does not flicker on each retry.
+func (m *model) restartLogs(service string) tea.Cmd {
+	if m.logSession != nil {
+		m.logSession.stop()
+	}
+	m.logSeq++
+	m.logSvc = service
 	m.logSession = startLogSession(m.root, service, m.logSeq)
 	return m.logSession.waitLines()
 }

@@ -11,11 +11,15 @@ import (
 	"github.com/hms-dbmi/pic-sure-all-in-one/cli/internal/actions"
 )
 
-type fakeRunner struct{ interrupted bool }
+type fakeRunner struct {
+	interrupted bool
+	killed      bool
+}
 
 func (f *fakeRunner) WaitData() tea.Cmd     { return func() tea.Msg { return nil } }
 func (f *fakeRunner) Resize(rows, cols int) {}
 func (f *fakeRunner) Interrupt()            { f.interrupted = true }
+func (f *fakeRunner) Kill()                 { f.killed = true }
 
 func runningActivity(t *testing.T) (*activity, *fakeRunner) {
 	t.Helper()
@@ -134,6 +138,100 @@ func TestActivityDoubleCtrlCAborts(t *testing.T) {
 	_, _ = a.update(tea.KeyMsg{Type: tea.KeyCtrlC}) // reflexive second press = yes
 	if !fr.interrupted || !a.aborted {
 		t.Fatal("second ctrl+c did not confirm the abort")
+	}
+}
+
+// TestActivityAbortStartsGraceTimer: a confirmed abort returns a command (the
+// grace tick) and the footer reports "aborting…" while the child has not yet
+// exited — the force-kill offer is NOT shown until the grace elapses.
+func TestActivityAbortStartsGraceTimer(t *testing.T) {
+	a, fr := runningActivity(t)
+	_, _ = a.update(tea.KeyMsg{Type: tea.KeyEsc})
+	_, cmd := a.update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
+	if !fr.interrupted {
+		t.Fatal("confirmed abort did not interrupt")
+	}
+	if cmd == nil {
+		t.Fatal("confirmed abort did not start the grace timer")
+	}
+	if a.killOffered {
+		t.Fatal("force-kill offered before the grace period elapsed")
+	}
+	view := a.view()
+	if !strings.Contains(view, "aborting") {
+		t.Errorf("footer does not report the aborting state:\n%s", view)
+	}
+	if strings.Contains(view, "force kill") {
+		t.Error("force-kill offer shown before the grace period elapsed")
+	}
+	// K is inert before the offer is live.
+	_, _ = a.update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'K'}})
+	if fr.killed {
+		t.Error("K killed the child before the grace period elapsed")
+	}
+}
+
+// TestActivityKillOfferAppearsAfterGrace: once the grace tick fires with the
+// child still running, the footer offers K and K force-kills.
+func TestActivityKillOfferAppearsAfterGrace(t *testing.T) {
+	a, fr := runningActivity(t)
+	_, _ = a.update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	_, _ = a.update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
+
+	// Grace elapses while the child is still running.
+	_, _ = a.update(activityKillGraceMsg{})
+	if !a.killOffered {
+		t.Fatal("grace elapsing with a live child did not offer the force-kill")
+	}
+	if !strings.Contains(a.view(), "force kill") {
+		t.Errorf("footer missing the force-kill offer:\n%s", a.view())
+	}
+
+	// K force-kills.
+	_, _ = a.update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'K'}})
+	if !fr.killed {
+		t.Fatal("K did not force-kill the child")
+	}
+}
+
+// TestActivityDoneCancelsKillOffer: if the child exits on its own, a grace tick
+// that arrives afterward must not offer the kill, and any prior offer clears.
+func TestActivityDoneCancelsKillOffer(t *testing.T) {
+	a, _ := runningActivity(t)
+	_, _ = a.update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	_, _ = a.update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
+
+	// Child exits before the grace fires.
+	_, _ = a.update(actions.DoneMsg{Code: 130})
+	if a.killOffered {
+		t.Fatal("kill offer set after the child already exited")
+	}
+	// A late grace tick must be a no-op now that the run is done.
+	_, _ = a.update(activityKillGraceMsg{})
+	if a.killOffered {
+		t.Fatal("late grace tick offered the kill on an already-finished run")
+	}
+	// The aborted footer (with AbortNote) is what shows, not the escalation.
+	view := a.view()
+	if strings.Contains(view, "force kill") {
+		t.Error("force-kill offer shown on a finished run")
+	}
+	if !strings.Contains(view, a.act.AbortNote) {
+		t.Errorf("finished-after-abort view missing AbortNote:\n%s", view)
+	}
+}
+
+// TestActivityCtrlCOnFinishedScreenQuits: once the run is done, ctrl+c is the
+// universal quit reflex (the child has already exited).
+func TestActivityCtrlCOnFinishedScreenQuits(t *testing.T) {
+	a, _ := runningActivity(t)
+	_, _ = a.update(actions.DoneMsg{Code: 0})
+	_, cmd := a.update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	if cmd == nil {
+		t.Fatal("ctrl+c on the finished screen returned no command")
+	}
+	if _, ok := cmd().(tea.QuitMsg); !ok {
+		t.Fatalf("ctrl+c on the finished screen = %T, want tea.QuitMsg", cmd())
 	}
 }
 

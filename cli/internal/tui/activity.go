@@ -26,11 +26,20 @@ type activityClosedMsg struct{ openDashboard bool }
 
 type activityTickMsg struct{}
 
+// abortGracePeriod is how long a confirmed abort waits for the child to honor
+// the ctrl-c SIGINT before the screen offers a force-kill.
+const abortGracePeriod = 10 * time.Second
+
+// activityKillGraceMsg fires abortGracePeriod after a confirmed abort. If the
+// child still hasn't exited, the footer offers the force-kill escalation.
+type activityKillGraceMsg struct{}
+
 // runnerHandle abstracts *actions.PTYRunner for tests.
 type runnerHandle interface {
 	WaitData() tea.Cmd
 	Resize(rows, cols int)
 	Interrupt()
+	Kill()
 }
 
 // startRunner is a seam: tests replace it to avoid spawning real PTYs.
@@ -53,6 +62,7 @@ type activity struct {
 
 	confirmingAbort bool
 	aborted         bool
+	killOffered     bool // grace period elapsed, child still running: offer K
 	done            bool
 	code            int
 	err             error
@@ -123,9 +133,19 @@ func (a *activity) update(msg tea.Msg) (*activity, tea.Cmd) {
 		a.done, a.code, a.err = true, msg.Code, msg.Err
 		a.runner = nil
 		// Completion beats a pending abort question: dismiss it so 'y' can't
-		// claim an abort of a run that already finished.
+		// claim an abort of a run that already finished. It also cancels a
+		// pending kill-grace offer — the child exited on its own.
 		a.confirmingAbort = false
+		a.killOffered = false
 		a.elapsed = time.Since(a.started).Round(time.Second)
+		return a, nil
+
+	case activityKillGraceMsg:
+		// The grace period after a confirmed abort elapsed. If the child still
+		// hasn't exited, surface the force-kill escalation in the footer.
+		if a.aborted && !a.done {
+			a.killOffered = true
+		}
 		return a, nil
 
 	case activityTickMsg:
@@ -155,6 +175,9 @@ func (a *activity) handleKey(msg tea.KeyMsg) (*activity, tea.Cmd) {
 			if a.runner != nil {
 				a.runner.Interrupt()
 			}
+			// Start the grace timer: if the child ignores the SIGINT, the
+			// footer will offer a force-kill once it elapses.
+			return a, a.killGrace()
 		case "n", "N", "esc":
 			a.confirmingAbort = false
 		}
@@ -163,6 +186,13 @@ func (a *activity) handleKey(msg tea.KeyMsg) (*activity, tea.Cmd) {
 
 	if !a.done {
 		switch key {
+		case "K":
+			// Escalation: only live once the grace period elapsed with the
+			// child still running (footer advertises it then).
+			if a.killOffered && a.runner != nil {
+				a.runner.Kill()
+			}
+			return a, nil
 		case "esc", "ctrl+c":
 			a.confirmingAbort = true
 			return a, nil
@@ -182,12 +212,22 @@ func (a *activity) handleKey(msg tea.KeyMsg) (*activity, tea.Cmd) {
 		}
 	case "esc", "q":
 		return a, func() tea.Msg { return activityClosedMsg{} }
+	case "ctrl+c":
+		// The child has already exited, nothing is at risk: honor the
+		// universal quit reflex instead of swallowing it.
+		return a, tea.Quit
 	case "pgup", "pgdown", "up", "down", "home", "end":
 		var cmd tea.Cmd
 		a.vp, cmd = a.vp.Update(msg)
 		return a, cmd
 	}
 	return a, nil
+}
+
+// killGrace schedules the force-kill offer for abortGracePeriod after a
+// confirmed abort.
+func (a *activity) killGrace() tea.Cmd {
+	return tea.Tick(abortGracePeriod, func(time.Time) tea.Msg { return activityKillGraceMsg{} })
 }
 
 func (a *activity) view() string {
@@ -207,6 +247,13 @@ func (a *activity) footerLine() string {
 	switch {
 	case a.confirmingAbort:
 		return activityWarnStyle.Render(fmt.Sprintf("⚠ %s is still running — abort it? (y/n)", a.act.Name))
+	case a.killOffered && !a.done:
+		// Grace period elapsed and the child is still alive — escalate.
+		return activityWarnStyle.Render("child ignoring interrupt — K: force kill") +
+			activityHelpStyle.Render("  pgup/pgdn scroll")
+	case a.aborted && !a.done:
+		return activityWarnStyle.Render("aborting — sent ctrl-c, waiting for the child to exit…") +
+			activityHelpStyle.Render("  pgup/pgdn scroll")
 	case !a.done:
 		return activityHelpStyle.Render("esc/ctrl+c abort · pgup/pgdn scroll")
 	case a.aborted:

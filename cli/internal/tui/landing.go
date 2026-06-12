@@ -63,6 +63,7 @@ type landing struct {
 	pending     *actions.Action
 	resetting   bool                        // true while the combined reset dialog is open
 	resetScope  string                      // "keep" or "all" — set only while resetting is true
+	resetRepos  bool                        // reset-sibling-repos toggle — set only while resetting is true
 	picked      string                      // picker selection value
 	pickerMake  func(string) actions.Action // non-nil while a picker is open
 	inputVal    string                      // text-input value
@@ -410,14 +411,11 @@ func (l *landing) startConfirm(act actions.Action) (*landing, tea.Cmd) {
 	return l, l.form.Init()
 }
 
-// resetAction maps the combined reset dialog's scope choice to the script
-// invocation: "all" → reset.sh --all (full wipe), anything else → the
-// DB-preserving reset.
-func resetAction(scope string) actions.Action {
-	if scope == "all" {
-		return actions.ResetAll()
-	}
-	return actions.Reset()
+// resetAction maps the combined reset dialog's scope choice and repo toggle to
+// the script invocation: "all" → reset.sh --all (full wipe), anything else →
+// the DB-preserving reset; repos=true adds --repos (git-preserving repo reset).
+func resetAction(scope string, repos bool) actions.Action {
+	return actions.ResetWith(scope == "all", repos)
 }
 
 // startResetConfirm opens ONE screen that carries both the scope choice
@@ -428,6 +426,7 @@ func resetAction(scope string) actions.Action {
 func (l *landing) startResetConfirm() (*landing, tea.Cmd) {
 	l.resetting = true
 	l.resetScope = "keep"
+	l.resetRepos = false
 	l.confirmText = ""
 	word := actions.Reset().ConfirmWord
 
@@ -442,6 +441,15 @@ func (l *landing) startResetConfirm() (*landing, tea.Cmd) {
 			huh.NewOption("Full wipe — also drop the DB volume, PIC-SURE images, and the Maven cache", "all"),
 		)
 
+	// Default OFF: bind Value before any other config (huh gotcha analogue —
+	// the binding must precede option/affirmative wiring).
+	repos := huh.NewConfirm().
+		Title("Also reset sibling repos to release refs").
+		Description("Discards uncommitted repo changes; keeps local branches & history.").
+		Affirmative("Reset repos too").
+		Negative("Leave repos alone").
+		Value(&l.resetRepos)
+
 	confirm := huh.NewInput().
 		Title(fmt.Sprintf("Type %q to confirm", word)).
 		Description("(esc cancels)").
@@ -453,7 +461,7 @@ func (l *landing) startResetConfirm() (*landing, tea.Cmd) {
 			return nil
 		})
 
-	l.form = l.sizeForm(huh.NewForm(huh.NewGroup(scope, confirm)).WithShowHelp(true))
+	l.form = l.sizeForm(huh.NewForm(huh.NewGroup(scope, repos, confirm)).WithShowHelp(true))
 	return l, l.form.Init()
 }
 
@@ -463,7 +471,7 @@ func (l *landing) updateForm(msg tea.Msg) (*landing, tea.Cmd) {
 	// the wizard screen does. One chokepoint covers all four dialog kinds.
 	if key, ok := msg.(tea.KeyMsg); ok && key.String() == "esc" {
 		l.form, l.pending, l.pickerMake, l.inputMake = nil, nil, nil, nil
-		l.resetting, l.resetScope = false, ""
+		l.resetting, l.resetScope, l.resetRepos = false, "", false
 		return l, nil
 	}
 
@@ -474,8 +482,8 @@ func (l *landing) updateForm(msg tea.Msg) (*landing, tea.Cmd) {
 	switch l.form.State {
 	case huh.StateCompleted:
 		if l.resetting {
-			act := resetAction(l.resetScope)
-			l.form, l.resetting, l.resetScope = nil, false, ""
+			act := resetAction(l.resetScope, l.resetRepos)
+			l.form, l.resetting, l.resetScope, l.resetRepos = nil, false, "", false
 			// Re-validate the typed word at the dispatch seam (defense in
 			// depth: the form's own Validate already gates real input).
 			if !actions.ConfirmAccepted(act, false, l.confirmText) {
@@ -510,7 +518,7 @@ func (l *landing) updateForm(msg tea.Msg) (*landing, tea.Cmd) {
 		return l, func() tea.Msg { return runActionMsg{act: a} }
 	case huh.StateAborted:
 		l.form, l.pending, l.pickerMake, l.inputMake = nil, nil, nil, nil
-		l.resetting, l.resetScope = false, ""
+		l.resetting, l.resetScope, l.resetRepos = false, "", false
 		return l, nil
 	}
 	return l, cmd

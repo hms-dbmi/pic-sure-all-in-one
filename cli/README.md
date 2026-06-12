@@ -106,7 +106,7 @@ menu):
 | Apply dev overlay… | picker over `docker-compose.dev-*.yml`; runs `scripts/compose.sh dev up <overlay>` — the overlay's service is recreated **from local source** (`up -d --no-deps --build`) |
 | Revert dev overlay… | `scripts/compose.sh dev off <name>` — recreate from the release image |
 | Release control… | nested submenu: Re-apply current branch · Dry run · Switch branch… (one-field input, prefilled with the current branch from `status --json`; expect a ~1s pause while it reads) |
-| Reset… | one screen: pick the scope — **Keep the database** (`reset.sh --yes`) or **Full wipe** which also drops the DB volume, PIC-SURE images, and the Maven cache (`reset.sh --all --yes`) — then type `reset` to confirm |
+| Reset… | one screen: pick the scope — **Keep the database** (`reset.sh --yes`) or **Full wipe** which also drops the DB volume, PIC-SURE images, and the Maven cache (`reset.sh --all --yes`) — plus an optional **reset sibling repos** toggle (adds `--repos`: git-resets the checkouts to their release refs, discarding uncommitted changes but **keeping** local branches & history), then type `reset` to confirm |
 | Uninstall… | typed-word confirm, then `uninstall.sh --yes` |
 
 Dev overlays are **one-shot**: a later plain `up` or update recreates the
@@ -214,8 +214,8 @@ authoritative.
 | `status` | `status.sh` | `--json` (machine-readable, passed through untouched) |
 | `preflight` | `preflight.sh` | `--network --json` |
 | `etl` | `etl.sh` | `SUBCOMMAND [flags]` — run with no arguments for the list |
-| `reset` | `reset.sh` | `--all --yes`; prompts without `--yes` (refused pre-exec on a non-TTY) |
-| `uninstall` | `uninstall.sh` | `--yes` required to act (plan-only otherwise) · `--keep-env --images --repos` |
+| `reset` | `reset.sh` | `--all --repos --yes`; prompts without `--yes` (refused pre-exec on a non-TTY). `--repos` git-resets the sibling checkouts to their release refs — discards uncommitted changes, **keeps** local branches & history (never deletes `.git`) |
+| `uninstall` | `uninstall.sh` | `--yes` required to act (plan-only otherwise) · `--keep-env --images --repos`. **`--repos` here DELETES `repos/` including git history** — use `reset --repos` to reset working trees instead |
 | `release-control` | `release-control.sh` | `--dry-run --resolve-only --apply-only --branch BRANCH` |
 | `seed-db` | `seed-db.sh` | — |
 | `migrate` | `run-migrations.sh` | `--check --repair --no-restart --bootstrap-remote-db` |
@@ -311,6 +311,8 @@ pic-sure init --skip-auth --admin-email a@b.c --db-mode remote \
 pic-sure update --dry-run            # see what would change
 pic-sure update                      # apply
 pic-sure --yes reset --all           # wipe including the DB volume, no prompt
+pic-sure --yes reset --repos         # also git-reset the sibling checkouts to
+                                     #   release refs (keeps branches & history)
 pic-sure --yes uninstall             # remove the stack (--yes is what arms it)
 pic-sure dev up httpd-hmr            # frontend from local source w/ live reload
 pic-sure dev off httpd               # back to the release image

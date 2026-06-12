@@ -356,21 +356,24 @@ func TestLandingResetCombinedScreen(t *testing.T) {
 		return l
 	}
 
-	// Both the scope choice and the typed-word confirm render together — the
-	// whole point of "one screen".
+	// The scope choice, the repo toggle, and the typed-word confirm all render
+	// together — the whole point of "one screen".
 	l := open()
+	if l.resetRepos {
+		t.Fatalf("repo toggle defaulted ON, want OFF")
+	}
 	l.setSize(100, 35)
 	l = pumpLanding(l, l.form.Init(), 0)
 	view := wizardANSI.ReplaceAllString(l.view(), "")
-	for _, want := range []string{"Keep the database", "Full wipe", `Type "reset"`} {
+	for _, want := range []string{"Keep the database", "Full wipe", "reset sibling repos to release refs", `Type "reset"`} {
 		if !strings.Contains(view, want) {
 			t.Errorf("combined reset screen missing %q", want)
 		}
 	}
 
-	// Keep-DB scope with the word typed → reset.sh --yes (no --all).
+	// Keep-DB scope, repos OFF, word typed → reset.sh --yes (no --all, no --repos).
 	l = open()
-	l.resetScope, l.confirmText = "keep", "reset"
+	l.resetScope, l.resetRepos, l.confirmText = "keep", false, "reset"
 	l.form.State = huh.StateCompleted
 	_, cmd := l.update(struct{}{})
 	run, ok := cmd().(runActionMsg)
@@ -381,9 +384,9 @@ func TestLandingResetCombinedScreen(t *testing.T) {
 		t.Errorf("keep args = %v, want %v", run.act.Args, want)
 	}
 
-	// Full-wipe scope with the word typed → reset.sh --all --yes.
+	// Full-wipe scope, repos OFF, word typed → reset.sh --all --yes.
 	l = open()
-	l.resetScope, l.confirmText = "all", "reset"
+	l.resetScope, l.resetRepos, l.confirmText = "all", false, "reset"
 	l.form.State = huh.StateCompleted
 	_, cmd = l.update(struct{}{})
 	run, ok = cmd().(runActionMsg)
@@ -394,9 +397,35 @@ func TestLandingResetCombinedScreen(t *testing.T) {
 		t.Errorf("full-wipe args = %v, want %v", run.act.Args, want)
 	}
 
+	// Keep-DB scope, repos ON → reset.sh --repos --yes.
+	l = open()
+	l.resetScope, l.resetRepos, l.confirmText = "keep", true, "reset"
+	l.form.State = huh.StateCompleted
+	_, cmd = l.update(struct{}{})
+	run, ok = cmd().(runActionMsg)
+	if !ok || run.act.Script != "reset.sh" {
+		t.Fatalf("keep+repos: got %#v, want runActionMsg{reset.sh}", cmd())
+	}
+	if want := []string{"--repos", "--yes"}; !eq(run.act.Args, want) {
+		t.Errorf("keep+repos args = %v, want %v", run.act.Args, want)
+	}
+
+	// Full-wipe scope, repos ON → reset.sh --all --repos --yes.
+	l = open()
+	l.resetScope, l.resetRepos, l.confirmText = "all", true, "reset"
+	l.form.State = huh.StateCompleted
+	_, cmd = l.update(struct{}{})
+	run, ok = cmd().(runActionMsg)
+	if !ok || run.act.Script != "reset.sh" {
+		t.Fatalf("all+repos: got %#v, want runActionMsg{reset.sh}", cmd())
+	}
+	if want := []string{"--all", "--repos", "--yes"}; !eq(run.act.Args, want) {
+		t.Errorf("all+repos args = %v, want %v", run.act.Args, want)
+	}
+
 	// Wrong word must not dispatch even if the form is forced complete.
 	l = open()
-	l.resetScope, l.confirmText = "all", "nope"
+	l.resetScope, l.resetRepos, l.confirmText = "all", true, "nope"
 	l.form.State = huh.StateCompleted
 	_, cmd = l.update(struct{}{})
 	if cmd != nil {
@@ -511,7 +540,10 @@ func TestLandingEscCancelsEveryDialogKind(t *testing.T) {
 		name string
 		do   func(l *landing)
 	}{
-		{"combined reset (scope + typed word)", func(l *landing) { _, _ = l.choose("reset") }},
+		{"combined reset (scope + repo toggle + typed word)", func(l *landing) {
+			_, _ = l.choose("reset")
+			l.resetRepos = true // ensure esc clears the toggle too
+		}},
 		{"light confirm (update)", func(l *landing) { _, _ = l.choose("update") }},
 		{"picker (demo)", func(l *landing) { _, _ = l.choose("demo") }},
 		{"input (release-control branch)", func(l *landing) {
@@ -532,7 +564,7 @@ func TestLandingEscCancelsEveryDialogKind(t *testing.T) {
 		if l.form != nil {
 			t.Errorf("%s: esc did not close the dialog", tc.name)
 		}
-		if l.pending != nil || l.pickerMake != nil || l.inputMake != nil || l.resetting {
+		if l.pending != nil || l.pickerMake != nil || l.inputMake != nil || l.resetting || l.resetRepos {
 			t.Errorf("%s: dialog state not fully cleared on esc", tc.name)
 		}
 		if cmd != nil {

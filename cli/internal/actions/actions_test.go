@@ -1,6 +1,9 @@
 package actions
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestConfirmAccepted(t *testing.T) {
 	plain := Update()
@@ -52,12 +55,68 @@ func TestResetAllArgs(t *testing.T) {
 	}
 }
 
+// ResetWith parameterizes the reset action by scope (all) and the repo toggle.
+// The repo toggle adds reset.sh --repos: a git-preserving working-tree reset of
+// the sibling checkouts (history kept). Reset()/ResetAll() are the zero-arg
+// repos-off wrappers and must equal ResetWith(false,false)/(true,false).
+func TestResetWithArgs(t *testing.T) {
+	eq := func(a, b []string) bool {
+		if len(a) != len(b) {
+			return false
+		}
+		for i := range a {
+			if a[i] != b[i] {
+				return false
+			}
+		}
+		return true
+	}
+	cases := []struct {
+		all, repos bool
+		want       []string
+	}{
+		{false, false, []string{"--yes"}},
+		{true, false, []string{"--all", "--yes"}},
+		{false, true, []string{"--repos", "--yes"}},
+		{true, true, []string{"--all", "--repos", "--yes"}},
+	}
+	for _, c := range cases {
+		a := ResetWith(c.all, c.repos)
+		if a.Script != Reset().Script {
+			t.Errorf("ResetWith(%v,%v) must run the reset script, got %q", c.all, c.repos, a.Script)
+		}
+		if !a.Destructive || a.ConfirmWord != "reset" {
+			t.Errorf("ResetWith(%v,%v) must be destructive with word %q", c.all, c.repos, "reset")
+		}
+		if !eq(a.Args, c.want) {
+			t.Errorf("ResetWith(%v,%v) args = %v, want %v", c.all, c.repos, a.Args, c.want)
+		}
+	}
+
+	// Zero-arg wrappers are exactly the repos-off variants.
+	if !eq(Reset().Args, ResetWith(false, false).Args) {
+		t.Errorf("Reset() = %v, want ResetWith(false,false) = %v", Reset().Args, ResetWith(false, false).Args)
+	}
+	if !eq(ResetAll().Args, ResetWith(true, false).Args) {
+		t.Errorf("ResetAll() = %v, want ResetWith(true,false) = %v", ResetAll().Args, ResetWith(true, false).Args)
+	}
+
+	// The repo toggle surfaces the history-kept reassurance in the dialog text.
+	d := ResetWith(false, true).Describe
+	for _, want := range []string{"sibling repos to release refs", "git history are KEPT"} {
+		if !strings.Contains(d, want) {
+			t.Errorf("ResetWith(false,true).Describe missing %q:\n%s", want, d)
+		}
+	}
+}
+
 // Spec amendment 3: no abort may leave the user guessing about state. Every
 // action must carry a one-line post-abort re-run-safety note.
 func TestEveryActionHasAbortNote(t *testing.T) {
 	acts := []Action{
 		Init(), Update(), Restart("wildfly"), Preflight(), Migrate(), SeedDB(),
-		DemoData("nhanes"), DemoData("all"), DevUp("httpd-hmr"), DevOff("httpd"), Reset(), ResetAll(), Uninstall(),
+		DemoData("nhanes"), DemoData("all"), DevUp("httpd-hmr"), DevOff("httpd"),
+		Reset(), ResetAll(), ResetWith(false, true), ResetWith(true, true), Uninstall(),
 		Etl("hydrate-dictionary"), Etl("run-weights"), Etl("promote-genomic"), Etl("public-1000genomes"),
 		ReleaseControlApply(), ReleaseControlDryRun(), ReleaseControlBranch("main"),
 	}

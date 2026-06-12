@@ -192,41 +192,67 @@ func DevOff(name string) Action {
 // Reset: destruction description matches reset.sh (backs up .env, removes
 // containers, all picsure_* volumes EXCEPT the database volume, certs/,
 // .data/, generated config; --yes is appended because the UI already
-// confirmed).
-func Reset() Action {
-	return Action{
-		Name:        "reset",
-		Script:      scripts.Reset,
-		Args:        []string{"--yes"},
-		Destructive: true,
-		ConfirmWord: "reset",
-		Describe: "Stops all containers and DELETES:\n" +
-			"  • every project volume EXCEPT the database volume (picsure-db data kept)\n" +
-			"  • .env (backed up first), certs/, .data/\n" +
-			"  • generated config: dictionary.env, HPDS encryption key, truststores,\n" +
-			"    visualization resource.properties, deployed WARs\n" +
-			"Sibling repos and .env.example are kept.",
-		AbortNote: "partial cleanup possible; run `pic-sure status` to see what remains.",
-	}
-}
+// confirmed). Sibling repos are untouched.
+func Reset() Action { return ResetWith(false, false) }
 
 // ResetAll: reset.sh --all — everything Reset does, PLUS the database volume,
 // the PIC-SURE images, and the Maven build cache. Same typed-word gate as Reset
 // (the UI distinguishes them by label and destruction text, not the word).
-func ResetAll() Action {
-	return Action{
-		Name:        "reset --all",
-		Script:      scripts.Reset,
-		Args:        []string{"--all", "--yes"},
-		Destructive: true,
-		ConfirmWord: "reset",
-		Describe: "FULL WIPE. Stops all containers and DELETES everything Reset does, PLUS:\n" +
+func ResetAll() Action { return ResetWith(true, false) }
+
+// ResetWith builds a reset action parameterized by scope and the repo toggle,
+// the way DemoData parameterizes by dataset:
+//   - all=false → DB-preserving reset; all=true → reset.sh --all (full wipe)
+//   - repos=true → also git-resets the sibling checkouts to their release refs
+//     (reset.sh --repos): uncommitted changes are discarded, but local branches
+//     and git history are KEPT. .git is never deleted (that is uninstall --repos).
+//
+// Reset()/ResetAll() are the zero-arg convenience wrappers for the common
+// repos-off case (the dashboard and CLI use those); the combined TUI reset
+// dialog calls ResetWith directly when its repo toggle is on.
+func ResetWith(all, repos bool) Action {
+	name := "reset"
+	args := []string{}
+	if all {
+		name = "reset --all"
+		args = append(args, "--all")
+	}
+	if repos {
+		name += " --repos"
+		args = append(args, "--repos")
+	}
+	args = append(args, "--yes")
+
+	var describe string
+	if all {
+		describe = "FULL WIPE. Stops all containers and DELETES everything Reset does, PLUS:\n" +
 			"  • the database volume (picsure-db data — ALL loaded phenotype data is lost)\n" +
 			"  • every PIC-SURE image\n" +
 			"  • the Maven build cache (next init rebuilds from source — slow)\n" +
 			".env is backed up first; certs/, .data/, and generated config are removed too.\n" +
-			"Sibling repos and .env.example are kept.",
-		AbortNote: "partial cleanup possible; run `pic-sure status` to see what remains.",
+			"Sibling repos and .env.example are kept."
+	} else {
+		describe = "Stops all containers and DELETES:\n" +
+			"  • every project volume EXCEPT the database volume (picsure-db data kept)\n" +
+			"  • .env (backed up first), certs/, .data/\n" +
+			"  • generated config: dictionary.env, HPDS encryption key, truststores,\n" +
+			"    visualization resource.properties, deployed WARs\n" +
+			"Sibling repos and .env.example are kept."
+	}
+	if repos {
+		describe += "\n" +
+			"  • reset sibling repos to release refs (uncommitted changes discarded;\n" +
+			"    local branches and git history are KEPT)"
+	}
+
+	return Action{
+		Name:        name,
+		Script:      scripts.Reset,
+		Args:        args,
+		Destructive: true,
+		ConfirmWord: "reset",
+		Describe:    describe,
+		AbortNote:   "partial cleanup possible; run `pic-sure status` to see what remains.",
 	}
 }
 
@@ -245,6 +271,8 @@ func Uninstall() Action {
 			"  • .env (backed up first)\n" +
 			"  • certs/, .data/, init.log, and all generated config\n" +
 			"Cloned repos and local images are kept (use the CLI for --repos/--images).\n" +
+			"NOTE: `uninstall --repos` DELETES repos/ INCLUDING local git history —\n" +
+			"use `pic-sure reset --repos` to reset working trees instead of deleting.\n" +
 			"Remote databases are not touched.",
 		AbortNote: "partial removal possible; run `pic-sure status`, then re-run uninstall.",
 	}

@@ -407,12 +407,12 @@ load_vcf() {
   fi
   docker run --rm --name "hpds-new-vcf-loader-$partition" \
     -v "$stage_dir:/opt/local/hpds" \
-    "${vcf_mount[@]}" \
+    ${vcf_mount[@]+"${vcf_mount[@]}"} \
     -e HEAPSIZE="$heap" -e LOADER_NAME=SplitChromosomeVcfLoader \
     "hms-dbmi/pic-sure-hpds-etl:${PICSURE_IMAGE_TAG:-LATEST}"
   docker run --rm --name "hpds-vcf-metadata-loader-$partition" \
     -v "$stage_dir:/opt/local/hpds" \
-    "${vcf_mount[@]}" \
+    ${vcf_mount[@]+"${vcf_mount[@]}"} \
     -e HEAPSIZE="$heap" -e LOADER_NAME=VariantMetadataLoader \
     "hms-dbmi/pic-sure-hpds-etl:${PICSURE_IMAGE_TAG:-LATEST}"
   docker run --rm --name "genomic-dataset-finalizer-$partition" \

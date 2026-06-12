@@ -81,35 +81,38 @@ MIGRATIONS_SRC="${MIGRATIONS_SRC:-$SCRIPT_DIR/repos/PIC-SURE-Migrations}"
 if [ -d "$MIGRATIONS_SRC/Baseline" ]; then
   info "Running Baseline project-specific migrations..."
 
-  # Check if already successfully applied (success=1, not failed attempts)
-  ALREADY_DONE=$(db_mysql -N -e \
+  # Check each schema independently (success=1 versioned rows)
+  ALREADY_AUTH=$(db_mysql -N -e \
     "SELECT COUNT(*) FROM auth.flyway_custom_schema_history WHERE success=1 AND version IS NOT NULL;" 2>/dev/null || echo "0")
+  ALREADY_PICSURE=$(db_mysql -N -e \
+    "SELECT COUNT(*) FROM picsure.flyway_custom_schema_history WHERE success=1 AND version IS NOT NULL;" 2>/dev/null || echo "0")
 
-  if [ "$ALREADY_DONE" = "0" ] || [ "$ALREADY_DONE" = "" ]; then
+  # Always clean up any failed migration records so Flyway will retry on partial failures
+  db_mysql -e \
+    "DELETE FROM auth.flyway_custom_schema_history WHERE success=0;" 2>/dev/null || true
+  db_mysql -e \
+    "DELETE FROM picsure.flyway_custom_schema_history WHERE success=0;" 2>/dev/null || true
+
+  # Build Flyway connection args (network + URLs) based on DB_MODE
+  FLYWAY_NETWORK_ARGS=(--network "${COMPOSE_PROJECT_NAME:-picsure}_app")
+  AUTH_FLYWAY_URL="jdbc:mysql://picsure-db:3306/auth?useSSL=false&allowPublicKeyRetrieval=true"
+  PICSURE_FLYWAY_URL="jdbc:mysql://picsure-db:3306/picsure?useSSL=false&allowPublicKeyRetrieval=true"
+  if [ "${DB_MODE:-local}" = "remote" ]; then
+    FLYWAY_NETWORK_ARGS=()
+    AUTH_FLYWAY_URL="jdbc:mysql://${DB_HOST}:${DB_PORT:-3306}/auth?useSSL=false&allowPublicKeyRetrieval=true"
+    PICSURE_FLYWAY_URL="jdbc:mysql://${DB_HOST}:${DB_PORT:-3306}/picsure?useSSL=false&allowPublicKeyRetrieval=true"
+  fi
+
+  # Run auth baseline (skip if already applied)
+  if [ "$ALREADY_AUTH" = "0" ] || [ "$ALREADY_AUTH" = "" ]; then
+    info "Running auth baseline migrations..."
     # Prepare auth migrations (substitute application UUID).
     # Note: do NOT name this TMPDIR — that would change where mktemp itself works.
     AUTH_SQL_TMP=$(mktemp -d)
     cp "$MIGRATIONS_SRC/Baseline/auth/"*.sql "$AUTH_SQL_TMP/" 2>/dev/null || true
     sed_in_place "s/__APPLICATION_UUID__/$APP_ID_HEX/g" "$AUTH_SQL_TMP/"*.sql 2>/dev/null || true
-
-    # Clean up any failed migration records so Flyway will retry
-    db_mysql -e \
-      "DELETE FROM auth.flyway_custom_schema_history WHERE success=0;" 2>/dev/null || true
-    db_mysql -e \
-      "DELETE FROM picsure.flyway_custom_schema_history WHERE success=0;" 2>/dev/null || true
-
-    # Run auth baseline
-    info "Running auth baseline migrations..."
-    FLYWAY_NETWORK_ARGS=(--network "${COMPOSE_PROJECT_NAME:-picsure}_app")
-    AUTH_FLYWAY_URL="jdbc:mysql://picsure-db:3306/auth?useSSL=false&allowPublicKeyRetrieval=true"
-    PICSURE_FLYWAY_URL="jdbc:mysql://picsure-db:3306/picsure?useSSL=false&allowPublicKeyRetrieval=true"
-    if [ "${DB_MODE:-local}" = "remote" ]; then
-      FLYWAY_NETWORK_ARGS=()
-      AUTH_FLYWAY_URL="jdbc:mysql://${DB_HOST}:${DB_PORT:-3306}/auth?useSSL=false&allowPublicKeyRetrieval=true"
-      PICSURE_FLYWAY_URL="jdbc:mysql://${DB_HOST}:${DB_PORT:-3306}/picsure?useSSL=false&allowPublicKeyRetrieval=true"
-    fi
     docker run --rm \
-      "${FLYWAY_NETWORK_ARGS[@]}" \
+      ${FLYWAY_NETWORK_ARGS[@]+"${FLYWAY_NETWORK_ARGS[@]}"} \
       -v "$AUTH_SQL_TMP:/flyway/sql:ro" \
       flyway/flyway:latest \
       -url="$AUTH_FLYWAY_URL" \
@@ -120,17 +123,22 @@ if [ -d "$MIGRATIONS_SRC/Baseline" ]; then
       -ignoreMigrationPatterns="*:missing" \
       -table=flyway_custom_schema_history \
       migrate
+    rm -rf "$AUTH_SQL_TMP"
+    info "Auth baseline migrations applied."
+  else
+    info "Auth baseline migrations already applied. Skipping."
+  fi
 
-    # Run picsure baseline
+  # Run picsure baseline (skip if already applied)
+  if [ "$ALREADY_PICSURE" = "0" ] || [ "$ALREADY_PICSURE" = "" ]; then
     info "Running picsure baseline migrations..."
     PICSURE_SQL_TMP=$(mktemp -d)
     cp "$MIGRATIONS_SRC/Baseline/picsure/"*.sql "$PICSURE_SQL_TMP/" 2>/dev/null || true
     sed_in_place "s/__RESOURCE_UUID__/$RESOURCE_ID_HEX/g" "$PICSURE_SQL_TMP/"*.sql 2>/dev/null || true
     # Fix hardcoded HPDS resource UUID to match ours
     sed_in_place "s/16A7B3241CBF4333B65B3EA2AF954313/$RESOURCE_ID_HEX/g" "$PICSURE_SQL_TMP/"*.sql 2>/dev/null || true
-
     docker run --rm \
-      "${FLYWAY_NETWORK_ARGS[@]}" \
+      ${FLYWAY_NETWORK_ARGS[@]+"${FLYWAY_NETWORK_ARGS[@]}"} \
       -v "$PICSURE_SQL_TMP:/flyway/sql:ro" \
       flyway/flyway:latest \
       -url="$PICSURE_FLYWAY_URL" \
@@ -141,11 +149,10 @@ if [ -d "$MIGRATIONS_SRC/Baseline" ]; then
       -ignoreMigrationPatterns="*:missing" \
       -table=flyway_custom_schema_history \
       migrate
-
-    rm -rf "$AUTH_SQL_TMP" "$PICSURE_SQL_TMP"
-    info "Baseline migrations applied."
+    rm -rf "$PICSURE_SQL_TMP"
+    info "Picsure baseline migrations applied."
   else
-    info "Baseline migrations already applied. Skipping."
+    info "Picsure baseline migrations already applied. Skipping."
   fi
 else
   warn "PIC-SURE-Migrations repo not found at $MIGRATIONS_SRC"

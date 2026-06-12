@@ -33,23 +33,25 @@ var (
 // other actions finish in seconds-to-minutes, so they get no such note).
 const initFooterNote = "first run takes ~20–30 minutes"
 
-// phaseInitPrefixes are the init pipeline's LOG_PREFIX values; capturing only
-// these keeps unrelated bracketed output (docker/maven "[INFO]" lines) from
-// being mistaken for a phase.
-const phaseInitPrefixes = `init|clone|build|seed|migrate`
+// phaseMarkerPrefixes are the LOG_PREFIX values whose info() markers surface as
+// a phase: the init pipeline's prefixes plus the etl.sh load orchestrators
+// (which emit "[load-phenotype] Step 1/3: …" / "[load-genomic] Step 1: …").
+// Capturing only these keeps unrelated bracketed output (docker/maven "[INFO]"
+// lines) from being mistaken for a phase.
+const phaseMarkerPrefixes = `init|clone|build|seed|migrate|load-phenotype|load-genomic`
 
 // phaseMarkerColored matches scripts/lib/common.sh's info() output BEFORE ANSI
 // stripping: "\x1b[0;32m[$LOG_PREFIX]\x1b[0m $*" — the bracket wrapped in
 // PICSURE_GREEN specifically. warn() and error() emit the identical bracket in
 // yellow/red, so gating on the green SGR is what keeps "AUTH0_CLIENT_ID is not
 // set in .env" or "hpds failed. See …" from masquerading as a phase.
-var phaseMarkerColored = regexp.MustCompile(`^\x1b\[0;32m\[(` + phaseInitPrefixes + `)\]\x1b\[0m\s+(.*)$`)
+var phaseMarkerColored = regexp.MustCompile(`^\x1b\[0;32m\[(` + phaseMarkerPrefixes + `)\]\x1b\[0m\s+(.*)$`)
 
 // phaseMarkerPlain is the fallback for lines carrying no SGR at all (NO_COLOR
 // or pre-stripped streams): the bare "[prefix] message" form. Without color the
 // prefix alone cannot distinguish info from warn/error, so detectPhase
 // additionally skips warning-styled messages (⚠ …) — see below.
-var phaseMarkerPlain = regexp.MustCompile(`^\[(` + phaseInitPrefixes + `)\]\s+(.*)$`)
+var phaseMarkerPlain = regexp.MustCompile(`^\[(` + phaseMarkerPrefixes + `)\]\s+(.*)$`)
 
 // phaseDecoration matches a marker message that is pure decoration (the banner
 // rules like "======") or empty — surfacing those as a phase would be noise.
@@ -206,11 +208,27 @@ func (a *activity) paneSize() (rows, cols int) {
 }
 
 // tracksPhases reports whether this action's pipeline emits step markers worth
-// surfacing in the header (and the long-run footer note). Only init.sh's
-// clone/build/seed/migrate pipeline runs long enough and prints enough top-level
-// markers to warrant it; other actions stay on the plain "running 0s" header.
+// surfacing in the header. init.sh's clone/build/seed/migrate pipeline and the
+// etl.sh load orchestrators (load-phenotype/load-genomic) both print top-level
+// "[phase] Step N/M: …" markers; other actions stay on the plain "running 0s"
+// header. The init-specific long-run footer note is gated separately (see
+// footerLine) — load runs are not the 20–30 minute first-run install.
 func (a *activity) tracksPhases() bool {
-	return a.act.Script == scripts.Init
+	return a.act.Script == scripts.Init || a.isLoadOrchestrator()
+}
+
+// isLoadOrchestrator reports whether this action is one of the etl.sh load
+// orchestrators, identified by its first argv element (load-phenotype /
+// load-genomic) — the orchestrators that emit step markers.
+func (a *activity) isLoadOrchestrator() bool {
+	if a.act.Script != scripts.Etl || len(a.act.Args) == 0 {
+		return false
+	}
+	switch a.act.Args[0] {
+	case "load-phenotype", "load-genomic":
+		return true
+	}
+	return false
 }
 
 // scanPhase updates a.phase from the new raw chunk only (never the whole
@@ -409,8 +427,9 @@ func (a *activity) footerLine() string {
 		help := "esc/ctrl+c abort · pgup/pgdn scroll"
 		// Append the first-run note only on the init screen and only when it
 		// fits the width — at narrow widths the longer footer would wrap and
-		// shear the frame (the abort/scroll hint always takes priority).
-		if a.tracksPhases() {
+		// shear the frame (the abort/scroll hint always takes priority). A load
+		// run tracks phases too, but it is not the 20–30 minute first install.
+		if a.act.Script == scripts.Init {
 			withNote := help + " · " + initFooterNote
 			if a.width <= 0 || lipgloss.Width(withNote)+2 <= a.width {
 				help = withNote

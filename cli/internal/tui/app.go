@@ -18,6 +18,7 @@ const (
 	ScreenDashboard
 	ScreenActivity
 	ScreenWizard
+	ScreenLoadData
 )
 
 // Options configures the unified TUI.
@@ -46,6 +47,7 @@ type app struct {
 	dash     tea.Model
 	activity *activity
 	wizard   *wizardScreen
+	load     *loadScreen
 }
 
 func newApp(o Options) *app {
@@ -81,6 +83,9 @@ func (a *app) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if a.wizard != nil {
 			a.wizard.setSize(msg.Width, msg.Height)
 		}
+		if a.load != nil {
+			a.load.setSize(msg.Width, msg.Height)
+		}
 		if a.dash != nil {
 			var cmd tea.Cmd
 			a.dash, cmd = a.dash.Update(msg)
@@ -97,6 +102,9 @@ func (a *app) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return a.openLanding()
 
 	case runActionMsg:
+		// The load screen emits runActionMsg to launch its phenotype load;
+		// drop it so a closed screen isn't left dangling behind the activity.
+		a.load = nil
 		a.landing.stopAnimations()
 		a.activity = newActivity(a.opts.Root, msg.act)
 		a.activity.setSize(a.width, a.height)
@@ -138,6 +146,21 @@ func (a *app) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Consent already given at the wizard's confirm-summary: run init.sh
 		// in the activity screen with no further dialog.
 		return a.Update(runActionMsg{act: actions.Init()})
+
+	case openLoadDataMsg:
+		s := newLoadScreen(a.opts.Root)
+		a.landing.stopAnimations()
+		s.setSize(a.width, a.height)
+		a.load = s
+		a.screen = ScreenLoadData
+		return a, s.init()
+
+	case loadDataClosedMsg:
+		a.load = nil
+		if msg.aborted {
+			a.landing.result = "data load cancelled"
+		}
+		return a, a.openLandingCmd()
 	}
 
 	// --- route everything else to the active screen ---
@@ -162,6 +185,13 @@ func (a *app) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		var cmd tea.Cmd
 		a.wizard, cmd = a.wizard.update(msg)
+		return a, cmd
+	case ScreenLoadData:
+		if a.load == nil {
+			return a, nil
+		}
+		var cmd tea.Cmd
+		a.load, cmd = a.load.update(msg)
 		return a, cmd
 	default:
 		var cmd tea.Cmd
@@ -203,6 +233,10 @@ func (a *app) View() string {
 	case ScreenWizard:
 		if a.wizard != nil {
 			return a.wizard.view()
+		}
+	case ScreenLoadData:
+		if a.load != nil {
+			return a.load.view()
 		}
 	}
 	return a.landing.view()

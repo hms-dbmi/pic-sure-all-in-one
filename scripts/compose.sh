@@ -130,6 +130,10 @@ case "$VERB" in
         SVC="$NAME"
         if [ -f "$SCRIPT_DIR/docker-compose.dev-$NAME.yml" ]; then
           SVC="$(dev_overlay_service "$SCRIPT_DIR/docker-compose.dev-$NAME.yml")"
+          if [ -z "$SVC" ]; then
+            error "Could not determine the service defined by $SCRIPT_DIR/docker-compose.dev-$NAME.yml"
+            exit 1
+          fi
         fi
         info "Recreating $SVC from the release image (base compose files only)."
         picsure_compose up -d --no-deps "$SVC"

@@ -313,7 +313,7 @@ func (l *landing) choose(id string) (*landing, tea.Cmd) {
 				huh.NewOption("hydrate-dictionary", "hydrate-dictionary"),
 				huh.NewOption("run-weights", "run-weights"),
 				huh.NewOption("promote-genomic", "promote-genomic"),
-				huh.NewOption("public-1000genomes (large download)", "public-1000genomes"),
+				huh.NewOption("public-1000genomes — setup instructions (no download)", "public-1000genomes"),
 				huh.NewOption("Cancel", ""),
 			},
 			actions.Etl)

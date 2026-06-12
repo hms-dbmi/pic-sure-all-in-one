@@ -463,7 +463,7 @@ public_1000genomes() {
     esac
   done
 
-  warn "Public 1000 Genomes genomic setup requires a vcfIndex.tsv and VCF files."
+  warn "Nothing was downloaded or changed — genomic data requires a manual load:"
   warn "Use: ./etl.sh load-vcf --partition 1000genomes --vcf-index <path> --vcf-dir <path> --heap $heap"
   warn "Then: ./etl.sh promote-genomic [--clean] and set HPDS_PROFILE=bch-dev only after genomic data is present."
 }

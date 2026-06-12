@@ -102,7 +102,7 @@ menu):
 |---|---|
 | Run migrations | `run-migrations.sh` |
 | Seed database | `seed-db.sh` |
-| ETL operations… | picker over the parameterless `etl.sh` subcommands: `hydrate-dictionary`, `run-weights`, `promote-genomic`, `public-1000genomes` (subcommands needing file arguments are CLI-only) |
+| ETL operations… | picker over the parameterless `etl.sh` subcommands: `hydrate-dictionary`, `run-weights`, `promote-genomic`, `public-1000genomes` (instructions-only — prints the manual genomic-load steps, downloads nothing) (subcommands needing file arguments are CLI-only) |
 | Apply dev overlay… | picker over `docker-compose.dev-*.yml`; runs `scripts/compose.sh dev up <overlay>` — the overlay's service is recreated **from local source** (`up -d --no-deps --build`) |
 | Revert dev overlay… | `scripts/compose.sh dev off <name>` — recreate from the release image |
 | Release control… | nested submenu: Re-apply current branch · Dry run · Switch branch… (one-field input, prefilled with the current branch from `status --json`; expect a ~1s pause while it reads) |

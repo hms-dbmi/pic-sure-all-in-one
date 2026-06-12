@@ -109,7 +109,7 @@ func Etl(sub string) Action {
 		"hydrate-dictionary": "Re-hydrates the dictionary database from the currently loaded\nHPDS data.",
 		"run-weights":        "Recomputes dictionary search weights using the default weights\nfile from the dictionary repo.",
 		"promote-genomic":    "Promotes staged genomic data into the live HPDS data volume.",
-		"public-1000genomes": "Loads the public 1000 Genomes genomic dataset (large download,\nlong run).",
+		"public-1000genomes": "Prints the manual steps for loading the public 1000 Genomes\ngenomic dataset — downloads nothing and changes nothing.",
 	}[sub]
 	abort := map[string]string{
 		"promote-genomic": "promotion may be partial; check the HPDS data state before re-running.",

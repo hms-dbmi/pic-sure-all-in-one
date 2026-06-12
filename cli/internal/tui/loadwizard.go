@@ -3,6 +3,7 @@ package tui
 import (
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -14,35 +15,46 @@ import (
 	"github.com/hms-dbmi/pic-sure-all-in-one/cli/internal/styles"
 )
 
-// The "Load your data" guided screen (Phase LD-4). A self-contained, app-shell
-// routed tea.Model (ScreenLoadData) that walks the user through loading a
-// phenotype CSV — file → heap → dictionary mode → optional custom-dictionary
-// files → confirm summary — and dispatches one actions.LoadPhenotype run into
-// the activity screen. The genomic branch is offered by the kind-select but
-// routes to a coming-soon stub that LD-5 fills in.
+// The "Load your data" guided screen (Phases LD-4/LD-5). A self-contained,
+// app-shell routed tea.Model (ScreenLoadData) that walks the user through
+// loading either a phenotype CSV or a genomic VCF partition and dispatches one
+// actions.LoadPhenotype / actions.LoadGenomic run into the activity screen.
 //
 // Step state machine (loadStep):
 //
 //	loadKind ──phenotype──▶ loadPhenoFile ─▶ loadPhenoHeap ─▶ loadPhenoDict
 //	   │ genomic                                                  │
-//	   ▼                                              auto ───────┤
-//	loadGenomicStub (coming soon)                                 │
-//	   │ cancel                              custom ─▶ loadPhenoDatasets
-//	   ▼                                               ─▶ loadPhenoConcepts
-//	close                                              ─▶ loadPhenoFacetsAsk
-//	                                          no ───────────────┐ │ yes
-//	                                                            │ ▼
-//	                                          loadPhenoFacetCategories
-//	                                                  ─▶ loadPhenoFacets
-//	                                                  ─▶ loadPhenoFacetConcepts
-//	                                                            │
-//	                                                            ▼
-//	                                                       loadConfirm ─▶ dispatch
+//	   │                                               auto ──────┤
+//	   │                                     custom ─▶ loadPhenoDatasets
+//	   │                                              ─▶ loadPhenoConcepts
+//	   │                                              ─▶ loadPhenoFacetsAsk
+//	   │                                     no ───────────────┐ │ yes
+//	   │                                                       │ ▼
+//	   │                                     loadPhenoFacetCategories
+//	   │                                             ─▶ loadPhenoFacets
+//	   │                                             ─▶ loadPhenoFacetConcepts
+//	   │                                                       │
+//	   │                                                       ▼
+//	   │                                                  loadConfirm ─▶ dispatch
+//	   │
+//	   ▼ genomic
+//	loadGenomicIndex ─▶ loadGenomicDirAsk ──no──▶ loadGenomicPartition
+//	                          │ yes                        │
+//	                          ▼                            ▼
+//	                    loadGenomicDir ─────────▶ loadGenomicHeap
+//	                                                       │
+//	                                                       ▼
+//	                            loadGenomicPromote ─▶ loadGenomicProfile
+//	                                                       │
+//	                                                       ▼
+//	                                            loadGenomicConfirm ─▶ dispatch
+//	   │ cancel
+//	   ▼
+//	close
 type loadStep int
 
 const (
 	loadKind loadStep = iota
-	loadGenomicStub
 	loadPhenoFile
 	loadPhenoHeap
 	loadPhenoDict
@@ -53,11 +65,26 @@ const (
 	loadPhenoFacets
 	loadPhenoFacetConcepts
 	loadConfirm
+
+	// Genomic branch (LD-5).
+	loadGenomicIndex
+	loadGenomicDirAsk
+	loadGenomicDir
+	loadGenomicPartition
+	loadGenomicHeap
+	loadGenomicPromote
+	loadGenomicProfile
+	loadGenomicConfirm
 )
 
-// defaultHeap is the JVM heap (MB) the heap input opens prefilled with — the
-// recommended floor for the common <1M-row phenotype CSV.
+// defaultHeap is the JVM heap (MB) the phenotype heap input opens prefilled
+// with — the recommended floor for the common <1M-row phenotype CSV.
 const defaultHeap = "4096"
+
+// defaultGenomicHeap is the JVM heap (MB) the genomic heap input opens
+// prefilled with — genomic loads need substantially more headroom than the
+// phenotype floor.
+const defaultGenomicHeap = "16000"
 
 // openLoadDataMsg asks the app to open the guided load screen.
 type openLoadDataMsg struct{}
@@ -95,6 +122,14 @@ type loadScreen struct {
 	facets          string
 	facetConcepts   string
 	confirmed       bool
+
+	// Genomic-branch collected values.
+	vcfIndex      string
+	includeVCFDir bool
+	vcfDir        string
+	partition     string
+	promote       bool
+	enableProfile bool
 
 	// discarding raises the one-keystroke "Discard data load? (y/n)" confirm on
 	// esc once any data has been collected, so a multi-step flow is not silently
@@ -157,7 +192,8 @@ func (s *loadScreen) fbHeight() int {
 func isFileStep(step loadStep) bool {
 	switch step {
 	case loadPhenoFile, loadPhenoDatasets, loadPhenoConcepts,
-		loadPhenoFacetCategories, loadPhenoFacets, loadPhenoFacetConcepts:
+		loadPhenoFacetCategories, loadPhenoFacets, loadPhenoFacetConcepts,
+		loadGenomicIndex, loadGenomicDir:
 		return true
 	}
 	return false
@@ -192,16 +228,9 @@ func (s *loadScreen) update(msg tea.Msg) (*loadScreen, tea.Cmd) {
 	}
 
 	switch s.step {
-	case loadGenomicStub:
-		// Placeholder for LD-5: nothing is collected here, so any key just
-		// returns to the menu (esc already handled above as a pristine close).
-		if _, ok := msg.(tea.KeyMsg); ok {
-			return s, closeLoad(true)
-		}
-		return s, nil
-
 	case loadPhenoFile, loadPhenoDatasets, loadPhenoConcepts,
-		loadPhenoFacetCategories, loadPhenoFacets, loadPhenoFacetConcepts:
+		loadPhenoFacetCategories, loadPhenoFacets, loadPhenoFacetConcepts,
+		loadGenomicIndex, loadGenomicDir:
 		var cmd tea.Cmd
 		s.fb, cmd = s.fb.Update(msg)
 		// Poll for a selection on this msg and consume it exactly once: the next
@@ -240,7 +269,11 @@ func (s *loadScreen) formCompleted() (*loadScreen, tea.Cmd) {
 		case "phenotype":
 			return s.enterStep(loadPhenoFile)
 		case "genomic":
-			return s.enterStep(loadGenomicStub)
+			// The genomic heap floor is higher than the phenotype default the
+			// screen was constructed with; prefill the genomic default before the
+			// heap input is reached (heap is not "collected"/dirty data).
+			s.heap = defaultGenomicHeap
+			return s.enterStep(loadGenomicIndex)
 		default: // "" — Cancel
 			return s, closeLoad(true)
 		}
@@ -261,6 +294,25 @@ func (s *loadScreen) formCompleted() (*loadScreen, tea.Cmd) {
 			return s, closeLoad(true)
 		}
 		return s, s.dispatch()
+
+	case loadGenomicDirAsk:
+		if s.includeVCFDir {
+			return s.enterStep(loadGenomicDir)
+		}
+		return s.enterStep(loadGenomicPartition)
+	case loadGenomicPartition:
+		return s.enterStep(loadGenomicHeap)
+	case loadGenomicHeap:
+		return s.enterStep(loadGenomicPromote)
+	case loadGenomicPromote:
+		return s.enterStep(loadGenomicProfile)
+	case loadGenomicProfile:
+		return s.enterStep(loadGenomicConfirm)
+	case loadGenomicConfirm:
+		if !s.confirmed {
+			return s, closeLoad(true)
+		}
+		return s, s.dispatchGenomic()
 	}
 	return s, nil
 }
@@ -288,6 +340,12 @@ func (s *loadScreen) consumeFile(path string) (*loadScreen, tea.Cmd) {
 	case loadPhenoFacetConcepts:
 		s.facetConcepts = path
 		return s.enterStep(loadConfirm)
+	case loadGenomicIndex:
+		s.vcfIndex = path
+		return s.enterStep(loadGenomicDirAsk)
+	case loadGenomicDir:
+		s.vcfDir = path
+		return s.enterStep(loadGenomicPartition)
 	}
 	return s, nil
 }
@@ -321,8 +379,29 @@ func (s *loadScreen) enterStep(step loadStep) (*loadScreen, tea.Cmd) {
 	case loadConfirm:
 		s.form = s.sizeForm(s.buildConfirmForm())
 		return s, s.form.Init()
-	case loadGenomicStub:
-		return s, nil
+
+	case loadGenomicIndex:
+		return s.openBrowser([]string{".tsv"}, "Select the VCF index TSV")
+	case loadGenomicDirAsk:
+		s.form = s.sizeForm(s.buildGenomicDirAskForm())
+		return s, s.form.Init()
+	case loadGenomicDir:
+		return s.openDirBrowser("Select the directory of VCF files")
+	case loadGenomicPartition:
+		s.form = s.sizeForm(s.buildPartitionForm())
+		return s, s.form.Init()
+	case loadGenomicHeap:
+		s.form = s.sizeForm(s.buildGenomicHeapForm())
+		return s, s.form.Init()
+	case loadGenomicPromote:
+		s.form = s.sizeForm(s.buildPromoteForm())
+		return s, s.form.Init()
+	case loadGenomicProfile:
+		s.form = s.sizeForm(s.buildProfileForm())
+		return s, s.form.Init()
+	case loadGenomicConfirm:
+		s.form = s.sizeForm(s.buildGenomicConfirmForm())
+		return s, s.form.Init()
 	}
 	return s, nil
 }
@@ -333,12 +412,22 @@ func (s *loadScreen) openBrowser(exts []string, title string) (*loadScreen, tea.
 	return s, s.fb.Init()
 }
 
+// openDirBrowser opens a DirMode filebrowser for selecting a directory (the
+// optional --vcf-dir override).
+func (s *loadScreen) openDirBrowser(title string) (*loadScreen, tea.Cmd) {
+	s.fb = filebrowser.New(filebrowser.Options{DirMode: true, Title: title})
+	s.fb.SetSize(s.fbWidth(), s.fbHeight())
+	return s, s.fb.Init()
+}
+
 // dirty reports whether any data has been collected (any file path set). The
-// dictionary mode and heap default are not "collected input" — only a chosen
-// file path is — so the kind-select and the coming-soon stub close pristinely.
+// dictionary mode, kind selection, and heap default are not "collected input" —
+// only a chosen file path is — so the kind-select closes pristinely. On the
+// genomic branch the screen turns dirty once the VCF index is selected.
 func (s *loadScreen) dirty() bool {
 	return s.file != "" || s.datasets != "" || s.concepts != "" ||
-		s.facetCategories != "" || s.facets != "" || s.facetConcepts != ""
+		s.facetCategories != "" || s.facets != "" || s.facetConcepts != "" ||
+		s.vcfIndex != "" || s.vcfDir != ""
 }
 
 // opts assembles the PhenotypeOpts from the collected values; facet fields are
@@ -366,6 +455,27 @@ func (s *loadScreen) dispatch() tea.Cmd {
 	return func() tea.Msg { return runActionMsg{act: act} }
 }
 
+// genomicOpts assembles the GenomicOpts from the collected genomic values.
+// VCFDir is forwarded only when the user opted to point at a directory.
+func (s *loadScreen) genomicOpts() actions.GenomicOpts {
+	o := actions.GenomicOpts{
+		Partition:     s.partition,
+		VCFIndex:      s.vcfIndex,
+		Heap:          s.heap,
+		Promote:       s.promote,
+		EnableProfile: s.enableProfile,
+	}
+	if s.includeVCFDir {
+		o.VCFDir = s.vcfDir
+	}
+	return o
+}
+
+func (s *loadScreen) dispatchGenomic() tea.Cmd {
+	act := actions.LoadGenomic(s.genomicOpts())
+	return func() tea.Msg { return runActionMsg{act: act} }
+}
+
 func closeLoad(aborted bool) tea.Cmd {
 	return func() tea.Msg { return loadDataClosedMsg{aborted: aborted} }
 }
@@ -373,9 +483,10 @@ func closeLoad(aborted bool) tea.Cmd {
 // --- form builders (Value bound before Options, per the huh gotcha) ---------
 
 func (s *loadScreen) buildKindForm() *huh.Form {
+	// No .Title here: the screen already renders the "Load your data" header via
+	// loadTitleStyle, so a form title would double-render it on the kind step.
 	return huh.NewForm(huh.NewGroup(
 		huh.NewSelect[string]().
-			Title("Load your data").
 			Description("Choose the kind of data to load into PIC-SURE.").
 			Value(&s.kind).
 			Options(
@@ -431,6 +542,72 @@ func (s *loadScreen) buildConfirmForm() *huh.Form {
 	))
 }
 
+// --- genomic-branch form builders -------------------------------------------
+
+func (s *loadScreen) buildGenomicDirAskForm() *huh.Form {
+	return huh.NewForm(huh.NewGroup(
+		huh.NewConfirm().
+			Title("VCF directory").
+			Description("Point at a directory of VCF files?\n(the index may already use absolute paths)").
+			Affirmative("Yes").
+			Negative("No").
+			Value(&s.includeVCFDir),
+	))
+}
+
+func (s *loadScreen) buildPartitionForm() *huh.Form {
+	return huh.NewForm(huh.NewGroup(
+		huh.NewInput().
+			Title("Genomic partition").
+			Description("letters/digits/_/- ; names the genomic dataset.").
+			Value(&s.partition).
+			Validate(validatePartition),
+	))
+}
+
+func (s *loadScreen) buildGenomicHeapForm() *huh.Form {
+	return huh.NewForm(huh.NewGroup(
+		huh.NewInput().
+			Title("JVM heap size").
+			Description("MB; 16000 for typical loads, raise for large partitions.").
+			Value(&s.heap).
+			Validate(validateHeap),
+	))
+}
+
+func (s *loadScreen) buildPromoteForm() *huh.Form {
+	return huh.NewForm(huh.NewGroup(
+		huh.NewConfirm().
+			Title("Promote this load to live genomic data now?").
+			Description("A backup of the current genomic data is kept (promote is backup-safe).").
+			Affirmative("Yes").
+			Negative("No").
+			Value(&s.promote),
+	))
+}
+
+func (s *loadScreen) buildProfileForm() *huh.Form {
+	return huh.NewForm(huh.NewGroup(
+		huh.NewConfirm().
+			Title("Enable the genomic HPDS profile now?").
+			Description("Only if data will be present — otherwise HPDS can crash-loop.").
+			Affirmative("Yes").
+			Negative("No").
+			Value(&s.enableProfile),
+	))
+}
+
+func (s *loadScreen) buildGenomicConfirmForm() *huh.Form {
+	return huh.NewForm(huh.NewGroup(
+		huh.NewConfirm().
+			Title("⚠ Load genomic data").
+			Description(s.genomicConfirmSummary()).
+			Affirmative("Load").
+			Negative("Cancel").
+			Value(&s.confirmed),
+	))
+}
+
 // validateHeap accepts a non-empty numeric (MB) heap value.
 func validateHeap(v string) error {
 	v = strings.TrimSpace(v)
@@ -441,6 +618,22 @@ func validateHeap(v string) error {
 		if r < '0' || r > '9' {
 			return errors.New("heap must be numeric (MB), e.g. 4096")
 		}
+	}
+	return nil
+}
+
+// partitionPattern mirrors etl.sh load-genomic's own partition guard
+// (^[A-Za-z0-9_-]+$): a non-empty run of letters, digits, underscores, hyphens.
+var partitionPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+
+// validatePartition accepts a non-empty partition name of letters/digits/_/-.
+func validatePartition(v string) error {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return errors.New("partition is required")
+	}
+	if !partitionPattern.MatchString(v) {
+		return errors.New("partition must match ^[A-Za-z0-9_-]+$ (letters/digits/_/-)")
 	}
 	return nil
 }
@@ -488,15 +681,74 @@ func (s *loadScreen) confirmSummary() string {
 	return strings.TrimRight(b.String(), "\n")
 }
 
+// genomicConfirmSummary leads with the action's Describe, follows with the two
+// genomic caveats — promote is backup-safe, and enabling the profile before
+// genomic data is present crash-loops HPDS — and closes with an aligned digest
+// of the collected values (the same U8 confirm-summary idiom as confirmSummary).
+//
+// The screen cannot know whether prior genomic data is already live, so the
+// risky combination (enable-profile=true with promote=false) is surfaced as a
+// prominent CONDITIONAL warning rather than a flat assertion.
+func (s *loadScreen) genomicConfirmSummary() string {
+	vcfDir := s.vcfDir
+	if !s.includeVCFDir || vcfDir == "" {
+		vcfDir = "(index paths)"
+	}
+	rows := [][2]string{
+		{"Partition", s.partition},
+		{"VCF index", s.vcfIndex},
+		{"VCF dir", vcfDir},
+		{"Heap", s.heap + " MB"},
+		{"Promote", yesNo(s.promote)},
+		{"Enable profile", yesNo(s.enableProfile)},
+	}
+
+	titleWidth := 0
+	for _, r := range rows {
+		if w := lipgloss.Width(r[0]); w > titleWidth {
+			titleWidth = w
+		}
+	}
+
+	var b strings.Builder
+	b.WriteString(actions.LoadGenomic(s.genomicOpts()).Describe)
+	b.WriteString("\n\n")
+	b.WriteString("Caveats:\n")
+	b.WriteString("• Promote is backup-safe: the previous genomic data volume is kept until\n" +
+		"  explicitly removed.\n")
+	if s.enableProfile && !s.promote {
+		// Risky combo: enabling the profile without promoting this load. We can't
+		// know whether prior genomic data is already live, so warn conditionally.
+		b.WriteString("⚠ You enabled the profile WITHOUT promoting this load. If no prior\n" +
+			"  genomic data is already live, enabling the HPDS genomic profile will\n" +
+			"  crash-loop HPDS. Only proceed if promoted genomic data is already present\n" +
+			"  (or also promote this load).\n")
+	} else {
+		b.WriteString("• Enabling the genomic profile before genomic data is present crash-loops\n" +
+			"  HPDS — only enable it once promoted data exists.\n")
+	}
+	b.WriteString("\n")
+	for _, r := range rows {
+		pad := strings.Repeat(" ", titleWidth-lipgloss.Width(r[0]))
+		fmt.Fprintf(&b, "%s%s  %s\n", r[0], pad, r[1])
+	}
+	return strings.TrimRight(b.String(), "\n")
+}
+
+// yesNo renders a bool as a confirm-summary "yes"/"no" cell.
+func yesNo(b bool) string {
+	if b {
+		return "yes"
+	}
+	return "no"
+}
+
 func (s *loadScreen) view() string {
 	var body, footer string
 	switch s.step {
-	case loadGenomicStub:
-		body = "Genomic data (VCF) loading is coming soon.\n\n" +
-			"This branch isn't built yet — press esc or enter to go back."
-		footer = loadFooterStyle.Render("esc back")
 	case loadPhenoFile, loadPhenoDatasets, loadPhenoConcepts,
-		loadPhenoFacetCategories, loadPhenoFacets, loadPhenoFacetConcepts:
+		loadPhenoFacetCategories, loadPhenoFacets, loadPhenoFacetConcepts,
+		loadGenomicIndex, loadGenomicDir:
 		body = s.fb.View()
 		footer = loadFooterStyle.Render("enter select · esc cancel")
 	default:

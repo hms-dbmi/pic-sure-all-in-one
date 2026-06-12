@@ -18,6 +18,75 @@ func completeForm(s *loadScreen) (*loadScreen, tea.Cmd) {
 	return s.update(struct{}{})
 }
 
+// genomicInputs is the set of values driveGenomicToConfirm walks through the
+// genomic step chain. An empty heap keeps the prefilled genomic default.
+type genomicInputs struct {
+	vcfIndex      string
+	includeVCFDir bool
+	vcfDir        string
+	partition     string
+	heap          string
+	promote       bool
+	enableProfile bool
+}
+
+// driveGenomicToConfirm walks the genomic branch from the kind select to the
+// confirm summary (form built, not yet confirmed), asserting each transition,
+// and returns the screen parked at loadGenomicConfirm.
+func driveGenomicToConfirm(t *testing.T, s *loadScreen, in genomicInputs) *loadScreen {
+	t.Helper()
+
+	s.kind = "genomic"
+	s, _ = completeForm(s)
+	if s.step != loadGenomicIndex {
+		t.Fatalf("kind=genomic step = %v, want loadGenomicIndex", s.step)
+	}
+
+	s, _ = s.consumeFile(in.vcfIndex)
+	if s.step != loadGenomicDirAsk || s.vcfIndex != in.vcfIndex {
+		t.Fatalf("after vcf-index step=%v vcfIndex=%q", s.step, s.vcfIndex)
+	}
+
+	s.includeVCFDir = in.includeVCFDir
+	s, _ = completeForm(s)
+	if in.includeVCFDir {
+		if s.step != loadGenomicDir {
+			t.Fatalf("dir-ask=yes step = %v, want loadGenomicDir", s.step)
+		}
+		s, _ = s.consumeFile(in.vcfDir)
+	}
+	if s.step != loadGenomicPartition {
+		t.Fatalf("before partition step = %v, want loadGenomicPartition", s.step)
+	}
+
+	s.partition = in.partition
+	s, _ = completeForm(s)
+	if s.step != loadGenomicHeap {
+		t.Fatalf("after partition step = %v, want loadGenomicHeap", s.step)
+	}
+
+	if in.heap != "" {
+		s.heap = in.heap
+	}
+	s, _ = completeForm(s)
+	if s.step != loadGenomicPromote {
+		t.Fatalf("after heap step = %v, want loadGenomicPromote", s.step)
+	}
+
+	s.promote = in.promote
+	s, _ = completeForm(s)
+	if s.step != loadGenomicProfile {
+		t.Fatalf("after promote step = %v, want loadGenomicProfile", s.step)
+	}
+
+	s.enableProfile = in.enableProfile
+	s, _ = completeForm(s)
+	if s.step != loadGenomicConfirm {
+		t.Fatalf("after profile step = %v, want loadGenomicConfirm", s.step)
+	}
+	return s
+}
+
 // TestLoadWizardPhenotypeAutoFlow drives the whole auto-dictionary happy path:
 // kind → file → heap → dictionary(auto) → confirm → dispatch, and asserts the
 // dispatched runActionMsg carries LoadPhenotype with the collected File/Heap
@@ -215,29 +284,28 @@ func TestLoadWizardKindCancelCloses(t *testing.T) {
 	}
 }
 
-// TestLoadWizardGenomicRoutesToStub: picking genomic routes to the coming-soon
-// stub — it must NOT dispatch a phenotype load, and the view shows the
-// placeholder. LD-5 replaces the stub.
-func TestLoadWizardGenomicRoutesToStub(t *testing.T) {
+// TestLoadWizardGenomicRoutesToFile: picking genomic routes into the genomic
+// branch's first (VCF index) file step — not a phenotype load, not the old
+// coming-soon stub — and prefills the higher genomic heap default.
+func TestLoadWizardGenomicRoutesToFile(t *testing.T) {
 	s := newLoadScreen("/tmp/x")
 	s.setSize(100, 35)
 	s.kind = "genomic"
 	s, cmd := completeForm(s)
-	if s.step != loadGenomicStub {
-		t.Fatalf("genomic kind step = %v, want loadGenomicStub", s.step)
+	if s.step != loadGenomicIndex {
+		t.Fatalf("genomic kind step = %v, want loadGenomicIndex", s.step)
 	}
+	if !isFileStep(s.step) {
+		t.Fatalf("loadGenomicIndex should be a file step")
+	}
+	if s.heap != defaultGenomicHeap {
+		t.Errorf("genomic heap default = %q, want %q", s.heap, defaultGenomicHeap)
+	}
+	// Routing to a file step must not dispatch anything yet.
 	if cmd != nil {
 		if _, ok := cmd().(runActionMsg); ok {
-			t.Fatal("genomic stub dispatched a run action; LD-5 has not built it yet")
+			t.Fatal("entering the genomic file step dispatched a run action")
 		}
-	}
-	if !strings.Contains(wizardANSI.ReplaceAllString(s.view(), ""), "coming soon") {
-		t.Errorf("genomic stub view missing the coming-soon notice:\n%s", wizardANSI.ReplaceAllString(s.view(), ""))
-	}
-	// Any key on the stub returns to the menu (no dispatch).
-	_, cmd = s.update(tea.KeyMsg{Type: tea.KeyEnter})
-	if msg, ok := cmd().(loadDataClosedMsg); !ok || !msg.aborted {
-		t.Fatalf("stub enter = %#v, want loadDataClosedMsg{aborted:true}", cmd())
 	}
 }
 
@@ -344,17 +412,14 @@ func TestLoadWizardFrameStaysInBox(t *testing.T) {
 		for _, w := range []int{80, 120, 200} {
 			h := 30
 			// Exercise a representative step from each kind: the kind select
-			// (form), a file step (filebrowser), the genomic stub, and the
-			// confirm summary.
-			for _, step := range []loadStep{loadKind, loadPhenoFile, loadGenomicStub, loadConfirm} {
+			// (form), a phenotype file step (filebrowser), the phenotype confirm
+			// summary, and the genomic confirm summary (the longest/wrappiest one).
+			for _, step := range []loadStep{loadKind, loadPhenoFile, loadConfirm, loadGenomicConfirm} {
 				s := newLoadScreen("/tmp/x")
 				s.setSize(w, h)
 				switch step {
 				case loadPhenoFile:
 					s.kind = "phenotype"
-					s, _ = completeForm(s)
-				case loadGenomicStub:
-					s.kind = "genomic"
 					s, _ = completeForm(s)
 				case loadConfirm:
 					s.kind = "phenotype"
@@ -363,6 +428,13 @@ func TestLoadWizardFrameStaysInBox(t *testing.T) {
 					s, _ = completeForm(s)
 					s.dictMode = "auto"
 					s, _ = completeForm(s)
+				case loadGenomicConfirm:
+					s = driveGenomicToConfirm(t, s, genomicInputs{
+						vcfIndex:      "/data/idx.tsv",
+						partition:     "chr22",
+						promote:       false,
+						enableProfile: true, // exercise the long conditional warning
+					})
 				}
 				s.setSize(w, h) // re-size after entering the step
 				view := s.view()
@@ -377,4 +449,252 @@ func TestLoadWizardFrameStaysInBox(t *testing.T) {
 			}
 		}
 	}
+}
+
+// TestLoadWizardGenomicFullFlow drives the whole genomic happy path including a
+// VCF dir override and both toggles on, and asserts the dispatched runActionMsg
+// carries LoadGenomic with the collected values and the exact argv.
+func TestLoadWizardGenomicFullFlow(t *testing.T) {
+	s := newLoadScreen("/tmp/x")
+	s.setSize(100, 35)
+
+	s = driveGenomicToConfirm(t, s, genomicInputs{
+		vcfIndex:      "/data/idx.tsv",
+		includeVCFDir: true,
+		vcfDir:        "/data/vcf",
+		partition:     "chr22",
+		promote:       true,
+		enableProfile: true,
+	})
+	if s.vcfDir != "/data/vcf" || s.heap != defaultGenomicHeap {
+		t.Fatalf("collected vcfDir=%q heap=%q", s.vcfDir, s.heap)
+	}
+
+	s.confirmed = true
+	_, cmd := completeForm(s)
+	if cmd == nil {
+		t.Fatal("confirm produced no command")
+	}
+	run, ok := cmd().(runActionMsg)
+	if !ok {
+		t.Fatalf("dispatch = %#v, want runActionMsg", cmd())
+	}
+	if run.act.Script != "etl.sh" {
+		t.Errorf("script = %q, want etl.sh", run.act.Script)
+	}
+	if run.act.Name != "load genomic data" {
+		t.Errorf("action name = %q, want %q", run.act.Name, "load genomic data")
+	}
+	want := []string{
+		"load-genomic", "--partition", "chr22", "--vcf-index", "/data/idx.tsv",
+		"--vcf-dir", "/data/vcf", "--heap", defaultGenomicHeap,
+		"--promote", "--enable-profile",
+	}
+	if !eq(run.act.Args, want) {
+		t.Errorf("args = %v, want %v", run.act.Args, want)
+	}
+}
+
+// TestLoadWizardGenomicVCFDirBranch: declining the dir prompt leaves VCFDir
+// empty (no --vcf-dir in argv); accepting it collects the directory and emits
+// --vcf-dir.
+func TestLoadWizardGenomicVCFDirBranch(t *testing.T) {
+	// no → skip straight to partition, no --vcf-dir.
+	s := newLoadScreen("/tmp/x")
+	s.setSize(100, 35)
+	s = driveGenomicToConfirm(t, s, genomicInputs{
+		vcfIndex: "/data/idx.tsv", partition: "chr22",
+	})
+	if s.vcfDir != "" {
+		t.Errorf("dir-ask=no left vcfDir=%q, want empty", s.vcfDir)
+	}
+	s.confirmed = true
+	_, cmd := completeForm(s)
+	run := cmd().(runActionMsg)
+	for _, a := range run.act.Args {
+		if a == "--vcf-dir" {
+			t.Errorf("dir-ask=no but argv has --vcf-dir: %v", run.act.Args)
+		}
+	}
+	wantNo := []string{
+		"load-genomic", "--partition", "chr22", "--vcf-index", "/data/idx.tsv",
+		"--heap", defaultGenomicHeap,
+	}
+	if !eq(run.act.Args, wantNo) {
+		t.Errorf("dir-ask=no args = %v, want %v", run.act.Args, wantNo)
+	}
+
+	// yes → DirMode browser, vcfDir set, --vcf-dir present.
+	s = newLoadScreen("/tmp/x")
+	s.setSize(100, 35)
+	s = driveGenomicToConfirm(t, s, genomicInputs{
+		vcfIndex: "/data/idx.tsv", includeVCFDir: true, vcfDir: "/data/vcf", partition: "chr22",
+	})
+	if s.vcfDir != "/data/vcf" {
+		t.Errorf("dir-ask=yes vcfDir=%q, want /data/vcf", s.vcfDir)
+	}
+	s.confirmed = true
+	_, cmd = completeForm(s)
+	run = cmd().(runActionMsg)
+	if !containsPair(run.act.Args, "--vcf-dir", "/data/vcf") {
+		t.Errorf("dir-ask=yes argv missing --vcf-dir /data/vcf: %v", run.act.Args)
+	}
+}
+
+// TestLoadWizardGenomicToggles: each promote/enable-profile combination yields
+// the correct presence of --promote / --enable-profile in the argv.
+func TestLoadWizardGenomicToggles(t *testing.T) {
+	for _, c := range []struct {
+		promote, profile bool
+	}{
+		{false, false}, {true, false}, {false, true}, {true, true},
+	} {
+		s := newLoadScreen("/tmp/x")
+		s.setSize(100, 35)
+		s = driveGenomicToConfirm(t, s, genomicInputs{
+			vcfIndex: "/data/idx.tsv", partition: "chr22",
+			promote: c.promote, enableProfile: c.profile,
+		})
+		s.confirmed = true
+		_, cmd := completeForm(s)
+		args := cmd().(runActionMsg).act.Args
+		if got := contains(args, "--promote"); got != c.promote {
+			t.Errorf("promote=%v profile=%v: --promote present=%v, want %v (%v)", c.promote, c.profile, got, c.promote, args)
+		}
+		if got := contains(args, "--enable-profile"); got != c.profile {
+			t.Errorf("promote=%v profile=%v: --enable-profile present=%v, want %v (%v)", c.promote, c.profile, got, c.profile, args)
+		}
+	}
+}
+
+// TestValidatePartition: empty and bad-char partitions are rejected; valid
+// letters/digits/_/- accepted. This is the validator the partition input binds.
+func TestValidatePartition(t *testing.T) {
+	bad := []string{"", "  ", "chr 22", "chr/22", "chr.22", "chr*", "a b"}
+	for _, v := range bad {
+		if validatePartition(v) == nil {
+			t.Errorf("validatePartition(%q) = nil, want error", v)
+		}
+	}
+	good := []string{"chr22", "1000genomes", "my_partition", "data-set-1", "ABC_123-x"}
+	for _, v := range good {
+		if err := validatePartition(v); err != nil {
+			t.Errorf("validatePartition(%q) = %v, want nil", v, err)
+		}
+	}
+}
+
+// TestLoadWizardGenomicConfirmCaveats: the genomic confirm summary leads with
+// the action's Describe and carries both caveats; with enable-profile on and
+// promote off it surfaces the prominent conditional crash-loop warning.
+func TestLoadWizardGenomicConfirmCaveats(t *testing.T) {
+	// Risky combo: profile on, promote off → the conditional warning.
+	s := newLoadScreen("/tmp/x")
+	s.setSize(100, 35)
+	s = driveGenomicToConfirm(t, s, genomicInputs{
+		vcfIndex: "/data/idx.tsv", partition: "chr22",
+		promote: false, enableProfile: true,
+	})
+	view := wizardANSI.ReplaceAllString(s.view(), "")
+	for _, want := range []string{
+		"genomic partition", // from the action's Describe
+		"backup-safe",       // promote caveat
+		"WITHOUT promoting", // the prominent conditional warning
+		"crash-loop",
+		"chr22", "/data/idx.tsv", "(index paths)", // digest rows, no dir → index paths
+	} {
+		if !strings.Contains(view, want) {
+			t.Errorf("genomic confirm summary missing %q:\n%s", want, view)
+		}
+	}
+
+	// Safe combo: the flat (non-conditional) profile caveat is shown instead.
+	s = newLoadScreen("/tmp/x")
+	s.setSize(100, 35)
+	s = driveGenomicToConfirm(t, s, genomicInputs{
+		vcfIndex: "/data/idx.tsv", partition: "chr22",
+		promote: true, enableProfile: false,
+	})
+	view = wizardANSI.ReplaceAllString(s.view(), "")
+	if strings.Contains(view, "WITHOUT promoting") {
+		t.Errorf("non-risky combo should not show the conditional warning:\n%s", view)
+	}
+	if !strings.Contains(view, "before genomic data is present crash-loops") {
+		t.Errorf("non-risky combo missing the flat profile caveat:\n%s", view)
+	}
+}
+
+// TestLoadWizardGenomicEscDirtyGuard: once the VCF index is collected, esc on
+// the genomic branch raises the discard prompt rather than closing.
+func TestLoadWizardGenomicEscDirtyGuard(t *testing.T) {
+	s := newLoadScreen("/tmp/x")
+	s.setSize(100, 35)
+	s.kind = "genomic"
+	s, _ = completeForm(s)
+
+	// Pristine genomic file step (no index yet) closes immediately on esc.
+	s2, cmd := s.update(tea.KeyMsg{Type: tea.KeyEsc})
+	if s2.discarding {
+		t.Fatal("esc before any genomic input raised the discard prompt")
+	}
+	if msg, ok := cmd().(loadDataClosedMsg); !ok || !msg.aborted {
+		t.Fatalf("pristine genomic esc = %#v, want loadDataClosedMsg{aborted:true}", cmd())
+	}
+
+	// After the VCF index, the screen is dirty: esc raises the discard prompt.
+	s = newLoadScreen("/tmp/x")
+	s.setSize(100, 35)
+	s.kind = "genomic"
+	s, _ = completeForm(s)
+	s, _ = s.consumeFile("/data/idx.tsv")
+	if !s.dirty() {
+		t.Fatal("screen should be dirty after the VCF index selection")
+	}
+	s, cmd = s.update(tea.KeyMsg{Type: tea.KeyEsc})
+	if !s.discarding {
+		t.Fatal("esc after vcf-index did not raise the discard prompt")
+	}
+	if cmd != nil {
+		t.Fatal("esc on a dirty genomic screen must not close yet")
+	}
+	if !strings.Contains(wizardANSI.ReplaceAllString(s.view(), ""), "Discard data load?") {
+		t.Errorf("footer missing the discard prompt:\n%s", wizardANSI.ReplaceAllString(s.view(), ""))
+	}
+}
+
+// TestLoadWizardGenomicConfirmCancelCloses: declining the genomic confirm
+// closes the screen without dispatching a load.
+func TestLoadWizardGenomicConfirmCancelCloses(t *testing.T) {
+	s := newLoadScreen("/tmp/x")
+	s.setSize(100, 35)
+	s = driveGenomicToConfirm(t, s, genomicInputs{vcfIndex: "/data/idx.tsv", partition: "chr22"})
+	s.confirmed = false
+	_, cmd := completeForm(s)
+	if cmd == nil {
+		t.Fatal("declined genomic confirm produced no command")
+	}
+	if msg, ok := cmd().(loadDataClosedMsg); !ok || !msg.aborted {
+		t.Fatalf("declined genomic confirm = %#v, want loadDataClosedMsg{aborted:true}", cmd())
+	}
+}
+
+// TestLoadWizardKindStepSingleTitle: the kind step must render the "Load your
+// data" header exactly once — the form no longer carries a redundant .Title.
+func TestLoadWizardKindStepSingleTitle(t *testing.T) {
+	s := newLoadScreen("/tmp/x")
+	s.setSize(100, 35)
+	view := wizardANSI.ReplaceAllString(s.view(), "")
+	if n := strings.Count(view, "Load your data"); n != 1 {
+		t.Errorf("kind step renders %q %d times, want 1:\n%s", "Load your data", n, view)
+	}
+}
+
+// containsPair reports whether flag is immediately followed by val in argv.
+func containsPair(args []string, flag, val string) bool {
+	for i := 0; i+1 < len(args); i++ {
+		if args[i] == flag && args[i+1] == val {
+			return true
+		}
+	}
+	return false
 }

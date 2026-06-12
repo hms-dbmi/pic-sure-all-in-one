@@ -393,6 +393,11 @@ func (m *model) helpLine() string {
 	case modeConfirm, modePick, modeReset:
 		return "esc cancel"
 	}
+	// U12: narrow terminals (<100 cols) show a reduced hint set so the help
+	// line fits on one row without wrapping. Wide terminals get the full legend.
+	if m.width < 100 {
+		return "↑/↓ select · r restart · u update · esc back · q quit"
+	}
 	return "↑/↓ · r restart · u update · p/m/s · e demo · R reset · X uninstall · pgup/dn scroll · esc · q"
 }
 

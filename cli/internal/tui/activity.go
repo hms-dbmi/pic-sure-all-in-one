@@ -418,16 +418,15 @@ func (a *activity) footerLine() string {
 		}
 		return activityHelpStyle.Render(help)
 	case a.aborted:
-		return activityWarnStyle.Render("aborted — "+a.act.AbortNote) +
-			activityHelpStyle.Render("  esc/q: back to menu")
+		// "[icon status] — [next action]" phrasing (U10).
+		return activityWarnStyle.Render("⚠ aborted — "+a.act.AbortNote) +
+			activityHelpStyle.Render("  esc/q: menu")
 	case a.err != nil:
-		return activityBadStyle.Render(fmt.Sprintf("✗ failed to run: %v", a.err)) +
-			activityHelpStyle.Render("  esc/q: back to menu")
+		return activityBadStyle.Render(fmt.Sprintf("✗ failed to start — %v", a.err)) +
+			activityHelpStyle.Render("  esc/q: menu")
 	case a.code != 0:
-		return activityBadStyle.Render(fmt.Sprintf("✗ exited %d", a.code)) +
-			activityHelpStyle.Render("  esc/q: back to menu · pgup/pgdn scroll")
+		return activityBadStyle.Render(fmt.Sprintf("✗ exited %d — esc/q: menu · pgup/pgdn scroll", a.code))
 	default:
-		return activityOKStyle.Render(fmt.Sprintf("✓ done in %s", a.elapsed)) +
-			activityHelpStyle.Render("  enter: open dashboard · esc/q: back to menu")
+		return activityOKStyle.Render(fmt.Sprintf("✓ done in %s — enter: dashboard · esc/q: menu", a.elapsed))
 	}
 }

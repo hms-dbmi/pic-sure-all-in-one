@@ -7,8 +7,10 @@ import (
 )
 
 var (
-	menuItemStyle     = lipgloss.NewStyle()
-	menuSelectedStyle = lipgloss.NewStyle().Reverse(true)
+	menuItemStyle = lipgloss.NewStyle()
+	// menuSelectedStyle: Reverse for high-contrast selection, Bold for
+	// legibility on low-contrast terminal themes where Reverse alone is subtle.
+	menuSelectedStyle = lipgloss.NewStyle().Reverse(true).Bold(true)
 )
 
 type menuItem struct {

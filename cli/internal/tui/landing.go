@@ -576,9 +576,12 @@ func (l *landing) contentLines(withLogo bool) []string {
 		content = append(content, strings.Split(l.logo.view(), "\n")...)
 		content = append(content, "")
 	default:
-		// Compact wordmark when the block art doesn't fit: brand-colored so the
-		// identity survives the narrow-terminal fallback (matches the logo hue).
-		content = append(content, lipgloss.NewStyle().Bold(true).Foreground(styles.Brand).Render("P I C - S U R E"), "")
+		// Compact one-line wordmark when the block art doesn't fit (~20 cols
+		// minimum): styled with the brand hue + bold so the identity survives
+		// the narrow-terminal fallback. Plain-font brackets (▌/▐) provide a
+		// touch of visual structure without requiring Nerd Font glyphs.
+		// Respects NO_COLOR automatically (lipgloss strips color on request).
+		content = append(content, lipgloss.NewStyle().Bold(true).Foreground(styles.Brand).Render("▌ PIC-SURE ▐"), "")
 	}
 
 	if l.form != nil {

@@ -118,7 +118,9 @@ Runs embedded in the TUI (no terminal handoff). Two phases: the field form
 (identity provider selector — Auth0 or a deliberate skip for alternate IdPs —
 then the field groups), and a confirm summary of the final values. Notes:
 
-- `esc` cancels at any point: "setup cancelled — nothing written".
+- `esc` cancels: "setup cancelled — nothing written". On a form you have
+  edited it first asks "Discard setup? (y/n)" so a reflexive `esc` does not
+  silently throw away entered values; a pristine form closes immediately.
 - Only **changed** keys are written, each via `scripts/env-set.sh`; secrets
   go via `KEY --stdin` and never appear in a process argument list.
 - Reconfigure seeds from `.env.example` defaults with your current `.env`
@@ -141,12 +143,15 @@ and hard-wrapped to the pane.
 | State | Keys |
 |---|---|
 | Running | `esc`/`ctrl+c` → abort confirmation (`y` or a second `ctrl+c` aborts, `n`/`esc` dismisses) · `pgup/pgdn/↑/↓/home/end` scroll |
+| Aborting | after a confirmed abort the footer reads "aborting — sent ctrl-c, waiting…"; if the child ignores the interrupt for 10s it escalates to "child ignoring interrupt — `K`: force kill" (`K` SIGKILLs the child's process group) |
 | Aborted | footer shows the action's re-run-safety note (e.g. "init.sh is safe to re-run") · `esc`/`q` back to menu |
-| Success | `✓ done in <duration>` · `enter` opens the dashboard · `esc`/`q` back to menu |
-| Failure | `✗ exited <code>`, output stays scrollable · `esc`/`q` back to menu |
+| Success | `✓ done in <duration>` · `enter` opens the dashboard · `esc`/`q` back to menu · `ctrl+c` quits |
+| Failure | `✗ exited <code>`, output stays scrollable · `esc`/`q` back to menu · `ctrl+c` quits |
 
 Aborts deliver ctrl-C through the PTY so the script's whole process group is
-interrupted — nothing is killed silently mid-mutation.
+interrupted — nothing is killed silently mid-mutation. The 10s force-kill
+(`K`) is the last resort for a child that traps or ignores SIGINT. Once a run
+has finished, `ctrl+c` is the universal quit.
 
 ### Dashboard
 
@@ -170,8 +175,13 @@ Live view of the running stack: services pane (state + health, polled every
 | `q` / `ctrl+c` | quit |
 
 Actions started *inside* the dashboard run in its right-hand pane so you can
-watch services and logs react; `ctrl+c` interrupts a running pane action,
-`esc` closes a finished one. The dashboard state (selection, log tail) resets
+watch services and logs react. While a pane action runs, `ctrl+c`/`esc` raise
+a one-keystroke abort confirm (`y` aborts, `n` keeps it running) — the same
+flow as the activity screen, so a reflexive `ctrl+c` never kills a mutation
+silently. A confirmed abort sends ctrl-C; if the child ignores it for 10s the
+footer offers `K` (force-kill the process group). After an abort the pane
+shows the action's re-run-safety note. On a finished pane `esc`/`q` close it
+and `ctrl+c` quits the app. The dashboard state (selection, log tail) resets
 each time you enter it.
 
 ### Animations & appearance

@@ -8,8 +8,9 @@
 #   Compose merges overlay maps — a plain `depends_on: {}` does NOT clear the
 #   base depends_on; it is a no-op.  To actually remove inherited entries the
 #   overlay must use the YAML merge-reset tag `!reset` (Compose ≥ 2.24 /
-#   Docker Compose v2.24+).  Each service below uses `!reset {}` to wipe the
-#   base depends_on and then lists only the remote-mode-appropriate conditions.
+#   Docker Compose v2.24+).  Only flyway-init needs `!reset {}` (it must drop
+#   its inherited picsure-db dependency); wildfly and psama re-state their
+#   base conditions as plain maps since they have nothing to remove.
 
 services:
   # wildfly depends on flyway-init and deploy-wars in the base stack; both are

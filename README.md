@@ -8,6 +8,25 @@ Deploy the PIC-SURE platform with Docker Compose.
 
 ## Quick Start
 
+### Guided setup (recommended)
+
+Install the `pic-sure` CLI, then let the built-in wizard collect credentials
+and run the first-time setup for you:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/hms-dbmi/pic-sure-all-in-one/main/cli/install.sh | bash
+# or build from source: make -C cli build
+
+cd pic-sure-all-in-one
+pic-sure          # opens the TUI; choose "Set up PIC-SURE" to run the wizard
+```
+
+The wizard collects Auth0 credentials, admin email, and other options, then
+streams `init.sh` in-terminal. On success press enter to land in the
+dashboard. See [cli/README.md](cli/README.md) for the full CLI/TUI reference.
+
+### Manual setup
+
 ```bash
 git clone https://github.com/hms-dbmi/pic-sure-all-in-one
 cd pic-sure-all-in-one
@@ -37,25 +56,25 @@ account.
 
 ## Common Commands
 
-- `./preflight.sh` checks host tools, config shape, Compose validity, and pinned
-  refs before setup.
-- `./status.sh` prints read-only stack, release-control, repo, DB, and migration
-  readiness.
-- `./update.sh --dry-run` resolves release-control into temporary state and
-  previews an update.
-- `./update.sh` applies release-control refs, rebuilds/pulls images, runs
-  migrations, syncs tokens, and restarts services.
-- `./run-migrations.sh --check` validates migration inputs without touching the
-  database.
-- `./etl.sh --help` shows Compose replacements for Jenkins data-loading jobs.
-- `./uninstall.sh` previews local Compose and generated-state cleanup;
-  `./uninstall.sh --yes` performs it.
+The bash scripts are always usable directly. The `pic-sure` CLI wraps each one
+and adds checkout-root discovery, TTY safety, and `--json` / `--yes` pass-through.
+
+| Script | `pic-sure` equivalent | What it does |
+|---|---|---|
+| `./preflight.sh` | `pic-sure preflight` | Check host tools, config shape, Compose validity, and pinned refs |
+| `./status.sh` | `pic-sure status` | Print read-only stack, release-control, repo, DB, and migration readiness |
+| `./update.sh --dry-run` | `pic-sure update --dry-run` | Resolve release-control and preview an update |
+| `./update.sh` | `pic-sure update` | Apply release-control refs, rebuild/pull images, run migrations, restart services |
+| `./run-migrations.sh --check` | `pic-sure migrate --check` | Validate migration inputs without touching the database |
+| `./etl.sh --help` | `pic-sure etl` | Compose replacements for Jenkins data-loading jobs |
+| `./uninstall.sh` / `./uninstall.sh --yes` | `pic-sure uninstall` / `pic-sure --yes uninstall` | Preview or perform local Compose and generated-state cleanup |
 
 ## Key Docs
 
 - [Operations runbook](docs/operations.md)
 - [Upgrade and release-control behavior](docs/upgrade-release-control.md)
 - [ETL commands](docs/etl.md)
+- [pic-sure CLI & TUI — install, command reference, agent automation rules](cli/README.md)
 
 ## Project Layout
 
@@ -75,6 +94,8 @@ run-migrations.sh               # Flyway migrate/check/repair
 seed-db.sh                      # DB seed step
 load-demo-data.sh               # Demo data loader
 etl.sh                          # Compose ETL operations
+cli/                            # pic-sure CLI & TUI (Go binary, installer, release assets)
+scripts/                        # Internal helpers used by the bash scripts above
 config/                         # Runtime config and service assets
 docs/                           # Operator docs
 fixtures/                       # Smoke-test fixtures

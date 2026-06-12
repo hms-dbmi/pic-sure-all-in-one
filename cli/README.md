@@ -211,12 +211,13 @@ Accepted anywhere on the command line; these names are **reserved**:
 | `--root DIR` | checkout root. Default: walk up from the working directory looking for `.env.example` + `docker-compose.yml` + `scripts/picsure-compose.sh` |
 | `--yes`, `--non-interactive` | "never prompt": translated to the script's own `--yes` where supported (reset, uninstall); suppresses the init wizard (missing required values become an error instead of a prompt); silently ignored by scripts with nothing to confirm |
 | `--no-animations` | static TUI (see above) |
-| `--` | passthrough barrier: everything after it reaches the script byte-verbatim, even reserved names (e.g. `pic-sure etl -- --root /data`). Place it after the subcommand |
+| `--` | passthrough barrier: everything after it reaches the script byte-verbatim, even reserved names and `--help` (e.g. `pic-sure etl -- --root /data` hands `--root` to `etl.sh`; `pic-sure etl -- --help` shows `etl.sh`'s own usage). Place it **after** the subcommand — a `--` before any subcommand is ignored |
 
 All other arguments pass through to the backing script **byte-verbatim**
 (both `--flag value` and `--flag=value` forms, plus positionals). Each
 subcommand's `--help` lists common flags; the script's own `--help` is
-authoritative.
+authoritative — reach it with the `--` barrier (e.g. `pic-sure etl -- --help`)
+or by running the script directly (`./etl.sh --help`).
 
 ### Commands
 

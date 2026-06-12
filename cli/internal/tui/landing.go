@@ -144,6 +144,7 @@ func (l *landing) rebuildMenu() {
 			menuItem{ID: "migrate", Label: "Run migrations"},
 			menuItem{ID: "seed", Label: "Seed database"},
 			menuItem{ID: "demo", Label: "Load demo data…"},
+			menuItem{ID: "etl", Label: "Maintenance / adv. ETL…"},
 			menuItem{ID: "devoverlay", Label: "Apply dev overlay…"},
 			menuItem{ID: "devrevert", Label: "Revert dev overlay…"},
 			menuItem{ID: "relctl", Label: "Release control…"},
@@ -155,7 +156,7 @@ func (l *landing) rebuildMenu() {
 		l.menu = newMenu(
 			menuItem{ID: "dashboard", Label: "Dashboard"},
 			menuItem{ID: "update", Label: "Update"},
-			menuItem{ID: "etl", Label: "Load your data…"},
+			menuItem{ID: "loaddata", Label: "Load your data…"},
 			menuItem{ID: "reconfigure", Label: "Reconfigure"},
 			menuItem{ID: "devmenu", Label: "Developer options…"},
 			menuItem{ID: "quit", Label: "Quit"},
@@ -305,8 +306,11 @@ func (l *landing) choose(id string) (*landing, tea.Cmd) {
 		return l.startConfirm(actions.Migrate())
 	case "seed":
 		return l.startConfirm(actions.SeedDB())
+	case "loaddata":
+		// The guided "Load your data" screen (phenotype today; genomic in LD-5).
+		return l, func() tea.Msg { return openLoadDataMsg{} }
 	case "etl":
-		return l.startSelectPicker("Load your data",
+		return l.startSelectPicker("Maintenance / advanced ETL",
 			"Parameterless etl.sh operations; subcommands that take file arguments\n(load-csv, load-vcf, ...) are CLI-only — see `pic-sure etl --help`.",
 			"hydrate-dictionary",
 			[]huh.Option[string]{

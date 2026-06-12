@@ -65,10 +65,10 @@ func TestLandingMenuIsContextAware(t *testing.T) {
 		t.Errorf("fresh menu = %v, want %v", got, want)
 	}
 	// Configured: Preflight has moved to Developer options; the main menu
-	// carries "Load your data…" (the promoted ETL picker) instead of
+	// carries "Load your data…" (the guided load screen) instead of
 	// "Load demo data".
 	configured := newLanding("/tmp/x", true, false)
-	want = []string{"dashboard", "update", "etl", "reconfigure", "devmenu", "quit"}
+	want = []string{"dashboard", "update", "loaddata", "reconfigure", "devmenu", "quit"}
 	if got := menuIDs(configured.menu); !eq(got, want) {
 		t.Errorf("configured menu = %v, want %v", got, want)
 	}
@@ -88,13 +88,14 @@ func TestLandingDevSubmenu(t *testing.T) {
 	l := newLanding("/tmp/x", true, false)
 	keyDownN(l, 4) // select devmenu
 	l.update(keyEnter())
-	want := []string{"preflight", "migrate", "seed", "demo", "devoverlay", "devrevert", "relctl", "reset", "uninstall", "back"}
+	want := []string{"preflight", "migrate", "seed", "demo", "etl", "devoverlay", "devrevert", "relctl", "reset", "uninstall", "back"}
 	if got := menuIDs(l.menu); !eq(got, want) {
 		t.Fatalf("dev submenu = %v, want %v", got, want)
 	}
 	// "Preflight check" (demoted from the main menu) and "Load demo data…"
-	// live here now; "ETL operations…" was promoted to the main menu as
-	// "Load your data…".
+	// live here now; the parameterless ETL picker lives here as
+	// "Maintenance / adv. ETL…" (the main-menu "Load your data…" now opens
+	// the guided load screen instead).
 	labels := menuLabels(l.menu)
 	if !contains(labels, "Preflight check") {
 		t.Errorf("dev submenu labels = %v, want one to be %q", labels, "Preflight check")
@@ -102,8 +103,8 @@ func TestLandingDevSubmenu(t *testing.T) {
 	if !contains(labels, "Load demo data…") {
 		t.Errorf("dev submenu labels = %v, want one to be %q", labels, "Load demo data…")
 	}
-	if contains(labels, "ETL operations…") {
-		t.Errorf("dev submenu still offers %q; it moved to the main menu", "ETL operations…")
+	if !contains(labels, "Maintenance / adv. ETL…") {
+		t.Errorf("dev submenu labels = %v, want one to be %q", labels, "Maintenance / adv. ETL…")
 	}
 	// esc returns to the main menu
 	l.update(tea.KeyMsg{Type: tea.KeyEsc})
@@ -154,7 +155,7 @@ func TestLandingResizeReflowsOpenDialog(t *testing.T) {
 	keyDownN(l, 4) // dev submenu
 	l.update(keyEnter())
 	// Open the reset dialog (a tall select+input group).
-	keyDownN(l, 7) // preflight, migrate, seed, demo, devoverlay, devrevert, relctl, reset
+	keyDownN(l, 8) // preflight, migrate, seed, demo, etl, devoverlay, devrevert, relctl, reset
 	l.update(keyEnter())
 	if l.form == nil || !l.resetting {
 		t.Fatalf("reset dialog did not open (form=%v resetting=%v)", l.form != nil, l.resetting)
@@ -274,7 +275,7 @@ func TestLandingDevSubmenuHasOverlayEntries(t *testing.T) {
 	l := newLanding("/tmp/x", true, false)
 	keyDownN(l, 4)
 	l.update(keyEnter()) // enter developer options
-	want := []string{"preflight", "migrate", "seed", "demo", "devoverlay", "devrevert", "relctl", "reset", "uninstall", "back"}
+	want := []string{"preflight", "migrate", "seed", "demo", "etl", "devoverlay", "devrevert", "relctl", "reset", "uninstall", "back"}
 	if got := menuIDs(l.menu); !eq(got, want) {
 		t.Fatalf("dev submenu = %v, want %v", got, want)
 	}
@@ -405,8 +406,12 @@ func pumpLanding(l *landing, cmd tea.Cmd, depth int) *landing {
 }
 
 func TestLandingEtlPicker(t *testing.T) {
-	// "Load your data…" (the ETL picker) lives on the configured main menu now.
+	// The parameterless ETL picker ("Maintenance / adv. ETL…") lives in the
+	// Developer options submenu now; the main-menu "Load your data…" opens the
+	// guided load screen instead (see TestLandingLoadDataOpensGuidedScreen).
 	l := newLanding("/tmp/x", true, false)
+	l.dev = true
+	l.rebuildMenu()
 	_, _ = l.choose("etl")
 	if l.form == nil || l.pickerMake == nil {
 		t.Fatal("etl entry did not open a picker")
@@ -420,6 +425,26 @@ func TestLandingEtlPicker(t *testing.T) {
 	}
 	if want := []string{"run-weights"}; !eq(run.act.Args, want) {
 		t.Errorf("args = %v, want %v", run.act.Args, want)
+	}
+}
+
+// The configured main-menu "Load your data…" opens the guided load screen
+// (openLoadDataMsg) — NOT the parameterless ETL picker (which moved to the dev
+// submenu). It must not open a landing dialog form at all.
+func TestLandingLoadDataOpensGuidedScreen(t *testing.T) {
+	l := newLanding("/tmp/x", true, false)
+	if !contains(menuIDs(l.menu), "loaddata") {
+		t.Fatalf("configured menu missing the loaddata entry: %v", menuIDs(l.menu))
+	}
+	_, cmd := l.choose("loaddata")
+	if l.form != nil || l.pickerMake != nil {
+		t.Fatal("loaddata opened a landing dialog; it must emit openLoadDataMsg instead")
+	}
+	if cmd == nil {
+		t.Fatal("loaddata produced no command")
+	}
+	if _, ok := cmd().(openLoadDataMsg); !ok {
+		t.Fatalf("loaddata = %#v, want openLoadDataMsg", cmd())
 	}
 }
 

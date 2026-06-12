@@ -124,11 +124,16 @@ if [ "$LOG" = "true" ]; then
   exec > >(tee "$LOG_FILE") 2>&1
 fi
 
-# Noisy build output is redirected to this path.
+# Noisy build/db output is redirected to this path.
 # --verbose → /dev/stdout (show everything)
+# --log     → /dev/stdout so it reaches the tee above (and thus init.log);
+#             like build-images.sh's --log, this also surfaces on the terminal
 # default   → /dev/null (quiet, just show [init] status lines)
-# --log captures everything via tee regardless.
-if [ "$VERBOSE" = "true" ]; then
+#
+# A per-command redirect to /dev/null would otherwise override the exec'd tee
+# fds, so without this the steps below (bootstrap-remote-db.sh, db-wait.sh,
+# the final compose up) never reach init.log even with --log set.
+if [ "$VERBOSE" = "true" ] || [ "$LOG" = "true" ]; then
   BUILD_OUT="/dev/stdout"
 else
   BUILD_OUT="/dev/null"

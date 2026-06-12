@@ -133,7 +133,8 @@ info "Generated config removed."
 if [ "$WIPE_DB" = "true" ]; then
   info "Removing PIC-SURE images..."
   for img in pic-sure-hpds pic-sure-psama pic-sure-wildfly pic-sure-httpd \
-             pic-sure-dictionary-api pic-sure-dictionary-dump pic-sure-hpds-etl; do
+             pic-sure-dictionary-api pic-sure-dictionary-dump pic-sure-hpds-etl \
+             pic-sure-visualization pic-sure-logging; do
     docker rmi "hms-dbmi/$img:${PICSURE_IMAGE_TAG:-LATEST}" 2>/dev/null && \
       info "Removed image: hms-dbmi/$img" || true
   done

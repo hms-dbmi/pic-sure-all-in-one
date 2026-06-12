@@ -5,6 +5,7 @@ import (
 	"context"
 	"os/exec"
 	"path/filepath"
+	"syscall"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -51,6 +52,24 @@ func statusTick() tea.Cmd {
 	return tea.Tick(statusInterval, func(time.Time) tea.Msg { return statusTickMsg{} })
 }
 
+// pollCmd builds a context-bound `bash <script> <args>` poll. The script's
+// own context kill only reaches bash, but compose/status.sh run `docker
+// compose` as a non-exec'd child, so the grandchild inherits the stdout pipe.
+// On a context timeout CommandContext would kill bash alone; the orphaned
+// docker process keeps the write end open and Wait blocks on the I/O-copy
+// goroutine until EOF — forever if the daemon is hung (the exact case the
+// timeout guards against), silently wedging the poll. So, as in logs.go, run
+// the poll in its own process group and kill the whole group on cancel;
+// WaitDelay is a backstop in case a process escapes the group.
+func pollCmd(ctx context.Context, root, script string, args ...string) *exec.Cmd {
+	cmd := exec.CommandContext(ctx, "bash", append([]string{filepath.Join(root, script)}, args...)...)
+	cmd.Dir = root
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
+	cmd.WaitDelay = 2 * time.Second
+	return cmd
+}
+
 // pollServices reads service state through the compose wrapper — never
 // docker compose directly, so file/project selection stays in bash. Parsed
 // in Go (never run_jq here: its dockerized fallback would spawn a container
@@ -59,8 +78,7 @@ func pollServices(root string) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
-		cmd := exec.CommandContext(ctx, "bash", filepath.Join(root, scripts.Compose), "ps", "--format", "json")
-		cmd.Dir = root
+		cmd := pollCmd(ctx, root, scripts.Compose, "ps", "--format", "json")
 		var out bytes.Buffer
 		cmd.Stdout = &out
 		if err := cmd.Run(); err != nil {
@@ -75,8 +93,7 @@ func pollStatus(root string) tea.Cmd {
 	return func() tea.Msg {
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
-		cmd := exec.CommandContext(ctx, "bash", filepath.Join(root, scripts.Status), "--json")
-		cmd.Dir = root
+		cmd := pollCmd(ctx, root, scripts.Status, "--json")
 		var out bytes.Buffer
 		cmd.Stdout = &out
 		if err := cmd.Run(); err != nil {

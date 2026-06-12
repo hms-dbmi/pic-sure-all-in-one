@@ -228,6 +228,8 @@ checkout_repo_ref() {
   fi
 }
 
+# The repo-dir → REF-key mapping below is duplicated as parallel arrays in
+# status.sh and reset.sh (REPO_DIRS/REPO_ENVS) — keep the three in sync.
 apply_refs() {
   set -a
   # shellcheck disable=SC1090

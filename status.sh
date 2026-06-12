@@ -66,6 +66,8 @@ REF_KEYS=(
 # Parallel arrays (bash 3.2: no associative arrays): repo dir under repos/
 # and the .env ref variable that targets it. Order matches REF_KEYS-ish
 # historical output order.
+# NOTE: duplicated in reset.sh (REPO_DIRS/REPO_ENVS) and mirrored by
+# release-control.sh's apply_refs — keep the three in sync.
 REPO_DIRS=(
   pic-sure
   pic-sure-hpds

@@ -100,6 +100,8 @@ REPO_ENVS=(
 # dirty tree. .git is NEVER touched: local branches, commits, and reflog
 # survive. A repo without origin, a missing ref, or an offline fetch warns and
 # continues — one bad repo must not abort the whole reset (set -e discipline).
+# Every mutating step is an explicit if-guard so a failure names the repo and
+# the operation, then returns 1 for the caller's loop to continue past.
 reset_one_repo() {
   local repo_dir="$1"
   local env_name="$2"
@@ -114,37 +116,60 @@ reset_one_repo() {
 
   info "Resetting $name -> $ref (discarding uncommitted changes; keeping history)"
 
-  # Best-effort fetch: offline or a removed origin must not abort. We fall
-  # back to whatever refs are already local.
+  # Best-effort fetch: offline or a removed origin must not abort.
   if ! git -C "$repo_dir" fetch --tags origin --prune 2>/dev/null; then
-    warn "$name: could not fetch origin (offline or no remote); using local refs."
+    warn "$name: could not fetch origin; resetting to the last-fetched origin/$ref, which may be behind the remote."
   fi
 
+  # Resolve the target BEFORE touching the working tree, so an unresolvable
+  # ref leaves the repo truly unchanged.
+  local mode=""
   if git -C "$repo_dir" rev-parse --verify --quiet "origin/$ref" >/dev/null; then
-    # Branch ref: switch to it (creating a tracking branch if needed), then
-    # hard-reset the working tree to the remote tip and clean untracked files.
-    git -C "$repo_dir" switch "$ref" 2>/dev/null || \
-      git -C "$repo_dir" switch -c "$ref" "origin/$ref" 2>/dev/null || \
-      git -C "$repo_dir" checkout "$ref" 2>/dev/null || true
-    git -C "$repo_dir" reset --hard "origin/$ref" >/dev/null
-    git -C "$repo_dir" clean -fd >/dev/null
+    mode="branch"
   elif git -C "$repo_dir" rev-parse --verify --quiet "$ref^{commit}" >/dev/null; then
-    # Tag or local-only ref: detach onto it. No remote tracking branch to
-    # reset against, so reset --hard to the ref itself, then clean.
-    git -C "$repo_dir" switch --detach "$ref" 2>/dev/null || \
-      git -C "$repo_dir" checkout --detach "$ref" 2>/dev/null || true
-    git -C "$repo_dir" reset --hard "$ref" >/dev/null
-    git -C "$repo_dir" clean -fd >/dev/null
-  else
+    mode="detach"   # tag or local-only ref: no remote branch to track
+  elif git -C "$repo_dir" rev-parse --verify --quiet "origin/main" >/dev/null; then
     warn "$name: ref '$ref' not found locally or on origin; falling back to main."
-    if git -C "$repo_dir" rev-parse --verify --quiet "origin/main" >/dev/null; then
-      git -C "$repo_dir" switch main 2>/dev/null || \
-        git -C "$repo_dir" switch -c main origin/main 2>/dev/null || \
-        git -C "$repo_dir" checkout main 2>/dev/null || true
-      git -C "$repo_dir" reset --hard origin/main >/dev/null
-      git -C "$repo_dir" clean -fd >/dev/null
-    else
-      warn "$name: no origin/main either; leaving working tree unchanged."
+    ref="main"
+    mode="branch"
+  else
+    warn "$name: ref '$ref' not found and no origin/main; leaving working tree unchanged."
+    return 0
+  fi
+
+  # Discard dirty state FIRST. A conflicting uncommitted edit would make the
+  # switch below fail silently, leaving HEAD on the user's branch — and a
+  # later hard reset would then move THAT branch's pointer, orphaning local
+  # commits (the exact bug scripts/test-repo-reset.sh's conflict case covers).
+  if ! git -C "$repo_dir" reset --hard HEAD >/dev/null; then
+    warn "$name: discarding uncommitted changes failed (git reset --hard HEAD)."
+    return 1
+  fi
+  if ! git -C "$repo_dir" clean -fd >/dev/null; then
+    warn "$name: removing untracked files failed (git clean -fd)."
+    return 1
+  fi
+
+  if [ "$mode" = "branch" ]; then
+    if ! git -C "$repo_dir" switch "$ref" >/dev/null 2>&1 && \
+       ! git -C "$repo_dir" switch -c "$ref" "origin/$ref" >/dev/null 2>&1; then
+      warn "$name: could not switch to $ref."
+      return 1
+    fi
+    # Guard the branch-pointer move: hard-reset ONLY when HEAD is verifiably
+    # on $ref. Never move some other branch's pointer.
+    if [ "$(git -C "$repo_dir" branch --show-current)" != "$ref" ]; then
+      warn "$name: HEAD is not on $ref after switch; refusing to move the branch pointer."
+      return 1
+    fi
+    if ! git -C "$repo_dir" reset --hard "origin/$ref" >/dev/null; then
+      warn "$name: git reset --hard origin/$ref failed."
+      return 1
+    fi
+  else
+    if ! git -C "$repo_dir" switch --detach "$ref" >/dev/null 2>&1; then
+      warn "$name: could not detach onto $ref."
+      return 1
     fi
   fi
 }
@@ -157,11 +182,12 @@ reset_repos() {
   info "Resetting sibling repos (git history is preserved)..."
   local i
   for i in "${!REPO_DIRS[@]}"; do
-    # Resilience: a single repo whose git op fails (corrupt index, locked
-    # ref, etc.) must warn and let the loop continue — one bad repo cannot
-    # abort the whole reset under set -e.
+    # reset_one_repo returns 1 deliberately (after a warn naming the repo and
+    # operation — its body is explicit if-guards, NOT bare errexit, because
+    # this || suspends errexit inside the call). The || here only keeps the
+    # loop going: one bad repo cannot abort the rest.
     reset_one_repo "$REPOS_DIR/${REPO_DIRS[$i]}" "${REPO_ENVS[$i]}" \
-      || warn "${REPO_DIRS[$i]}: repo reset hit an error; continuing with the rest."
+      || warn "${REPO_DIRS[$i]}: repo reset failed; continuing with the rest."
   done
 }
 
@@ -170,6 +196,8 @@ reset_repos() {
 # the destructive container/volume/config teardown that targets the real
 # checkout. Production always executes the script, so this never short-circuits
 # a real reset. (BASH_SOURCE[0] != $0 only when sourced.)
+# INVARIANT: everything ABOVE this guard must stay side-effect-light (no rm,
+# no docker, no git mutations at the top level) — sourcing must be safe.
 if [ "${BASH_SOURCE[0]}" != "$0" ]; then
   return 0
 fi

@@ -434,7 +434,8 @@ func (l *landing) startResetConfirm() (*landing, tea.Cmd) {
 		Title("⚠ Reset — this destroys data").
 		Description("Stops all containers and removes generated state so you can re-init:\n"+
 			"  • .env (backed up first), certs/, .data/, generated config, deployed WARs\n"+
-			"Sibling repos and .env.example are kept. Choose how much to wipe:").
+			".env.example is kept; sibling repos are kept unless toggled below.\n"+
+			"Choose how much to wipe:").
 		Value(&l.resetScope).
 		Options(
 			huh.NewOption("Keep the database — picsure-db data preserved; re-init reuses it", "keep"),

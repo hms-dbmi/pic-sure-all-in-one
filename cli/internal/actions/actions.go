@@ -229,20 +229,21 @@ func ResetWith(all, repos bool) Action {
 			"  • the database volume (picsure-db data — ALL loaded phenotype data is lost)\n" +
 			"  • every PIC-SURE image\n" +
 			"  • the Maven build cache (next init rebuilds from source — slow)\n" +
-			".env is backed up first; certs/, .data/, and generated config are removed too.\n" +
-			"Sibling repos and .env.example are kept."
+			".env is backed up first; certs/, .data/, and generated config are removed too."
 	} else {
 		describe = "Stops all containers and DELETES:\n" +
 			"  • every project volume EXCEPT the database volume (picsure-db data kept)\n" +
 			"  • .env (backed up first), certs/, .data/\n" +
 			"  • generated config: dictionary.env, HPDS encryption key, truststores,\n" +
-			"    visualization resource.properties, deployed WARs\n" +
-			"Sibling repos and .env.example are kept."
+			"    visualization resource.properties, deployed WARs"
 	}
+	// The repos sentence and the kept sentence are alternatives — never both
+	// (saying "sibling repos are kept" while also resetting them was a bug).
 	if repos {
-		describe += "\n" +
-			"  • reset sibling repos to release refs (uncommitted changes discarded;\n" +
-			"    local branches and git history are KEPT)"
+		describe += "\nSibling repos are reset to their release refs: uncommitted changes are\n" +
+			"discarded, but local branches and git history are KEPT. .env.example is kept."
+	} else {
+		describe += "\nSibling repos and .env.example are kept."
 	}
 
 	return Action{

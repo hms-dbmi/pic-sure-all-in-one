@@ -101,11 +101,25 @@ func TestResetWithArgs(t *testing.T) {
 		t.Errorf("ResetAll() = %v, want ResetWith(true,false) = %v", ResetAll().Args, ResetWith(true, false).Args)
 	}
 
-	// The repo toggle surfaces the history-kept reassurance in the dialog text.
-	d := ResetWith(false, true).Describe
-	for _, want := range []string{"sibling repos to release refs", "git history are KEPT"} {
-		if !strings.Contains(d, want) {
-			t.Errorf("ResetWith(false,true).Describe missing %q:\n%s", want, d)
+	// The repo toggle surfaces the history-kept reassurance, and the
+	// "repos are kept" sentence must flip with it — claiming both "repos are
+	// kept" and "repos are reset" in one dialog was a bug.
+	for _, all := range []bool{false, true} {
+		on := ResetWith(all, true).Describe
+		for _, want := range []string{"Sibling repos are reset to their release refs", "git history are KEPT"} {
+			if !strings.Contains(on, want) {
+				t.Errorf("ResetWith(%v,true).Describe missing %q:\n%s", all, want, on)
+			}
+		}
+		if strings.Contains(on, "Sibling repos and .env.example are kept") {
+			t.Errorf("ResetWith(%v,true).Describe still claims repos are kept:\n%s", all, on)
+		}
+		off := ResetWith(all, false).Describe
+		if !strings.Contains(off, "Sibling repos and .env.example are kept") {
+			t.Errorf("ResetWith(%v,false).Describe missing the repos-kept sentence:\n%s", all, off)
+		}
+		if strings.Contains(off, "are reset to their release refs") {
+			t.Errorf("ResetWith(%v,false).Describe mentions a repo reset it will not do:\n%s", all, off)
 		}
 	}
 }

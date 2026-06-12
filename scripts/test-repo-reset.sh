@@ -27,8 +27,17 @@ cleanup() {
 trap cleanup EXIT
 
 pass() { echo "[repo-reset-test] ok - $*"; }
+
+# LAST_LOG is set by run_reset_repos so a failing assertion can dump the reset
+# output that produced it before the EXIT trap wipes the temp dir.
+LAST_LOG=""
 fail() {
   echo "[repo-reset-test] fail - $*" >&2
+  if [ -n "$LAST_LOG" ] && [ -f "$LAST_LOG" ]; then
+    echo "[repo-reset-test] --- reset output ($(basename "$LAST_LOG")) ---" >&2
+    cat "$LAST_LOG" >&2
+    echo "[repo-reset-test] --- end reset output ---" >&2
+  fi
   exit 1
 }
 
@@ -104,6 +113,7 @@ run_reset_repos() {
   local env_file="$1"
   local repos_dir="$2"
   local log="$3"
+  LAST_LOG="$log"
   (
     set --   # clear positionals so reset.sh's arg loop sees nothing when sourced
     ENV_FILE="$env_file"
@@ -176,6 +186,51 @@ test_reset_to_tag_preserves_history() {
   pass "tag reset detaches, keeps local branch + commit"
 }
 
+# --- Test: conflicting dirty edit on a feature branch (CRITICAL regression) --
+# Regression for the branch-pointer bug: sitting on my-feature with a COMMITTED
+# change to a file the target ref also changes, plus a conflicting dirty edit
+# on top. The buggy flow: `git switch main` fails on the dirty conflict (stderr
+# suppressed), HEAD stays on my-feature, and `git reset --hard origin/main`
+# then moves MY-FEATURE's pointer to origin/main — orphaning the local commits.
+# The fix discards the dirty tree first and refuses the hard reset unless HEAD
+# is verifiably on the target branch.
+test_conflicting_dirty_on_feature_branch() {
+  local repos_dir="$TEST_ROOT/conflict-repos"
+  local repo="$repos_dir/pic-sure"
+  local env_file="$TEST_ROOT/conflict.env"
+
+  mkdir -p "$repos_dir"
+  git clone "$TEST_ROOT/origin.git" "$repo" >/dev/null 2>&1
+  git -C "$repo" config user.email "repo-reset-test@example.org"
+  git -C "$repo" config user.name "Repo Reset Test"
+
+  # Sit on a feature branch with a COMMITTED edit to ref.txt (differs from
+  # main's content), then a conflicting DIRTY edit to the same file.
+  git -C "$repo" switch -c my-feature >/dev/null 2>&1
+  echo "feature change" > "$repo/ref.txt"
+  git_commit_all "$repo" "feature edit to ref.txt"
+  local feature_sha
+  feature_sha="$(git -C "$repo" rev-parse my-feature)"
+  echo "conflicting dirty edit" > "$repo/ref.txt"
+
+  write_env "$env_file" main
+  run_reset_repos "$env_file" "$repos_dir" "$TEST_ROOT/conflict.out"
+
+  # HEAD must land on main at origin/main with the dirty edit discarded.
+  [ "$(git -C "$repo" branch --show-current)" = "main" ] \
+    || fail "expected HEAD on main after reset (got: '$(git -C "$repo" branch --show-current)')"
+  [ "$(git -C "$repo" rev-parse HEAD)" = "$(git -C "$repo" rev-parse origin/main)" ] \
+    || fail "expected HEAD at origin/main after reset"
+  [ "$(cat "$repo/ref.txt")" = "main-tip" ] \
+    || fail "expected conflicting dirty edit discarded (got: $(cat "$repo/ref.txt"))"
+
+  # THE critical assertion: my-feature's pointer must not have moved.
+  [ "$(git -C "$repo" rev-parse my-feature)" = "$feature_sha" ] \
+    || fail "my-feature moved from $feature_sha to $(git -C "$repo" rev-parse my-feature) — branch pointer was clobbered"
+
+  pass "conflicting dirty edit on feature branch: pointer preserved, reset clean"
+}
+
 # --- Test: offline (broken origin) falls back to local refs -----------------
 # Documents the offline behavior: when fetch fails (no reachable origin) but
 # the target ref still resolves from already-local tracking refs, the reset
@@ -221,6 +276,7 @@ make_service_origin "$TEST_ROOT/origin.git"
 
 test_reset_to_branch_preserves_history
 test_reset_to_tag_preserves_history
+test_conflicting_dirty_on_feature_branch
 test_offline_uses_local_refs
 test_missing_repo_is_skipped
 

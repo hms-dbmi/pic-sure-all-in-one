@@ -416,10 +416,18 @@ func (l *landing) buildBranchForm(placeholder string) *huh.Form {
 // (a stale fetch for a since-closed/reopened dialog is dropped), and the user
 // must not have typed yet (a non-empty inputVal means they did — never clobber
 // it). huh seeds its textinput from the bound value at construction, so the
-// form is rebuilt to display the prefill.
+// form is rebuilt to display the prefill. A failed fetch (empty branch) swaps
+// the "(reading current branch…)" placeholder for an explanatory one instead of
+// leaving the reading note up forever.
 func (l *landing) applyBranchPrefill(msg branchPrefillMsg) (*landing, tea.Cmd) {
-	if l.form == nil || l.inputMake == nil || msg.seq != l.branchSeq || l.inputVal != "" || msg.branch == "" {
+	if l.form == nil || l.inputMake == nil || msg.seq != l.branchSeq || l.inputVal != "" {
 		return l, nil
+	}
+	if msg.branch == "" {
+		// Fetch failed: no value to prefill, but tell the user so (the value
+		// stays empty, so this rebuild clobbers nothing).
+		l.form = l.sizeForm(l.buildBranchForm("(couldn't read current branch — type one)"))
+		return l, l.form.Init()
 	}
 	l.inputVal = msg.branch
 	l.form = l.sizeForm(l.buildBranchForm(""))

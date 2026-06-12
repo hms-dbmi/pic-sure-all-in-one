@@ -628,6 +628,71 @@ func TestLandingBranchPrefillStaleness(t *testing.T) {
 	}
 }
 
+// TestLandingBranchPrefillFailure pins the fetch-failure path: an empty branch
+// must swap the "(reading current branch…)" placeholder for an explanatory one
+// instead of leaving the reading note up forever — without touching the (still
+// empty) value, and still honoring the staleness guards.
+func TestLandingBranchPrefillFailure(t *testing.T) {
+	orig := fetchReleaseBranch
+	fetchReleaseBranch = func(string) string { return "" } // status.sh failed
+	t.Cleanup(func() { fetchReleaseBranch = orig })
+
+	open := func() *landing {
+		l := newLanding("/tmp/x", true, false)
+		l.setSize(80, 24)
+		l.dev = true
+		l.rebuildMenu()
+		_, _ = l.choose("rcbranch")
+		if l.form == nil {
+			t.Fatal("rcbranch did not open the input")
+		}
+		return l
+	}
+
+	l := open()
+	l, cmd := l.update(branchPrefillMsg{seq: l.branchSeq, branch: ""})
+	if l.inputVal != "" {
+		t.Errorf("failed fetch set a value: inputVal = %q, want empty", l.inputVal)
+	}
+	if l.form == nil || l.inputMake == nil {
+		t.Fatal("failed fetch closed the input")
+	}
+	if cmd == nil {
+		t.Error("placeholder rebuild returned no init command")
+	}
+	view := wizardANSI.ReplaceAllString(l.view(), "")
+	if !strings.Contains(view, "couldn't read current branch") {
+		t.Errorf("failure placeholder not shown:\n%s", view)
+	}
+	if strings.Contains(view, "reading current branch") {
+		t.Errorf("stale reading placeholder still shown after the fetch failed:\n%s", view)
+	}
+
+	// Staleness still guards the failure path: a stale-seq empty prefill must
+	// not rebuild the (fresh) reopened input's placeholder.
+	l = open()
+	staleSeq := l.branchSeq
+	l.inputMake, l.form = nil, nil // close
+	_, _ = l.choose("rcbranch")    // reopen → branchSeq++
+	l, _ = l.update(branchPrefillMsg{seq: staleSeq, branch: ""})
+	view = wizardANSI.ReplaceAllString(l.view(), "")
+	if !strings.Contains(view, "reading current branch") {
+		t.Errorf("stale empty prefill replaced the reopened input's reading placeholder:\n%s", view)
+	}
+
+	// And a typed value suppresses the rebuild entirely (no form reset under
+	// the user's cursor).
+	formBefore := l.form
+	l.inputVal = "feature/typed"
+	l, _ = l.update(branchPrefillMsg{seq: l.branchSeq, branch: ""})
+	if l.form != formBefore {
+		t.Error("empty prefill rebuilt the form under typed input")
+	}
+	if l.inputVal != "feature/typed" {
+		t.Errorf("empty prefill disturbed typed input: %q", l.inputVal)
+	}
+}
+
 // The landing frame must never exceed the terminal box, dialogs included —
 // composite() clips by construction; this pins it (the dashboard and
 // activity screens carry the same invariant tests).

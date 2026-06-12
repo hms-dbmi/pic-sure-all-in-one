@@ -51,7 +51,7 @@ services:
   # Deploy WARs — copies additional WARs into wildfly deployments volume
   # ---------------------------------------------------------------------------
   deploy-wars:
-    image: alpine:latest
+    image: alpine:3.21
     container_name: deploy-wars
     volumes:
       - ./config/wildfly/deploy-wars.sh:/deploy-wars.sh:ro
@@ -112,6 +112,12 @@ services:
         condition: service_completed_successfully
       deploy-wars:
         condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/PIC-SURE/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
 
   # ---------------------------------------------------------------------------
   # PSAMA — Auth Micro-App
@@ -157,6 +163,12 @@ services:
     depends_on:
       flyway-init:
         condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8090/auth/"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
 
   # ---------------------------------------------------------------------------
   # HPDS — High Performance Data Store
@@ -190,16 +202,18 @@ services:
       LOGGING_SERVICE_URL: ${LOGGING_SERVICE_URL:-http://pic-sure-logging/}
     networks:
       - app
-    # HPDS has no dedicated health endpoint and may crash-loop without data
-    # (especially with bch-dev profile). The || exit 0 is intentional — it
-    # prevents compose from marking HPDS as unhealthy before data is loaded.
-    # TODO: Add a proper /health endpoint to HPDS and replace this.
+    # HPDS starts slowly (data loading) and may crash-loop without data
+    # (especially with bch-dev profile).  A long start_period lets compose
+    # defer evaluation until HPDS is expected to be ready; after that window,
+    # a failed probe is a real failure.  The /PIC-SURE/ context root responds
+    # 200 once the servlet is accepting traffic.
+    # TODO: Add a proper /health endpoint to HPDS and tighten this probe.
     healthcheck:
-      test: ["CMD", "sh", "-c", "wget -q --spider http://localhost:8080/PIC-SURE/ 2>/dev/null || exit 0"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/PIC-SURE/"]
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 60s
+      start_period: 300s
 
   # ---------------------------------------------------------------------------
   # Visualization — Chart/histogram service
@@ -260,6 +274,14 @@ services:
     depends_on:
       dictionary-db:
         condition: service_healthy
+    healthcheck:
+      # dictionary-api is a Spring Boot service on port 80 (SERVER_PORT default).
+      # Uses the same actuator/health pattern as the visualization service.
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
   # ---------------------------------------------------------------------------
   # Dictionary Dump / Aggregate (Optional)
@@ -338,9 +360,8 @@ services:
   # The remote-db overlay resets this dependency via !reset — see
   # docker-compose.remote-db.yml.
   flyway-init:
-    image: flyway/flyway:latest
+    image: flyway/flyway:10
     container_name: flyway-init
-    platform: linux/amd64
     entrypoint: ["bash", "/scripts/run-migrations.sh"]
     volumes:
       - ./config/flyway/run-migrations.sh:/scripts/run-migrations.sh:ro
@@ -393,6 +414,14 @@ services:
       ALLOWED_ORIGIN: "*"
     networks:
       - app
+    healthcheck:
+      # pic-sure-logging is a Node/Express service on PORT 80.
+      # A GET / returns 200 when the server is ready to accept events.
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
 # =============================================================================
 # Networks

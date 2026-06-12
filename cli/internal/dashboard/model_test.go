@@ -468,7 +468,7 @@ func TestDashboardKillEscalation(t *testing.T) {
 	}
 
 	// Grace elapses with the child still alive → offer K.
-	m, _ = update(t, m, killGraceMsg{})
+	m, _ = update(t, m, killGraceMsg{seq: m.actionSeq})
 	if !m.killOffered {
 		t.Fatal("grace elapsing with a live child did not offer the force-kill")
 	}
@@ -493,9 +493,61 @@ func TestDashboardDoneCancelsKillOffer(t *testing.T) {
 	if m.killOffered {
 		t.Fatal("kill offer set after the child already exited")
 	}
-	m, _ = update(t, m, killGraceMsg{})
+	if m.aborted {
+		t.Fatal("live aborted flag not reset by DoneMsg (belt-and-braces guard)")
+	}
+	m, _ = update(t, m, killGraceMsg{seq: m.actionSeq})
 	if m.killOffered {
 		t.Fatal("late grace tick offered the kill on a finished run")
+	}
+}
+
+// TestDashboardStaleGraceTimerIgnored: a grace timer armed by aborting run A
+// keeps ticking in the runtime after A exits and the pane closes. When it
+// fires during a later aborted run B it must be discarded (seq mismatch) —
+// otherwise B's 10s grace would be cut short and the force-kill offered
+// prematurely. B's own timer, at its proper time, still escalates.
+func TestDashboardStaleGraceTimerIgnored(t *testing.T) {
+	origStart := startPTY
+	startPTY = func(root string, act actions.Action, rows, cols int) (runnerHandle, error) {
+		return &fakeRunner{}, nil
+	}
+	t.Cleanup(func() { startPTY = origStart })
+
+	m := testModel(t)
+
+	// Run A: dispatch, abort (arms A's timer), child exits, pane closed.
+	mm, _ := m.startAction(actions.Update())
+	m = mm.(*model)
+	seqA := m.actionSeq
+	m, _ = update(t, m, keyMsg("ctrl+c"))
+	m, _ = update(t, m, keyMsg("y"))
+	m, _ = update(t, m, actions.DoneMsg{Code: 130})
+	m, _ = update(t, m, keyMsg("esc"))
+	if m.mode != modeNormal {
+		t.Fatalf("mode = %v, want modeNormal after closing run A's pane", m.mode)
+	}
+
+	// Run B: dispatch and abort — B's own grace window starts now.
+	mm, _ = m.startAction(actions.Migrate())
+	m = mm.(*model)
+	seqB := m.actionSeq
+	if seqB == seqA {
+		t.Fatal("startAction did not bump actionSeq between runs")
+	}
+	m, _ = update(t, m, keyMsg("ctrl+c"))
+	m, _ = update(t, m, keyMsg("y"))
+
+	// Run A's stale timer fires mid-grace for B: must be discarded.
+	m, _ = update(t, m, killGraceMsg{seq: seqA})
+	if m.killOffered {
+		t.Fatal("stale grace timer from run A set killOffered during run B")
+	}
+
+	// B's own timer at its proper time still escalates.
+	m, _ = update(t, m, killGraceMsg{seq: seqB})
+	if !m.killOffered {
+		t.Fatal("run B's own grace timer did not offer the force-kill")
 	}
 }
 

@@ -166,7 +166,9 @@ func (m *model) startAction(act actions.Action) (tea.Model, tea.Cmd) {
 	m.actionOut = actions.NewOutputBuffer()
 	m.actionView.SetContent("")
 	m.mode = modeActing
-	// Fresh run: clear any abort state left over from a previous pane.
-	m.confirmingAbort, m.aborted, m.killOffered = false, false, false
+	// Fresh run: bump the sequence so any grace timer armed by a previous
+	// run's abort is discarded as stale, and clear leftover abort state.
+	m.actionSeq++
+	m.confirmingAbort, m.aborted, m.killOffered, m.lastAborted = false, false, false, false
 	return m, runner.WaitData()
 }

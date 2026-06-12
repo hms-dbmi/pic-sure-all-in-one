@@ -18,12 +18,16 @@ import (
 const abortGracePeriod = 10 * time.Second
 
 // killGraceMsg fires abortGracePeriod after a confirmed abort. If the child is
-// still running, the pane footer escalates to the force-kill offer.
-type killGraceMsg struct{}
+// still running, the pane footer escalates to the force-kill offer. seq is the
+// actionSeq of the run whose abort armed the timer: a timer armed during run A
+// stays pending in the runtime even after A exits, so without the stamp it
+// could fire into a later aborted run B and cut B's grace period short (same
+// staleness pattern as logSeq/sessionID for the log follower).
+type killGraceMsg struct{ seq int }
 
-// killGrace schedules the force-kill offer.
-func killGrace() tea.Cmd {
-	return tea.Tick(abortGracePeriod, func(time.Time) tea.Msg { return killGraceMsg{} })
+// killGrace schedules the force-kill offer for the run identified by seq.
+func killGrace(seq int) tea.Cmd {
+	return tea.Tick(abortGracePeriod, func(time.Time) tea.Msg { return killGraceMsg{seq: seq} })
 }
 
 // runnerHandle abstracts *actions.PTYRunner so tests can substitute a fake
@@ -88,14 +92,19 @@ type model struct {
 	actionOut       *actions.OutputBuffer
 	actionName      string
 	actionAbortNote string // the running action's re-run-safety note, shown after an abort
+	actionSeq       int    // increments per startAction; stamps grace timers so stale ones are discarded
 	lastResult      string
 
 	// Abort state for the action pane (mirrors the activity screen): a bare
 	// ctrl+c/esc first asks to confirm; a confirmed abort sends ctrl-c and, if
 	// the child ignores it, the pane footer offers a force-kill after a grace.
+	// confirmingAbort/aborted/killOffered describe the LIVE run and reset when
+	// it exits; lastAborted is the finished-pane display flag (DoneMsg latches
+	// it from aborted so the AbortNote shows until the pane closes).
 	confirmingAbort bool
 	aborted         bool
 	killOffered     bool
+	lastAborted     bool
 }
 
 func newModel(root string) *model {
@@ -194,8 +203,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case actions.DoneMsg:
 		name := m.actionName
+		m.lastAborted = m.aborted // latch for the finished-pane AbortNote
 		switch {
-		case m.aborted:
+		case m.lastAborted:
 			m.lastResult = fmt.Sprintf("%s aborted (exit %d)", name, msg.Code)
 		case msg.Err != nil:
 			m.lastResult = fmt.Sprintf("%s failed to start: %v", name, msg.Err)
@@ -205,16 +215,23 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.lastResult = fmt.Sprintf("%s FAILED (exit %d)", name, msg.Code)
 		}
 		m.runner = nil
-		// The child exited: cancel any pending abort question or kill offer.
+		// The child exited: clear ALL live-run abort state (belt and braces on
+		// top of the seq guard — a stale grace timer must find nothing to act
+		// on, and a fresh run must start from a clean slate).
 		m.confirmingAbort = false
+		m.aborted = false
 		m.killOffered = false
 		// Stay in modeActing so the output remains readable until esc.
 		m.pollingServices, m.pollingStatus = true, true
 		return m, tea.Batch(pollServices(m.root), pollStatus(m.root))
 
 	case killGraceMsg:
-		// Grace period after a confirmed abort elapsed; if the child is still
-		// alive, escalate to the force-kill offer.
+		// Grace period after a confirmed abort elapsed. Discard a stale timer
+		// armed by an earlier run — only the current run's abort may escalate,
+		// or run B's 10s grace would be cut short by run A's leftover tick.
+		if msg.seq != m.actionSeq {
+			return m, nil
+		}
 		if m.aborted && m.runner != nil {
 			m.killOffered = true
 		}
@@ -306,7 +323,7 @@ func (m *model) handleActingKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			}
 			m.aborted = true
 			m.runner.Interrupt()
-			return m, killGrace()
+			return m, killGrace(m.actionSeq)
 		case "n", "N", "esc":
 			m.confirmingAbort = false
 		}

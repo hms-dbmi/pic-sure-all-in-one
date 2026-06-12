@@ -172,14 +172,21 @@ func TestActivityAbortStartsGraceTimer(t *testing.T) {
 }
 
 // TestActivityKillOfferAppearsAfterGrace: once the grace tick fires with the
-// child still running, the footer offers K and K force-kills.
+// child still running, the footer offers K and K force-kills. A stale tick
+// from a previous activity screen (wrong seq) is discarded.
 func TestActivityKillOfferAppearsAfterGrace(t *testing.T) {
 	a, fr := runningActivity(t)
 	_, _ = a.update(tea.KeyMsg{Type: tea.KeyCtrlC})
 	_, _ = a.update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
 
-	// Grace elapses while the child is still running.
-	_, _ = a.update(activityKillGraceMsg{})
+	// A leftover tick from an earlier screen must not escalate this run.
+	_, _ = a.update(activityKillGraceMsg{seq: a.seq - 1})
+	if a.killOffered {
+		t.Fatal("stale grace tick from a previous activity offered the kill")
+	}
+
+	// This run's own grace elapses while the child is still running.
+	_, _ = a.update(activityKillGraceMsg{seq: a.seq})
 	if !a.killOffered {
 		t.Fatal("grace elapsing with a live child did not offer the force-kill")
 	}
@@ -207,7 +214,7 @@ func TestActivityDoneCancelsKillOffer(t *testing.T) {
 		t.Fatal("kill offer set after the child already exited")
 	}
 	// A late grace tick must be a no-op now that the run is done.
-	_, _ = a.update(activityKillGraceMsg{})
+	_, _ = a.update(activityKillGraceMsg{seq: a.seq})
 	if a.killOffered {
 		t.Fatal("late grace tick offered the kill on an already-finished run")
 	}

@@ -31,8 +31,17 @@ type activityTickMsg struct{}
 const abortGracePeriod = 10 * time.Second
 
 // activityKillGraceMsg fires abortGracePeriod after a confirmed abort. If the
-// child still hasn't exited, the footer offers the force-kill escalation.
-type activityKillGraceMsg struct{}
+// child still hasn't exited, the footer offers the force-kill escalation. seq
+// identifies the activity whose abort armed the timer: a tick armed by run A
+// can outlive A's screen and be routed to a later activity B by the app — the
+// stamp makes B discard it instead of cutting its own grace short (the same
+// guard the dashboard pane uses).
+type activityKillGraceMsg struct{ seq int }
+
+// activitySeq numbers activity screens so stale grace ticks are identifiable.
+// Only touched from the bubbletea update goroutine (newActivity is called from
+// the app's Update), so a plain int is race-free.
+var activitySeq int
 
 // runnerHandle abstracts *actions.PTYRunner for tests.
 type runnerHandle interface {
@@ -63,13 +72,15 @@ type activity struct {
 	confirmingAbort bool
 	aborted         bool
 	killOffered     bool // grace period elapsed, child still running: offer K
+	seq             int  // this run's activitySeq; stamps grace ticks so stale ones are discarded
 	done            bool
 	code            int
 	err             error
 }
 
 func newActivity(root string, act actions.Action) *activity {
-	return &activity{root: root, act: act, out: actions.NewOutputBuffer(), started: time.Now()}
+	activitySeq++
+	return &activity{root: root, act: act, out: actions.NewOutputBuffer(), started: time.Now(), seq: activitySeq}
 }
 
 // start launches the script; on start failure the screen opens directly in
@@ -141,8 +152,12 @@ func (a *activity) update(msg tea.Msg) (*activity, tea.Cmd) {
 		return a, nil
 
 	case activityKillGraceMsg:
-		// The grace period after a confirmed abort elapsed. If the child still
-		// hasn't exited, surface the force-kill escalation in the footer.
+		// The grace period after a confirmed abort elapsed. Discard a stale
+		// tick armed by a previous activity screen, then — if the child still
+		// hasn't exited — surface the force-kill escalation in the footer.
+		if msg.seq != a.seq {
+			return a, nil
+		}
 		if a.aborted && !a.done {
 			a.killOffered = true
 		}
@@ -225,9 +240,10 @@ func (a *activity) handleKey(msg tea.KeyMsg) (*activity, tea.Cmd) {
 }
 
 // killGrace schedules the force-kill offer for abortGracePeriod after a
-// confirmed abort.
+// confirmed abort, stamped with this run's seq so a later screen ignores it.
 func (a *activity) killGrace() tea.Cmd {
-	return tea.Tick(abortGracePeriod, func(time.Time) tea.Msg { return activityKillGraceMsg{} })
+	seq := a.seq
+	return tea.Tick(abortGracePeriod, func(time.Time) tea.Msg { return activityKillGraceMsg{seq: seq} })
 }
 
 func (a *activity) view() string {

@@ -113,7 +113,10 @@ func (r *PTYRunner) Interrupt() {
 // session and group leader (PGID == PID) and the negative-pid group kill is
 // well-defined — it reaches every descendant the script spawned. An
 // already-reaped child (the race where the run exits between the grace timer
-// firing and K) yields ESRCH, which is treated as a no-op success.
+// firing and K) yields ESRCH, which is treated as a no-op success. In theory
+// the kernel could reuse the pid between reap and kill and the signal would
+// hit an unrelated group; callers mitigate this by only offering Kill while
+// the run is still live (the TUI gates K on runner != nil).
 func (r *PTYRunner) Kill() {
 	if r.cmd.Process == nil {
 		return

@@ -262,9 +262,10 @@ func (m *model) actionPane() string {
 	switch {
 	case m.runner == nil:
 		// Finished. After a confirmed abort, surface the action's re-run-safety
-		// note so the user is never left guessing about state.
+		// note so the user is never left guessing about state (lastAborted is
+		// the latched display flag — the live aborted flag resets on DoneMsg).
 		title = paneTitle.Render(m.actionName + " — finished")
-		if m.aborted && m.actionAbortNote != "" {
+		if m.lastAborted && m.actionAbortNote != "" {
 			footer = warnStyle.Render("aborted — "+m.actionAbortNote) + helpStyle.Render("  esc close")
 		} else {
 			footer = resultStyle.Render(m.lastResult) + helpStyle.Render("  esc close")

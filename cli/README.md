@@ -158,11 +158,13 @@ Live view of the running stack: services pane (state + health, polled every
 | Key | Action |
 |---|---|
 | `↑/↓` `k/j` | select service (log pane follows) |
-| `r` | restart selected service |
+| `r` | restart selected service (one-keystroke confirm) |
 | `u` | update (confirm → embedded runner pane) |
-| `p` / `m` / `s` | preflight / migrate / seed-db |
-| `e` | demo-data dataset picker |
-| `R` / `X` | reset / uninstall (typed-word confirms) |
+| `p` | preflight — read-only, runs immediately (no confirm) |
+| `m` / `s` | migrate / seed-db (one-keystroke confirm) |
+| `e` | demo-data dataset picker — the selection is the consent; it dispatches on pick (Cancel row backs out, no second confirm) |
+| `R` | reset — the same one-screen dialog as the landing: scope (**Keep the database** `reset.sh --yes` / **Full wipe** `reset.sh --all --yes`) + optional **reset sibling repos** toggle (`--repos`), then type `reset` to confirm |
+| `X` | uninstall (typed-word confirm) |
 | `pgup/pgdn/home/end` | scroll logs (or action output while running) |
 | `esc` | back to the landing menu |
 | `q` / `ctrl+c` | quit |

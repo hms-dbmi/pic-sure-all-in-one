@@ -1,6 +1,9 @@
 // Package exec runs the repository's bash scripts as foreground child
-// processes: live unbuffered stdio, their own process group, SIGINT/SIGTERM
-// forwarded to the group, and the script's exit code propagated.
+// processes: live unbuffered stdio and the script's exit code propagated.
+// Process-group placement depends on stdin: on a terminal the script stays
+// in the CLI's foreground group (a separate group would be stopped with
+// SIGTTIN on its first TTY read); otherwise it gets its own group with
+// SIGINT/SIGTERM forwarded to the whole group.
 package exec
 
 import (
@@ -14,12 +17,15 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+
+	"github.com/mattn/go-isatty"
 )
 
 // Run executes the script (a path relative to root, e.g. "init.sh" or
 // "scripts/compose.sh") with args, from the root directory. It blocks until
 // the script exits and returns the script's exit code; signals received by
-// the CLI are forwarded to the script's process group.
+// the CLI are forwarded to the script (to its whole process group when stdin
+// is not a terminal).
 func Run(root, script string, args []string) (int, error) {
 	return run(root, script, args, os.Stdin)
 }
@@ -39,9 +45,18 @@ func run(root, script string, args []string, stdin io.Reader) (int, error) {
 	cmd.Stdin = stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	// Own process group so signal forwarding reaches the script and every
-	// child it spawns (docker, git, maven, ...).
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	// On a terminal the child must share the CLI's foreground process group:
+	// in its own group, the kernel stops it with SIGTTIN the moment it reads
+	// from the TTY (reset.sh's confirmation prompt), and a forwarded SIGINT
+	// then sits pending on the stopped process — the CLI hangs until
+	// SIGKILLed. Sharing the group also hands terminal Ctrl-C to the script
+	// natively. Off-terminal, job control can't interfere, so the child gets
+	// its own group and signal forwarding reaches the script and every child
+	// it spawns (docker, git, maven, ...).
+	onTTY := stdinIsTerminal(stdin)
+	if !onTTY {
+		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	}
 
 	// Install the handler before Start so a Ctrl-C in the window between
 	// Start and Notify can't kill the CLI (default disposition) while the
@@ -60,9 +75,20 @@ func run(root, script string, args []string, stdin io.Reader) (int, error) {
 		for {
 			select {
 			case sig := <-sigCh:
-				if s, ok := sig.(syscall.Signal); ok {
+				s, ok := sig.(syscall.Signal)
+				if !ok {
+					continue
+				}
+				if !onTTY {
 					// Negative pid targets the whole process group.
 					_ = syscall.Kill(-cmd.Process.Pid, s)
+				} else if s == syscall.SIGTERM {
+					// The shared foreground group already gets the terminal's
+					// Ctrl-C, so forwarding SIGINT would deliver it twice; a
+					// SIGTERM aimed at the CLI alone must still reach the
+					// script. Either way Notify keeps the CLI alive until
+					// Wait reports the child's fate.
+					_ = syscall.Kill(cmd.Process.Pid, s)
 				}
 			case <-done:
 				return
@@ -75,6 +101,17 @@ func run(root, script string, args []string, stdin io.Reader) (int, error) {
 	signal.Stop(sigCh)
 
 	return CodeFromWait(err)
+}
+
+// stdinIsTerminal reports whether the child's stdin is a real terminal. The
+// char-device test behind tty.IsInteractive is too loose for process-group
+// placement: /dev/null is a character device too (the stdin go test and many
+// schedulers provide), but job control only ever applies to a controlling
+// terminal, and only the terminal case may give up group-targeted signal
+// forwarding.
+func stdinIsTerminal(stdin io.Reader) bool {
+	f, ok := stdin.(*os.File)
+	return ok && isatty.IsTerminal(f.Fd())
 }
 
 // RunQuiet is Run with output captured instead of inherited — for hosts that

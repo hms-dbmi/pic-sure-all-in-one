@@ -202,25 +202,57 @@ maven_build "pic-sure-psama" "$PSAMA_SRC" "$PSAMA_SRC/pic-sure-auth-services/Doc
 maven_build "pic-sure-dictionary-api" "$DICTIONARY_SRC" "$DICTIONARY_SRC/Dockerfile" "" "maven:3.9-eclipse-temurin-21"
 maven_build "pic-sure-dictionary-dump" "$DICTIONARY_SRC/aggregate" "$DICTIONARY_SRC/aggregate/Dockerfile" "" "maven:3.9.9-amazoncorretto-24"
 
-if ! docker image inspect "hms-dbmi/pic-sure-httpd:$IMAGE_TAG" &>/dev/null || [ "$FORCE" = "true" ]; then
-  if [ ! -d "$FRONTEND_SRC" ]; then
-    error "Frontend source not found at $FRONTEND_SRC"
-    exit 1
+# The frontend bakes VITE_* (and the theme) into the image at build time, so a
+# config change (e.g. AUTH_MODE) only takes effect on a rebuild. Gate the
+# rebuild on a hash of those exact build inputs, stamped onto the image as a
+# label — so re-running init rebuilds the frontend iff its config changed,
+# without a global --force and without any external state to track. The dev
+# overlay builds a separate :dev tag, so it never desyncs this label.
+FRONTEND_DEFAULTS="$FRONTEND_SRC/.env.example"
+FRONTEND_LABEL="org.hms-dbmi.picsure.frontend-config"
+
+# Exact bytes baked into the frontend image (same concatenation as the build).
+frontend_vite_env() {
+  if [ -f "$FRONTEND_DEFAULTS" ]; then grep '^VITE_' "$FRONTEND_DEFAULTS" || true; fi
+  grep '^VITE_' "$ENV_FILE" || true
+}
+
+# Portable sha256 over stdin (mirrors cli/install.sh's sha256sum→shasum fallback).
+picsure_sha256() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum | awk '{print $1}'
+  else
+    shasum -a 256 | awk '{print $1}'
   fi
-  info "Building frontend (theme: $FRONTEND_THEME)..."
-  FRONTEND_DEFAULTS="$FRONTEND_SRC/.env.example"
-  {
-    if [ -f "$FRONTEND_DEFAULTS" ]; then grep '^VITE_' "$FRONTEND_DEFAULTS" || true; fi
-    grep '^VITE_' "$ENV_FILE" || true
-  } > "$FRONTEND_SRC/.env"
-  run_step "pic-sure-httpd-docker" docker build -f "$FRONTEND_SRC/Dockerfile" \
-    --build-arg THEME="$FRONTEND_THEME" \
-    -t "hms-dbmi/pic-sure-httpd:$IMAGE_TAG" \
-    "$FRONTEND_SRC"
-  rm -f "$FRONTEND_SRC/.env"
-  info "Built hms-dbmi/pic-sure-httpd:$IMAGE_TAG"
+}
+
+frontend_want_hash="$(printf '%s\nTHEME=%s\n' "$(frontend_vite_env)" "$FRONTEND_THEME" | picsure_sha256)"
+frontend_have_hash="$(docker image inspect \
+  --format "{{ with .Config.Labels }}{{ index . \"$FRONTEND_LABEL\" }}{{ end }}" \
+  "hms-dbmi/pic-sure-httpd:$IMAGE_TAG" 2>/dev/null || true)"
+
+# A mismatch also covers "image missing" (frontend_have_hash is empty then).
+if [ "$FORCE" = "true" ] || [ "$frontend_want_hash" != "$frontend_have_hash" ]; then
+  if [ ! -d "$FRONTEND_SRC" ]; then
+    if [ -n "$frontend_have_hash" ]; then
+      info "Frontend source missing at $FRONTEND_SRC; keeping existing image (config may be stale — re-clone to rebuild)."
+    else
+      error "Frontend source not found at $FRONTEND_SRC"
+      exit 1
+    fi
+  else
+    info "Building frontend (theme: $FRONTEND_THEME)..."
+    frontend_vite_env > "$FRONTEND_SRC/.env"
+    run_step "pic-sure-httpd-docker" docker build -f "$FRONTEND_SRC/Dockerfile" \
+      --build-arg THEME="$FRONTEND_THEME" \
+      --label "$FRONTEND_LABEL=$frontend_want_hash" \
+      -t "hms-dbmi/pic-sure-httpd:$IMAGE_TAG" \
+      "$FRONTEND_SRC"
+    rm -f "$FRONTEND_SRC/.env"
+    info "Built hms-dbmi/pic-sure-httpd:$IMAGE_TAG"
+  fi
 else
-  info "Image hms-dbmi/pic-sure-httpd:$IMAGE_TAG exists. Skipping."
+  info "Frontend image is up to date with the current config. Skipping."
 fi
 
 info "All images ready."

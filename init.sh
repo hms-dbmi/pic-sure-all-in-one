@@ -316,7 +316,8 @@ case "${AUTH_MODE:-required}" in
     # Frontend enables open explorer
     set_env_var "VITE_OPEN" "true" "true"
     set_env_var "VITE_OPEN_EXPLORER" "true" "true"
-    set_env_var "VITE_DISCOVER" "true" "true"
+    # Explore-Without-Login uses the query builder, NOT the Discover page.
+    set_env_var "VITE_DISCOVER" "false" "true"
     set_env_var "OPEN_ACCESS_ENABLED" "true" "true"
     # Open HPDS resource must match the main HPDS resource for unauthenticated queries
     set_env_var "OPEN_HPDS_RESOURCE_UUID" "${PICSURE_RESOURCE_ID}" "true"

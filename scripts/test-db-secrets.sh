@@ -145,6 +145,17 @@ cat >> "$CAPTURE_STDIN"
 MYSQL
 chmod +x "$TEST_ROOT/bin/mysql"
 
+# --- Fake postgres-consumer ("container entrypoint") -------------------------
+# Stands in for the dictionary ETL/weights images, which read
+# POSTGRES_PASSWORD from their environment. Records what it received.
+cat > "$TEST_ROOT/bin/pg-probe" <<PROBE
+#!/usr/bin/env bash
+set -euo pipefail
+printf '%s\n' "\$*" >> "$CAPTURE_ARGV"
+printf '%s\n' "\${POSTGRES_PASSWORD:-<unset>}" >> "$CAPTURE_ENV"
+PROBE
+chmod +x "$TEST_ROOT/bin/pg-probe"
+
 reset_captures() {
   : > "$CAPTURE_DOCKER_ARGV"
   : > "$CAPTURE_ARGV"
@@ -286,6 +297,46 @@ assert_pass_in_env "seed db_mysql/remote-token"
 assert_token_not_in_docker_argv "seed db_mysql/remote-token"
 assert_token_not_in_argv "seed db_mysql/remote-token"
 assert_token_on_stdin "seed db_mysql/remote-token"
+
+# ===========================================================================
+# 3. postgres-shaped pattern (load-demo-data.sh dictionary ETL/weights sites)
+# ===========================================================================
+# Those sites are inline `docker run` calls (not extractable helpers), so this
+# exercises the exact pattern shape instead: env-prefix + bare
+# `-e POSTGRES_PASSWORD`, routed through a run_logged-style wrapper FUNCTION —
+# proving the env-prefix survives the function-call hop and still reaches
+# docker's child, while the host-visible docker argv stays clean.
+run_logged_like() {
+  # Discard the log label, run the command — mirrors run_logged's shape.
+  shift
+  "$@" >/dev/null
+}
+
+reset_captures
+POSTGRES_PASSWORD="$SECRET_PASS" run_logged_like "dictionary-etl-start" \
+  docker run -d \
+  --name dictionaryetl \
+  --network fake-net \
+  -e POSTGRES_HOST=dictionary-db \
+  -e POSTGRES_DB=dictionary \
+  -e POSTGRES_USER=picsure \
+  -e POSTGRES_PASSWORD \
+  hms-dbmi/dictionary-etl:latest pg-probe </dev/null
+if grep -qF -- "$SECRET_PASS" "$CAPTURE_DOCKER_ARGV"; then
+  fail "postgres-pattern: password leaked into the host-visible docker argv"
+fi
+if ! grep -qE -- '-e POSTGRES_PASSWORD( |$)' "$CAPTURE_DOCKER_ARGV"; then
+  fail "postgres-pattern: bare '-e POSTGRES_PASSWORD' missing from docker argv"
+fi
+pass "postgres-pattern: password absent from docker argv (bare -e POSTGRES_PASSWORD present)"
+if ! grep -qF -- "$SECRET_PASS" "$CAPTURE_ENV"; then
+  fail "postgres-pattern: password did not reach the container via POSTGRES_PASSWORD"
+fi
+pass "postgres-pattern: password present in POSTGRES_PASSWORD across the boundary"
+if [ -n "${POSTGRES_PASSWORD:-}" ]; then
+  fail "postgres-pattern: env-prefix leaked POSTGRES_PASSWORD into the test shell"
+fi
+pass "postgres-pattern: env-prefix did not persist past the wrapped call"
 
 # sql_escape_quotes doubles a single quote (apostrophe-in-email regression).
 got=$(sql_escape_quotes "o'brien@example.org")

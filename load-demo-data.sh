@@ -309,14 +309,16 @@ if [ "${SKIP_DICT:-}" != "true" ]; then
   # Step 3b: Start dictionary ETL service
   info "Starting dictionary ETL service..."
   docker rm -f dictionaryetl 2>/dev/null || true
-  run_logged "dictionary-etl-start" docker run -d \
+  # Env-prefix + bare -e: the host shell puts the password in docker's
+  # environment (not argv); docker forwards it by name into the container.
+  POSTGRES_PASSWORD="$DICT_PASS" run_logged "dictionary-etl-start" docker run -d \
     --name dictionaryetl \
     --network "$DATA_NETWORK" \
     -v "$HPDS_DATA_VOLUME:/opt/local/hpds/" \
     -e POSTGRES_HOST=dictionary-db \
     -e POSTGRES_DB=dictionary \
     -e POSTGRES_USER=picsure \
-    -e POSTGRES_PASSWORD="$DICT_PASS" \
+    -e POSTGRES_PASSWORD \
     hms-dbmi/dictionary-etl:latest
 
   # Wait for ETL to start
@@ -364,14 +366,16 @@ if [ "${SKIP_DICT:-}" != "true" ]; then
   fi
 
   if docker image inspect hms-dbmi/dictionary-weights:latest >/dev/null 2>&1; then
-    run_logged "dictionary-weights" docker run --rm \
+    # Env-prefix + bare -e: the host shell puts the password in docker's
+    # environment (not argv); docker forwards it by name into the container.
+    POSTGRES_PASSWORD="$DICT_PASS" run_logged "dictionary-weights" docker run --rm \
       --name dictionary-weights \
       --network "$DATA_NETWORK" \
       -v "$SCRIPT_DIR/repos/picsure-dictionary/dictionaryweights/weights.csv:/weights.csv:ro" \
       -e POSTGRES_HOST=dictionary-db \
       -e POSTGRES_DB=dictionary \
       -e POSTGRES_USER=picsure \
-      -e POSTGRES_PASSWORD="$DICT_PASS" \
+      -e POSTGRES_PASSWORD \
       hms-dbmi/dictionary-weights:latest
     info "Dictionary weights applied."
   else

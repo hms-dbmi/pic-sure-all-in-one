@@ -46,9 +46,11 @@ fi
 trap cleanup EXIT
 
 docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
-docker run -d \
+# Env-prefix + bare -e: the host shell puts the password in docker's
+# environment (not argv); docker forwards it by name into the container.
+MYSQL_ROOT_PASSWORD="$ROOT_PASSWORD" docker run -d \
   --name "$CONTAINER_NAME" \
-  -e MYSQL_ROOT_PASSWORD="$ROOT_PASSWORD" \
+  -e MYSQL_ROOT_PASSWORD \
   mysql:8.0 >/dev/null
 
 DB_HOST_VALUE="$(docker inspect -f '{{range.NetworkSettings.Networks}}{{.IPAddress}}{{end}}' "$CONTAINER_NAME")"

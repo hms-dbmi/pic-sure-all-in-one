@@ -249,8 +249,21 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.aborted = false
 		m.killOffered = false
 		// Stay in modeActing so the output remains readable until esc.
-		m.pollingServices, m.pollingStatus = true, true
-		return m, tea.Batch(pollServices(m.root), pollStatus(m.root))
+		// Kick off a refresh, but respect the one-poll-in-flight latches: a poll
+		// dispatched by an earlier tick may still be running (the script's state
+		// likely changed under it), and stacking a second poll on a slow docker
+		// daemon is exactly what the latches exist to prevent. Each tick will
+		// pick up the refresh once the in-flight poll clears its latch.
+		var cmds []tea.Cmd
+		if !m.pollingServices {
+			m.pollingServices = true
+			cmds = append(cmds, pollServices(m.root))
+		}
+		if !m.pollingStatus {
+			m.pollingStatus = true
+			cmds = append(cmds, pollStatus(m.root))
+		}
+		return m, tea.Batch(cmds...)
 
 	case killGraceMsg:
 		// Grace period after a confirmed abort elapsed. Discard a stale timer

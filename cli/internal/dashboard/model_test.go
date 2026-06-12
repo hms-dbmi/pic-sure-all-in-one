@@ -739,6 +739,74 @@ func equalStrings(a, b []string) bool {
 	return true
 }
 
+// TestDoneMsgRespectsPollLatches verifies bug-fix: DoneMsg must not stack a
+// second poll on top of one already in flight (the one-poll-in-flight
+// invariant). With both latches already set, DoneMsg dispatches NO new poll;
+// with them clear it dispatches both.
+func TestDoneMsgRespectsPollLatches(t *testing.T) {
+	// Latches already set (a tick-dispatched poll is mid-flight): no new polls.
+	m := testModel(t)
+	m.mode = modeActing
+	m.actionName = "update"
+	m.runner = &actions.PTYRunner{}
+	m.pollingServices, m.pollingStatus = true, true
+
+	m, cmd := update(t, m, actions.DoneMsg{Code: 0})
+	if !m.pollingServices || !m.pollingStatus {
+		t.Fatal("DoneMsg cleared an in-flight latch")
+	}
+	if batchLen(cmd) != 0 {
+		t.Errorf("DoneMsg with both latches set dispatched %d poll cmds, want 0", batchLen(cmd))
+	}
+
+	// Latches clear: DoneMsg refreshes both panes (and sets the latches).
+	m = testModel(t)
+	m.mode = modeActing
+	m.actionName = "update"
+	m.runner = &actions.PTYRunner{}
+	m.pollingServices, m.pollingStatus = false, false
+
+	m, cmd = update(t, m, actions.DoneMsg{Code: 0})
+	if !m.pollingServices || !m.pollingStatus {
+		t.Fatal("DoneMsg with clear latches did not latch the dispatched polls")
+	}
+	if batchLen(cmd) != 2 {
+		t.Errorf("DoneMsg with clear latches dispatched %d poll cmds, want 2", batchLen(cmd))
+	}
+
+	// Mixed: only the clear (status) latch is polled. Inspect via latch
+	// transition + a non-nil cmd rather than executing the single cmd (which
+	// would be the real poll), so the test spawns nothing.
+	m = testModel(t)
+	m.mode = modeActing
+	m.actionName = "update"
+	m.runner = &actions.PTYRunner{}
+	m.pollingServices, m.pollingStatus = true, false
+
+	m, cmd = update(t, m, actions.DoneMsg{Code: 0})
+	if !m.pollingStatus {
+		t.Error("DoneMsg did not poll the one clear (status) latch")
+	}
+	if cmd == nil {
+		t.Error("DoneMsg with one clear latch returned no command")
+	}
+}
+
+// batchLen reports how many commands a (possibly nil) tea.Cmd batch carries,
+// by message-type inspection. Safe to call only for the 0-cmd (nil) and
+// multi-cmd (tea.BatchMsg) shapes: a lone cmd is returned bare by tea.Batch and
+// executing it here would run a real poll, so the single-cmd case is asserted
+// via latch state instead (see the mixed sub-test).
+func batchLen(cmd tea.Cmd) int {
+	if cmd == nil {
+		return 0
+	}
+	if bm, ok := cmd().(tea.BatchMsg); ok {
+		return len(bm)
+	}
+	return 1
+}
+
 func TestPollInflightGuards(t *testing.T) {
 	m := newModel(t.TempDir())
 	_, _ = m.Update(servicesTickMsg{})

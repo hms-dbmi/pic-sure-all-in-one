@@ -28,8 +28,6 @@ services:
       - ./certs/server.chain:/usr/local/apache2/cert/server.chain:ro
       - ./config/httpd/httpd-vhosts.conf:/usr/local/apache2/conf/extra/httpd-vhosts.conf:ro
       - ./.data/logs/httpd:/app/logs
-    env_file:
-      - .env
     environment:
       # Logging
       LOGGING_API_KEY: ${LOGGING_API_KEY:-disabled}

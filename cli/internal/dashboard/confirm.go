@@ -154,7 +154,7 @@ func (m *model) updateForm(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *model) startAction(act actions.Action) (tea.Model, tea.Cmd) {
 	rows, cols := m.actionPaneSize()
-	runner, err := actions.StartPTY(m.root, act, rows, cols)
+	runner, err := startPTY(m.root, act, rows, cols)
 	if err != nil {
 		m.lastResult = fmt.Sprintf("%s failed to start: %v", act.Name, err)
 		m.mode = modeNormal
@@ -162,8 +162,11 @@ func (m *model) startAction(act actions.Action) (tea.Model, tea.Cmd) {
 	}
 	m.runner = runner
 	m.actionName = act.Name
+	m.actionAbortNote = act.AbortNote
 	m.actionOut = actions.NewOutputBuffer()
 	m.actionView.SetContent("")
 	m.mode = modeActing
+	// Fresh run: clear any abort state left over from a previous pane.
+	m.confirmingAbort, m.aborted, m.killOffered = false, false, false
 	return m, runner.WaitData()
 }

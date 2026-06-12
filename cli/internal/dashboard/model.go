@@ -2,6 +2,7 @@ package dashboard
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
@@ -10,6 +11,34 @@ import (
 	"github.com/hms-dbmi/pic-sure-all-in-one/cli/internal/actions"
 	"github.com/hms-dbmi/pic-sure-all-in-one/cli/internal/contract"
 )
+
+// abortGracePeriod is how long a confirmed pane abort waits for the child to
+// honor the ctrl-c SIGINT before the pane offers a force-kill (mirrors the
+// activity screen).
+const abortGracePeriod = 10 * time.Second
+
+// killGraceMsg fires abortGracePeriod after a confirmed abort. If the child is
+// still running, the pane footer escalates to the force-kill offer.
+type killGraceMsg struct{}
+
+// killGrace schedules the force-kill offer.
+func killGrace() tea.Cmd {
+	return tea.Tick(abortGracePeriod, func(time.Time) tea.Msg { return killGraceMsg{} })
+}
+
+// runnerHandle abstracts *actions.PTYRunner so tests can substitute a fake
+// (mirrors the activity screen's seam).
+type runnerHandle interface {
+	WaitData() tea.Cmd
+	Resize(rows, cols int)
+	Interrupt()
+	Kill()
+}
+
+// startPTY is a seam: tests replace it to avoid spawning real PTYs.
+var startPTY = func(root string, act actions.Action, rows, cols int) (runnerHandle, error) {
+	return actions.StartPTY(root, act, rows, cols)
+}
 
 type mode int
 
@@ -54,11 +83,19 @@ type model struct {
 	resetRepos    bool   // reset-sibling-repos toggle — set only while modeReset
 	pending       *actions.Action
 
-	runner     *actions.PTYRunner
-	actionView viewport.Model
-	actionOut  *actions.OutputBuffer
-	actionName string
-	lastResult string
+	runner          runnerHandle
+	actionView      viewport.Model
+	actionOut       *actions.OutputBuffer
+	actionName      string
+	actionAbortNote string // the running action's re-run-safety note, shown after an abort
+	lastResult      string
+
+	// Abort state for the action pane (mirrors the activity screen): a bare
+	// ctrl+c/esc first asks to confirm; a confirmed abort sends ctrl-c and, if
+	// the child ignores it, the pane footer offers a force-kill after a grace.
+	confirmingAbort bool
+	aborted         bool
+	killOffered     bool
 }
 
 func newModel(root string) *model {
@@ -157,17 +194,31 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case actions.DoneMsg:
 		name := m.actionName
-		if msg.Err != nil {
+		switch {
+		case m.aborted:
+			m.lastResult = fmt.Sprintf("%s aborted (exit %d)", name, msg.Code)
+		case msg.Err != nil:
 			m.lastResult = fmt.Sprintf("%s failed to start: %v", name, msg.Err)
-		} else if msg.Code == 0 {
+		case msg.Code == 0:
 			m.lastResult = fmt.Sprintf("%s succeeded (exit 0)", name)
-		} else {
+		default:
 			m.lastResult = fmt.Sprintf("%s FAILED (exit %d)", name, msg.Code)
 		}
 		m.runner = nil
+		// The child exited: cancel any pending abort question or kill offer.
+		m.confirmingAbort = false
+		m.killOffered = false
 		// Stay in modeActing so the output remains readable until esc.
 		m.pollingServices, m.pollingStatus = true, true
 		return m, tea.Batch(pollServices(m.root), pollStatus(m.root))
+
+	case killGraceMsg:
+		// Grace period after a confirmed abort elapsed; if the child is still
+		// alive, escalate to the force-kill offer.
+		if m.aborted && m.runner != nil {
+			m.killOffered = true
+		}
+		return m, nil
 
 	case tea.KeyMsg:
 		return m.handleKey(msg)
@@ -195,26 +246,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.updateForm(msg)
 
 	case modeActing:
-		switch msg.String() {
-		case "ctrl+c":
-			if m.runner != nil {
-				m.runner.Interrupt()
-				return m, nil
-			}
-			return m, nil
-		case "esc", "q":
-			if m.runner == nil { // finished → close the pane
-				m.mode = modeNormal
-				m.actionOut = nil
-				return m, nil
-			}
-			return m, nil
-		case "pgup", "pgdown", "up", "down", "home", "end":
-			var cmd tea.Cmd
-			m.actionView, cmd = m.actionView.Update(msg)
-			return m, cmd
-		}
-		return m, nil
+		return m.handleActingKey(msg)
 	}
 
 	// modeNormal
@@ -254,6 +286,68 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m.startReset()
 	case "X":
 		return m.startConfirm(actions.Uninstall())
+	}
+	return m, nil
+}
+
+// handleActingKey handles keys in the action pane. It mirrors the activity
+// screen: a bare ctrl+c/esc on a live run first asks to confirm; a confirmed
+// abort sends ctrl-c and, if the child ignores it past the grace period, the
+// footer offers a force-kill (K). On a finished pane esc/q close it and ctrl+c
+// quits (matching q), since the child has already exited.
+func (m *model) handleActingKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// Inline confirm (no huh — the activity screen doesn't use one either).
+	if m.confirmingAbort {
+		switch msg.String() {
+		case "y", "Y", "ctrl+c": // reflexive second ctrl+c = "yes, abort"
+			m.confirmingAbort = false
+			if m.runner == nil {
+				return m, nil // finished while confirming; nothing to abort
+			}
+			m.aborted = true
+			m.runner.Interrupt()
+			return m, killGrace()
+		case "n", "N", "esc":
+			m.confirmingAbort = false
+		}
+		return m, nil
+	}
+
+	if m.runner == nil { // finished pane
+		switch msg.String() {
+		case "esc", "q":
+			m.mode = modeNormal
+			m.actionOut = nil
+			return m, nil
+		case "ctrl+c":
+			// Child already exited, nothing at risk — quit like q does in
+			// normal mode (the universal reflex), after releasing children.
+			m.cleanup()
+			return m, tea.Quit
+		case "pgup", "pgdown", "up", "down", "home", "end":
+			var cmd tea.Cmd
+			m.actionView, cmd = m.actionView.Update(msg)
+			return m, cmd
+		}
+		return m, nil
+	}
+
+	// Live run.
+	switch msg.String() {
+	case "K":
+		// Escalation: only live once the grace period elapsed with the child
+		// still running (the footer advertises it then).
+		if m.killOffered {
+			m.runner.Kill()
+		}
+		return m, nil
+	case "ctrl+c", "esc":
+		m.confirmingAbort = true
+		return m, nil
+	case "pgup", "pgdown", "up", "down", "home", "end":
+		var cmd tea.Cmd
+		m.actionView, cmd = m.actionView.Update(msg)
+		return m, cmd
 	}
 	return m, nil
 }

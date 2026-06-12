@@ -257,10 +257,26 @@ func (m *model) logPane() string {
 func (m *model) actionPane() string {
 	width := max(m.width-leftWidth-6, 20)
 	title := paneTitle.Render("Running: " + m.actionName)
-	footer := helpStyle.Render("ctrl+c interrupt")
-	if m.runner == nil {
+
+	var footer string
+	switch {
+	case m.runner == nil:
+		// Finished. After a confirmed abort, surface the action's re-run-safety
+		// note so the user is never left guessing about state.
 		title = paneTitle.Render(m.actionName + " — finished")
-		footer = resultStyle.Render(m.lastResult) + helpStyle.Render("  esc close")
+		if m.aborted && m.actionAbortNote != "" {
+			footer = warnStyle.Render("aborted — "+m.actionAbortNote) + helpStyle.Render("  esc close")
+		} else {
+			footer = resultStyle.Render(m.lastResult) + helpStyle.Render("  esc close")
+		}
+	case m.confirmingAbort:
+		footer = warnStyle.Render(fmt.Sprintf("⚠ %s is still running — abort it? (y/n)", m.actionName))
+	case m.killOffered:
+		footer = warnStyle.Render("child ignoring interrupt — K: force kill")
+	case m.aborted:
+		footer = warnStyle.Render("aborting — sent ctrl-c, waiting for the child to exit…")
+	default:
+		footer = helpStyle.Render("ctrl+c interrupt")
 	}
 	return paneStyle.Width(width).Render(title + "\n" + m.actionView.View() + "\n" + footer)
 }
@@ -277,10 +293,18 @@ func (m *model) formPane() string {
 func (m *model) helpLine() string {
 	switch m.mode {
 	case modeActing:
-		if m.runner == nil {
+		switch {
+		case m.runner == nil:
 			return "esc close · pgup/pgdn scroll"
+		case m.confirmingAbort:
+			return "y abort · n keep running"
+		case m.killOffered:
+			return "K force kill · pgup/pgdn scroll"
+		case m.aborted:
+			return "aborting… · pgup/pgdn scroll"
+		default:
+			return "ctrl+c interrupt · pgup/pgdn scroll"
 		}
-		return "ctrl+c interrupt · pgup/pgdn scroll"
 	case modeConfirm, modePick, modeReset:
 		return "esc cancel"
 	}

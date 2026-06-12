@@ -14,6 +14,32 @@ import (
 	"github.com/hms-dbmi/pic-sure-all-in-one/cli/internal/contract"
 )
 
+// fakeRunner stands in for *actions.PTYRunner so abort/escalation tests can
+// observe Interrupt/Kill without spawning a real PTY (mirrors the tui pkg).
+type fakeRunner struct {
+	interrupted bool
+	killed      bool
+}
+
+func (f *fakeRunner) WaitData() tea.Cmd     { return func() tea.Msg { return nil } }
+func (f *fakeRunner) Resize(rows, cols int) {}
+func (f *fakeRunner) Interrupt()            { f.interrupted = true }
+func (f *fakeRunner) Kill()                 { f.killed = true }
+
+// actingModel returns a sized model parked in modeActing with a live fake
+// runner, as if an action had just been dispatched.
+func actingModel(t *testing.T) (*model, *fakeRunner) {
+	t.Helper()
+	m := testModel(t)
+	fr := &fakeRunner{}
+	m.mode = modeActing
+	m.runner = fr
+	m.actionName = "update"
+	m.actionAbortNote = actions.Update().AbortNote
+	m.actionOut = actions.NewOutputBuffer()
+	return m, fr
+}
+
 func keyMsg(s string) tea.KeyMsg {
 	switch s {
 	case "esc":
@@ -359,6 +385,132 @@ func TestEscClosesFinishedActionPane(t *testing.T) {
 	m, _ = update(t, m, keyMsg("esc"))
 	if m.mode != modeActing {
 		t.Error("esc must not close a pane with a live runner")
+	}
+}
+
+// TestDashboardAbortConfirmThenInterrupt: a bare ctrl+c on a live pane action
+// must NOT interrupt immediately — it asks to confirm first (parity with the
+// activity screen); y then interrupts and starts the grace timer.
+func TestDashboardAbortConfirmThenInterrupt(t *testing.T) {
+	m, fr := actingModel(t)
+
+	m, _ = update(t, m, keyMsg("ctrl+c"))
+	if !m.confirmingAbort {
+		t.Fatal("ctrl+c did not enter abort confirmation")
+	}
+	if fr.interrupted {
+		t.Fatal("ctrl+c interrupted immediately; must confirm first")
+	}
+	if !strings.Contains(ansi.Strip(m.View()), "abort it? (y/n)") {
+		t.Errorf("pane footer missing the abort confirm prompt:\n%s", ansi.Strip(m.View()))
+	}
+
+	m, cmd := update(t, m, keyMsg("y"))
+	if !fr.interrupted || !m.aborted {
+		t.Fatal("y did not interrupt / set aborted")
+	}
+	if cmd == nil {
+		t.Fatal("confirmed abort did not start the grace timer")
+	}
+	if !strings.Contains(ansi.Strip(m.View()), "aborting") {
+		t.Errorf("pane footer does not report the aborting state:\n%s", ansi.Strip(m.View()))
+	}
+}
+
+// TestDashboardAbortConfirmDismiss: n keeps the run going (no interrupt).
+func TestDashboardAbortConfirmDismiss(t *testing.T) {
+	m, fr := actingModel(t)
+	m, _ = update(t, m, keyMsg("esc")) // esc also asks (parity with activity)
+	if !m.confirmingAbort {
+		t.Fatal("esc on a live pane did not ask to confirm")
+	}
+	m, _ = update(t, m, keyMsg("n"))
+	if m.confirmingAbort {
+		t.Fatal("n did not dismiss the abort confirmation")
+	}
+	if fr.interrupted {
+		t.Fatal("n must not interrupt the run")
+	}
+	if m.mode != modeActing {
+		t.Errorf("mode = %v, want modeActing (run continues)", m.mode)
+	}
+}
+
+// TestDashboardAbortShowsNote: after a confirmed abort and the child's exit,
+// the finished pane shows the action's AbortNote (it never did before).
+func TestDashboardAbortShowsNote(t *testing.T) {
+	m, _ := actingModel(t)
+	m, _ = update(t, m, keyMsg("ctrl+c"))
+	m, _ = update(t, m, keyMsg("y"))
+
+	// Child exits after the interrupt.
+	m, _ = update(t, m, actions.DoneMsg{Code: 130})
+	view := ansi.Strip(m.View())
+	if !strings.Contains(view, m.actionAbortNote) {
+		t.Errorf("post-abort pane missing AbortNote %q:\n%s", m.actionAbortNote, view)
+	}
+	if !strings.Contains(view, "aborted") {
+		t.Errorf("post-abort pane does not say aborted:\n%s", view)
+	}
+}
+
+// TestDashboardKillEscalation: the grace tick with a live child offers K, and
+// K force-kills; a DoneMsg cancels a pending offer.
+func TestDashboardKillEscalation(t *testing.T) {
+	m, fr := actingModel(t)
+	m, _ = update(t, m, keyMsg("ctrl+c"))
+	m, _ = update(t, m, keyMsg("y"))
+
+	// K is inert before the offer is live.
+	m, _ = update(t, m, keyMsg("K"))
+	if fr.killed {
+		t.Fatal("K killed before the grace period elapsed")
+	}
+
+	// Grace elapses with the child still alive → offer K.
+	m, _ = update(t, m, killGraceMsg{})
+	if !m.killOffered {
+		t.Fatal("grace elapsing with a live child did not offer the force-kill")
+	}
+	if !strings.Contains(ansi.Strip(m.View()), "force kill") {
+		t.Errorf("pane footer missing the force-kill offer:\n%s", ansi.Strip(m.View()))
+	}
+
+	_, _ = update(t, m, keyMsg("K"))
+	if !fr.killed {
+		t.Fatal("K did not force-kill the child")
+	}
+}
+
+// TestDashboardDoneCancelsKillOffer: a child that exits on its own clears any
+// pending kill offer, and a late grace tick is a no-op.
+func TestDashboardDoneCancelsKillOffer(t *testing.T) {
+	m, _ := actingModel(t)
+	m, _ = update(t, m, keyMsg("ctrl+c"))
+	m, _ = update(t, m, keyMsg("y"))
+
+	m, _ = update(t, m, actions.DoneMsg{Code: 130})
+	if m.killOffered {
+		t.Fatal("kill offer set after the child already exited")
+	}
+	m, _ = update(t, m, killGraceMsg{})
+	if m.killOffered {
+		t.Fatal("late grace tick offered the kill on a finished run")
+	}
+}
+
+// TestDashboardCtrlCOnFinishedPaneQuits: ctrl+c on a finished pane quits (the
+// child has exited), matching q in normal mode; esc still just closes the pane.
+func TestDashboardCtrlCOnFinishedPaneQuits(t *testing.T) {
+	m, _ := actingModel(t)
+	m.runner = nil // finished
+
+	_, cmd := update(t, m, keyMsg("ctrl+c"))
+	if cmd == nil {
+		t.Fatal("ctrl+c on a finished pane returned no command")
+	}
+	if _, ok := cmd().(tea.QuitMsg); !ok {
+		t.Fatalf("ctrl+c on a finished pane = %T, want tea.QuitMsg", cmd())
 	}
 }
 

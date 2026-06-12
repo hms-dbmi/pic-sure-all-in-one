@@ -7,6 +7,7 @@ import (
 	"github.com/charmbracelet/huh"
 
 	"github.com/hms-dbmi/pic-sure-all-in-one/cli/internal/actions"
+	"github.com/hms-dbmi/pic-sure-all-in-one/cli/internal/dialog"
 )
 
 // startConfirm opens a huh dialog for an action. Destructive actions
@@ -62,8 +63,11 @@ func (m *model) sizeForm(f *huh.Form) *huh.Form {
 	return f
 }
 
-// startPicker opens the ETL dataset picker (the only parameterless ETL
+// startPicker opens the demo-data dataset picker (the only parameterless ETL
 // entry points; everything else needs file paths — use the CLI for those).
+// The picker IS the consent (spec consent model: pickers carry a Cancel row
+// and dispatch on selection — no second confirm), so the description carries
+// the REPLACES warning itself.
 func (m *model) startPicker() (tea.Model, tea.Cmd) {
 	// Preselect the default dataset, and bind Value BEFORE Options: huh
 	// computes the option viewport's scroll offset when Options() runs, from
@@ -74,7 +78,7 @@ func (m *model) startPicker() (tea.Model, tea.Cmd) {
 	m.form = m.sizeForm(huh.NewForm(huh.NewGroup(
 		huh.NewSelect[string]().
 			Title("Load demo data").
-			Description("Replaces current HPDS phenotype data; other ETL operations\n(load-csv, load-vcf, ...) take file arguments — use `pic-sure etl`.").
+			Description("REPLACES the phenotype data in the hpds-data volume with the\nselected dataset, then re-hydrates the dictionary database.").
 			Value(&m.pickedDataset).
 			Options(
 				huh.NewOption("NHANES (default demo dataset)", "nhanes"),
@@ -88,6 +92,20 @@ func (m *model) startPicker() (tea.Model, tea.Cmd) {
 	return m, m.form.Init()
 }
 
+// startReset opens the combined reset dialog (scope keep/all + repos toggle +
+// typed-word confirm), the same form the landing screen uses — built by
+// dialog.ResetForm and sized here to the dashboard's form pane.
+func (m *model) startReset() (tea.Model, tea.Cmd) {
+	m.resetScope = "keep"
+	m.resetRepos = false
+	m.confirmText = ""
+	word := actions.Reset().ConfirmWord
+
+	m.form = m.sizeForm(dialog.ResetForm(&m.resetScope, &m.resetRepos, &m.confirmText, word))
+	m.mode = modeReset
+	return m, m.form.Init()
+}
+
 func (m *model) updateForm(msg tea.Msg) (tea.Model, tea.Cmd) {
 	form, cmd := m.form.Update(msg)
 	if f, ok := form.(*huh.Form); ok {
@@ -98,11 +116,25 @@ func (m *model) updateForm(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case huh.StateCompleted:
 		switch m.mode {
 		case modePick:
-			if m.pickedDataset == "" {
+			// The picker is the consent: dispatch on selection, no second
+			// confirm (spec consent model — Cancel is the empty option).
+			choice := m.pickedDataset
+			m.form = nil
+			if choice == "" {
 				m.mode = modeNormal
 				return m, nil
 			}
-			return m.startConfirm(actions.DemoData(m.pickedDataset))
+			return m.startAction(actions.DemoData(choice))
+		case modeReset:
+			act := actions.ResetWith(m.resetScope == "all", m.resetRepos)
+			m.form = nil
+			// Re-validate the typed word at the dispatch seam (defense in
+			// depth: the form's own Validate already gates real input).
+			if !actions.ConfirmAccepted(act, false, m.confirmText) {
+				m.mode = modeNormal
+				return m, nil
+			}
+			return m.startAction(act)
 		case modeConfirm:
 			act := m.pending
 			m.form = nil

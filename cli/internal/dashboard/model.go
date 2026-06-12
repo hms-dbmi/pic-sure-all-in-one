@@ -17,6 +17,7 @@ const (
 	modeNormal mode = iota
 	modeConfirm
 	modePick
+	modeReset
 	modeActing
 )
 
@@ -49,6 +50,8 @@ type model struct {
 	confirmOK     bool
 	confirmText   string
 	pickedDataset string
+	resetScope    string // "keep" or "all" — set only while mode == modeReset
+	resetRepos    bool   // reset-sibling-repos toggle — set only while modeReset
 	pending       *actions.Action
 
 	runner     *actions.PTYRunner
@@ -79,7 +82,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		// Re-size an open dialog to the new pane width; huh recomputes its
 		// group viewport geometry only in its WindowSizeMsg handler, and this
 		// branch returns without routing the resize to the form.
-		if m.form != nil && (m.mode == modeConfirm || m.mode == modePick) {
+		if m.form != nil && (m.mode == modeConfirm || m.mode == modePick || m.mode == modeReset) {
 			m.form = m.sizeForm(m.form)
 		}
 		return m, nil
@@ -171,7 +174,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	}
 
 	// Forms consume every message type while active (spinners, blinks, ...).
-	if m.mode == modeConfirm || m.mode == modePick {
+	if m.mode == modeConfirm || m.mode == modePick || m.mode == modeReset {
 		return m.updateForm(msg)
 	}
 	return m, nil
@@ -179,12 +182,13 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch m.mode {
-	case modeConfirm, modePick:
+	case modeConfirm, modePick, modeReset:
 		// huh ships its esc binding disabled; the help line advertises
 		// "esc cancel" — intercept it (same fix as the wizard and landing).
 		if msg.String() == "esc" {
 			m.form = nil
 			m.pending = nil
+			m.resetScope, m.resetRepos = "", false
 			m.mode = modeNormal
 			return m, nil
 		}
@@ -232,7 +236,9 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "u":
 		return m.startConfirm(actions.Update())
 	case "p":
-		return m.startConfirm(actions.Preflight())
+		// Read-only: runs immediately, no confirm (spec consent model — same
+		// as the landing's Preflight check entry).
+		return m.startAction(actions.Preflight())
 	case "m":
 		return m.startConfirm(actions.Migrate())
 	case "s":
@@ -245,7 +251,7 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "e":
 		return m.startPicker()
 	case "R":
-		return m.startConfirm(actions.Reset())
+		return m.startReset()
 	case "X":
 		return m.startConfirm(actions.Uninstall())
 	}

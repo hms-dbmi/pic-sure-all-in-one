@@ -13,6 +13,7 @@ import (
 
 	"github.com/hms-dbmi/pic-sure-all-in-one/cli/internal/actions"
 	"github.com/hms-dbmi/pic-sure-all-in-one/cli/internal/contract"
+	"github.com/hms-dbmi/pic-sure-all-in-one/cli/internal/dialog"
 	picexec "github.com/hms-dbmi/pic-sure-all-in-one/cli/internal/exec"
 	"github.com/hms-dbmi/pic-sure-all-in-one/cli/internal/scripts"
 )
@@ -419,10 +420,10 @@ func resetAction(scope string, repos bool) actions.Action {
 }
 
 // startResetConfirm opens ONE screen that carries both the scope choice
-// (keep the database vs. full wipe) and the typed-word confirm, so the two
-// reset variants share a single dialog instead of two menu items. The scope
-// select must bind Value BEFORE Options (huh gotcha) and preselect a real
-// option so the cursor is not pinned to an empty row.
+// (keep the database vs. full wipe), the repos toggle, and the typed-word
+// confirm, so the two reset variants share a single dialog instead of two menu
+// items. The form construction is shared with the dashboard's R key via
+// dialog.ResetForm; each screen sizes the returned form itself.
 func (l *landing) startResetConfirm() (*landing, tea.Cmd) {
 	l.resetting = true
 	l.resetScope = "keep"
@@ -430,39 +431,7 @@ func (l *landing) startResetConfirm() (*landing, tea.Cmd) {
 	l.confirmText = ""
 	word := actions.Reset().ConfirmWord
 
-	scope := huh.NewSelect[string]().
-		Title("⚠ Reset — this destroys data").
-		Description("Stops all containers and removes generated state so you can re-init:\n"+
-			"  • .env (backed up first), certs/, .data/, generated config, deployed WARs\n"+
-			".env.example is kept; sibling repos are kept unless toggled below.\n"+
-			"Choose how much to wipe:").
-		Value(&l.resetScope).
-		Options(
-			huh.NewOption("Keep the database — picsure-db data preserved; re-init reuses it", "keep"),
-			huh.NewOption("Full wipe — also drop the DB volume, PIC-SURE images, and the Maven cache", "all"),
-		)
-
-	// Default OFF: bind Value before any other config (huh gotcha analogue —
-	// the binding must precede option/affirmative wiring).
-	repos := huh.NewConfirm().
-		Title("Also reset sibling repos to release refs").
-		Description("Discards uncommitted repo changes; keeps local branches & history.").
-		Affirmative("Reset repos too").
-		Negative("Leave repos alone").
-		Value(&l.resetRepos)
-
-	confirm := huh.NewInput().
-		Title(fmt.Sprintf("Type %q to confirm", word)).
-		Description("(esc cancels)").
-		Value(&l.confirmText).
-		Validate(func(s string) error {
-			if s != word {
-				return fmt.Errorf("type %q exactly to confirm", word)
-			}
-			return nil
-		})
-
-	l.form = l.sizeForm(huh.NewForm(huh.NewGroup(scope, repos, confirm)).WithShowHelp(true))
+	l.form = l.sizeForm(dialog.ResetForm(&l.resetScope, &l.resetRepos, &l.confirmText, word))
 	return l, l.form.Init()
 }
 

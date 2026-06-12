@@ -92,7 +92,7 @@ func (m *model) View() string {
 	switch m.mode {
 	case modeActing:
 		right = m.actionPane()
-	case modeConfirm, modePick:
+	case modeConfirm, modePick, modeReset:
 		right = m.formPane()
 	default:
 		right = lipgloss.JoinVertical(lipgloss.Left, m.summaryPane(), m.logPane())
@@ -281,7 +281,7 @@ func (m *model) helpLine() string {
 			return "esc close · pgup/pgdn scroll"
 		}
 		return "ctrl+c interrupt · pgup/pgdn scroll"
-	case modeConfirm, modePick:
+	case modeConfirm, modePick, modeReset:
 		return "esc cancel"
 	}
 	return "↑/↓ · r restart · u update · p/m/s · e demo · R reset · X uninstall · pgup/dn scroll · esc · q"

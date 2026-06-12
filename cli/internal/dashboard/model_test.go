@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 
@@ -53,16 +54,16 @@ func update(t *testing.T, m *model, msg tea.Msg) (*model, tea.Cmd) {
 }
 
 func TestActionKeysOpenConfirm(t *testing.T) {
+	// p (read-only) and R (combined reset dialog) deliberately do NOT open a
+	// plain confirm — they have their own tests below.
 	tests := []struct {
 		key         string
 		wantName    string
 		destructive bool
 	}{
 		{"u", "update", false},
-		{"p", "preflight", false},
 		{"m", "migrate", false},
 		{"s", "seed-db", false},
-		{"R", "reset", true},
 		{"X", "uninstall", true},
 	}
 	for _, tt := range tests {
@@ -90,6 +91,138 @@ func TestPickerKeyOpensPicker(t *testing.T) {
 	m, _ = update(t, m, keyMsg("e"))
 	if m.mode != modePick {
 		t.Fatalf("mode = %v, want modePick", m.mode)
+	}
+}
+
+// reapRunner interrupts and reaps a runner a dispatch may have spawned so the
+// test does not leak a short-lived bash child (the script is missing in the
+// temp root, so it exits immediately, but reap it deterministically anyway).
+func reapRunner(m *model) {
+	if m.runner != nil {
+		m.runner.Interrupt()
+		m.runner = nil
+	}
+}
+
+// TestPreflightDispatchesImmediately: p is read-only, so the dashboard runs it
+// at once (no confirm) — mirroring the landing's Preflight-check entry.
+func TestPreflightDispatchesImmediately(t *testing.T) {
+	m := testModel(t)
+	m, _ = update(t, m, keyMsg("p"))
+	defer reapRunner(m)
+	if m.mode != modeActing {
+		t.Fatalf("mode = %v, want modeActing (p should dispatch without a confirm)", m.mode)
+	}
+	if m.actionName != "preflight" {
+		t.Errorf("actionName = %q, want preflight", m.actionName)
+	}
+}
+
+// TestDemoPickerDispatchesWithoutConfirm: the picker IS the consent, so a
+// dataset selection dispatches the demo-data action directly — no second
+// confirm dialog (spec consent model).
+func TestDemoPickerDispatchesWithoutConfirm(t *testing.T) {
+	m := testModel(t)
+	m, _ = update(t, m, keyMsg("e"))
+	if m.mode != modePick {
+		t.Fatalf("e did not open the picker: mode=%v", m.mode)
+	}
+	m.pickedDataset = "synthea"
+	m.form.State = huh.StateCompleted
+
+	m, _ = update(t, m, struct{}{}) // any msg drives the completed form
+	defer reapRunner(m)
+	if m.mode != modeActing {
+		t.Fatalf("mode = %v, want modeActing (picker should dispatch, not confirm)", m.mode)
+	}
+	if m.actionName != "demo-data synthea" {
+		t.Errorf("actionName = %q, want demo-data synthea", m.actionName)
+	}
+
+	// Cancel (empty selection) must NOT dispatch.
+	m = testModel(t)
+	m, _ = update(t, m, keyMsg("e"))
+	m.pickedDataset = ""
+	m.form.State = huh.StateCompleted
+	m, _ = update(t, m, struct{}{})
+	if m.mode != modeNormal || m.runner != nil {
+		t.Errorf("Cancel selection dispatched: mode=%v runner=%v", m.mode, m.runner)
+	}
+}
+
+// TestDashboardResetCombinedDialog mirrors TestLandingResetCombinedScreen: R
+// opens ONE dialog (scope keep/all + repos toggle + typed word); each toggle
+// combo dispatches reset.sh with the right variant, and a wrong word never
+// dispatches. ResetWith's exact args are pinned in actions_test.go; here the
+// actionName uniquely identifies the dispatched variant.
+func TestDashboardResetCombinedDialog(t *testing.T) {
+	openReset := func(t *testing.T) *model {
+		t.Helper()
+		m := testModel(t)
+		m, _ = update(t, m, keyMsg("R"))
+		if m.mode != modeReset || m.form == nil {
+			t.Fatal("R did not open the combined reset dialog")
+		}
+		if m.resetScope != "keep" || m.resetRepos {
+			t.Fatalf("defaults = scope %q repos %v, want keep/false", m.resetScope, m.resetRepos)
+		}
+		return m
+	}
+
+	cases := []struct {
+		name           string
+		scope          string
+		repos          bool
+		wantActionName string
+	}{
+		{"keep", "keep", false, "reset"},
+		{"full wipe", "all", false, "reset --all"},
+		{"keep+repos", "keep", true, "reset --repos"},
+		{"all+repos", "all", true, "reset --all --repos"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			m := openReset(t)
+			m.resetScope, m.resetRepos, m.confirmText = c.scope, c.repos, "reset"
+			m.form.State = huh.StateCompleted
+
+			m, _ = update(t, m, struct{}{})
+			defer reapRunner(m)
+			if m.mode != modeActing {
+				t.Fatalf("mode = %v, want modeActing (reset should dispatch)", m.mode)
+			}
+			if m.actionName != c.wantActionName {
+				t.Errorf("actionName = %q, want %q", m.actionName, c.wantActionName)
+			}
+		})
+	}
+
+	// Wrong word must not dispatch even if the form is forced complete.
+	t.Run("wrong word", func(t *testing.T) {
+		m := openReset(t)
+		m.resetScope, m.resetRepos, m.confirmText = "all", true, "nope"
+		m.form.State = huh.StateCompleted
+		m, _ = update(t, m, struct{}{})
+		defer reapRunner(m)
+		if m.mode != modeNormal || m.runner != nil {
+			t.Errorf("wrong word dispatched: mode=%v runner=%v", m.mode, m.runner)
+		}
+	})
+}
+
+// TestDashboardResetDialogRendersAllParts: the scope select, repo toggle, and
+// typed-word confirm all render on the one reset screen (matching the landing).
+func TestDashboardResetDialogRendersAllParts(t *testing.T) {
+	m := testModel(t)
+	m, _ = update(t, m, keyMsg("R"))
+	if m.form == nil || m.mode != modeReset {
+		t.Fatal("R did not open the combined reset dialog")
+	}
+	view := ansi.Strip(m.View())
+	for _, want := range []string{"Keep the database", "Full wipe", "reset sibling repos to release refs", `Type "reset"`} {
+		if !strings.Contains(view, want) {
+			t.Errorf("reset dialog missing %q", want)
+		}
 	}
 }
 
@@ -459,12 +592,12 @@ func TestServicesPaneRowsNoWrap(t *testing.T) {
 }
 
 // Same huh root cause as the landing/wizard: esc must cancel the dashboard's
-// confirm and picker dialogs (the help line advertises "esc cancel").
+// confirm, picker, and reset dialogs (the help line advertises "esc cancel").
 func TestDashboardEscCancelsConfirmAndPicker(t *testing.T) {
 	m := testModel(t)
-	m, _ = update(t, m, keyMsg("R")) // reset → typed-word confirm
+	m, _ = update(t, m, keyMsg("X")) // uninstall → typed-word confirm
 	if m.mode != modeConfirm {
-		t.Fatal("R did not open the confirm")
+		t.Fatal("X did not open the confirm")
 	}
 	m, _ = update(t, m, keyMsg("esc"))
 	if m.mode != modeNormal || m.form != nil {
@@ -479,6 +612,15 @@ func TestDashboardEscCancelsConfirmAndPicker(t *testing.T) {
 	if m.mode != modeNormal || m.form != nil {
 		t.Errorf("esc did not cancel the picker: mode=%v", m.mode)
 	}
+
+	m, _ = update(t, m, keyMsg("R")) // combined reset dialog
+	if m.mode != modeReset {
+		t.Fatal("R did not open the reset dialog")
+	}
+	m, _ = update(t, m, keyMsg("esc"))
+	if m.mode != modeNormal || m.form != nil {
+		t.Errorf("esc did not cancel the reset dialog: mode=%v", m.mode)
+	}
 }
 
 // TestDialogFitsNarrowPane guards against forms laid out wider than the form
@@ -492,9 +634,10 @@ func TestDialogFitsNarrowPane(t *testing.T) {
 		name string
 		open func(*model) (tea.Model, tea.Cmd)
 	}{
-		{"destructive confirm", func(m *model) (tea.Model, tea.Cmd) { return m.startConfirm(actions.Reset()) }},
+		{"destructive confirm", func(m *model) (tea.Model, tea.Cmd) { return m.startConfirm(actions.Uninstall()) }},
 		{"yes/no confirm", func(m *model) (tea.Model, tea.Cmd) { return m.startConfirm(actions.Update()) }},
-		{"etl picker", func(m *model) (tea.Model, tea.Cmd) { return m.startPicker() }},
+		{"demo picker", func(m *model) (tea.Model, tea.Cmd) { return m.startPicker() }},
+		{"combined reset", func(m *model) (tea.Model, tea.Cmd) { return m.startReset() }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

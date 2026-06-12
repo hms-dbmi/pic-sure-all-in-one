@@ -277,6 +277,10 @@ func TestDetectPhase(t *testing.T) {
 		{"init migrate", g + "[init]" + nc + " Running database migrations...", "running database migrations..."},
 		{"init seed", g + "[init]" + nc + " Seeding database...", "seeding database..."},
 		{"init services", g + "[init]" + nc + " Starting services...", "starting services..."},
+		// etl.sh load orchestrators (real strings: etl.sh load_phenotype/load_genomic).
+		{"load-phenotype step1", g + "[load-phenotype]" + nc + " Step 1/3: Loading phenotype CSV into HPDS…", "step 1/3: loading phenotype csv into hpds…"},
+		{"load-phenotype step3", g + "[load-phenotype]" + nc + " Step 3/3: Running dictionary weights…", "step 3/3: running dictionary weights…"},
+		{"load-genomic step1", g + "[load-genomic]" + nc + " Step 1: Loading VCF into the genomic staging area…", "step 1: loading vcf into the genomic staging area…"},
 		// Sub-script prefixes (build-images.sh / seed-db.sh / run-migrations.sh).
 		{"build image", g + "[build]" + nc + " Building pic-sure-hpds (Maven + Docker)...", "building pic-sure-hpds (maven + docker)..."},
 		{"seed admin", g + "[seed]" + nc + " Creating admin user: a@b.org", "creating admin user: a@b.org"},
@@ -352,6 +356,26 @@ func TestActivityPhaseAcrossChunks(t *testing.T) {
 	_, _ = a.update(actions.OutputMsg{Data: []byte("vices...\r\n")})
 	if !strings.Contains(a.headerLine(), "starting services") {
 		t.Errorf("split marker not matched after completion: %q", a.headerLine())
+	}
+}
+
+// TestActivityLoadOrchestratorTracksPhase: a load-phenotype run surfaces the
+// orchestrator's "[load-phenotype] Step …" marker in the running header, but —
+// unlike init — does not carry the 20–30 minute first-run footer note.
+func TestActivityLoadOrchestratorTracksPhase(t *testing.T) {
+	a := newActivity(t.TempDir(), actions.LoadPhenotype(actions.PhenotypeOpts{File: "pheno.csv"}))
+	a.setSize(80, 24)
+	a.runner = &fakeRunner{}
+
+	if !a.tracksPhases() {
+		t.Fatal("load-phenotype activity should track phases")
+	}
+	_, _ = a.update(actions.OutputMsg{Data: []byte("\x1b[0;32m[load-phenotype]\x1b[0m Step 1/3: Loading phenotype CSV into HPDS…\r\n")})
+	if !strings.Contains(a.headerLine(), "step 1/3") {
+		t.Errorf("header did not surface the load phase: %q", a.headerLine())
+	}
+	if strings.Contains(a.footerLine(), initFooterNote) {
+		t.Errorf("load footer carries the init long-run note: %q", a.footerLine())
 	}
 }
 

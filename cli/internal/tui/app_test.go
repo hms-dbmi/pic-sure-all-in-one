@@ -104,6 +104,51 @@ func TestWizardFlowResultMessages(t *testing.T) {
 	})
 }
 
+func TestAppLoadDataNavigation(t *testing.T) {
+	a := testApp(ScreenLanding)
+
+	// openLoadDataMsg constructs and routes to the guided load screen.
+	a.Update(openLoadDataMsg{})
+	if a.screen != ScreenLoadData || a.load == nil {
+		t.Fatalf("openLoadDataMsg did not open the load screen (screen=%v load=%v)", a.screen, a.load != nil)
+	}
+
+	// A cancel closes back to the landing with the neutral result message.
+	a.Update(loadDataClosedMsg{aborted: true})
+	if a.screen != ScreenLanding || a.load != nil {
+		t.Fatal("loadDataClosedMsg did not return to the landing / drop the load screen")
+	}
+	if !strings.Contains(a.landing.result, "cancelled") {
+		t.Errorf("cancel result = %q, want a cancelled message", a.landing.result)
+	}
+}
+
+func TestAppLoadDataDispatchOpensActivity(t *testing.T) {
+	orig := startRunner
+	startRunner = func(string, actions.Action, int, int) (runnerHandle, error) {
+		return &fakeRunner{}, nil
+	}
+	t.Cleanup(func() { startRunner = orig })
+
+	a := testApp(ScreenLanding)
+	a.Update(openLoadDataMsg{})
+	if a.load == nil {
+		t.Fatal("load screen not open")
+	}
+	// The load screen emits a runActionMsg to launch the load; the app routes it
+	// to the activity screen and drops the (now-closed) load screen.
+	a.Update(runActionMsg{act: actions.LoadPhenotype(actions.PhenotypeOpts{File: "pheno.csv"})})
+	if a.screen != ScreenActivity || a.activity == nil {
+		t.Fatal("runActionMsg from the load screen did not open the activity screen")
+	}
+	if a.load != nil {
+		t.Error("load screen not dropped after dispatch")
+	}
+	if a.activity.act.Script != "etl.sh" {
+		t.Errorf("activity script = %q, want etl.sh", a.activity.act.Script)
+	}
+}
+
 func TestOpenWizardNavigatesOrReportsError(t *testing.T) {
 	// testApp's root (/tmp/x) has no .env.example → constructor error path.
 	a := testApp(ScreenLanding)

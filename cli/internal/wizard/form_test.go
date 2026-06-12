@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/x/ansi"
 )
 
@@ -111,8 +112,9 @@ func TestSummaryAlignment(t *testing.T) {
 	out := ansi.Strip(summaryFor(desired, map[string]string{}, true))
 
 	// Each rendered line is "Title<pad>  value[ (default)]". The value column
-	// must be identical across lines: find the index where the two-space gap
-	// after the longest title ends.
+	// must be identical across lines, measured in DISPLAY CELLS (lipgloss.Width)
+	// — the padding is computed cell-wise, so a multi-byte rune in a title (em
+	// dash, accent) must not skew the alignment.
 	lines := strings.Split(out, "\n")
 	valueCol := -1
 	for _, line := range lines {
@@ -125,11 +127,12 @@ func TestSummaryAlignment(t *testing.T) {
 		if idx < 0 {
 			t.Fatalf("no aligned gap in line %q", line)
 		}
-		// Skip past all spaces to the value's first non-space char.
-		col := idx
-		for col < len(line) && line[col] == ' ' {
-			col++
+		// Skip past all spaces, then measure the prefix width in cells.
+		end := idx
+		for end < len(line) && line[end] == ' ' {
+			end++
 		}
+		col := lipgloss.Width(line[:end])
 		if valueCol == -1 {
 			valueCol = col
 		} else if col != valueCol {
@@ -159,6 +162,11 @@ func TestSummaryOmitsEmptyOptional(t *testing.T) {
 	}
 	if !strings.Contains(out, "Admin email") || !strings.Contains(out, "(empty)") {
 		t.Errorf("empty required Admin email should be surfaced as (empty):\n%s", out)
+	}
+	// The seed here is also empty, but an empty value must never carry the
+	// "(default)" marker — "(empty) (default)" reads as contradictory noise.
+	if strings.Contains(out, "(empty) (default)") {
+		t.Errorf("empty required field must show (empty) alone, not (empty) (default):\n%s", out)
 	}
 }
 

@@ -300,7 +300,10 @@ func summary(vals map[string]*string, seed map[string]string, skip bool) string 
 			continue
 		}
 
-		isDefault := v == seed[f.Key]
+		// No "(default)" on an empty value: a required field left empty renders
+		// "(empty)" alone — "(empty) (default)" would read as contradictory noise
+		// even when the seed happened to be empty too.
+		isDefault := v != "" && v == seed[f.Key]
 		if f.Secret && v != "" {
 			v = "********"
 		}
@@ -310,11 +313,13 @@ func summary(vals map[string]*string, seed map[string]string, skip bool) string 
 		rows = append(rows, summaryRow{title: f.Title, value: v, deflt: isDefault})
 	}
 
-	// Widest title sets the column the values align to.
+	// Widest title sets the column the values align to. Measured in display
+	// cells (lipgloss.Width), not bytes — a title containing a multi-byte rune
+	// (em dash, accented char) would otherwise skew every other row's padding.
 	titleWidth := 0
 	for _, r := range rows {
-		if len(r.title) > titleWidth {
-			titleWidth = len(r.title)
+		if w := lipgloss.Width(r.title); w > titleWidth {
+			titleWidth = w
 		}
 	}
 
@@ -323,7 +328,7 @@ func summary(vals map[string]*string, seed map[string]string, skip bool) string 
 		b.WriteString("Identity provider: configured manually (Auth0 skipped)\n")
 	}
 	for _, r := range rows {
-		pad := strings.Repeat(" ", titleWidth-len(r.title))
+		pad := strings.Repeat(" ", titleWidth-lipgloss.Width(r.title))
 		fmt.Fprintf(&b, "%s%s  %s", r.title, pad, r.value)
 		if r.deflt {
 			b.WriteString(" " + summaryDimStyle.Render("(default)"))

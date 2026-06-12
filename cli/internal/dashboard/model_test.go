@@ -342,13 +342,15 @@ func TestLogPaneFloodKeepsFrameInBox(t *testing.T) {
 
 // TestServicesPaneRowsNoWrap verifies that every service row in the services
 // pane occupies exactly one visual line, even with the widest health values.
-// The pane is rendered at leftWidth=36 with border(2)+padding(2)=4 overhead,
-// giving a content wrap width of 34. Each row is 1 cursor col + formatted
-// fields; if the formatted content exceeds 33 visible cols lipgloss wraps and
-// the cursor ends up on a different visual line than the service name.
+// lipgloss .Width() excludes the border (drawn outside it), so the content
+// wrap width is leftWidth(36) − padding(1+1) = 34. Each row is 1 cursor col +
+// formatted fields; if the formatted content exceeds 33 visible cols lipgloss
+// wraps and the cursor ends up on a different visual line than the service.
 func TestServicesPaneRowsNoWrap(t *testing.T) {
 	services := []contract.ComposeService{
 		{Service: "very-long-service-name", State: "running", Health: "unhealthy"},
+		// Real service (docker-compose.yml) at 16 chars: one past svcCol=15.
+		{Service: "pic-sure-logging", State: "running", Health: "healthy"},
 		{Service: "wildfly", State: "running", Health: "healthy"},
 		{Service: "hpds", State: "running", Health: "starting"},
 		{Service: "short", State: "exited", Health: ""},
@@ -357,7 +359,7 @@ func TestServicesPaneRowsNoWrap(t *testing.T) {
 	m := testModel(t)
 	// Use a small height so Height(max(h-5,8))=8; border+content rows then
 	// show wrapping clearly without height-padding masking the problem.
-	m.height = 13 // max(13-5, 8) = 8 inner rows = title + 4 services + 3 empty
+	m.height = 13 // max(13-5, 8) = 8 inner rows = title + 5 services + 2 empty
 	m.layout()
 	m.services = services
 	m.selected = 0
@@ -394,6 +396,17 @@ func TestServicesPaneRowsNoWrap(t *testing.T) {
 				}
 			}
 		}
+	}
+
+	// Pin the accepted svcCol=15 tradeoff: "pic-sure-logging" (16 chars)
+	// clips by one char to "pic-sure-loggin" rather than wrapping — the
+	// 34-col budget cannot fit 16 + full state(8) + full health(9).
+	plainPane := ansi.Strip(pane)
+	if !strings.Contains(plainPane, "pic-sure-loggin ") {
+		t.Error(`clipped "pic-sure-loggin" row not found in services pane`)
+	}
+	if strings.Contains(plainPane, "pic-sure-logging") {
+		t.Error(`full "pic-sure-logging" found — expected it clipped to 15 chars`)
 	}
 }
 

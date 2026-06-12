@@ -124,9 +124,13 @@ func (m *model) servicesPane() string {
 	}
 
 	// Row layout: cursor(1) + service(15) + space(1) + state(7) + space(1) + health(9) = 34
-	// = content wrap width (leftWidth 36 − border 2 − padding 2).
+	// = content wrap width. lipgloss .Width() excludes the border (drawn
+	// outside it), so wrap width = leftWidth(36) − padding(1+1) = 34.
 	// To adjust when leftWidth changes: keep cursor=1, rebalance the three
-	// column widths so they sum to (leftWidth − 4 − 1) = contentWidth − 1.
+	// column widths so they (plus 2 separator spaces) sum to leftWidth − 2 − 1.
+	// Tradeoff: svcCol=15 clips the real service "pic-sure-logging" (16 chars)
+	// to "pic-sure-loggin" — accepted, since 16 + full state(8) + full
+	// health(9) + separators cannot fit the 34-col budget.
 	const (
 		svcCol    = 15
 		stateCol  = 7

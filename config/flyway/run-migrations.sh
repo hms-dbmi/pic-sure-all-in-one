@@ -15,7 +15,7 @@ set -euo pipefail
 
 FLYWAY="/flyway/flyway"
 DB_URL_BASE="jdbc:mysql://${DB_HOST:-picsure-db}:${DB_PORT:-3306}"
-DB_USER="root"
+DB_USER="${DB_ROOT_USER:-root}"
 DB_PASS="${DB_ROOT_PASSWORD:-}"
 ACTION="${FLYWAY_ACTION:-migrate}"
 APP_UUID="${PICSURE_APPLICATION_ID:-}"

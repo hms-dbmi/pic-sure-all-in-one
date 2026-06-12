@@ -350,6 +350,7 @@ services:
     environment:
       DB_HOST: ${DB_HOST:-picsure-db}
       DB_PORT: ${DB_PORT:-3306}
+      DB_ROOT_USER: ${DB_ROOT_USER:-root}
       DB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
       FLYWAY_ACTION: ${FLYWAY_ACTION:-migrate}
       PICSURE_APPLICATION_ID: ${PICSURE_APPLICATION_ID}

@@ -15,11 +15,12 @@ import (
 // IdP selector can later be added by introducing a new group without
 // restructuring (fields stay data-driven).
 const (
-	GroupAuth0 = "auth0"
-	GroupAdmin = "admin"
-	GroupPorts = "ports"
-	GroupAuth  = "authmode"
-	GroupDB    = "db"
+	GroupAuth0          = "auth0"
+	GroupAdmin          = "admin"
+	GroupPorts          = "ports"
+	GroupAuth           = "authmode"
+	GroupDB             = "db"
+	GroupReleaseControl = "releasecontrol"
 )
 
 // Field is one wizard entry mapping a .env key to a CLI flag.
@@ -155,6 +156,22 @@ var Fields = []Field{
 		RemoteOnly:         true,
 		RequiredWhenRemote: true,
 		Validate:           nonEmpty("DB admin password"),
+	},
+	{
+		Key:      "RELEASE_CONTROL_REPO",
+		Flag:     "--release-control-repo",
+		Group:    GroupReleaseControl,
+		Title:    "Release-control repository",
+		Help:     "Repo holding build-spec.json — change only if you fork the release control",
+		Validate: nonEmpty("release-control repository"),
+	},
+	{
+		Key:      "RELEASE_CONTROL_BRANCH",
+		Flag:     "--release-control-branch",
+		Group:    GroupReleaseControl,
+		Title:    "Release-control branch or tag",
+		Help:     "Pins component versions; a tag gives a fixed release, a branch tracks it (default: main)",
+		Validate: nonEmpty("release-control branch or tag"),
 	},
 }
 

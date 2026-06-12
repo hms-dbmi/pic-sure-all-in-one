@@ -105,13 +105,15 @@ func TestMissingRequired(t *testing.T) {
 
 func TestValidateAll(t *testing.T) {
 	base := map[string]string{
-		"AUTH0_CLIENT_ID":     "cid",
-		"AUTH0_CLIENT_SECRET": "sec",
-		"ADMIN_EMAIL":         "admin@example.com",
-		"HTTP_PORT":           "80",
-		"HTTPS_PORT":          "443",
-		"AUTH_MODE":           "required",
-		"DB_MODE":             "local",
+		"AUTH0_CLIENT_ID":        "cid",
+		"AUTH0_CLIENT_SECRET":    "sec",
+		"ADMIN_EMAIL":            "admin@example.com",
+		"HTTP_PORT":              "80",
+		"HTTPS_PORT":             "443",
+		"AUTH_MODE":              "required",
+		"DB_MODE":                "local",
+		"RELEASE_CONTROL_REPO":   "https://github.com/hms-dbmi/pic-sure-baseline-release-control",
+		"RELEASE_CONTROL_BRANCH": "main",
 	}
 	if err := ValidateAll(base, false); err != nil {
 		t.Errorf("valid set rejected: %v", err)
@@ -133,6 +135,30 @@ func TestValidateAll(t *testing.T) {
 	clash["HTTPS_PORT"] = "80"
 	if err := ValidateAll(clash, false); err == nil {
 		t.Error("identical HTTP/HTTPS ports accepted")
+	}
+}
+
+// The release-control fields are non-Required (defaults always present) but
+// still reject an empty value if the user clears them — a blank repo or branch
+// would break release-control resolution.
+func TestReleaseControlFieldsRejectEmpty(t *testing.T) {
+	for _, flag := range []string{"--release-control-repo", "--release-control-branch"} {
+		f, ok := FieldByFlag(flag)
+		if !ok {
+			t.Fatalf("field for %s not found", flag)
+		}
+		if f.Required || f.Auth0Required || f.RequiredWhenRemote || f.RemoteOnly {
+			t.Errorf("%s should be a plain non-required field, got %+v", flag, f)
+		}
+		if f.Validate == nil {
+			t.Fatalf("%s must have a validator", flag)
+		}
+		if err := f.Validate("  ", nil); err == nil {
+			t.Errorf("%s accepted a blank value", flag)
+		}
+		if err := f.Validate("main", nil); err != nil {
+			t.Errorf("%s rejected a valid value: %v", flag, err)
+		}
 	}
 }
 

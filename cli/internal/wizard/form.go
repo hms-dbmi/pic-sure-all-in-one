@@ -74,6 +74,8 @@ func NewForm(initial map[string]string, skipAuth bool) *Form {
 		// Remote connection details only when DB_MODE=remote.
 		huh.NewGroup(inputsFor(GroupDB, true, f.ptrs)...).
 			WithHideFunc(func() bool { return *f.ptrs["DB_MODE"] != "remote" }),
+		// Release-control repo/branch is orthogonal to DB mode — always shown.
+		huh.NewGroup(inputsFor(GroupReleaseControl, false, f.ptrs)...),
 	}
 	f.Main = huh.NewForm(groups...)
 	// Capture the baseline AFTER construction: huh normalises select values

@@ -1,6 +1,9 @@
 package wizard
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // Amendment 1 (spec): exactly one form definition serves both hosts. This
 // extends the .env.example drift-guard: NewForm must bind every key in the
@@ -37,6 +40,43 @@ func TestNewFormSkipAuthSeedAndConfirm(t *testing.T) {
 	}
 	if c := wf.BuildConfirm(); c == nil || wf.Confirm == nil {
 		t.Fatal("BuildConfirm did not build the confirm form")
+	}
+}
+
+// Release-control repo/branch are ordinary non-Required fields: they seed from
+// the supplied defaults (in practice .env.example), round-trip through the
+// form, and appear in the confirm summary (which auto-includes every applicable
+// field). This is the wizard-side guarantee that init now asks for them.
+func TestReleaseControlFieldsSeedAndSummarize(t *testing.T) {
+	initial := map[string]string{
+		"DB_MODE":                "local",
+		"RELEASE_CONTROL_REPO":   "https://github.com/hms-dbmi/pic-sure-baseline-release-control",
+		"RELEASE_CONTROL_BRANCH": "main",
+	}
+	wf := NewForm(initial, true) // skipAuth: keep the summary focused on shown fields
+
+	desired := wf.Desired()
+	if got := desired["RELEASE_CONTROL_REPO"]; got != initial["RELEASE_CONTROL_REPO"] {
+		t.Errorf("RELEASE_CONTROL_REPO = %q, want seeded default", got)
+	}
+	if got := desired["RELEASE_CONTROL_BRANCH"]; got != "main" {
+		t.Errorf("RELEASE_CONTROL_BRANCH = %q, want seeded default main", got)
+	}
+
+	// The confirm summary auto-includes both (non-secret, non-RemoteOnly).
+	snap := make(map[string]*string, len(desired))
+	for k := range desired {
+		v := desired[k]
+		snap[k] = &v
+	}
+	s := summary(snap, true)
+	for _, want := range []string{
+		"Release-control repository: https://github.com/hms-dbmi/pic-sure-baseline-release-control",
+		"Release-control branch or tag: main",
+	} {
+		if !strings.Contains(s, want) {
+			t.Errorf("summary missing %q\n--- summary ---\n%s", want, s)
+		}
 	}
 }
 

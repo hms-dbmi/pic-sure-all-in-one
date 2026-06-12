@@ -140,6 +140,7 @@ func (l *landing) rebuildMenu() {
 		)
 	case l.dev:
 		l.menu = newMenu(
+			menuItem{ID: "preflight", Label: "Preflight check"},
 			menuItem{ID: "migrate", Label: "Run migrations"},
 			menuItem{ID: "seed", Label: "Seed database"},
 			menuItem{ID: "demo", Label: "Load demo data…"},
@@ -155,7 +156,6 @@ func (l *landing) rebuildMenu() {
 			menuItem{ID: "dashboard", Label: "Dashboard"},
 			menuItem{ID: "update", Label: "Update"},
 			menuItem{ID: "etl", Label: "Load your data…"},
-			menuItem{ID: "preflight", Label: "Preflight check"},
 			menuItem{ID: "reconfigure", Label: "Reconfigure"},
 			menuItem{ID: "devmenu", Label: "Developer options…"},
 			menuItem{ID: "quit", Label: "Quit"},

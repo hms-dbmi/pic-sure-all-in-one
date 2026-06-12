@@ -57,18 +57,21 @@ func eq(a, b []string) bool {
 }
 
 func TestLandingMenuIsContextAware(t *testing.T) {
+	// Fresh checkout: Preflight stays on the main menu — it matters most
+	// before/during the first install.
 	fresh := newLanding("/tmp/x", false, false)
 	want := []string{"setup", "preflight", "quit"}
 	if got := menuIDs(fresh.menu); !eq(got, want) {
 		t.Errorf("fresh menu = %v, want %v", got, want)
 	}
+	// Configured: Preflight has moved to Developer options; the main menu
+	// carries "Load your data…" (the promoted ETL picker) instead of
+	// "Load demo data".
 	configured := newLanding("/tmp/x", true, false)
-	want = []string{"dashboard", "update", "etl", "preflight", "reconfigure", "devmenu", "quit"}
+	want = []string{"dashboard", "update", "etl", "reconfigure", "devmenu", "quit"}
 	if got := menuIDs(configured.menu); !eq(got, want) {
 		t.Errorf("configured menu = %v, want %v", got, want)
 	}
-	// The configured main menu now carries "Load your data…" (the ETL picker,
-	// promoted from Developer options) and no longer "Load demo data".
 	labels := menuLabels(configured.menu)
 	if !contains(labels, "Load your data…") {
 		t.Errorf("configured menu labels = %v, want one to be %q", labels, "Load your data…")
@@ -76,19 +79,26 @@ func TestLandingMenuIsContextAware(t *testing.T) {
 	if contains(labels, "Load demo data") {
 		t.Errorf("configured menu still offers %q; it moved to Developer options", "Load demo data")
 	}
+	if contains(labels, "Preflight check") {
+		t.Errorf("configured menu still offers %q; it moved to Developer options", "Preflight check")
+	}
 }
 
 func TestLandingDevSubmenu(t *testing.T) {
 	l := newLanding("/tmp/x", true, false)
-	keyDownN(l, 5) // select devmenu
+	keyDownN(l, 4) // select devmenu
 	l.update(keyEnter())
-	want := []string{"migrate", "seed", "demo", "devoverlay", "devrevert", "relctl", "reset", "uninstall", "back"}
+	want := []string{"preflight", "migrate", "seed", "demo", "devoverlay", "devrevert", "relctl", "reset", "uninstall", "back"}
 	if got := menuIDs(l.menu); !eq(got, want) {
 		t.Fatalf("dev submenu = %v, want %v", got, want)
 	}
-	// "Load demo data…" lives here now; "ETL operations…" was promoted to the
-	// main menu as "Load your data…".
+	// "Preflight check" (demoted from the main menu) and "Load demo data…"
+	// live here now; "ETL operations…" was promoted to the main menu as
+	// "Load your data…".
 	labels := menuLabels(l.menu)
+	if !contains(labels, "Preflight check") {
+		t.Errorf("dev submenu labels = %v, want one to be %q", labels, "Preflight check")
+	}
 	if !contains(labels, "Load demo data…") {
 		t.Errorf("dev submenu labels = %v, want one to be %q", labels, "Load demo data…")
 	}
@@ -97,7 +107,7 @@ func TestLandingDevSubmenu(t *testing.T) {
 	}
 	// esc returns to the main menu
 	l.update(tea.KeyMsg{Type: tea.KeyEsc})
-	if got := menuIDs(l.menu); len(got) != 7 {
+	if got := menuIDs(l.menu); len(got) != 6 {
 		t.Fatalf("esc did not return to main menu: %v", got)
 	}
 }
@@ -110,7 +120,7 @@ func TestLandingDevSubmenu(t *testing.T) {
 func TestLandingDevMenuNoWrapAt80(t *testing.T) {
 	l := newLanding("/tmp/x", true, false)
 	l.setSize(80, 40)
-	keyDownN(l, 5) // open the dev submenu
+	keyDownN(l, 4) // open the dev submenu
 	l.update(keyEnter())
 
 	// Same menuWidth formula as contentLines at width 80.
@@ -141,10 +151,10 @@ func TestLandingDevMenuNoWrapAt80(t *testing.T) {
 func TestLandingResizeReflowsOpenDialog(t *testing.T) {
 	l := newLanding("/tmp/x", true, false)
 	l.setSize(120, 40)
-	keyDownN(l, 5) // dev submenu
+	keyDownN(l, 4) // dev submenu
 	l.update(keyEnter())
 	// Open the reset dialog (a tall select+input group).
-	keyDownN(l, 6) // migrate, seed, etl, devoverlay, devrevert, relctl, reset
+	keyDownN(l, 7) // preflight, migrate, seed, demo, devoverlay, devrevert, relctl, reset
 	l.update(keyEnter())
 	if l.form == nil || !l.resetting {
 		t.Fatalf("reset dialog did not open (form=%v resetting=%v)", l.form != nil, l.resetting)
@@ -178,13 +188,24 @@ func TestLandingSelectionsEmitRequests(t *testing.T) {
 	if _, ok := cmd().(openDashboardMsg); !ok {
 		t.Fatalf("dashboard selection = %T, want openDashboardMsg", cmd())
 	}
-	// Preflight runs immediately (read-only, no confirm)
+	// Preflight runs immediately (read-only, no confirm). On a configured
+	// checkout it lives in the Developer options submenu now.
 	l = newLanding("/tmp/x", true, false)
-	keyDownN(l, 3)
-	_, cmd = l.update(keyEnter())
+	keyDownN(l, 4) // devmenu
+	l.update(keyEnter())
+	_, cmd = l.update(keyEnter()) // preflight is the first dev-submenu item
 	run, ok := cmd().(runActionMsg)
 	if !ok || run.act.Name != "preflight" {
 		t.Fatalf("preflight selection = %#v, want runActionMsg{preflight}", cmd())
+	}
+	// On a fresh checkout Preflight stays on the main menu and still runs
+	// immediately.
+	l = newLanding("/tmp/x", false, false)
+	keyDownN(l, 1) // setup, preflight
+	_, cmd = l.update(keyEnter())
+	run, ok = cmd().(runActionMsg)
+	if !ok || run.act.Name != "preflight" {
+		t.Fatalf("fresh preflight selection = %#v, want runActionMsg{preflight}", cmd())
 	}
 	// Update opens a light confirm, not an immediate run
 	l = newLanding("/tmp/x", true, false)
@@ -251,9 +272,9 @@ func devRoot(t *testing.T) string {
 
 func TestLandingDevSubmenuHasOverlayEntries(t *testing.T) {
 	l := newLanding("/tmp/x", true, false)
-	keyDownN(l, 5)
+	keyDownN(l, 4)
 	l.update(keyEnter()) // enter developer options
-	want := []string{"migrate", "seed", "demo", "devoverlay", "devrevert", "relctl", "reset", "uninstall", "back"}
+	want := []string{"preflight", "migrate", "seed", "demo", "devoverlay", "devrevert", "relctl", "reset", "uninstall", "back"}
 	if got := menuIDs(l.menu); !eq(got, want) {
 		t.Fatalf("dev submenu = %v, want %v", got, want)
 	}

@@ -56,8 +56,9 @@ shows a confirm summary, writes only the changed keys via
 in the activity screen. On success, press enter to land in the dashboard.
 
 On a configured checkout the menu offers the day-2 operations instead:
-Dashboard, Update, Load your data…, Preflight check, Reconfigure, and a
-Developer options submenu.
+Dashboard, Update, Load your data…, Reconfigure, and a Developer options
+submenu (Preflight check moves there once the stack is configured — it
+matters most before and during the first install).
 
 Everything in the TUI is also a plain CLI command (see
 [CLI reference](#cli-reference)); the TUI is presentation, not capability.
@@ -79,7 +80,7 @@ centered menu.
 | Context | Menu |
 |---|---|
 | No `.env` (fresh) | Set up PIC-SURE · Preflight check · Quit |
-| Configured | Dashboard · Update · Load your data… · Preflight check · Reconfigure · Developer options… · Quit |
+| Configured | Dashboard · Update · Load your data… · Reconfigure · Developer options… · Quit |
 
 Keys: `↑/↓` or `k/j` select · `enter` choose · `esc` back (in submenus) ·
 `q`/`ctrl+c` quit.
@@ -106,6 +107,7 @@ menu):
 
 | Entry | Runs |
 |---|---|
+| Preflight check | `preflight.sh` — read-only host/config validation; runs immediately (also on the fresh main menu, where it matters most) |
 | Run migrations | `run-migrations.sh` |
 | Seed database | `seed-db.sh` |
 | Load demo data… | picker over the demo datasets (NHANES, Synthea 10k, 1000 Genomes, or all three); runs `load-demo-data.sh`, **replacing** the phenotype data in the hpds-data volume, then re-hydrates the dictionary |

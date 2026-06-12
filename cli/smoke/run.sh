@@ -21,9 +21,11 @@ fail() { echo "[smoke] FAIL: $*" >&2; exit 1; }
 # Leave no side effects behind even when a step fails mid-run: the stub root
 # and any .env this harness created are removed on every exit path.
 STUB=""
+ASSET_WORK=""
 CREATED_ENV=false
 cleanup() {
   if [ -n "$STUB" ]; then rm -rf "$STUB"; fi
+  if [ -n "$ASSET_WORK" ]; then rm -rf "$ASSET_WORK"; fi
   if [ "$CREATED_ENV" = "true" ]; then rm -f "$ROOT/.env"; fi
 }
 trap cleanup EXIT
@@ -33,8 +35,19 @@ trap cleanup EXIT
 note "--version prints build info"
 "$BIN" --version | grep -q . || fail "--version produced no output"
 
-note "--help for every subcommand"
-for cmd in init update status preflight etl reset uninstall release-control seed-db migrate demo-data up down restart; do
+note "--help for every subcommand (list derived from the binary, so it can't drift)"
+# Parse the "Available Commands:" block of the root --help: the first token of
+# each indented line, up to the first blank line. Plain POSIX awk — no GNU
+# extensions — so it runs the same on the macOS and Linux smoke legs. Deriving
+# the list means a newly added subcommand is covered automatically and a
+# renamed one can't be silently skipped.
+cmds="$("$BIN" --help 2>&1 | awk '
+  /^Available Commands:/ { in_block = 1; next }
+  in_block && /^[[:space:]]*$/ { in_block = 0 }
+  in_block && /^[[:space:]]+[a-z]/ { print $1 }
+')"
+[ -n "$cmds" ] || fail "could not derive the subcommand list from --help"
+for cmd in $cmds; do
   "$BIN" --root "$ROOT" "$cmd" --help >/dev/null || fail "$cmd --help exited non-zero"
 done
 
@@ -103,12 +116,25 @@ if [ "$CREATED_ENV" = "true" ]; then
   CREATED_ENV=false
 fi
 
-note "script exit codes propagate"
+note "script exit codes propagate verbatim (deterministic stub root)"
+# Assert a code the binary never produces on its own: usage/cobra errors exit 2
+# and generic Go failures exit 1, so 7 can only come from the script itself.
+# This distinguishes "the script's exit code propagated" from "the binary
+# failed before ever running the script".
+STUB="$(mktemp -d "${TMPDIR:-/tmp}/pic-sure-smoke-exit.XXXXXX")"
+touch "$STUB/.env.example"
+printf 'services: {}\n' > "$STUB/docker-compose.yml"
+mkdir -p "$STUB/scripts"
+printf '# marker\n' > "$STUB/scripts/picsure-compose.sh"
+printf '#!/usr/bin/env bash\nexit 7\n' > "$STUB/status.sh"
+chmod +x "$STUB/status.sh"
 set +e
-"$BIN" --root "$ROOT" migrate --definitely-not-a-flag >/dev/null 2>&1
+"$BIN" --root "$STUB" status --json >/dev/null 2>&1
 rc=$?
 set -e
-[ "$rc" -eq 1 ] || fail "expected exit 1 from unknown migrate flag, got $rc"
+rm -rf "$STUB"
+STUB=""
+[ "$rc" -eq 7 ] || fail "expected exit 7 from the stub status.sh, got $rc"
 
 note "reset refuses non-interactively without --yes"
 set +e
@@ -116,6 +142,66 @@ set +e
 rc=$?
 set -e
 [ "$rc" -ne 0 ] || fail "reset should refuse without --yes when stdin is not a TTY"
+
+note "install.sh installs a host-built release via its ASSET_DIR hook"
+# Exercise install.sh's local-asset test hook against a real release build:
+# the asset-name contract with release.yml, checksum extraction/verification,
+# tar extraction, and the binary guard — none of which any other test covers.
+# OS/ARCH are derived exactly as install.sh derives them so the asset name and
+# the cross-build target agree.
+case "$(uname -s)" in
+  Linux) inst_os=linux ;;
+  Darwin) inst_os=darwin ;;
+  *) fail "install.sh smoke: unsupported OS $(uname -s)" ;;
+esac
+case "$(uname -m)" in
+  x86_64|amd64) inst_arch=amd64 ;;
+  arm64|aarch64) inst_arch=arm64 ;;
+  *) fail "install.sh smoke: unsupported arch $(uname -m)" ;;
+esac
+asset="pic-sure_${inst_os}_${inst_arch}.tar.gz"
+
+# Mirror install.sh's own checksum-tool selection (sha256sum, else shasum).
+if command -v sha256sum >/dev/null 2>&1; then
+  sum_cmd="sha256sum"
+elif command -v shasum >/dev/null 2>&1; then
+  sum_cmd="shasum -a 256"
+else
+  fail "install.sh smoke: neither sha256sum nor shasum is available"
+fi
+
+ASSET_WORK="$(mktemp -d "${TMPDIR:-/tmp}/pic-sure-install-smoke.XXXXXX")"
+asset_dir="$ASSET_WORK/assets"
+bin_dir="$ASSET_WORK/bin"
+mkdir -p "$asset_dir" "$bin_dir"
+
+# Build a release binary for the host platform and package it as the release
+# workflow does: tar of the bare `pic-sure` binary + a checksums.txt line.
+make -C "$CLI_DIR" build-release GOOS="$inst_os" GOARCH="$inst_arch" \
+  OUT="$ASSET_WORK/pic-sure" >/dev/null 2>&1 || fail "make build-release failed"
+tar -C "$ASSET_WORK" -czf "$asset_dir/$asset" pic-sure
+( cd "$asset_dir" && $sum_cmd "$asset" > checksums.txt )
+
+PIC_SURE_INSTALL_ASSET_DIR="$asset_dir" "$CLI_DIR/install.sh" --bin-dir "$bin_dir" >/dev/null \
+  || fail "install.sh failed against local assets"
+[ -x "$bin_dir/pic-sure" ] || fail "install.sh did not install an executable pic-sure"
+"$bin_dir/pic-sure" --version | grep -q . || fail "installed binary --version produced no output"
+
+note "install.sh rejects a corrupted checksum"
+# Negative case: flip the recorded hash; verification must fail and nothing
+# must be (re)installed. Install into a fresh dir so a stale binary can't mask
+# a missing failure.
+printf '%s  %s\n' "0000000000000000000000000000000000000000000000000000000000000000" "$asset" \
+  > "$asset_dir/checksums.txt"
+bad_bin_dir="$ASSET_WORK/bin-bad"
+set +e
+PIC_SURE_INSTALL_ASSET_DIR="$asset_dir" "$CLI_DIR/install.sh" --bin-dir "$bad_bin_dir" >/dev/null 2>&1
+inst_rc=$?
+set -e
+[ "$inst_rc" -ne 0 ] || fail "install.sh accepted a corrupted checksum (expected non-zero exit)"
+[ ! -e "$bad_bin_dir/pic-sure" ] || fail "install.sh installed a binary despite a checksum mismatch"
+rm -rf "$ASSET_WORK"
+ASSET_WORK=""
 
 if docker info >/dev/null 2>&1; then
   note "docker present: services[] reflects compose state"

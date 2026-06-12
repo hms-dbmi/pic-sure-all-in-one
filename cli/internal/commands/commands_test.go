@@ -423,6 +423,40 @@ func TestInitHelpInterceptOnlyBeforeBarrier(t *testing.T) {
 		}
 	})
 
+	t.Run("init -- --help reaches init.sh through the cobra tree", func(t *testing.T) {
+		// Drive the full cobra path (root → init RunE → runInit), not runInit
+		// directly: the pre-barrier-only help intercept must NOT fire for a
+		// post-barrier --help, so init.sh receives --help verbatim and prints
+		// its own usage. This is the coverage gap flagged in Task 4.1 review —
+		// the init RunE help-intercept path exercised through the cobra tree.
+		a, calls := fakeApp(t, root, true)
+		if err := runCLI(t, a, []string{"init", "--", "--help"}); err != nil {
+			t.Fatal(err)
+		}
+		if envSets := envSetCalls(*calls); len(envSets) != 0 {
+			t.Errorf("env-set calls = %v, want none (--help is not a wizard field)", envSets)
+		}
+		last := (*calls)[len(*calls)-1]
+		if last.script != "init.sh" {
+			t.Fatalf("last call = %+v, want init.sh (post-barrier --help must reach the script)", last)
+		}
+		if want := []string{"--help"}; !reflect.DeepEqual(last.args, want) {
+			t.Errorf("init.sh argv = %v, want %v (verbatim passthrough)", last.args, want)
+		}
+	})
+
+	t.Run("init --help (no barrier) shows CLI help; init.sh NOT run", func(t *testing.T) {
+		a, calls := fakeApp(t, root, true)
+		if err := runCLI(t, a, []string{"init", "--help"}); err != nil {
+			t.Fatal(err)
+		}
+		for _, c := range *calls {
+			if c.script == "init.sh" {
+				t.Errorf("init.sh ran (%v); pre-barrier --help must show CLI help", c.args)
+			}
+		}
+	})
+
 	t.Run("field flag before barrier consumed; --force after passes through", func(t *testing.T) {
 		a, calls := fakeApp(t, root, true)
 		err := a.runInit([]string{"--release-control-branch", "X", "--", "--force"})

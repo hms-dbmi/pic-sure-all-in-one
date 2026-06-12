@@ -332,8 +332,11 @@ fi
 
 section "Environment"
 if [ -f "$ENV_FILE" ]; then
-  ok ".env found"
-  picsure_load_env "$ENV_FILE"
+  if ! picsure_load_env "$ENV_FILE" 2>/dev/null; then
+    bad ".env is not valid shell syntax; fix or regenerate it (remaining fields show defaults)"
+  else
+    ok ".env found"
+  fi
 else
   warn ".env missing; run: cp .env.example .env"
 fi
@@ -372,12 +375,12 @@ elif ! docker_reachable; then
 else
   if picsure_compose config --quiet; then
     ok "Compose config is valid"
+    echo ""
+    picsure_compose ps
   else
     bad "Compose config is invalid"
+    warn "Skipping service listing because Compose config is invalid"
   fi
-
-  echo ""
-  picsure_compose ps
 fi
 
 section "Database"

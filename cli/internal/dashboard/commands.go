@@ -58,13 +58,15 @@ func statusTick() tea.Cmd {
 // On a context timeout CommandContext would kill bash alone; the orphaned
 // docker process keeps the write end open and Wait blocks on the I/O-copy
 // goroutine until EOF — forever if the daemon is hung (the exact case the
-// timeout guards against), silently wedging the poll. So, as in logs.go, run
-// the poll in its own process group and kill the whole group on cancel;
-// WaitDelay is a backstop in case a process escapes the group.
+// timeout guards against), silently wedging the poll. So, borrowing logs.go's
+// group-kill idea, run the poll in its own process group and bring the whole
+// group down on cancel; WaitDelay is a backstop in case a process escapes
+// the group.
 func pollCmd(ctx context.Context, root, script string, args ...string) *exec.Cmd {
 	cmd := exec.CommandContext(ctx, "bash", append([]string{filepath.Join(root, script)}, args...)...)
 	cmd.Dir = root
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	// SIGKILL, not logs.go's SIGTERM: a hung-daemon grandchild may ignore TERM, and polls have nothing to drain.
 	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
 	cmd.WaitDelay = 2 * time.Second
 	return cmd

@@ -47,6 +47,8 @@ services:
         ${PSAMA_JAVA_OPTS:--Xms1g -Xmx2g -XX:MetaspaceSize=96M -XX:MaxMetaspaceSize=256m}
         -Djava.net.preferIPv4Stack=true
         -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005
+        -Djavax.net.ssl.trustStore=/application.truststore
+        -Djavax.net.ssl.trustStorePassword=password
 
   # ---------------------------------------------------------------------------
   # Wildfly (pic-sure-api) — build from local source

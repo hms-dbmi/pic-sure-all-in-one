@@ -122,8 +122,12 @@ services:
     restart: always
     volumes:
       - ./.data/logs/psama:/var/log
+      - ./config/psama/application.truststore:/application.truststore:ro
     environment:
-      JAVA_OPTS: ${PSAMA_JAVA_OPTS:--Xms2g -Xmx4g -XX:MetaspaceSize=96M -XX:MaxMetaspaceSize=256m -Djava.net.preferIPv4Stack=true}
+      JAVA_OPTS: >-
+        ${PSAMA_JAVA_OPTS:--Xms2g -Xmx4g -XX:MetaspaceSize=96M -XX:MaxMetaspaceSize=256m -Djava.net.preferIPv4Stack=true}
+        -Djavax.net.ssl.trustStore=/application.truststore
+        -Djavax.net.ssl.trustStorePassword=password
       # Database
       DATASOURCE_URL: jdbc:mysql://${DB_HOST:-picsure-db}:${DB_PORT:-3306}/auth?useUnicode=true&characterEncoding=UTF-8&autoReconnect=true&autoReconnectForPools=true&serverTimezone=UTC
       DATASOURCE_USERNAME: auth

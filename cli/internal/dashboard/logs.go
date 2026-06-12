@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 
@@ -32,6 +33,12 @@ func startLogSession(root, service string, id int) *logSession {
 		// Kill the whole group: compose spawns children.
 		return syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
 	}
+	// Backstop (same escape-the-group wedge class fixed in the pollers): if a
+	// SIGTERM-ignoring descendant escapes the group kill, it keeps the stdout
+	// pipe's write end open and cmd.Wait would block on the I/O-copy goroutine
+	// forever, leaking the reaper goroutine. WaitDelay forces Wait to return
+	// shortly after cancellation regardless.
+	cmd.WaitDelay = 2 * time.Second
 
 	lines := make(chan string, 256)
 

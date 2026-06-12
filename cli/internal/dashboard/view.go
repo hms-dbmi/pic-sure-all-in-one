@@ -123,12 +123,24 @@ func (m *model) servicesPane() string {
 		b.WriteString(helpStyle.Render("no services running"))
 	}
 
+	// Row layout: cursor(1) + service(15) + space(1) + state(7) + space(1) + health(9) = 34
+	// = content wrap width (leftWidth 36 − border 2 − padding 2).
+	// To adjust when leftWidth changes: keep cursor=1, rebalance the three
+	// column widths so they sum to (leftWidth − 4 − 1) = contentWidth − 1.
+	const (
+		svcCol    = 15
+		stateCol  = 7
+		healthCol = 9
+	)
 	for i, s := range m.services {
 		health := s.Health
 		if health == "" {
 			health = "-"
 		}
-		line := fmt.Sprintf("%-18.18s %-8.8s %s", s.Service, s.State, health)
+		line := fmt.Sprintf("%-*.*s %-*.*s %-*.*s",
+			svcCol, svcCol, s.Service,
+			stateCol, stateCol, s.State,
+			healthCol, healthCol, health)
 		switch {
 		case s.State == "running" && (s.Health == "healthy" || s.Health == ""):
 			line = okStyle.Render(line)

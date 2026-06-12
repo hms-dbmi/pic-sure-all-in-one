@@ -7,6 +7,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/hms-dbmi/pic-sure-all-in-one/cli/internal/actions"
 	"github.com/hms-dbmi/pic-sure-all-in-one/cli/internal/contract"
@@ -337,6 +338,63 @@ func TestLogPaneFloodKeepsFrameInBox(t *testing.T) {
 	m.refreshLogPane()
 
 	frameFits(t, m.View(), 100, 30)
+}
+
+// TestServicesPaneRowsNoWrap verifies that every service row in the services
+// pane occupies exactly one visual line, even with the widest health values.
+// The pane is rendered at leftWidth=36 with border(2)+padding(2)=4 overhead,
+// giving a content wrap width of 34. Each row is 1 cursor col + formatted
+// fields; if the formatted content exceeds 33 visible cols lipgloss wraps and
+// the cursor ends up on a different visual line than the service name.
+func TestServicesPaneRowsNoWrap(t *testing.T) {
+	services := []contract.ComposeService{
+		{Service: "very-long-service-name", State: "running", Health: "unhealthy"},
+		{Service: "wildfly", State: "running", Health: "healthy"},
+		{Service: "hpds", State: "running", Health: "starting"},
+		{Service: "short", State: "exited", Health: ""},
+	}
+
+	m := testModel(t)
+	// Use a small height so Height(max(h-5,8))=8; border+content rows then
+	// show wrapping clearly without height-padding masking the problem.
+	m.height = 13 // max(13-5, 8) = 8 inner rows = title + 4 services + 3 empty
+	m.layout()
+	m.services = services
+	m.selected = 0
+
+	pane := m.servicesPane()
+
+	// paneStyle uses RoundedBorder (1 col each side) so outer width = leftWidth+2.
+	const outerWidth = leftWidth + 2 // 38
+	paneLines := strings.Split(pane, "\n")
+	for i, line := range paneLines {
+		if w := lipgloss.Width(line); w > outerWidth {
+			t.Errorf("services pane line %d width %d exceeds outer width %d: %q", i, w, outerWidth, line)
+		}
+	}
+
+	// Verify no health keyword appears alone on its own inner line (which
+	// would happen if a row wraps). Each inner line (between border rows) is
+	// "│ <content> │"; we extract content by stripping ANSI then using rune
+	// indexing to skip the 2-rune "│ " prefix and 2-rune " │" suffix.
+	innerLines := paneLines[1 : len(paneLines)-1] // strip top/bottom border
+	healthWords := []string{"unhealthy", "healthy", "starting"}
+	for i, rawLine := range innerLines {
+		// ansi.Strip removes escape codes; border chars (│, ╭, etc.) are plain Unicode
+		plain := ansi.Strip(rawLine)
+		runes := []rune(plain)
+		// Each inner line: "│" + " " + <content> + " " + "│" = 2+content+2 runes
+		if len(runes) >= 4 {
+			// Drop "│ " prefix (2 runes) and " │" suffix (2 runes)
+			content := strings.TrimRight(string(runes[2:len(runes)-2]), " ")
+			for _, hw := range healthWords {
+				if content == hw {
+					t.Errorf("inner line %d contains only health word %q — row is wrapping: full line %q",
+						i, hw, rawLine)
+				}
+			}
+		}
+	}
 }
 
 // Same huh root cause as the landing/wizard: esc must cancel the dashboard's

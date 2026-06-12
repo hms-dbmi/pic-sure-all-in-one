@@ -71,14 +71,139 @@ func TestReleaseControlFieldsSeedAndSummarize(t *testing.T) {
 		v := desired[k]
 		snap[k] = &v
 	}
-	s := summary(snap, true)
+	s := ansi.Strip(summary(snap, desired, true))
 	for _, want := range []string{
-		"Release-control repository: https://github.com/hms-dbmi/pic-sure-baseline-release-control",
-		"Release-control branch or tag: main",
+		"Release-control repository", "https://github.com/hms-dbmi/pic-sure-baseline-release-control",
+		"Release-control branch or tag", "main",
 	} {
 		if !strings.Contains(s, want) {
 			t.Errorf("summary missing %q\n--- summary ---\n%s", want, s)
 		}
+	}
+	// These values equal the seeded defaults, so each carries a "(default)" mark.
+	if strings.Count(s, "(default)") < 2 {
+		t.Errorf("expected (default) markers on the unchanged release-control fields\n%s", s)
+	}
+}
+
+// summaryFor is a test helper: build the field-value snapshot the confirm
+// summary consumes from a desired map, with the given seed and skip flag.
+func summaryFor(desired, seed map[string]string, skip bool) string {
+	snap := make(map[string]*string, len(desired))
+	for k := range desired {
+		v := desired[k]
+		snap[k] = &v
+	}
+	return summary(snap, seed, skip)
+}
+
+// TestSummaryAlignment (U8): titles pad to a common column so values line up,
+// using spaces (no dot leaders) — assert every value starts at the same column.
+func TestSummaryAlignment(t *testing.T) {
+	desired := map[string]string{
+		"DB_MODE":                "local",
+		"ADMIN_EMAIL":            "admin@example.com",
+		"HTTP_PORT":              "80",
+		"AUTH_MODE":              "required",
+		"RELEASE_CONTROL_REPO":   "https://example.com/r",
+		"RELEASE_CONTROL_BRANCH": "main",
+	}
+	out := ansi.Strip(summaryFor(desired, map[string]string{}, true))
+
+	// Each rendered line is "Title<pad>  value[ (default)]". The value column
+	// must be identical across lines: find the index where the two-space gap
+	// after the longest title ends.
+	lines := strings.Split(out, "\n")
+	valueCol := -1
+	for _, line := range lines {
+		if strings.HasPrefix(line, "Identity provider:") {
+			continue // the IdP preamble is not a padded field row
+		}
+		// The value starts after the run of trailing title-pad spaces; locate
+		// the "  " (two-space) separator that precedes it.
+		idx := strings.Index(line, "  ")
+		if idx < 0 {
+			t.Fatalf("no aligned gap in line %q", line)
+		}
+		// Skip past all spaces to the value's first non-space char.
+		col := idx
+		for col < len(line) && line[col] == ' ' {
+			col++
+		}
+		if valueCol == -1 {
+			valueCol = col
+		} else if col != valueCol {
+			t.Errorf("value column not aligned: %d vs %d in %q", col, valueCol, line)
+		}
+	}
+	if valueCol < 0 {
+		t.Fatal("no field rows rendered")
+	}
+}
+
+// TestSummaryOmitsEmptyOptional (U8): an optional field left empty is dropped
+// entirely (no "(empty)"), while a required field left empty is still surfaced.
+func TestSummaryOmitsEmptyOptional(t *testing.T) {
+	// AUTH0_TENANT is optional (no Required/Auth0Required); ADMIN_EMAIL is
+	// always required. DB_ROOT_USER is optional and remote-only.
+	desired := map[string]string{
+		"DB_MODE":      "local",
+		"AUTH0_TENANT": "", // optional, empty → omitted
+		"ADMIN_EMAIL":  "", // required, empty → surfaced as (empty)
+		"HTTP_PORT":    "80",
+	}
+	out := ansi.Strip(summaryFor(desired, map[string]string{}, true))
+
+	if strings.Contains(out, "Auth0 tenant") {
+		t.Errorf("empty optional Auth0 tenant should be omitted:\n%s", out)
+	}
+	if !strings.Contains(out, "Admin email") || !strings.Contains(out, "(empty)") {
+		t.Errorf("empty required Admin email should be surfaced as (empty):\n%s", out)
+	}
+}
+
+// TestSummaryDefaultMarker (U8): a field whose value equals the seeded default
+// gets a "(default)" marker; an edited field does not.
+func TestSummaryDefaultMarker(t *testing.T) {
+	seed := map[string]string{
+		"DB_MODE":      "local",
+		"AUTH_MODE":    "required",
+		"HTTP_PORT":    "80",
+		"AUTH0_TENANT": "avillachlab",
+	}
+	desired := map[string]string{
+		"DB_MODE":      "local",       // unchanged → (default)
+		"AUTH_MODE":    "open",        // edited → no marker
+		"HTTP_PORT":    "80",          // unchanged → (default)
+		"AUTH0_TENANT": "avillachlab", // unchanged → (default)
+	}
+	out := ansi.Strip(summaryFor(desired, seed, true))
+
+	lineFor := func(title string) string {
+		for _, l := range strings.Split(out, "\n") {
+			if strings.HasPrefix(l, title) {
+				return l
+			}
+		}
+		return ""
+	}
+	if l := lineFor("Database mode"); !strings.Contains(l, "(default)") {
+		t.Errorf("unchanged Database mode should be marked (default): %q", l)
+	}
+	if l := lineFor("Auth mode"); strings.Contains(l, "(default)") {
+		t.Errorf("edited Auth mode should NOT be marked (default): %q", l)
+	}
+	if l := lineFor("HTTP port"); !strings.Contains(l, "(default)") {
+		t.Errorf("unchanged HTTP port should be marked (default): %q", l)
+	}
+}
+
+// TestSummaryNoDotLeaders (U8): alignment uses spaces, not dot leaders.
+func TestSummaryNoDotLeaders(t *testing.T) {
+	desired := map[string]string{"DB_MODE": "local", "HTTP_PORT": "80", "ADMIN_EMAIL": "a@b.com"}
+	out := ansi.Strip(summaryFor(desired, map[string]string{}, true))
+	if strings.Contains(out, "..") || strings.Contains(out, ". .") {
+		t.Errorf("summary should not use dot leaders:\n%s", out)
 	}
 }
 

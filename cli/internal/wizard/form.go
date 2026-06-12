@@ -6,7 +6,12 @@ import (
 	"strings"
 
 	"github.com/charmbracelet/huh"
+	"github.com/charmbracelet/lipgloss"
 )
+
+// summaryDimStyle renders the "(default)" marker faintly so it reads as a quiet
+// annotation, not a value. NO_COLOR-safe via lipgloss.
+var summaryDimStyle = lipgloss.NewStyle().Faint(true)
 
 // Form is the wizard's single definition (spec amendment 1): one constructor
 // builds the field form and, after it completes, the confirm-summary form.
@@ -164,7 +169,7 @@ func (f *Form) BuildConfirm() *huh.Form {
 	}
 	confirm := huh.NewConfirm().
 		Title("Write these values to .env and run init.sh?").
-		Description(summary(snap, f.skip)).
+		Description(summary(snap, f.seed, f.skip)).
 		Value(&f.confirmed)
 	f.Confirm = huh.NewForm(huh.NewGroup(confirm))
 	return f.Confirm
@@ -255,12 +260,31 @@ func inputFor(f Field, vals map[string]*string) huh.Field {
 	return in
 }
 
-func summary(vals map[string]*string, skip bool) string {
-	var b strings.Builder
-	if skip {
-		b.WriteString("Identity provider: configured manually (Auth0 skipped)\n")
+// summaryRow is one resolved confirm-summary line, pre-alignment.
+type summaryRow struct {
+	title string
+	value string
+	deflt bool // value equals the seeded default → append a dim "(default)"
+}
+
+// summary renders the confirm-screen field digest (U8): aligned title/value
+// columns (title padded with spaces to the widest visible title — sober, no dot
+// leaders), optional fields whose value is empty omitted entirely, and a dim
+// "(default)" marker on any field the user left at its seeded default. seed is
+// the post-normalisation baseline the form opened with (.env.example defaults
+// for fresh setup), so "default" means "unchanged from what we proposed".
+func summary(vals map[string]*string, seed map[string]string, skip bool) string {
+	// A missing pointer is treated as an empty value (a sparse snapshot must not
+	// panic — BuildConfirm always passes a full one, but be defensive).
+	valOf := func(key string) string {
+		if p := vals[key]; p != nil {
+			return *p
+		}
+		return ""
 	}
-	dbMode := *vals["DB_MODE"]
+	dbMode := valOf("DB_MODE")
+
+	var rows []summaryRow
 	for _, f := range Fields {
 		if f.Auth0Required && skip {
 			continue
@@ -268,14 +292,52 @@ func summary(vals map[string]*string, skip bool) string {
 		if f.RemoteOnly && dbMode != "remote" {
 			continue
 		}
-		v := *vals[f.Key]
+		v := valOf(f.Key)
+
+		// Omit an optional field left empty rather than printing "(empty)": a
+		// blank optional is not information the user needs to confirm.
+		if v == "" && !fieldRequired(f, skip, dbMode) {
+			continue
+		}
+
+		isDefault := v == seed[f.Key]
 		if f.Secret && v != "" {
 			v = "********"
 		}
 		if v == "" {
-			v = "(empty)"
+			v = "(empty)" // a required field left empty: still surfaced
 		}
-		fmt.Fprintf(&b, "%s: %s\n", f.Title, v)
+		rows = append(rows, summaryRow{title: f.Title, value: v, deflt: isDefault})
+	}
+
+	// Widest title sets the column the values align to.
+	titleWidth := 0
+	for _, r := range rows {
+		if len(r.title) > titleWidth {
+			titleWidth = len(r.title)
+		}
+	}
+
+	var b strings.Builder
+	if skip {
+		b.WriteString("Identity provider: configured manually (Auth0 skipped)\n")
+	}
+	for _, r := range rows {
+		pad := strings.Repeat(" ", titleWidth-len(r.title))
+		fmt.Fprintf(&b, "%s%s  %s", r.title, pad, r.value)
+		if r.deflt {
+			b.WriteString(" " + summaryDimStyle.Render("(default)"))
+		}
+		b.WriteByte('\n')
 	}
 	return strings.TrimRight(b.String(), "\n")
+}
+
+// fieldRequired reports whether a field must be filled given the IdP choice and
+// DB mode — the same predicate MissingRequired uses, reused here so the summary
+// omits exactly the fields a non-interactive run would treat as optional.
+func fieldRequired(f Field, skip bool, dbMode string) bool {
+	return f.Required ||
+		(f.Auth0Required && !skip) ||
+		(f.RequiredWhenRemote && dbMode == "remote")
 }

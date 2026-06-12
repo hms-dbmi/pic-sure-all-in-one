@@ -206,8 +206,7 @@ func MissingRequired(values map[string]string, skipAuth bool) []string {
 		if f.RemoteOnly && dbMode != "remote" {
 			continue
 		}
-		required := f.Required || (f.Auth0Required && !skipAuth) || (f.RequiredWhenRemote && dbMode == "remote")
-		if required && strings.TrimSpace(values[f.Key]) == "" {
+		if fieldRequired(f, skipAuth, dbMode) && strings.TrimSpace(values[f.Key]) == "" {
 			missing = append(missing, f.Flag)
 		}
 	}

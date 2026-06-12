@@ -188,6 +188,113 @@ func TestWizardScreenEscCancelsDirectly(t *testing.T) {
 	}
 }
 
+// dirtyWizard returns a screen with one field modified from its seed, driven
+// through the real form like the runtime would (the pump path).
+func dirtyWizard(t *testing.T) *wizardScreen {
+	t.Helper()
+	s, err := newWizardScreen(wizardRoot(t, false), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.setSize(100, 35)
+	s = wizardPump(s, s.init(), 0)
+	// IdP selector: choose "Skip" so the next visible group is admin email,
+	// then type into it. Either edit makes the form dirty.
+	s = wizardKey(s, tea.KeyMsg{Type: tea.KeyDown})
+	s = wizardKey(s, tea.KeyMsg{Type: tea.KeyEnter})
+	for _, r := range "James" {
+		s = wizardKey(s, tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{r}})
+	}
+	if !s.wf.Dirty() {
+		t.Fatal("setup: form should be dirty after typing into a field")
+	}
+	return s
+}
+
+// TestWizardEscPristineClosesImmediately: an untouched form still discards on
+// esc with no extra prompt (the cheap-exit path is preserved).
+func TestWizardEscPristineClosesImmediately(t *testing.T) {
+	s, err := newWizardScreen(wizardRoot(t, false), false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.setSize(100, 35)
+	s = wizardPump(s, s.init(), 0)
+
+	s2, cmd := s.update(tea.KeyMsg{Type: tea.KeyEsc})
+	if s2.discarding {
+		t.Fatal("pristine esc should not raise the discard confirm")
+	}
+	if cmd == nil {
+		t.Fatal("pristine esc produced no command")
+	}
+	if msg, ok := cmd().(wizardClosedMsg); !ok || !msg.aborted {
+		t.Fatalf("pristine esc = %#v, want wizardClosedMsg{aborted: true}", msg)
+	}
+}
+
+// TestWizardEscDirtyAsksBeforeDiscarding: esc on a modified form raises the
+// one-keystroke confirm instead of silently throwing the entered values away.
+func TestWizardEscDirtyAsksBeforeDiscarding(t *testing.T) {
+	s := dirtyWizard(t)
+
+	s, cmd := s.update(tea.KeyMsg{Type: tea.KeyEsc})
+	if !s.discarding {
+		t.Fatal("esc on a dirty form did not raise the discard confirm")
+	}
+	if cmd != nil {
+		t.Fatal("esc on a dirty form must not close yet (no command)")
+	}
+	if !strings.Contains(wizardANSI.ReplaceAllString(s.view(), ""), "Discard setup?") {
+		t.Errorf("footer missing the discard prompt:\n%s", s.view())
+	}
+}
+
+// TestWizardDiscardConfirmYesCloses: y at the discard prompt closes as aborted.
+func TestWizardDiscardConfirmYesCloses(t *testing.T) {
+	s := dirtyWizard(t)
+	s, _ = s.update(tea.KeyMsg{Type: tea.KeyEsc}) // raise the prompt
+
+	_, cmd := s.update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
+	if cmd == nil {
+		t.Fatal("y at the discard prompt produced no command")
+	}
+	if msg, ok := cmd().(wizardClosedMsg); !ok || !msg.aborted {
+		t.Fatalf("y at the discard prompt = %#v, want wizardClosedMsg{aborted: true}", msg)
+	}
+}
+
+// TestWizardDiscardConfirmNoStays: n (or esc) dismisses the prompt and keeps
+// the form, entered values intact.
+func TestWizardDiscardConfirmNoStays(t *testing.T) {
+	s := dirtyWizard(t)
+	s, _ = s.update(tea.KeyMsg{Type: tea.KeyEsc}) // raise the prompt
+
+	s, cmd := s.update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'n'}})
+	if cmd != nil {
+		t.Fatal("n at the discard prompt should not close the wizard")
+	}
+	if s.discarding {
+		t.Fatal("n did not dismiss the discard prompt")
+	}
+	if s.phase != wizardMain {
+		t.Errorf("phase = %v, want wizardMain (form preserved)", s.phase)
+	}
+	if !s.wf.Dirty() {
+		t.Error("entered values were lost after declining the discard")
+	}
+
+	// esc also dismisses the prompt (a second esc must not close).
+	s, _ = s.update(tea.KeyMsg{Type: tea.KeyEsc}) // re-raise
+	if !s.discarding {
+		t.Fatal("esc did not re-raise the discard prompt")
+	}
+	s, cmd = s.update(tea.KeyMsg{Type: tea.KeyEsc})
+	if s.discarding || cmd != nil {
+		t.Error("esc at the discard prompt should dismiss it, not close")
+	}
+}
+
 var wizardANSI = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
 // wizardPump executes a cmd tree like the bubbletea runtime (batches

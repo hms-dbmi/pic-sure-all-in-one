@@ -22,7 +22,13 @@ type Form struct {
 	// ptrs are the string pointers shared with the huh input/select fields.
 	// huh may overwrite them during construction (select normalisation), so
 	// they are NOT the source of truth until BuildConfirm syncs them back.
-	ptrs      map[string]*string
+	ptrs map[string]*string
+	// seed is the post-normalisation baseline captured at construction: the
+	// values the form opened with, against which Dirty() reports edits. It is
+	// distinct from vals (which BuildConfirm overwrites with the final entry)
+	// and from skip's seed (seedSkip).
+	seed      map[string]string
+	seedSkip  bool
 	skip      bool
 	confirmed bool
 
@@ -70,7 +76,32 @@ func NewForm(initial map[string]string, skipAuth bool) *Form {
 			WithHideFunc(func() bool { return *f.ptrs["DB_MODE"] != "remote" }),
 	}
 	f.Main = huh.NewForm(groups...)
+	// Capture the baseline AFTER construction: huh normalises select values
+	// (an out-of-range seed snaps to a valid option) while building the
+	// groups, so the seed must reflect what the user actually sees, or Dirty()
+	// would report a phantom edit on the first open of a hand-normalised .env.
+	f.seedSkip = f.skip
+	f.seed = make(map[string]string, len(f.ptrs))
+	for k, p := range f.ptrs {
+		f.seed[k] = *p
+	}
 	return f
+}
+
+// Dirty reports whether any field (or the IdP selector) differs from the
+// values the form opened with. It reads the live huh pointers, so it is valid
+// at any point during phase 1 — used by the embedded host to gate an
+// esc-discards-everything confirm.
+func (f *Form) Dirty() bool {
+	if f.skip != f.seedSkip {
+		return true
+	}
+	for k, p := range f.ptrs {
+		if *p != f.seed[k] {
+			return true
+		}
+	}
+	return false
 }
 
 // syncFromHuh copies the huh-owned pointer values into vals so that

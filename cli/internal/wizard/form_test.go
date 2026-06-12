@@ -40,6 +40,32 @@ func TestNewFormSkipAuthSeedAndConfirm(t *testing.T) {
 	}
 }
 
+// Dirty drives the embedded host's esc-discard guard: pristine seeds report
+// clean, a field edit or an IdP-selector flip reports dirty. The baseline is
+// captured post-construction so huh's select normalisation never reads as a
+// phantom edit on first open.
+func TestFormDirty(t *testing.T) {
+	wf := NewForm(map[string]string{"ADMIN_EMAIL": "seed@example.com", "DB_MODE": "local"}, false)
+	if wf.Dirty() {
+		t.Fatal("a freshly seeded form must be pristine")
+	}
+
+	*wf.ptrs["ADMIN_EMAIL"] = "edited@example.com"
+	if !wf.Dirty() {
+		t.Fatal("a field edit must read as dirty")
+	}
+	*wf.ptrs["ADMIN_EMAIL"] = "seed@example.com"
+	if wf.Dirty() {
+		t.Fatal("reverting the edit must read as pristine again")
+	}
+
+	// The IdP selector is also part of the baseline.
+	wf.skip = !wf.skip
+	if !wf.Dirty() {
+		t.Fatal("flipping the IdP selector must read as dirty")
+	}
+}
+
 // Host-2 contract: a host that never calls Run() must still observe user
 // edits after BuildConfirm — the sync lives there, not in RunForm.
 func TestBuildConfirmSyncsEditsForEmbeddedHost(t *testing.T) {

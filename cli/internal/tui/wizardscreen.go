@@ -53,6 +53,12 @@ type wizardScreen struct {
 	phase   wizardPhase
 	current map[string]string // pre-wizard values: the changed-keys baseline
 
+	// discarding is set when esc is pressed on a modified form: the screen
+	// shows a one-keystroke "Discard setup? (y/n)" confirm before closing, so
+	// a 13-field form is not silently thrown away by a reflexive esc. A
+	// pristine form skips the confirm and closes immediately.
+	discarding bool
+
 	width, height int
 }
 
@@ -125,11 +131,33 @@ func (s *wizardScreen) formHeight() int {
 }
 
 func (s *wizardScreen) update(msg tea.Msg) (*wizardScreen, tea.Cmd) {
+	// A discard confirm is up: it owns the keyboard until answered. Swallow
+	// every non-key message (huh blink ticks) so the prompt stays put.
+	if s.discarding {
+		key, ok := msg.(tea.KeyMsg)
+		if !ok {
+			return s, nil
+		}
+		switch key.String() {
+		case "y", "Y":
+			return s, closeWizard(true)
+		case "n", "N", "esc":
+			s.discarding = false
+		}
+		return s, nil
+	}
+
 	// The footer promises "esc cancel", but huh ships its esc binding
 	// disabled (only ctrl+c aborts a form). Intercept esc here, like the
 	// activity screen does, so the advertised key actually works. Not in
-	// wizardWriting: writes in flight are not cancellable.
+	// wizardWriting: writes in flight are not cancellable. A modified form
+	// asks to confirm first (esc otherwise silently discards every entered
+	// value); a pristine form closes immediately.
 	if key, ok := msg.(tea.KeyMsg); ok && key.String() == "esc" && s.phase != wizardWriting {
+		if s.wf.Dirty() {
+			s.discarding = true
+			return s, nil
+		}
 		return s, closeWizard(true)
 	}
 
@@ -200,6 +228,9 @@ func (s *wizardScreen) view() string {
 	default:
 		body = s.wf.Main.View()
 		footer = wizardFooterStyle.Render("esc cancel")
+	}
+	if s.discarding {
+		footer = wizardFooterStyle.Render("Discard setup? (y/n)")
 	}
 
 	content := lipgloss.JoinVertical(lipgloss.Left,

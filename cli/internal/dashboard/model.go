@@ -55,9 +55,15 @@ const (
 )
 
 const (
-	leftWidthMin  = 36 // floor: fits the services row format below
-	leftWidthMax  = 50 // ceiling: don't starve the logs/status panes on huge terminals
-	summaryHeight = 11
+	leftWidthMin = 36 // floor: fits the services row format below
+	leftWidthMax = 50 // ceiling: don't starve the logs/status panes on huge terminals
+	// summaryHeight is the status pane's fixed total height (incl. its 2 border
+	// rows). U4's severity-first layout grows to 10 content rows in the worst
+	// case (every check a blocker plus a repo warning), up from the old fixed 5,
+	// so the pane is 13 rows tall (11 content rows of headroom). logView height
+	// derives from this (layout() subtracts it), so the logs pane simply gets
+	// two fewer rows on a tall terminal.
+	summaryHeight = 13
 	maxLogLines   = 2000
 )
 

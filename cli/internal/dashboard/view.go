@@ -206,6 +206,20 @@ func (m *model) servicesEmptyState() string {
 	}
 }
 
+// summaryLabel is the bold section header inside the status pane. It is NOT
+// brand-colored (that is reserved for the pane title) but bold so the
+// Blockers/Warnings/OK sections stand out from their member lines.
+var summaryLabel = lipgloss.NewStyle().Bold(true)
+
+// summaryPane renders the status summary severity-first (U4): blockers (red)
+// at the top, then warnings (yellow), then a compact folded line for everything
+// healthy. Sections are separated by blank lines and introduced by bold labels,
+// so a single dirty repo no longer hides among nine equally-weighted rows. The
+// release context line always shows last (it is neither a blocker nor a
+// warning, just orientation). Row budget worst case: title + Blockers label +
+// 3 blocker lines (.env, docker, migrations — each contributes at most one) +
+// blank + Warnings label + 1 repos line + blank + release = 10 content rows,
+// within summaryHeight-2 (= 11) — see model.go.
 func (m *model) summaryPane() string {
 	width := max(m.width-m.leftWidth()-6, 20)
 	var b strings.Builder
@@ -217,68 +231,102 @@ func (m *model) summaryPane() string {
 	case m.status == nil:
 		b.WriteString(helpStyle.Render("loading status..."))
 	default:
-		s := m.status
-		envLine := ".env: "
-		switch {
-		case !s.Env.FilePresent:
-			envLine += badStyle.Render("missing — run pic-sure init")
-		case s.Env.FileValid != nil && !*s.Env.FileValid:
-			envLine += badStyle.Render("INVALID shell syntax")
-		default:
-			envLine += okStyle.Render("present")
-		}
-		b.WriteString(envLine + "\n")
-
-		commit := "unresolved"
-		if s.ReleaseControl.Commit != nil {
-			commit = shortCommit(*s.ReleaseControl.Commit)
-		}
-		fmt.Fprintf(&b, "release: %s @ %s\n", s.ReleaseControl.Branch, commit)
-
-		clean, dirty, missing := 0, 0, 0
-		for _, r := range s.Repos {
-			switch r.State {
-			case "dirty":
-				dirty++
-			case "missing":
-				missing++
-			default:
-				clean++
-			}
-		}
-		repoLine := fmt.Sprintf("repos: %d clean", clean)
-		if dirty > 0 {
-			repoLine += warnStyle.Render(fmt.Sprintf(", %d dirty", dirty))
-		}
-		if missing > 0 {
-			repoLine += helpStyle.Render(fmt.Sprintf(", %d missing", missing))
-		}
-		b.WriteString(repoLine + "\n")
-
-		dockerLine := "docker: "
-		if s.Docker.DaemonReachable {
-			dockerLine += okStyle.Render("reachable")
-		} else {
-			dockerLine += badStyle.Render("unreachable")
-		}
-		if s.Docker.ComposeConfigValid != nil && !*s.Docker.ComposeConfigValid {
-			dockerLine += badStyle.Render("  compose config invalid")
-		}
-		b.WriteString(dockerLine + "\n")
-
-		migLine := "migrations: "
-		switch {
-		case !s.Migrations.Checked:
-			migLine += helpStyle.Render("not checked")
-		case s.Migrations.Ready != nil && *s.Migrations.Ready:
-			migLine += okStyle.Render("ready")
-		default:
-			migLine += badStyle.Render("inputs invalid")
-		}
-		b.WriteString(migLine)
+		b.WriteString(m.summaryBody())
 	}
 
 	return paneStyle.Width(width).Height(summaryHeight - 2).Render(b.String())
+}
+
+// summaryBody assembles the severity-ordered sections from the loaded status.
+func (m *model) summaryBody() string {
+	s := m.status
+
+	// Classify each check once into blocker / warning / ok-token.
+	var blockers, warnings, okTokens []string
+
+	// .env
+	switch {
+	case !s.Env.FilePresent:
+		blockers = append(blockers, ".env missing — run pic-sure init")
+	case s.Env.FileValid != nil && !*s.Env.FileValid:
+		blockers = append(blockers, ".env INVALID shell syntax")
+	default:
+		okTokens = append(okTokens, ".env")
+	}
+
+	// docker (daemon + compose config)
+	switch {
+	case !s.Docker.DaemonReachable:
+		blockers = append(blockers, "docker unreachable")
+	case s.Docker.ComposeConfigValid != nil && !*s.Docker.ComposeConfigValid:
+		blockers = append(blockers, "compose config invalid")
+	default:
+		okTokens = append(okTokens, "docker")
+	}
+
+	// migrations
+	switch {
+	case !s.Migrations.Checked:
+		// Not a blocker and not "healthy" — leave it out of the OK fold rather
+		// than imply readiness; it surfaces in the full status command.
+	case s.Migrations.Ready != nil && *s.Migrations.Ready:
+		okTokens = append(okTokens, "migrations")
+	default:
+		blockers = append(blockers, "migrations failed")
+	}
+
+	// repos (dirty/missing are warnings; clean folds into OK)
+	clean, dirty, missing := 0, 0, 0
+	for _, r := range s.Repos {
+		switch r.State {
+		case "dirty":
+			dirty++
+		case "missing":
+			missing++
+		default:
+			clean++
+		}
+	}
+	if dirty > 0 || missing > 0 {
+		var parts []string
+		if dirty > 0 {
+			parts = append(parts, fmt.Sprintf("%d dirty", dirty))
+		}
+		if missing > 0 {
+			parts = append(parts, fmt.Sprintf("%d missing", missing))
+		}
+		warnings = append(warnings, "repos: "+strings.Join(parts, ", "))
+	} else if clean > 0 {
+		okTokens = append(okTokens, "repos")
+	}
+
+	var b strings.Builder
+	if len(blockers) > 0 {
+		b.WriteString(summaryLabel.Render("Blockers") + "\n")
+		for _, line := range blockers {
+			b.WriteString(badStyle.Render("• "+line) + "\n")
+		}
+		b.WriteString("\n")
+	}
+	if len(warnings) > 0 {
+		b.WriteString(summaryLabel.Render("Warnings") + "\n")
+		for _, line := range warnings {
+			b.WriteString(warnStyle.Render("• "+line) + "\n")
+		}
+		b.WriteString("\n")
+	}
+	if len(okTokens) > 0 {
+		// Fold every healthy check onto one compact line.
+		b.WriteString(okStyle.Render("OK: "+strings.Join(okTokens, " · ")) + "\n")
+	}
+
+	// Release context always last: orientation, not severity.
+	commit := "unresolved"
+	if s.ReleaseControl.Commit != nil {
+		commit = shortCommit(*s.ReleaseControl.Commit)
+	}
+	fmt.Fprintf(&b, "release: %s @ %s", s.ReleaseControl.Branch, commit)
+	return b.String()
 }
 
 func (m *model) logPane() string {

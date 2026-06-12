@@ -1093,6 +1093,129 @@ func TestServicesEmptyStateActionable(t *testing.T) {
 	}
 }
 
+func boolPtr(b bool) *bool { return &b }
+
+// TestSummarySeverityFirst (U4): a blocker must render above any OK line, and
+// a warning between them, so severity — not field order — drives the layout.
+func TestSummarySeverityFirst(t *testing.T) {
+	valid := boolPtr(true)
+	m := testModel(t)
+	m.status = &contract.Status{
+		// .env present (OK), docker reachable+valid (OK), migrations ready (OK),
+		// but one dirty repo (warning) and a missing one (warning). Force a
+		// blocker by marking the compose config invalid.
+		Env:    contract.StatusEnv{FilePresent: true, FileValid: valid},
+		Docker: contract.Docker{DaemonReachable: true, ComposeConfigValid: boolPtr(false)},
+		Repos: []contract.Repo{
+			{Name: "a", State: "clean"},
+			{Name: "b", State: "dirty"},
+			{Name: "c", State: "missing"},
+		},
+		Migrations:     contract.Migrations{Checked: true, Ready: valid},
+		ReleaseControl: contract.ReleaseControl{Branch: "main"},
+	}
+
+	plain := ansi.Strip(m.summaryPane())
+
+	idxBlocker := strings.Index(plain, "compose config invalid")
+	idxWarn := strings.Index(plain, "repos:")
+	idxOK := strings.Index(plain, "OK:")
+	if idxBlocker < 0 || idxWarn < 0 || idxOK < 0 {
+		t.Fatalf("missing a section in summary:\n%s", plain)
+	}
+	if idxBlocker >= idxWarn || idxWarn >= idxOK {
+		t.Errorf("severity order wrong: blocker@%d warning@%d ok@%d\n%s",
+			idxBlocker, idxWarn, idxOK, plain)
+	}
+
+	// Section labels must be present and bold (Bold(true) emits SGR 1).
+	raw := m.summaryPane()
+	for _, label := range []string{"Blockers", "Warnings"} {
+		if !strings.Contains(plain, label) {
+			t.Errorf("missing %q label:\n%s", label, plain)
+		}
+		if !labelIsBold(raw, label) {
+			t.Errorf("%q label is not bold", label)
+		}
+	}
+
+	// A blank (whitespace-only) line separates sections. lipgloss pads each pane
+	// line to the pane width, so the separator is spaces, not a truly empty
+	// line — assert on the unpadded body instead.
+	if !hasBlankSeparator(m.summaryBody()) {
+		t.Errorf("expected a blank line between sections:\n%q", m.summaryBody())
+	}
+}
+
+// hasBlankSeparator reports whether s contains an empty (whitespace-only) line
+// between two non-empty ones — the section separator U4 inserts.
+func hasBlankSeparator(s string) bool {
+	lines := strings.Split(ansi.Strip(s), "\n")
+	for i := 1; i < len(lines)-1; i++ {
+		if strings.TrimSpace(lines[i]) == "" &&
+			strings.TrimSpace(lines[i-1]) != "" && strings.TrimSpace(lines[i+1]) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// TestSummaryHealthyFolds (U4): when nothing is wrong, the healthy checks fold
+// into one compact OK line and no Blockers/Warnings labels appear.
+func TestSummaryHealthyFolds(t *testing.T) {
+	valid := boolPtr(true)
+	m := testModel(t)
+	m.status = &contract.Status{
+		Env:            contract.StatusEnv{FilePresent: true, FileValid: valid},
+		Docker:         contract.Docker{DaemonReachable: true, ComposeConfigValid: valid},
+		Repos:          []contract.Repo{{Name: "a", State: "clean"}},
+		Migrations:     contract.Migrations{Checked: true, Ready: valid},
+		ReleaseControl: contract.ReleaseControl{Branch: "main"},
+	}
+	plain := ansi.Strip(m.summaryPane())
+	if strings.Contains(plain, "Blockers") || strings.Contains(plain, "Warnings") {
+		t.Errorf("healthy status should show no Blockers/Warnings labels:\n%s", plain)
+	}
+	for _, tok := range []string{".env", "docker", "migrations", "repos"} {
+		if !strings.Contains(plain, tok) {
+			t.Errorf("OK fold missing %q:\n%s", tok, plain)
+		}
+	}
+	// Single OK line, not four separate status lines.
+	if c := strings.Count(plain, "OK:"); c != 1 {
+		t.Errorf("expected one folded OK line, got %d:\n%s", c, plain)
+	}
+}
+
+// TestSummaryWorstCaseFitsFrame (U4): every check a blocker plus a repo warning
+// must still fit the fixed pane height and the terminal frame. The dashboard is
+// a ≥100-col surface (its fixed left pane + right panes exceed 80 cols — a
+// separate narrow-width concern), so the matrix starts at 100.
+func TestSummaryWorstCaseFitsFrame(t *testing.T) {
+	for _, dim := range []struct{ w, h int }{{100, 24}, {120, 30}, {200, 50}} {
+		m := testModel(t)
+		mm, _ := m.Update(tea.WindowSizeMsg{Width: dim.w, Height: dim.h})
+		m = mm.(*model)
+		m.status = &contract.Status{
+			Env:    contract.StatusEnv{FilePresent: true, FileValid: boolPtr(false)},
+			Docker: contract.Docker{DaemonReachable: true, ComposeConfigValid: boolPtr(false)},
+			Repos: []contract.Repo{
+				{Name: "a", State: "dirty"},
+				{Name: "b", State: "missing"},
+			},
+			Migrations:     contract.Migrations{Checked: true, Ready: boolPtr(false)},
+			ReleaseControl: contract.ReleaseControl{Branch: "main"},
+		}
+		frameFits(t, m.View(), dim.w, dim.h)
+	}
+}
+
+// labelIsBold reports whether the bold-styled (SGR 1) rendition of label
+// appears in the raw (un-stripped) render — i.e. the label carries Bold(true).
+func labelIsBold(raw, label string) bool {
+	return strings.Contains(raw, summaryLabel.Render(label))
+}
+
 // Same huh root cause as the landing/wizard: esc must cancel the dashboard's
 // confirm, picker, and reset dialogs (the help line advertises "esc cancel").
 func TestDashboardEscCancelsConfirmAndPicker(t *testing.T) {

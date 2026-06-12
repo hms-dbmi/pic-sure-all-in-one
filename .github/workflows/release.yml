@@ -32,6 +32,13 @@ jobs:
       - name: Lint
         run: make -C cli lint
 
+      # go.mod/go.sum must match the import graph; catches missing
+      # `go mod tidy` (e.g. direct deps mislabeled // indirect).
+      - name: Tidy check
+        run: |
+          (cd cli && go mod tidy)
+          git diff --exit-code cli/go.mod cli/go.sum
+
       - name: Test
         run: make -C cli test
 

@@ -1,9 +1,11 @@
 package actions
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"syscall"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/creack/pty"
@@ -103,4 +105,22 @@ func (r *PTYRunner) Resize(rows, cols int) {
 // whole foreground process group gets SIGINT.
 func (r *PTYRunner) Interrupt() {
 	_, _ = r.master.Write([]byte{0x03})
+}
+
+// Kill is the last resort, used by the abort escalation when a child ignores
+// the ctrl-c SIGINT (docker builds, git fetch, etc.): it SIGKILLs the child's
+// whole process group. creack/pty starts the child with Setsid, so it is the
+// session and group leader (PGID == PID) and the negative-pid group kill is
+// well-defined — it reaches every descendant the script spawned. An
+// already-reaped child (the race where the run exits between the grace timer
+// firing and K) yields ESRCH, which is treated as a no-op success.
+func (r *PTYRunner) Kill() {
+	if r.cmd.Process == nil {
+		return
+	}
+	if err := syscall.Kill(-r.cmd.Process.Pid, syscall.SIGKILL); err != nil && !errors.Is(err, syscall.ESRCH) {
+		// Fall back to a direct kill if the group send failed for any reason
+		// other than the group already being gone.
+		_ = r.cmd.Process.Kill()
+	}
 }

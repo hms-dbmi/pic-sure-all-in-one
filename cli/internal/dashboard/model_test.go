@@ -23,6 +23,10 @@ func keyMsg(s string) tea.KeyMsg {
 		return tea.KeyMsg(tea.Key{Type: tea.KeyUp})
 	case "down":
 		return tea.KeyMsg(tea.Key{Type: tea.KeyDown})
+	case "home":
+		return tea.KeyMsg(tea.Key{Type: tea.KeyHome})
+	case "pgup":
+		return tea.KeyMsg(tea.Key{Type: tea.KeyPgUp})
 	default:
 		return tea.KeyMsg(tea.Key{Type: tea.KeyRunes, Runes: []rune(s)})
 	}
@@ -319,6 +323,51 @@ func TestActionPaneFloodKeepsFrameInBox(t *testing.T) {
 	m = mm.(*model)
 
 	frameFits(t, m.View(), 100, 30)
+}
+
+// TestActionPanePreservesManualScroll asserts that scrolling back during a
+// live run is not yanked to the bottom by the next output chunk — the
+// modeActing help line advertises "pgup/pgdn scroll" and the runner emits
+// OutputMsg several times a second during a chatty script.
+func TestActionPanePreservesManualScroll(t *testing.T) {
+	m := testModel(t)
+	mm, _ := m.Update(tea.WindowSizeMsg{Width: 100, Height: 30})
+	m = mm.(*model)
+	m.mode = modeActing
+	m.actionName = "update"
+	m.runner = &actions.PTYRunner{} // live run: help line advertises scrolling
+	m.actionOut = actions.NewOutputBuffer()
+
+	// Enough output to overflow the pane so the viewport is scrollable.
+	var b strings.Builder
+	for i := 0; i < 200; i++ {
+		fmt.Fprintf(&b, "line %03d\r\n", i)
+	}
+	m.actionOut.Feed([]byte(b.String()))
+	m.refreshActionPane()
+	if m.actionView.AtBottom() {
+		// Sanity: a fresh feed tails to the bottom (the at-bottom default).
+	} else {
+		t.Fatal("first batch should have tailed to the bottom")
+	}
+
+	// User scrolls back several pages, away from the bottom.
+	for i := 0; i < 3; i++ {
+		m, _ = update(t, m, keyMsg("pgup"))
+	}
+	if m.actionView.AtBottom() {
+		t.Fatal("pgup should have scrolled away from the bottom")
+	}
+	offsetBefore := m.actionView.YOffset
+
+	// A new output chunk arrives mid-scroll. It must NOT yank to bottom.
+	m, _ = update(t, m, actions.OutputMsg{Data: []byte("line 200\r\nline 201\r\n")})
+	if m.actionView.AtBottom() {
+		t.Error("output batch yanked the pane to the bottom, defeating scroll-back")
+	}
+	if m.actionView.YOffset != offsetBefore {
+		t.Errorf("scroll position moved: YOffset %d → %d", offsetBefore, m.actionView.YOffset)
+	}
 }
 
 func TestLogPaneFloodKeepsFrameInBox(t *testing.T) {

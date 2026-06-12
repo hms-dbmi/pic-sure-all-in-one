@@ -57,12 +57,18 @@ func (m *model) refreshActionPane() {
 	if m.actionOut == nil {
 		return
 	}
+	// Autoscroll only when already tailing, so pgup/pgdn scroll-back survives
+	// the next output chunk during a chatty run (the modeActing help line
+	// advertises this). Same pattern as refreshLogPane and the activity screen.
+	atBottom := m.actionView.AtBottom()
 	content := m.actionOut.String()
 	if m.actionView.Width > 0 {
 		content = ansi.Hardwrap(content, m.actionView.Width, true)
 	}
 	m.actionView.SetContent(content)
-	m.actionView.GotoBottom()
+	if atBottom {
+		m.actionView.GotoBottom()
+	}
 }
 
 // actionPaneSize is the PTY/viewport geometry: the full right column MINUS

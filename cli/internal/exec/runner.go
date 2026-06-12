@@ -62,7 +62,7 @@ func run(root, script string, args []string, stdin io.Reader) (int, error) {
 	// Start and Notify can't kill the CLI (default disposition) while the
 	// child, in its own process group, survives orphaned. Signals arriving
 	// before the forwarding goroutine runs sit buffered in sigCh.
-	sigCh := make(chan os.Signal, 1)
+	sigCh := make(chan os.Signal, 4)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 
 	if err := cmd.Start(); err != nil {
@@ -87,7 +87,12 @@ func run(root, script string, args []string, stdin io.Reader) (int, error) {
 					// Ctrl-C, so forwarding SIGINT would deliver it twice; a
 					// SIGTERM aimed at the CLI alone must still reach the
 					// script. Either way Notify keeps the CLI alive until
-					// Wait reports the child's fate.
+					// Wait reports the child's fate. Accepted gap: pid-only
+					// SIGTERM can't reach grandchildren (a docker compose the
+					// script spawned) — group-TERM is no option here, since
+					// the CLI shares the group and would TERM itself into a
+					// self-signaling storm, while Ctrl-C still reaches
+					// grandchildren via the terminal's group delivery.
 					_ = syscall.Kill(cmd.Process.Pid, s)
 				}
 			case <-done:
@@ -97,8 +102,8 @@ func run(root, script string, args []string, stdin io.Reader) (int, error) {
 	}()
 
 	err := cmd.Wait()
-	close(done)
 	signal.Stop(sigCh)
+	close(done)
 
 	return CodeFromWait(err)
 }

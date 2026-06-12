@@ -29,6 +29,12 @@ services:
       context: ${HPDS_SRC:-./repos/pic-sure-hpds}
       dockerfile: docker/pic-sure-hpds/Dockerfile
     image: hms-dbmi/pic-sure-hpds:dev
+    ports:
+      - "5007:5007"
+    environment:
+      JAVA_OPTS: >-
+        ${HPDS_JAVA_OPTS:--XX:+UseParallelGC -XX:SurvivorRatio=250 -Xms1g -Xmx16g}
+        -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5007
 
   # ---------------------------------------------------------------------------
   # PSAMA — build from local source
@@ -83,9 +89,15 @@ services:
   httpd:
     build:
       context: ${FRONTEND_SRC:-./repos/PIC-SURE-Frontend}
-      dockerfile: Dockerfile
+      dockerfile: ${PWD}/config/httpd/dev.Dockerfile
       args:
         THEME: ${PICSURE_THEME:-picsure}
+        VITE_RESOURCE_HPDS: ${PICSURE_RESOURCE_ID:-}
+        VITE_RESOURCE_OPEN_HPDS: ${VITE_RESOURCE_OPEN_HPDS:-}
+        VITE_RESOURCE_VIZ: ${PICSURE_VIZ_RESOURCE_ID:-}
+        VITE_AUTH0_TENANT: ${AUTH0_TENANT:-avillachlab}
+        VITE_AUTH_PROVIDER_MODULE_GOOGLE_CLIENTID: ${AUTH0_CLIENT_ID:-}
+        VITE_AUTH_PROVIDER_MODULE_GOOGLE_CONNECTION: ${VITE_AUTH_PROVIDER_MODULE_GOOGLE_CONNECTION:-google-oauth2}
     image: hms-dbmi/pic-sure-httpd:dev
 
   # ---------------------------------------------------------------------------

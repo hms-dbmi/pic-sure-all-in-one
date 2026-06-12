@@ -175,12 +175,14 @@ func TestInitNonInteractiveAllFlags(t *testing.T) {
 	for _, c := range sets {
 		switch c.args[0] {
 		case "AUTH0_CLIENT_ID":
-			if c.args[1] != "cid" {
-				t.Errorf("env-set %v unexpected", c.args)
+			// Plain values go KEY -- VALUE so a value beginning with `--`
+			// reaches env-set.sh as a value, not an option (B20).
+			if len(c.args) != 3 || c.args[1] != "--" || c.args[2] != "cid" {
+				t.Errorf("env-set %v unexpected, want [AUTH0_CLIENT_ID -- cid]", c.args)
 			}
 		case "ADMIN_EMAIL":
-			if c.args[1] != "admin@example.com" {
-				t.Errorf("env-set %v unexpected", c.args)
+			if len(c.args) != 3 || c.args[1] != "--" || c.args[2] != "admin@example.com" {
+				t.Errorf("env-set %v unexpected, want [ADMIN_EMAIL -- admin@example.com]", c.args)
 			}
 		case "AUTH0_CLIENT_SECRET":
 			// Secrets must never appear in argv: --stdin with the value
@@ -275,8 +277,9 @@ func TestInitExistingEnvFieldFlagsWriteOnlyChanged(t *testing.T) {
 		t.Fatal(err)
 	}
 	sets := envSetCalls(*calls)
-	if len(sets) != 1 || sets[0].args[0] != "ADMIN_EMAIL" || sets[0].args[1] != "new@example.com" {
-		t.Errorf("env-set calls = %v, want only changed ADMIN_EMAIL", sets)
+	if len(sets) != 1 || sets[0].args[0] != "ADMIN_EMAIL" ||
+		len(sets[0].args) != 3 || sets[0].args[1] != "--" || sets[0].args[2] != "new@example.com" {
+		t.Errorf("env-set calls = %v, want only changed ADMIN_EMAIL via [ADMIN_EMAIL -- new@example.com]", sets)
 	}
 }
 

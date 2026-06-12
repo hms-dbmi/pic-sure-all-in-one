@@ -11,6 +11,8 @@
 # Usage:
 #   scripts/env-set.sh KEY VALUE              # set/overwrite KEY
 #   scripts/env-set.sh KEY VALUE --no-force   # keep an existing non-empty value
+#   scripts/env-set.sh KEY -- VALUE           # `--` ends options, so VALUE may
+#                                             # start with `--` (e.g. --weird)
 #   scripts/env-set.sh KEY --stdin            # read VALUE from stdin (for
 #                                             # secrets: keeps them out of argv)
 #
@@ -30,7 +32,7 @@ LOG_PREFIX="env-set"
 source "$SCRIPT_DIR/scripts/lib/common.sh"
 
 usage() {
-  sed -n '2,18p' "${BASH_SOURCE[0]}"
+  sed -n '2,20p' "${BASH_SOURCE[0]}"
 }
 
 KEY=""
@@ -39,8 +41,30 @@ VALUE_SET=false
 FORCE=true
 FROM_STDIN=false
 
+# A literal `--` ends option parsing: every token after it is positional,
+# so a VALUE beginning with `--` (e.g. user-typed wizard input) can be
+# written. Once positional-only, even `--no-force`/`--stdin`/`-h` are values.
+POSITIONAL_ONLY=false
+add_positional() {
+  if [ -z "$KEY" ]; then
+    KEY="$1"
+  elif [ "$VALUE_SET" = "false" ]; then
+    VALUE="$1"
+    VALUE_SET=true
+  else
+    error "Too many arguments: $1"
+    usage >&2
+    exit 2
+  fi
+}
+
 for arg in "$@"; do
+  if [ "$POSITIONAL_ONLY" = "true" ]; then
+    add_positional "$arg"
+    continue
+  fi
   case "$arg" in
+    --) POSITIONAL_ONLY=true ;;
     --no-force) FORCE=false ;;
     --stdin) FROM_STDIN=true ;;
     -h|--help)
@@ -53,16 +77,7 @@ for arg in "$@"; do
       exit 2
       ;;
     *)
-      if [ -z "$KEY" ]; then
-        KEY="$arg"
-      elif [ "$VALUE_SET" = "false" ]; then
-        VALUE="$arg"
-        VALUE_SET=true
-      else
-        error "Too many arguments: $arg"
-        usage >&2
-        exit 2
-      fi
+      add_positional "$arg"
       ;;
   esac
 done

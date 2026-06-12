@@ -45,8 +45,10 @@ func TestWriteChangedWritesOnlyChangedKeysSecretsViaStdin(t *testing.T) {
 		}
 		switch c.args[0] {
 		case "ADMIN_EMAIL":
-			if c.args[1] != "new@example.com" || c.input != "" {
-				t.Errorf("plain write = %+v", c)
+			// Plain writes go KEY -- VALUE: the `--` barrier lets a value
+			// beginning with `--` reach env-set.sh as a value, not an option.
+			if len(c.args) != 3 || c.args[1] != "--" || c.args[2] != "new@example.com" || c.input != "" {
+				t.Errorf("plain write = %+v, want [KEY -- VALUE]", c)
 			}
 		case "AUTH0_CLIENT_SECRET":
 			if c.args[1] != "--stdin" || c.input != "s3cret" {

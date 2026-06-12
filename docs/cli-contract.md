@@ -199,12 +199,18 @@ The single entry point for programmatic `.env` writes.
 ```
 scripts/env-set.sh KEY VALUE              # set/overwrite KEY
 scripts/env-set.sh KEY VALUE --no-force   # keep an existing non-empty value
+scripts/env-set.sh KEY -- VALUE           # `--` ends options; VALUE may begin with `--`
 scripts/env-set.sh KEY --stdin            # read VALUE from stdin
 ```
 
 `--stdin` exists for secrets: the value never appears in a process argument
 list. Trailing newlines are stripped; embedded newlines are rejected as
 usual. `--stdin` and a positional VALUE are mutually exclusive (exit 2).
+
+A literal `--` ends option parsing: every token after it is positional, so a
+VALUE that begins with `--` (e.g. user-typed wizard input) is written verbatim
+instead of being rejected as an unknown option. Programmatic callers that pass
+arbitrary user-supplied values should use the `KEY -- VALUE` form.
 
 - If `.env` does not exist it is **created from `.env.example` first**
   (frontends never copy or edit `.env` themselves).

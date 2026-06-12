@@ -24,7 +24,10 @@ func WriteChanged(run RunScript, runInput RunScriptInput, root string, current, 
 		if IsSecretKey(key) {
 			code, err = runInput(root, scripts.EnvSet, []string{key, "--stdin"}, desired[key])
 		} else {
-			code, err = run(root, scripts.EnvSet, []string{key, desired[key]})
+			// `--` ends env-set.sh option parsing so a user-typed value
+			// beginning with `--` is written verbatim instead of being
+			// rejected as an unknown option (B20).
+			code, err = run(root, scripts.EnvSet, []string{key, "--", desired[key]})
 		}
 		if err != nil {
 			return fmt.Errorf("%s %s: %w", scripts.EnvSet, key, err)

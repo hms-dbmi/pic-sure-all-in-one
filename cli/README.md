@@ -106,7 +106,8 @@ menu):
 | Apply dev overlay… | picker over `docker-compose.dev-*.yml`; runs `scripts/compose.sh dev up <overlay>` — the overlay's service is recreated **from local source** (`up -d --no-deps --build`) |
 | Revert service to release… | `scripts/compose.sh dev off <name>` — recreate from the release image |
 | Release control… | nested submenu: Re-apply current branch · Dry run · Switch branch… (one-field input, prefilled with the current branch from `status --json`; expect a ~1s pause while it reads) |
-| Reset… / Uninstall… | typed-word confirms, then `reset.sh --yes` / `uninstall.sh --yes` |
+| Reset… | one screen: pick the scope — **Keep the database** (`reset.sh --yes`) or **Full wipe** which also drops the DB volume, PIC-SURE images, and the Maven cache (`reset.sh --all --yes`) — then type `reset` to confirm |
+| Uninstall… | typed-word confirm, then `uninstall.sh --yes` |
 
 Dev overlays are **one-shot**: a later plain `up` or update recreates the
 service from the base compose files (release images).

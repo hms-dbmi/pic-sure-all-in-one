@@ -269,6 +269,74 @@ func TestLandingDemoOpensDatasetPicker(t *testing.T) {
 	}
 }
 
+// The two reset variants live on ONE screen: a scope select (keep DB vs full
+// wipe) plus the typed-word confirm. The scope drives which reset.sh
+// invocation runs, and the typed word still gates dispatch.
+func TestLandingResetCombinedScreen(t *testing.T) {
+	open := func() *landing {
+		l := newLanding("/tmp/x", true, false)
+		l.dev = true
+		l.rebuildMenu()
+		_, _ = l.choose("reset")
+		if l.form == nil || !l.resetting {
+			t.Fatal("reset entry did not open the combined dialog")
+		}
+		if l.resetScope != "keep" {
+			t.Fatalf("default scope = %q, want keep", l.resetScope)
+		}
+		return l
+	}
+
+	// Both the scope choice and the typed-word confirm render together — the
+	// whole point of "one screen".
+	l := open()
+	l.setSize(100, 35)
+	l = pumpLanding(l, l.form.Init(), 0)
+	view := wizardANSI.ReplaceAllString(l.view(), "")
+	for _, want := range []string{"Keep the database", "Full wipe", `Type "reset"`} {
+		if !strings.Contains(view, want) {
+			t.Errorf("combined reset screen missing %q", want)
+		}
+	}
+
+	// Keep-DB scope with the word typed → reset.sh --yes (no --all).
+	l = open()
+	l.resetScope, l.confirmText = "keep", "reset"
+	l.form.State = huh.StateCompleted
+	_, cmd := l.update(struct{}{})
+	run, ok := cmd().(runActionMsg)
+	if !ok || run.act.Script != "reset.sh" {
+		t.Fatalf("keep: got %#v, want runActionMsg{reset.sh}", cmd())
+	}
+	if want := []string{"--yes"}; !eq(run.act.Args, want) {
+		t.Errorf("keep args = %v, want %v", run.act.Args, want)
+	}
+
+	// Full-wipe scope with the word typed → reset.sh --all --yes.
+	l = open()
+	l.resetScope, l.confirmText = "all", "reset"
+	l.form.State = huh.StateCompleted
+	_, cmd = l.update(struct{}{})
+	run, ok = cmd().(runActionMsg)
+	if !ok || run.act.Script != "reset.sh" {
+		t.Fatalf("full wipe: got %#v, want runActionMsg{reset.sh}", cmd())
+	}
+	if want := []string{"--all", "--yes"}; !eq(run.act.Args, want) {
+		t.Errorf("full-wipe args = %v, want %v", run.act.Args, want)
+	}
+
+	// Wrong word must not dispatch even if the form is forced complete.
+	l = open()
+	l.resetScope, l.confirmText = "all", "nope"
+	l.form.State = huh.StateCompleted
+	_, cmd = l.update(struct{}{})
+	if cmd != nil {
+		if msg := cmd(); msg != nil {
+			t.Errorf("wrong word emitted %#v, want no dispatch", msg)
+		}
+	}
+}
+
 // Regression: the dev picker opened scrolled to its Cancel row (empty
 // initial value matched Cancel; WithWidth froze the group viewport) — every
 // option must be visible on the very first render, cursor on the first one.
@@ -374,7 +442,7 @@ func TestLandingEscCancelsEveryDialogKind(t *testing.T) {
 		name string
 		do   func(l *landing)
 	}{
-		{"typed-word confirm (reset)", func(l *landing) { _, _ = l.choose("reset") }},
+		{"combined reset (scope + typed word)", func(l *landing) { _, _ = l.choose("reset") }},
 		{"light confirm (update)", func(l *landing) { _, _ = l.choose("update") }},
 		{"picker (demo)", func(l *landing) { _, _ = l.choose("demo") }},
 		{"input (release-control branch)", func(l *landing) {
@@ -395,7 +463,7 @@ func TestLandingEscCancelsEveryDialogKind(t *testing.T) {
 		if l.form != nil {
 			t.Errorf("%s: esc did not close the dialog", tc.name)
 		}
-		if l.pending != nil || l.pickerMake != nil || l.inputMake != nil {
+		if l.pending != nil || l.pickerMake != nil || l.inputMake != nil || l.resetting {
 			t.Errorf("%s: dialog state not fully cleared on esc", tc.name)
 		}
 		if cmd != nil {

@@ -61,6 +61,8 @@ type landing struct {
 	confirmOK   bool
 	confirmText string
 	pending     *actions.Action
+	resetting   bool                        // true while the combined reset dialog is open
+	resetScope  string                      // "keep" or "all" — set only while resetting is true
 	picked      string                      // picker selection value
 	pickerMake  func(string) actions.Action // non-nil while a picker is open
 	inputVal    string                      // text-input value
@@ -273,7 +275,7 @@ func (l *landing) choose(id string) (*landing, tea.Cmd) {
 	case "rcbranch":
 		return l.startBranchInput()
 	case "reset":
-		return l.startConfirm(actions.Reset())
+		return l.startResetConfirm()
 	case "uninstall":
 		return l.startConfirm(actions.Uninstall())
 	}
@@ -400,12 +402,60 @@ func (l *landing) startConfirm(act actions.Action) (*landing, tea.Cmd) {
 	return l, l.form.Init()
 }
 
+// resetAction maps the combined reset dialog's scope choice to the script
+// invocation: "all" → reset.sh --all (full wipe), anything else → the
+// DB-preserving reset.
+func resetAction(scope string) actions.Action {
+	if scope == "all" {
+		return actions.ResetAll()
+	}
+	return actions.Reset()
+}
+
+// startResetConfirm opens ONE screen that carries both the scope choice
+// (keep the database vs. full wipe) and the typed-word confirm, so the two
+// reset variants share a single dialog instead of two menu items. The scope
+// select must bind Value BEFORE Options (huh gotcha) and preselect a real
+// option so the cursor is not pinned to an empty row.
+func (l *landing) startResetConfirm() (*landing, tea.Cmd) {
+	l.resetting = true
+	l.resetScope = "keep"
+	l.confirmText = ""
+	word := actions.Reset().ConfirmWord
+
+	scope := huh.NewSelect[string]().
+		Title("⚠ Reset — this destroys data").
+		Description("Stops all containers and removes generated state so you can re-init:\n"+
+			"  • .env (backed up first), certs/, .data/, generated config, deployed WARs\n"+
+			"Sibling repos and .env.example are kept. Choose how much to wipe:").
+		Value(&l.resetScope).
+		Options(
+			huh.NewOption("Keep the database — picsure-db data preserved; re-init reuses it", "keep"),
+			huh.NewOption("Full wipe — also drop the DB volume, PIC-SURE images, and the Maven cache", "all"),
+		)
+
+	confirm := huh.NewInput().
+		Title(fmt.Sprintf("Type %q to confirm", word)).
+		Description("(esc cancels)").
+		Value(&l.confirmText).
+		Validate(func(s string) error {
+			if s != word {
+				return fmt.Errorf("type %q exactly to confirm", word)
+			}
+			return nil
+		})
+
+	l.form = l.sizeForm(huh.NewForm(huh.NewGroup(scope, confirm)).WithShowHelp(true))
+	return l, l.form.Init()
+}
+
 func (l *landing) updateForm(msg tea.Msg) (*landing, tea.Cmd) {
 	// huh ships its esc binding disabled (only ctrl+c aborts a form), but
 	// every dialog here advertises "esc cancels" — intercept it, exactly as
 	// the wizard screen does. One chokepoint covers all four dialog kinds.
 	if key, ok := msg.(tea.KeyMsg); ok && key.String() == "esc" {
 		l.form, l.pending, l.pickerMake, l.inputMake = nil, nil, nil, nil
+		l.resetting, l.resetScope = false, ""
 		return l, nil
 	}
 
@@ -415,6 +465,16 @@ func (l *landing) updateForm(msg tea.Msg) (*landing, tea.Cmd) {
 	}
 	switch l.form.State {
 	case huh.StateCompleted:
+		if l.resetting {
+			act := resetAction(l.resetScope)
+			l.form, l.resetting, l.resetScope = nil, false, ""
+			// Re-validate the typed word at the dispatch seam (defense in
+			// depth: the form's own Validate already gates real input).
+			if !actions.ConfirmAccepted(act, false, l.confirmText) {
+				return l, nil
+			}
+			return l, func() tea.Msg { return runActionMsg{act: act} }
+		}
 		if l.inputMake != nil {
 			makeAction, val := l.inputMake, strings.TrimSpace(l.inputVal)
 			l.form, l.inputMake = nil, nil
@@ -442,6 +502,7 @@ func (l *landing) updateForm(msg tea.Msg) (*landing, tea.Cmd) {
 		return l, func() tea.Msg { return runActionMsg{act: a} }
 	case huh.StateAborted:
 		l.form, l.pending, l.pickerMake, l.inputMake = nil, nil, nil, nil
+		l.resetting, l.resetScope = false, ""
 		return l, nil
 	}
 	return l, cmd

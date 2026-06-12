@@ -210,6 +210,26 @@ func Reset() Action {
 	}
 }
 
+// ResetAll: reset.sh --all — everything Reset does, PLUS the database volume,
+// the PIC-SURE images, and the Maven build cache. Same typed-word gate as Reset
+// (the UI distinguishes them by label and destruction text, not the word).
+func ResetAll() Action {
+	return Action{
+		Name:        "reset --all",
+		Script:      scripts.Reset,
+		Args:        []string{"--all", "--yes"},
+		Destructive: true,
+		ConfirmWord: "reset",
+		Describe: "FULL WIPE. Stops all containers and DELETES everything Reset does, PLUS:\n" +
+			"  • the database volume (picsure-db data — ALL loaded phenotype data is lost)\n" +
+			"  • every PIC-SURE image\n" +
+			"  • the Maven build cache (next init rebuilds from source — slow)\n" +
+			".env is backed up first; certs/, .data/, and generated config are removed too.\n" +
+			"Sibling repos and .env.example are kept.",
+		AbortNote: "partial cleanup possible; run `pic-sure status` to see what remains.",
+	}
+}
+
 // Uninstall: matches uninstall.sh --yes (compose down --volumes INCLUDING the
 // database volume; .env backed up then removed; generated files removed;
 // repos and images kept without extra flags).

@@ -28,12 +28,36 @@ func TestConfirmAccepted(t *testing.T) {
 	}
 }
 
+// ResetAll surfaces reset.sh --all (full wipe: DB volume, PIC-SURE images, and
+// the Maven cache, on top of everything plain reset removes). It must pass both
+// --all and --yes (the UI already confirmed), run the reset script, and gate on
+// the same typed word as the DB-preserving reset.
+func TestResetAllArgs(t *testing.T) {
+	a := ResetAll()
+	if !a.Destructive || a.ConfirmWord != "reset" {
+		t.Fatalf("ResetAll must be destructive with confirm word %q, got destructive=%v word=%q",
+			"reset", a.Destructive, a.ConfirmWord)
+	}
+	if a.Script != Reset().Script {
+		t.Errorf("ResetAll must run the reset script, got %q", a.Script)
+	}
+	want := []string{"--all", "--yes"}
+	if len(a.Args) != len(want) {
+		t.Fatalf("ResetAll args = %v, want %v", a.Args, want)
+	}
+	for i := range want {
+		if a.Args[i] != want[i] {
+			t.Fatalf("ResetAll args = %v, want %v", a.Args, want)
+		}
+	}
+}
+
 // Spec amendment 3: no abort may leave the user guessing about state. Every
 // action must carry a one-line post-abort re-run-safety note.
 func TestEveryActionHasAbortNote(t *testing.T) {
 	acts := []Action{
 		Init(), Update(), Restart("wildfly"), Preflight(), Migrate(), SeedDB(),
-		DemoData("nhanes"), DemoData("all"), DevUp("httpd-hmr"), DevOff("httpd"), Reset(), Uninstall(),
+		DemoData("nhanes"), DemoData("all"), DevUp("httpd-hmr"), DevOff("httpd"), Reset(), ResetAll(), Uninstall(),
 		Etl("hydrate-dictionary"), Etl("run-weights"), Etl("promote-genomic"), Etl("public-1000genomes"),
 		ReleaseControlApply(), ReleaseControlDryRun(), ReleaseControlBranch("main"),
 	}

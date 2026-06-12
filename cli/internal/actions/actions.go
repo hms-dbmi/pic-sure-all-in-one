@@ -321,7 +321,9 @@ type GenomicOpts struct {
 	Heap string
 	// Promote runs the promote step (backup-safe: stages atomically).
 	Promote bool
-	// EnableProfile activates JVM profiling; caveat: may degrade throughput.
+	// EnableProfile enables the genomic HPDS profile (HPDS_PROFILE=bch-dev) and
+	// restarts HPDS so loaded genomic data becomes queryable; caveat: enabling
+	// it before genomic data is present crash-loops HPDS.
 	EnableProfile bool
 }
 
@@ -411,8 +413,10 @@ func LoadGenomic(o GenomicOpts) Action {
 		describe += "\nStaging only — run `pic-sure etl promote-genomic` to make it live."
 	}
 	if o.EnableProfile {
-		describe += "\n--enable-profile is set: JVM profiling is active — throughput may be\n" +
-			"reduced; disable for production loads."
+		describe += "\n--enable-profile is set: enables the genomic HPDS profile\n" +
+			"(HPDS_PROFILE=bch-dev) and restarts HPDS so loaded genomic data is\n" +
+			"queryable. Caveat: enabling the profile before genomic data is present\n" +
+			"crash-loops HPDS — only enable it once promoted data exists."
 	}
 
 	return Action{

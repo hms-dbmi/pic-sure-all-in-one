@@ -97,21 +97,21 @@ type landing struct {
 	dev    bool // in the developer-options submenu
 	relctl bool // in the release-control submenu (nested under dev)
 
-	form        *huh.Form
-	confirmOK   bool
-	confirmText string
-	pending     *actions.Action
-	resetting   bool                        // true while the combined reset dialog is open
-	resetScope  string                      // "keep" or "all" — set only while resetting is true
-	resetRepos  bool                        // reset-sibling-repos toggle — set only while resetting is true
-	picked          string                      // picker selection value
-	pickerMake      func(string) actions.Action // non-nil while a picker is open
-	devPickerSeq    int                         // stamps each dev-picker opening for overlay-fill staleness
-	devPickerTitle  string                      // stashed for form rebuild when the async fill arrives
-	devPickerDesc   string                      // stashed for form rebuild when the async fill arrives
-	inputVal        string                      // text-input value
-	inputMake       func(string) actions.Action // non-nil while a text-input is open
-	branchSeq       int                         // stamps each branch-input opening for prefill staleness
+	form           *huh.Form
+	confirmOK      bool
+	confirmText    string
+	pending        *actions.Action
+	resetting      bool                        // true while the combined reset dialog is open
+	resetScope     string                      // "keep" or "all" — set only while resetting is true
+	resetRepos     bool                        // reset-sibling-repos toggle — set only while resetting is true
+	picked         string                      // picker selection value
+	pickerMake     func(string) actions.Action // non-nil while a picker is open
+	devPickerSeq   int                         // stamps each dev-picker opening for overlay-fill staleness
+	devPickerTitle string                      // stashed for form rebuild when the async fill arrives
+	devPickerDesc  string                      // stashed for form rebuild when the async fill arrives
+	inputVal       string                      // text-input value
+	inputMake      func(string) actions.Action // non-nil while a text-input is open
+	branchSeq      int                         // stamps each branch-input opening for prefill staleness
 
 	result        string
 	width, height int
@@ -378,15 +378,10 @@ func (l *landing) startSelectPicker(title, description, preselect string, opts [
 	return l, l.form.Init()
 }
 
-// buildDevPickerForm constructs the dev-picker form, seeding it from the
-// given overlays. Mirrors buildBranchForm: Value is bound before Options,
-// and the form is rebuilt when the overlay list arrives from the async fetch.
-func (l *landing) buildDevPickerForm(title, description string, overlays []string) *huh.Form {
-	opts := make([]huh.Option[string], 0, len(overlays)+1)
-	for _, o := range overlays {
-		opts = append(opts, huh.NewOption(o, o))
-	}
-	opts = append(opts, huh.NewOption("Cancel", ""))
+// buildDevPickerForm constructs the dev-picker form from pre-built options.
+// Mirrors buildBranchForm: Value is bound before Options, and the form is
+// rebuilt when the overlay list arrives from the async fetch.
+func (l *landing) buildDevPickerForm(title, description string, opts []huh.Option[string]) *huh.Form {
 	return huh.NewForm(huh.NewGroup(
 		huh.NewSelect[string]().
 			Title(title).
@@ -394,6 +389,16 @@ func (l *landing) buildDevPickerForm(title, description string, overlays []strin
 			Value(&l.picked).
 			Options(opts...),
 	))
+}
+
+// devPickerOptions maps overlay names to picker options plus the trailing
+// Cancel row (empty value — the picker-completion handler treats "" as cancel).
+func devPickerOptions(overlays []string) []huh.Option[string] {
+	opts := make([]huh.Option[string], 0, len(overlays)+1)
+	for _, o := range overlays {
+		opts = append(opts, huh.NewOption(o, o))
+	}
+	return append(opts, huh.NewOption("Cancel", ""))
 }
 
 // startDevPicker opens an overlay picker; the selection is the consent (like
@@ -410,8 +415,12 @@ func (l *landing) startDevPicker(title, description string, makeAction func(stri
 
 	// Open immediately with a placeholder option so the dialog is visible at
 	// once; the real list replaces it when the fetch delivers devOverlaysFillMsg.
+	// The placeholder carries an EMPTY value: a premature enter resolves to the
+	// picker-completion handler's choice=="" Cancel guard instead of dispatching
+	// a bogus `dev up "(loading overlays…)"` (the branch input's safe-cancel
+	// invariant — an unfilled dialog can only cancel, never act).
 	l.form = l.sizeForm(l.buildDevPickerForm(title, description,
-		[]string{"(loading overlays…)"}))
+		[]huh.Option[string]{huh.NewOption("(loading overlays…)", "")}))
 
 	seq, root := l.devPickerSeq, l.root
 	fetch := func() tea.Msg {
@@ -440,7 +449,7 @@ func (l *landing) applyDevOverlaysFill(msg devOverlaysFillMsg) (*landing, tea.Cm
 	// Rebuild the picker with the real overlay list. Pre-select the first
 	// overlay so the cursor is not pinned to the Cancel row on open.
 	l.picked = msg.overlays[0]
-	l.form = l.sizeForm(l.buildDevPickerForm(l.devPickerTitle, l.devPickerDesc, msg.overlays))
+	l.form = l.sizeForm(l.buildDevPickerForm(l.devPickerTitle, l.devPickerDesc, devPickerOptions(msg.overlays)))
 	return l, l.form.Init()
 }
 

@@ -124,7 +124,9 @@ services:
   visualization:
     build:
       context: ${VISUALIZATION_SRC:-./repos/pic-sure-visualization-resource}
-      dockerfile: Dockerfile
+      dockerfile: dev.Dockerfile
+      additional_contexts:
+        m2_cache: ~/.m2/repository
     image: hms-dbmi/pic-sure-visualization:dev
 
   # ---------------------------------------------------------------------------

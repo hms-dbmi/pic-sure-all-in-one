@@ -309,6 +309,11 @@ stable check names (`host.*`, `env.*`, `compose.config`, `network.*`, …).
 | `2` | binary usage errors: unknown command or flag, `--root` without a value, non-interactive precondition failure (`reset` without `--yes` on a non-TTY), `env-set.sh` usage errors |
 | `130`/`143` | script death by SIGINT/SIGTERM (128+N convention) |
 
+Any other binary-side failure where no script ran — checkout-root discovery
+failure, a script that could not be spawned, internal I/O errors — also
+exits `2`. Exit `1` always means a script (or `preflight` check) actually
+ran and failed.
+
 ### Non-interactive recipes
 
 ```sh

@@ -264,6 +264,36 @@ func TestLandingDevOverlayPickerCancel(t *testing.T) {
 	}
 }
 
+// TestLandingDevPickerPrematureEnterCancels pins the placeholder-safety
+// invariant: the loading placeholder option carries an EMPTY value, so
+// completing the form before the async overlay fill arrives resolves to the
+// picker-completion handler's choice=="" Cancel guard — it must never
+// dispatch a bogus `dev up "(loading overlays…)"` action (the branch input's
+// safe-cancel invariant: an unfilled dialog can only cancel, never act).
+func TestLandingDevPickerPrematureEnterCancels(t *testing.T) {
+	l := newLanding(devRoot(t), true, false)
+	l.dev = true
+	l.rebuildMenu()
+	_, _ = l.choose("devoverlay")
+	if l.form == nil {
+		t.Fatal("picker did not open")
+	}
+	// Do NOT pump the fill: the placeholder is still up and picked is "".
+	if l.picked != "" {
+		t.Fatalf("picked = %q before the fill, want empty (placeholder value)", l.picked)
+	}
+	l.form.State = huh.StateCompleted // premature enter on the placeholder
+	_, cmd := l.update(struct{}{})
+	if cmd != nil {
+		if msg := cmd(); msg != nil {
+			t.Errorf("premature enter dispatched %#v, want cancel (nothing)", msg)
+		}
+	}
+	if l.form != nil || l.pickerMake != nil {
+		t.Error("picker state not cleared after premature-enter cancel")
+	}
+}
+
 func TestLandingDevOverlayPickerNoFiles(t *testing.T) {
 	// Stub fetchDevOverlays to return nothing (simulates an empty checkout or
 	// a failed dev list call), restoring on cleanup.

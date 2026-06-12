@@ -305,8 +305,8 @@ stable check names (`host.*`, `env.*`, `compose.config`, `network.*`, …).
 | Code | Meaning |
 |---|---|
 | `0` | success — including deliberate no-ops: declined `reset` prompt, `uninstall` without `--yes` (plan-only mode), `status` always |
-| `1` | script failure (propagated unchanged), `preflight` check failure, TTY-refusal and other command errors |
-| `2` | binary usage errors (e.g. `--root` without a value), `env-set.sh` usage errors |
+| `1` | script failure (exit code propagated unchanged), `preflight` check failure |
+| `2` | binary usage errors: unknown command or flag, `--root` without a value, non-interactive precondition failure (`reset` without `--yes` on a non-TTY), `env-set.sh` usage errors |
 | `130`/`143` | script death by SIGINT/SIGTERM (128+N convention) |
 
 ### Non-interactive recipes

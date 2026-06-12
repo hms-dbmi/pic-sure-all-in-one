@@ -506,3 +506,76 @@ func TestDevCommandPassesThroughVerbatim(t *testing.T) {
 		t.Errorf("argv = %v, want %v", argv, want)
 	}
 }
+
+// executeCode is a test helper that mirrors the Execute() happy/sad path:
+// it runs the cobra tree and returns the exit code by applying the same
+// logic Execute uses (a.exitCode if the script ran, 2 on cobra/usage errors).
+func executeCode(t *testing.T, osArgs []string) int {
+	t.Helper()
+	cleaned, opts, err := ScanGlobalArgs(osArgs)
+	if err != nil {
+		return 2 // ScanGlobalArgs usage error
+	}
+	var ranCode int
+	a := &app{
+		findRoot:      func(start, override string) (string, error) { return "/fake/root", nil },
+		isInteractive: func() bool { return false },
+		runScript: func(root, script string, args []string) (int, error) {
+			// Stub: always success (exit 0).
+			return ranCode, nil
+		},
+	}
+	a.opts = opts
+	root := a.rootCommand()
+	root.SetArgs(cleaned)
+	root.SetOut(io.Discard)
+	root.SetErr(io.Discard)
+	if err := root.Execute(); err != nil {
+		if a.exitCode != 0 {
+			return a.exitCode
+		}
+		return 2
+	}
+	return a.exitCode
+}
+
+// TestExitCodeMatrix pins the binary's own exit codes for usage errors
+// (both cobra-level and ScanGlobalArgs-level) and for script success.
+// The convention: exit 2 for CLI usage errors, propagated exit code for
+// scripts, matching env-set.sh and the contract's exit-code table.
+func TestExitCodeMatrix(t *testing.T) {
+	cases := []struct {
+		name     string
+		osArgs   []string
+		wantCode int
+	}{
+		{
+			name:     "unknown subcommand → 2",
+			osArgs:   []string{"completely-unknown"},
+			wantCode: 2,
+		},
+		{
+			name:     "--root missing value → 2",
+			osArgs:   []string{"--root"},
+			wantCode: 2,
+		},
+		{
+			name:     "reset non-interactive without --yes → 2 (usage precondition)",
+			osArgs:   []string{"reset"},
+			wantCode: 2,
+		},
+		{
+			name:     "known script on non-interactive (script will run) → 0",
+			osArgs:   []string{"status", "--json"},
+			wantCode: 0,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got := executeCode(t, tc.osArgs)
+			if got != tc.wantCode {
+				t.Errorf("exit code = %d, want %d", got, tc.wantCode)
+			}
+		})
+	}
+}

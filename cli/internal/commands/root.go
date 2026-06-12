@@ -57,7 +57,15 @@ func Execute(info BuildInfo) int {
 	root.SetArgs(cleaned)
 	if err := root.Execute(); err != nil {
 		// Cobra has already printed the error (SilenceErrors is unset).
-		return 1
+		// If a script already ran and set a non-zero exit code (e.g. via a
+		// RunE that stored the code before returning the error), propagate it.
+		// Otherwise this is a usage error — unknown command, unknown flag,
+		// non-interactive precondition failure, etc. — and exits 2, consistent
+		// with the ScanGlobalArgs path and the scripts/env-set.sh convention.
+		if a.exitCode != 0 {
+			return a.exitCode
+		}
+		return 2
 	}
 	return a.exitCode
 }

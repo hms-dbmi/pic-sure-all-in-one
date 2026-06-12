@@ -3,8 +3,19 @@
 # Use through the top-level scripts with DB_MODE=remote. It disables the bundled
 # picsure-db service and removes local DB health dependencies so Flyway, WildFly,
 # and PSAMA connect to DB_HOST/DB_PORT directly.
+#
+# Note on depends_on merge semantics (B22):
+#   Compose merges overlay maps — a plain `depends_on: {}` does NOT clear the
+#   base depends_on; it is a no-op.  To actually remove inherited entries the
+#   overlay must use the YAML merge-reset tag `!reset` (Compose ≥ 2.24 /
+#   Docker Compose v2.24+).  Each service below uses `!reset {}` to wipe the
+#   base depends_on and then lists only the remote-mode-appropriate conditions.
 
 services:
+  # wildfly depends on flyway-init and deploy-wars in the base stack; both are
+  # still required in remote mode.  The base entry already omits picsure-db so
+  # no reset is needed here — we simply re-state the same conditions for
+  # clarity and to be explicit that this overlay owns the full depends_on set.
   wildfly:
     depends_on:
       flyway-init:
@@ -12,14 +23,26 @@ services:
       deploy-wars:
         condition: service_completed_successfully
 
+  # psama depends on flyway-init in the base stack; still required in remote
+  # mode.  No picsure-db dependency to drop, re-stated for explicitness.
   psama:
     depends_on:
       flyway-init:
         condition: service_completed_successfully
 
+  # flyway-init now depends on picsure-db (service_healthy) in the base stack
+  # so it waits for the local MySQL container to be ready before connecting.
+  # In remote mode there is no local picsure-db container, so that dependency
+  # must be cleared entirely.  `!reset {}` replaces the inherited map with an
+  # empty one, removing all inherited depends_on entries.  Flyway will connect
+  # directly to DB_HOST/DB_PORT; FLYWAY_CONNECT_RETRIES handles any transient
+  # readiness window on the remote host.
   flyway-init:
-    depends_on: {}
+    depends_on: !reset {}
 
+  # Push picsure-db into a non-activated profile so Compose does not start it
+  # in remote mode.  Services that reference it (e.g. DB init scripts) still
+  # exist in the config but are never scheduled.
   picsure-db:
     profiles:
       - local-db-only

@@ -325,6 +325,16 @@ services:
   # Runs core and project-specific migrations in order.
   # Migration SQL files are mounted from the individual repos.
   # Use MIGRATION_NAME to run a non-Baseline project migration directory.
+  #
+  # depends_on picsure-db (service_healthy) ensures Flyway never attempts its
+  # first connection before MySQL has passed its healthcheck.  Without this,
+  # `pic-sure up` starts all services concurrently and Flyway can connect
+  # before MySQL is accepting queries, exit non-zero, and leave wildfly +
+  # psama permanently wedged (both gate on service_completed_successfully).
+  # FLYWAY_CONNECT_RETRIES is a belt-and-braces fallback: if the healthcheck
+  # fires slightly early Flyway will retry up to 30 times before giving up.
+  # The remote-db overlay resets this dependency via !reset — see
+  # docker-compose.remote-db.yml.
   flyway-init:
     image: flyway/flyway:latest
     container_name: flyway-init
@@ -347,9 +357,19 @@ services:
       PICSURE_APPLICATION_ID: ${PICSURE_APPLICATION_ID}
       PICSURE_RESOURCE_ID: ${PICSURE_RESOURCE_ID}
       PICSURE_VIZ_RESOURCE_ID: ${PICSURE_VIZ_RESOURCE_ID}
+      # Belt-and-braces: if the DB healthcheck fires marginally early, Flyway
+      # will retry the connection up to 30 times (1 s apart) before failing.
+      FLYWAY_CONNECT_RETRIES: 30
     networks:
       - app
     restart: "no"
+    depends_on:
+      # Wait for MySQL to be fully ready before Flyway attempts its first
+      # connection.  service_healthy requires the healthcheck defined on
+      # picsure-db to pass; that checks mysqladmin ping, which only succeeds
+      # once the server is accepting queries.
+      picsure-db:
+        condition: service_healthy
 
   # ---------------------------------------------------------------------------
   # Logging — Audit event collector

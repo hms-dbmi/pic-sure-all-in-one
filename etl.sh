@@ -6,7 +6,10 @@
 #
 # Usage:
 #   ./etl.sh load-demo [nhanes|synthea|1000genomes]
-#   ./etl.sh load-csv --file /path/allConcepts.csv [--heap 4096]
+#   ./etl.sh load-csv --file /path/allConcepts.csv [--heap 4096] [--entry name.csv]
+#       (--file accepts a raw .csv, a .gz/.csv.gz, or a .tgz/.tar.gz; for a tar
+#        with multiple CSVs, pass --entry to pick one — see `archive-csvs`.)
+#   ./etl.sh archive-csvs /path/archive.tgz   (list .csv entries; read-only)
 #   ./etl.sh load-multiple --input-dir /path/hpds_input [--heap 8000]
 #   ./etl.sh load-rdbms --sql-properties /path/sql.properties --query /path/loadQuery.sql [--heap 20480]
 #   ./etl.sh hydrate-dictionary [--include-dataset-facets] [--clear]
@@ -18,7 +21,7 @@
 #   ./etl.sh public-1000genomes [--heap 16000]
 #
 # Orchestrators (recommended entry points — chain the atomic ops above):
-#   ./etl.sh load-phenotype --file /path/allConcepts.csv [--heap 4096] [--dictionary auto|custom] \
+#   ./etl.sh load-phenotype --file /path/allConcepts.csv [--heap 4096] [--entry name.csv] [--dictionary auto|custom] \
 #       [--datasets /path/datasets.csv --concepts /path/concepts.zip] \
 #       [--facets-categories /path/facet_categories.csv --facets /path/facets.csv --facet-concepts /path/facet_concepts.csv] \
 #       [--skip-weights]
@@ -165,29 +168,219 @@ curl_data() {
   docker run --rm --network "$(network_name data)" curlimages/curl:latest "$@"
 }
 
+# archive_csv_entries: print the *.csv entries of a gzipped tar, one per line,
+# sorted. For a plain .csv or plain (non-tar) .gz, print NOTHING. Pure
+# read-only (tar -tzf only); no docker, no mutation. Detection is by content,
+# not extension. Returns non-zero only if $1 is missing/unreadable.
+#
+# This is the shared core for the `archive-csvs` lister AND for load_csv's tar
+# branch, so both agree on exactly which entries count as CSVs.
+archive_csv_entries() {
+  local file="$1"
+  if [ ! -f "$file" ] || [ ! -r "$file" ]; then
+    return 1
+  fi
+  # Only gzipped tars have enumerable CSV entries; everything else → nothing.
+  if tar -tzf "$file" >/dev/null 2>&1; then
+    # `|| true`: grep exits 1 with no match (pipefail would otherwise abort).
+    tar -tzf "$file" 2>/dev/null | grep -i '\.csv$' | LC_ALL=C sort || true
+  fi
+}
+
+# archive_csvs: the `archive-csvs <file>` subcommand — a read-only lister for the
+# TUI. Prints the *.csv entries of a gzipped tar (one per line, sorted); prints
+# NOTHING for a plain .csv or a plain (non-tar) .gz (exit 0). Exits non-zero on a
+# missing/unreadable file. No docker, no mutation. The wizard (LD-7b) uses the
+# line count to decide whether to prompt for --entry (0–1 → auto; ≥2 → picker).
+archive_csvs() {
+  local file="${1:-}"
+  if [ -z "$file" ]; then
+    error "archive-csvs requires a file argument"
+    exit 1
+  fi
+  if [ ! -f "$file" ] || [ ! -r "$file" ]; then
+    error "Missing or unreadable file: $file"
+    exit 1
+  fi
+  archive_csv_entries "$file"
+}
+
+# resolve_phenotype_csv: turn --file (raw CSV | plain gzip | gzipped tar) into a
+# host path to mount as allConcepts.csv. Detection is by CONTENT, not extension.
+#
+# Contract:
+#   $1 = input file (already existence-checked by the caller)
+#   $2 = name of a caller-owned variable to receive the resolved host path.
+#   $3 = name of a caller-owned variable to receive a created temp dir, set to
+#        "" for raw CSV (no temp dir is created — the file is used verbatim).
+#   $4 = optional --entry (which CSV inside a multi-CSV tar)
+#
+# Called WITHOUT command substitution (so the by-name var assignments land in
+# the caller's scope). We create the temp dir with mktemp -d (NOT under .data/)
+# only when decompression is needed and write its path into the caller's var so
+# the caller can trap-clean it. On any error we clean up our own temp dir and
+# return non-zero, so a failure here never leaks a temp dir.
+# NOTE: internal locals are `_rpc_`-prefixed so they can't collide (under bash's
+# dynamic scoping) with the out-param NAMES the caller passes in $2/$3 — a plain
+# `local tmpdir` here would shadow a caller var also named `tmpdir`, and the
+# by-name `eval` would write the callee's local instead of the caller's.
+resolve_phenotype_csv() {
+  local _rpc_file="$1" _rpc_resolvedvar="$2" _rpc_tmpvar="$3" _rpc_entry="${4:-}"
+  local _rpc_tmpdir=""
+  eval "$_rpc_tmpvar=''"
+
+  if tar -tzf "$_rpc_file" >/dev/null 2>&1; then
+    # --- gzipped tar ---------------------------------------------------------
+    local _rpc_entries _rpc_count _rpc_line
+    _rpc_entries="$(archive_csv_entries "$_rpc_file")"
+    _rpc_count=0
+    while IFS= read -r _rpc_line; do
+      [ -n "$_rpc_line" ] && _rpc_count=$((_rpc_count + 1))
+    done <<EOF
+$_rpc_entries
+EOF
+
+    if [ "$_rpc_count" -eq 0 ]; then
+      error "archive contains no .csv: $_rpc_file"
+      return 1
+    fi
+
+    if [ "$_rpc_count" -eq 1 ]; then
+      _rpc_entry="$_rpc_entries"
+    elif [ -z "$_rpc_entry" ]; then
+      error "multiple CSVs in archive; pass --entry <one of>:"
+      while IFS= read -r _rpc_line; do
+        [ -n "$_rpc_line" ] && error "  $_rpc_line"
+      done <<EOF
+$_rpc_entries
+EOF
+      return 1
+    else
+      local _rpc_matched="false"
+      while IFS= read -r _rpc_line; do
+        [ "$_rpc_line" = "$_rpc_entry" ] && _rpc_matched="true"
+      done <<EOF
+$_rpc_entries
+EOF
+      if [ "$_rpc_matched" != "true" ]; then
+        error "--entry not found in archive: $_rpc_entry"
+        error "available .csv entries:"
+        while IFS= read -r _rpc_line; do
+          [ -n "$_rpc_line" ] && error "  $_rpc_line"
+        done <<EOF
+$_rpc_entries
+EOF
+        return 1
+      fi
+    fi
+
+    _rpc_tmpdir="$(mktemp -d)"
+    # tar entries may include subdir paths, so the extracted file lands at
+    # "$_rpc_tmpdir/$_rpc_entry" — mount exactly that.
+    if ! tar -xzf "$_rpc_file" -C "$_rpc_tmpdir" "$_rpc_entry"; then
+      error "failed to extract '$_rpc_entry' from archive: $_rpc_file"
+      rm -rf "$_rpc_tmpdir"
+      return 1
+    fi
+    if [ ! -s "$_rpc_tmpdir/$_rpc_entry" ]; then
+      error "extracted CSV is empty or missing: $_rpc_entry"
+      rm -rf "$_rpc_tmpdir"
+      return 1
+    fi
+    eval "$_rpc_tmpvar=\$_rpc_tmpdir"
+    eval "$_rpc_resolvedvar=\"\$_rpc_tmpdir/\$_rpc_entry\""
+    return 0
+  fi
+
+  if gzip -t "$_rpc_file" >/dev/null 2>&1; then
+    # --- plain gzip (a single .gz / .csv.gz, not a tar) ----------------------
+    [ -n "$_rpc_entry" ] && warn "--entry ignored for a plain gzip (only tars have entries): $_rpc_entry"
+    _rpc_tmpdir="$(mktemp -d)"
+    if ! gunzip -c "$_rpc_file" > "$_rpc_tmpdir/allConcepts.csv"; then
+      error "failed to gunzip: $_rpc_file"
+      rm -rf "$_rpc_tmpdir"
+      return 1
+    fi
+    if [ ! -s "$_rpc_tmpdir/allConcepts.csv" ]; then
+      error "decompressed CSV is empty: $_rpc_file"
+      rm -rf "$_rpc_tmpdir"
+      return 1
+    fi
+    eval "$_rpc_tmpvar=\$_rpc_tmpdir"
+    eval "$_rpc_resolvedvar=\"\$_rpc_tmpdir/allConcepts.csv\""
+    return 0
+  fi
+
+  # --- raw CSV / plain text: used verbatim, no temp dir --------------------
+  case "$_rpc_file" in
+    *.csv) ;;
+    *)
+      # Accept anything that looks like text (the loader validates schema); a
+      # non-empty binary that is neither a tar nor gzip is almost certainly a
+      # mistake.
+      if [ -s "$_rpc_file" ] && ! LC_ALL=C grep -Iq . "$_rpc_file" 2>/dev/null; then
+        error "unrecognized --file: not a .csv, gzip, or gzipped tar: $_rpc_file"
+        return 1
+      fi
+      ;;
+  esac
+  [ -n "$_rpc_entry" ] && warn "--entry ignored for a raw CSV (only tars have entries): $_rpc_entry"
+  eval "$_rpc_resolvedvar=\$_rpc_file"
+  return 0
+}
+
 load_csv() {
-  local file="" heap="4096"
+  local file="" heap="4096" entry=""
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --file) file="${2:?--file requires a value}"; shift 2 ;;
       --heap) heap="${2:?--heap requires a value}"; shift 2 ;;
+      --entry) entry="${2:?--entry requires a value}"; shift 2 ;;
       *) error "Unknown load-csv option: $1"; exit 1 ;;
     esac
   done
 
   require_file "$file"
   ensure_image "hms-dbmi/pic-sure-hpds-etl:${PICSURE_IMAGE_TAG:-LATEST}"
+
+  # Resolve the input (raw CSV verbatim | gunzip | extract-from-tar) into a host
+  # path to mount. A temp dir is created ONLY when decompression is needed and
+  # is named back into $tmpdir so we can clean it up afterwards.
+  #
+  # Cleanup-under-set-e note: we deliberately do NOT use a `trap … RETURN` here.
+  # In bash 3.2 a RETURN trap set inside a function is NOT auto-scoped — it leaks
+  # and fires again when the CALLER returns (where $tmpdir is out of scope → a
+  # set -u abort). We also can't wrap the mutating block in `{ … } || rc=$?`,
+  # because set -e is SUPPRESSED on the LHS of ||, so a failed `docker run`
+  # would no longer short-circuit `start_hpds`. Instead we capture the loader's
+  # exit directly with `|| rc=$?` on the docker run, gate start_hpds on success
+  # (preserving today's "loader failed → HPDS stays stopped" behavior), and
+  # `rm -rf "$tmpdir"` on BOTH paths before returning rc. resolve_phenotype_csv
+  # already cleans up its own temp dir on its error paths.
+  local tmpdir="" resolved=""
+  if ! resolve_phenotype_csv "$file" resolved tmpdir "$entry"; then
+    rm -rf "$tmpdir"
+    return 1
+  fi
+
   warn "Replacing phenotype HPDS data in the hpds-data volume."
   stop_hpds
-  copy_hpds_key "$(volume_name hpds-data)"
-  docker run --rm \
-    --name hpds-etl-loader \
-    -v "$(volume_name hpds-data):/opt/local/hpds" \
-    -v "$file:/opt/local/hpds/allConcepts.csv:ro" \
-    -e HEAPSIZE="$heap" \
-    -e LOADER_NAME=CSVLoaderNewSearch \
-    "hms-dbmi/pic-sure-hpds-etl:${PICSURE_IMAGE_TAG:-LATEST}"
-  start_hpds
+  local rc=0
+  copy_hpds_key "$(volume_name hpds-data)" || rc=$?
+  if [ "$rc" -eq 0 ]; then
+    docker run --rm \
+      --name hpds-etl-loader \
+      -v "$(volume_name hpds-data):/opt/local/hpds" \
+      -v "$resolved:/opt/local/hpds/allConcepts.csv:ro" \
+      -e HEAPSIZE="$heap" \
+      -e LOADER_NAME=CSVLoaderNewSearch \
+      "hms-dbmi/pic-sure-hpds-etl:${PICSURE_IMAGE_TAG:-LATEST}" || rc=$?
+  fi
+  if [ "$rc" -eq 0 ]; then
+    start_hpds || rc=$?
+  fi
+  rm -rf "$tmpdir"
+  return "$rc"
 }
 
 load_multiple() {
@@ -525,7 +718,7 @@ orchestrator_error() {
 
 load_phenotype() {
   local phase="load-phenotype"
-  local file="" heap="4096" dictionary="auto"
+  local file="" heap="4096" dictionary="auto" entry=""
   local datasets="" concepts=""
   local facets_categories="" facets="" facet_concepts=""
   local skip_weights="false"
@@ -534,6 +727,7 @@ load_phenotype() {
     case "$1" in
       --file) file="${2:?--file requires a value}"; shift 2 ;;
       --heap) heap="${2:?--heap requires a value}"; shift 2 ;;
+      --entry) entry="${2:?--entry requires a value}"; shift 2 ;;
       --dictionary) dictionary="${2:?--dictionary requires a value}"; shift 2 ;;
       --datasets) datasets="${2:?--datasets requires a value}"; shift 2 ;;
       --concepts) concepts="${2:?--concepts requires a value}"; shift 2 ;;
@@ -552,6 +746,12 @@ load_phenotype() {
   fi
   if [ ! -f "$file" ] || [ ! -r "$file" ]; then
     orchestrator_error "$phase" "--file not found or not readable: $file"
+    exit 1
+  fi
+  # --entry only makes sense alongside --file; the archive-content validation
+  # (is it a tar? is the entry inside it?) lives in load_csv.
+  if [ -n "$entry" ] && [ -z "$file" ]; then
+    orchestrator_error "$phase" "--entry requires --file"
     exit 1
   fi
 
@@ -601,9 +801,13 @@ load_phenotype() {
 
   # --- Run the happy path. --------------------------------------------------
   orchestrator_info "$phase" "Step 1/3: Loading phenotype CSV into HPDS…"
-  if ! load_csv --file "$file" --heap "$heap"; then
+  # Pass --entry through only when set, so the (common) no-entry call keeps the
+  # same argv as before.
+  local csv_args=(--file "$file" --heap "$heap")
+  [ -n "$entry" ] && csv_args+=(--entry "$entry")
+  if ! load_csv "${csv_args[@]}"; then
     orchestrator_error "$phase" "Step 1/3 (load CSV) failed. Re-run just this step with:"
-    orchestrator_error "$phase" "  ./etl.sh load-csv --file $file --heap $heap"
+    orchestrator_error "$phase" "  ./etl.sh load-csv ${csv_args[*]}"
     exit 1
   fi
 
@@ -746,6 +950,9 @@ shift
 
 case "$COMMAND" in
   -h|--help|help) usage; exit 0 ;;
+  # Pure read-only lister; needs no .env / docker, so dispatch before ensure_env
+  # (the TUI may call it before a stack exists).
+  archive-csvs) archive_csvs "$@"; exit 0 ;;
 esac
 
 ensure_env

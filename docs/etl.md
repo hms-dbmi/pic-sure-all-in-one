@@ -21,7 +21,7 @@ end-to-end TUI flow (the wizard simply collects these flags for you).
 Load a phenotype CSV, hydrate or load the dictionary, then run weights:
 
 ```bash
-./etl.sh load-phenotype --file /path/allConcepts.csv [--heap 4096] \
+./etl.sh load-phenotype --file /path/allConcepts.csv [--heap 4096] [--entry name.csv] \
   [--dictionary auto|custom] \
   [--datasets /path/datasets.csv --concepts /path/concepts.zip] \
   [--facets-categories /path/facet_categories.csv \
@@ -31,6 +31,11 @@ Load a phenotype CSV, hydrate or load the dictionary, then run weights:
 ```
 
 - `--heap` defaults to `4096`; `--dictionary` defaults to `auto`.
+- `--file` accepts a raw `.csv`, a single gzip (`.gz`/`.csv.gz`), or a gzipped
+  tar (`.tgz`/`.tar.gz`). Compressed inputs are decompressed to an auto-cleaned
+  temp dir before loading. For a tar containing **multiple** CSVs, pass `--entry
+  <path-in-archive>` to choose which one to load (list them with
+  `./etl.sh archive-csvs <file>`). `--entry` is forwarded to `load-csv`.
 - `auto` hydrates the dictionary from HPDS (`hydrate-dictionary --clear`).
 - `custom` loads ingest CSVs (`load-dictionary-csv … --clear`); the facet trio
   is all-or-none and, when given, runs `load-facets` after the dictionary load.
@@ -66,10 +71,30 @@ failed step).
 
 ### Phenotype HPDS Loads
 
-Single CSV:
+Single CSV (raw, gzip, or gzipped tar):
 
 ```bash
 ./etl.sh load-csv --file /path/allConcepts.csv --heap 4096
+./etl.sh load-csv --file /path/allConcepts.csv.gz
+./etl.sh load-csv --file /path/export.tgz --entry data/allConcepts.csv
+```
+
+`--file` is detected by **content**, not by extension:
+
+- a raw `.csv` (or plain text) is mounted verbatim — no temp dir;
+- a plain gzip (`.gz`/`.csv.gz`, not a tar) is `gunzip`-ed to an auto-cleaned
+  temp dir;
+- a gzipped tar (`.tgz`/`.tar.gz`, or any file whose contents are a gzipped tar)
+  is searched for `*.csv` entries — a single CSV is extracted automatically, and
+  a tar with **multiple** CSVs requires `--entry <path-in-archive>` to pick one.
+
+The temp dir is removed after the load finishes, on both success and failure.
+
+List the `*.csv` entries inside a gzipped tar (read-only; no docker, no
+mutation — prints nothing for a raw `.csv` or plain `.gz`):
+
+```bash
+./etl.sh archive-csvs /path/export.tgz
 ```
 
 Multiple CSV/SQL input directory:

@@ -14,15 +14,19 @@ import (
 	"github.com/charmbracelet/bubbles/filepicker"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/hms-dbmi/pic-sure-all-in-one/cli/internal/styles"
 )
 
-// chromeHeight is the number of lines the wrapper draws around the filepicker
-// itself (title + the inline hint/error line). SetSize subtracts it from the
-// height handed to us so the filepicker's own list never overruns the box the
-// parent reserved for the whole component.
-const chromeHeight = 2
+// fixedChrome is the number of fixed lines the wrapper draws around the
+// filepicker's own list: the current-directory path header, the navigation
+// key-hint line, and a status slot (the disabled-file error / "no matching
+// files" notice). The status slot is always reserved — rendered empty when
+// there is nothing to say — so the component's height is constant regardless of
+// error state and never overflows the box the parent reserved. SetSize adds the
+// optional title line on top of this.
+const fixedChrome = 3
 
 // Options configures a Model. The zero value is valid: it browses the current
 // working directory and allows any file.
@@ -49,6 +53,15 @@ type Options struct {
 type Model struct {
 	fp    filepicker.Model
 	title string
+
+	// dirMode mirrors Options.DirMode so View can word the nav hint for the
+	// active mode ("use this dir" vs "select") without re-deriving it from the
+	// filepicker's DirAllowed/FileAllowed flags.
+	dirMode bool
+
+	// w is the box width handed to SetSize. View needs it to left-elide a long
+	// current-directory path so the header never overflows the frame.
+	w int
 
 	// selectedPath is the absolute path the user chose; selected reports whether
 	// a choice has been made. The parent learns of a selection by polling
@@ -109,7 +122,7 @@ func New(opts Options) Model {
 	fp.Styles.Cursor = fp.Styles.Cursor.Foreground(styles.Brand)
 	fp.Styles.Selected = lipgloss.NewStyle().Foreground(styles.Brand).Bold(true)
 
-	return Model{fp: fp, title: opts.Title}
+	return Model{fp: fp, title: opts.Title, dirMode: opts.DirMode}
 }
 
 // Init starts the initial directory read.
@@ -117,16 +130,19 @@ func (m Model) Init() tea.Cmd {
 	return m.fp.Init()
 }
 
-// SetSize lays the picker out within a w×h box. Only the height matters to the
-// filepicker (it sets how many rows the list shows); width is reserved for the
-// parent's framing. A non-positive interior height is clamped to 1 so the
+// SetSize lays the picker out within a w×h box. The width is kept so View can
+// left-elide a long current-directory path to fit the frame; the height sets how
+// many rows the filepicker's list shows. The interior height is the box height
+// minus the wrapper's chrome (path header + nav hint + status slot, plus the
+// title line when present); a non-positive interior is clamped to 1 so the
 // filepicker never computes a negative window.
 func (m *Model) SetSize(w, h int) {
-	_ = w
-	interior := h - chromeHeight
-	if m.title == "" {
-		interior = h - 1 // no title line, only the hint line
+	m.w = w
+	chrome := fixedChrome
+	if m.title != "" {
+		chrome++
 	}
+	interior := h - chrome
 	if interior < 1 {
 		interior = 1
 	}
@@ -204,7 +220,11 @@ func (m Model) Dir() string {
 	return m.fp.CurrentDirectory
 }
 
-// View renders the title, the filepicker, and an inline hint/error line.
+// View renders, top to bottom: an optional title, the current-directory path
+// header, the filepicker's list, the navigation key-hint line, and a status
+// slot (disabled-file error or "no matching files" notice). The status slot is
+// always present (empty when there is nothing to surface) so the rendered height
+// matches what SetSize reserved and the component never overflows its box.
 func (m Model) View() string {
 	var b strings.Builder
 
@@ -213,18 +233,51 @@ func (m Model) View() string {
 		b.WriteByte('\n')
 	}
 
+	b.WriteString(m.pathHeader())
+	b.WriteByte('\n')
+
 	b.WriteString(m.fp.View())
 	b.WriteByte('\n')
 
-	b.WriteString(m.hintLine())
+	b.WriteString(m.navHint())
+	b.WriteByte('\n')
+
+	b.WriteString(m.statusLine())
 	return b.String()
 }
 
-// hintLine is the bottom status line: a permission/disabled-file error if one
-// is pending, otherwise a "no matching files" notice when the current directory
-// holds nothing the user can select. The notice is suppressed in dir mode (any
-// directory is itself a valid place to be) and when an error is already shown.
-func (m Model) hintLine() string {
+// pathHeader renders the directory the picker is currently in, brand-styled and
+// left-elided to the box width so the tail (where the user is) stays visible
+// even for a deep path. With no width yet (View called before SetSize) the path
+// is shown untruncated.
+func (m Model) pathHeader() string {
+	path := m.fp.CurrentDirectory
+	if m.w > 0 {
+		path = elideLeft(path, m.w)
+	}
+	return styles.Title.Render(path)
+}
+
+// navHint is the always-present key-hint line. It leads with the "←/h .." up
+// affordance the picker otherwise hides, then the descend and confirm keys; the
+// confirm verb reflects the mode ("use this dir" in dir mode, "select" for a
+// file). Dim so it reads as chrome, not content.
+func (m Model) navHint() string {
+	confirm := "enter select"
+	if m.dirMode {
+		confirm = "enter use this dir"
+	}
+	hint := "←/h ..  ·  →/l open  ·  " + confirm
+	return hintStyle.Render(hint)
+}
+
+// statusLine is the reserved bottom slot: a permission/disabled-file error if
+// one is pending, otherwise a "no matching files" notice when the current
+// directory holds nothing the user can select. The notice is suppressed in dir
+// mode (any directory is itself a valid place to be) and when an error is
+// already shown. Returns the empty string when there is nothing to surface — the
+// slot's line is still emitted by View so the layout height stays constant.
+func (m Model) statusLine() string {
 	if m.err != nil {
 		return styles.Bad.Render(m.err.Error())
 	}
@@ -232,6 +285,30 @@ func (m Model) hintLine() string {
 		return styles.Warn.Render("no matching files in this directory")
 	}
 	return ""
+}
+
+// hintStyle dims the navigation key-hint so it reads as chrome. Faint degrades
+// to plain text under NO_COLOR via lipgloss, same as the rest of the palette.
+var hintStyle = lipgloss.NewStyle().Faint(true)
+
+// elideLeft truncates path from the left to fit width w, prefixing "…" so the
+// tail (the current directory) stays visible. It is rune/display-width aware
+// (via the ansi package, which also accounts for wide characters), so a path
+// with multibyte components is never split mid-grapheme or measured by byte
+// length. A path already within w is returned unchanged.
+func elideLeft(path string, w int) string {
+	if w <= 0 {
+		return path
+	}
+	width := ansi.StringWidth(path)
+	if width <= w {
+		return path
+	}
+	const prefix = "…"
+	// Drop just enough leading width that "…" + the remaining tail fits in w:
+	// the result width is 1 (prefix) + (width - drop), so drop = width - w + 1.
+	drop := width - w + 1
+	return ansi.TruncateLeft(path, drop, prefix)
 }
 
 // dirHasSelectable reports whether CurrentDirectory contains at least one entry

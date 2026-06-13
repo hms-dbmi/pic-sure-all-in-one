@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
 // drainInit runs the cmd returned by Init (the filepicker's readDir) and feeds
@@ -105,10 +106,11 @@ func TestSetSizeGrowsViewWithHeight(t *testing.T) {
 		t.Errorf("taller SetSize did not grow the view: small=%d big=%d",
 			viewLines(small), viewLines(big))
 	}
-	// The wrapper draws title + filepicker + hint. The filepicker pads its list
-	// with an inclusive loop (one extra line beyond its interior height), so a
-	// view sized to h renders h+1 lines. Pin that contract so a sizing
-	// regression (e.g. wrong chrome subtraction) is caught.
+	// The wrapper draws title + path header + filepicker + nav hint + status
+	// slot. The filepicker pads its list with an inclusive loop (one extra line
+	// beyond its interior height), so a view sized to h renders h+1 lines
+	// regardless of how much of that h the chrome consumes. Pin that contract so
+	// a sizing regression (e.g. wrong chrome subtraction) is caught.
 	if got := viewLines(big); got != 31 {
 		t.Errorf("View height = %d, want 31 (h=30 + filepicker's inclusive pad)", got)
 	}
@@ -271,4 +273,131 @@ func TestViewBeforeInitNoPanic(t *testing.T) {
 	dir := t.TempDir()
 	m := New(Options{StartDir: dir, Title: "Pick", AllowedExts: []string{".csv"}})
 	_ = m.View() // unsized, un-inited
+}
+
+func TestViewShowsCurrentDirectory(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "data.csv"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	m := New(Options{StartDir: dir, Title: "Pick", AllowedExts: []string{".csv"}})
+	m.SetSize(120, 20)
+	m = drainInit(t, m)
+
+	if !strings.Contains(m.View(), filepath.Base(dir)) {
+		t.Errorf("View() should show the current directory %q; got:\n%s", dir, m.View())
+	}
+}
+
+func TestViewHeaderReflectsNavigation(t *testing.T) {
+	// After navigating into a subdir the path header must update to the new
+	// directory. The filepicker's CurrentDirectory is the single source of truth
+	// the header reads, so driving it (as a real navigation does) and re-rendering
+	// is enough to assert the header tracks navigation.
+	root := t.TempDir()
+	sub := filepath.Join(root, "demo-data")
+	if err := os.Mkdir(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	m := New(Options{StartDir: root, DirMode: true})
+	m.SetSize(120, 20)
+	m = drainInit(t, m)
+
+	// Simulate descending into the subdir the way the filepicker does on open.
+	m.fp.CurrentDirectory = sub
+	m, _ = m.Update(tea.KeyMsg{}) // re-warm caches against the new dir
+
+	if !strings.Contains(m.View(), "demo-data") {
+		t.Errorf("View() header should reflect navigation into %q; got:\n%s", sub, m.View())
+	}
+}
+
+func TestNavHintShowsUpAffordance(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "data.csv"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	m := New(Options{StartDir: dir, AllowedExts: []string{".csv"}})
+	m.SetSize(120, 20)
+	m = drainInit(t, m)
+
+	view := m.View()
+	if !strings.Contains(view, "..") {
+		t.Errorf("file-mode nav hint should show the \"..\" up affordance; got:\n%s", view)
+	}
+	if !strings.Contains(view, "←/h") {
+		t.Errorf("file-mode nav hint should show the ←/h up keys; got:\n%s", view)
+	}
+	if !strings.Contains(view, "select") {
+		t.Errorf("file-mode nav hint should say \"select\"; got:\n%s", view)
+	}
+	if strings.Contains(view, "use this dir") {
+		t.Errorf("file-mode nav hint must not say \"use this dir\"; got:\n%s", view)
+	}
+}
+
+func TestNavHintDirModeWording(t *testing.T) {
+	dir := t.TempDir()
+
+	m := New(Options{StartDir: dir, DirMode: true})
+	m.SetSize(120, 20)
+	m = drainInit(t, m)
+
+	view := m.View()
+	if !strings.Contains(view, "..") || !strings.Contains(view, "←/h") {
+		t.Errorf("dir-mode nav hint should show the \"..\" up affordance; got:\n%s", view)
+	}
+	if !strings.Contains(view, "use this dir") {
+		t.Errorf("dir-mode nav hint should say \"use this dir\"; got:\n%s", view)
+	}
+}
+
+func TestPathHeaderLeftElidedToWidth(t *testing.T) {
+	// A path far deeper than the box width must be left-elided so its rendered
+	// width never exceeds the box and the tail (where the user is) is preserved.
+	root := t.TempDir()
+	deep := filepath.Join(root,
+		"alpha-very-long-component", "beta-very-long-component",
+		"gamma-very-long-component", "delta-very-long-component", "tail-dir")
+	if err := os.MkdirAll(deep, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	const boxW = 30
+	m := New(Options{StartDir: root, DirMode: true})
+	m.SetSize(boxW, 20)
+	m = drainInit(t, m)
+	m.fp.CurrentDirectory = deep
+	m, _ = m.Update(tea.KeyMsg{})
+
+	header := strings.SplitN(m.View(), "\n", 2)[0]
+	if w := lipgloss.Width(header); w > boxW {
+		t.Errorf("path header width %d exceeds box width %d; header=%q", w, boxW, header)
+	}
+	if !strings.Contains(header, "tail-dir") {
+		t.Errorf("left-elided header should preserve the tail dir; header=%q", header)
+	}
+	if !strings.Contains(header, "…") {
+		t.Errorf("over-long header should be marked elided with …; header=%q", header)
+	}
+}
+
+func TestViewNeverOverflowsSmallBox(t *testing.T) {
+	// At a small box height the total rendered View height must not exceed the box
+	// the parent reserved (box height + the filepicker's inclusive one-line pad).
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "data.csv"), []byte("x"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, h := range []int{6, 8, 10, 12} {
+		m := New(Options{StartDir: dir, Title: "Pick", AllowedExts: []string{".csv"}})
+		m.SetSize(80, h)
+		m = drainInit(t, m)
+		if got := viewLines(m); got > h+1 {
+			t.Errorf("SetSize(80,%d) -> %d view lines, want <= %d (h + inclusive pad)", h, got, h+1)
+		}
+	}
 }

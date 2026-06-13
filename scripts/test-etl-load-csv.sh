@@ -211,6 +211,53 @@ test_cleanup_on_docker_failure() {
   pass "forced mid-run docker failure: rc propagated, temp cleaned, start_hpds skipped"
 }
 
+# copy_hpds_key hard-`exit 1`s (not `return`) when the encryption key is missing.
+# With a compressed --file the temp dir already exists by then, so this asserts
+# load_csv's EXIT trap still cleans it up rather than leaking it past the abort.
+# The run_load_csv driver can't report back across a process exit, so use a
+# dedicated driver and detect a leak by diffing the temp root before/after.
+test_cleanup_on_copy_key_exit() {
+  local kdriver="$TEST_ROOT/copykey-driver.sh"
+  cat > "$kdriver" <<KEY_EOF
+#!/usr/bin/env bash
+set -euo pipefail
+ETL="$ETL"
+KEY_EOF
+  cat >> "$kdriver" <<'KEY_EOF'
+# shellcheck disable=SC1090
+source "$ETL"
+# shellcheck disable=SC2329  # invoked indirectly by load_csv
+docker() { return 0; }
+# shellcheck disable=SC2329
+ensure_image() { :; }
+# shellcheck disable=SC2329
+warn() { :; }
+# shellcheck disable=SC2329
+stop_hpds() { :; }
+# shellcheck disable=SC2329
+start_hpds() { :; }
+# shellcheck disable=SC2329
+volume_name() { echo "picsure_$1"; }
+# Mirror the real copy_hpds_key's missing-key behavior: ERROR then `exit 1`,
+# which bypasses any rc-capture in load_csv (the bug this guards against).
+# shellcheck disable=SC2329
+copy_hpds_key() { echo "[stub] encryption key missing -> exit 1" >&2; exit 1; }
+load_csv "$@"
+KEY_EOF
+  chmod +x "$kdriver"
+
+  local tmproot="${TMPDIR:-/tmp}" before after leaked rc=0
+  # mktemp -d names dirs tmp.XXXX directly under the temp root.
+  before="$(find "$tmproot" -maxdepth 1 -type d -name 'tmp.*' 2>/dev/null | LC_ALL=C sort)"
+  /usr/bin/env bash "$kdriver" --file "$FIX/single.tgz" >/dev/null 2>&1 || rc=$?
+  after="$(find "$tmproot" -maxdepth 1 -type d -name 'tmp.*' 2>/dev/null | LC_ALL=C sort)"
+
+  [ "$rc" != "0" ] || fail "copy-key-exit: expected nonzero exit, got 0"
+  leaked="$(comm -13 <(printf '%s\n' "$before") <(printf '%s\n' "$after"))"
+  [ -z "$leaked" ] || fail "copy-key-exit: temp dir(s) leaked past copy_hpds_key exit: $leaked"
+  pass "copy_hpds_key exit on compressed --file: process exits nonzero, no temp leak"
+}
+
 # --- archive-csvs (dispatch-level, no .env / docker) -------------------------
 
 test_archive_csvs_multi() {
@@ -253,6 +300,7 @@ test_multi_with_entry
 test_multi_bogus_entry
 test_plain_gz
 test_cleanup_on_docker_failure
+test_cleanup_on_copy_key_exit
 test_archive_csvs_multi
 test_archive_csvs_raw
 test_archive_csvs_plain_gz

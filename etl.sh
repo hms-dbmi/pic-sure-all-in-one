@@ -241,7 +241,13 @@ $_rpc_entries
 EOF
 
     if [ "$_rpc_count" -eq 0 ]; then
-      error "archive contains no .csv: $_rpc_file"
+      # tar -tzf accepts a zero-byte file as a valid (empty) archive, so this
+      # also catches an empty/zero-byte --file — word it to cover both.
+      if [ ! -s "$_rpc_file" ]; then
+        error "--file is empty: $_rpc_file"
+      else
+        error "no .csv entries in archive: $_rpc_file"
+      fi
       return 1
     fi
 
@@ -347,20 +353,23 @@ load_csv() {
   # path to mount. A temp dir is created ONLY when decompression is needed and
   # is named back into $tmpdir so we can clean it up afterwards.
   #
-  # Cleanup-under-set-e note: we deliberately do NOT use a `trap … RETURN` here.
-  # In bash 3.2 a RETURN trap set inside a function is NOT auto-scoped — it leaks
-  # and fires again when the CALLER returns (where $tmpdir is out of scope → a
-  # set -u abort). We also can't wrap the mutating block in `{ … } || rc=$?`,
-  # because set -e is SUPPRESSED on the LHS of ||, so a failed `docker run`
-  # would no longer short-circuit `start_hpds`. Instead we capture the loader's
-  # exit directly with `|| rc=$?` on the docker run, gate start_hpds on success
-  # (preserving today's "loader failed → HPDS stays stopped" behavior), and
-  # `rm -rf "$tmpdir"` on BOTH paths before returning rc. resolve_phenotype_csv
-  # already cleans up its own temp dir on its error paths.
+  # Cleanup uses the EXIT-trap idiom already used elsewhere in this script (see
+  # load_dictionary_csv): once a temp dir exists we `trap 'rm -rf "$tmpdir"'
+  # EXIT`, so it is removed even if a helper hard-`exit`s out from under us —
+  # notably copy_hpds_key, which `exit 1`s (not `return`s) when the encryption
+  # key is missing and would otherwise bypass any rc-capture and leak the temp.
+  # The trap is armed AFTER resolution (so the raw-CSV path, which makes no temp
+  # dir, never arms it) and is cleared with `trap - EXIT` + an explicit `rm`
+  # before every return so it can't linger into the orchestrator's later steps.
+  # We still capture the loader's exit with `|| rc=$?` on the docker run and
+  # gate start_hpds on success, preserving "loader failed → HPDS stays stopped".
   local tmpdir="" resolved=""
   if ! resolve_phenotype_csv "$file" resolved tmpdir "$entry"; then
-    rm -rf "$tmpdir"
     return 1
+  fi
+  if [ -n "$tmpdir" ]; then
+    # shellcheck disable=SC2064  # expand $tmpdir now: it never changes after this.
+    trap "rm -rf '$tmpdir'" EXIT
   fi
 
   warn "Replacing phenotype HPDS data in the hpds-data volume."
@@ -379,6 +388,7 @@ load_csv() {
   if [ "$rc" -eq 0 ]; then
     start_hpds || rc=$?
   fi
+  [ -n "$tmpdir" ] && trap - EXIT
   rm -rf "$tmpdir"
   return "$rc"
 }
@@ -748,12 +758,10 @@ load_phenotype() {
     orchestrator_error "$phase" "--file not found or not readable: $file"
     exit 1
   fi
-  # --entry only makes sense alongside --file; the archive-content validation
-  # (is it a tar? is the entry inside it?) lives in load_csv.
-  if [ -n "$entry" ] && [ -z "$file" ]; then
-    orchestrator_error "$phase" "--entry requires --file"
-    exit 1
-  fi
+  # NOTE: no separate "--entry requires --file" guard — --file is already
+  # unconditionally required above, so --entry can never arrive without it. The
+  # archive-content validation (is it a tar? is the entry inside it?) lives in
+  # load_csv, where --entry is forwarded.
 
   case "$dictionary" in
     auto|custom) ;;

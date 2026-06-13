@@ -385,6 +385,42 @@ func TestPathHeaderLeftElidedToWidth(t *testing.T) {
 	}
 }
 
+func TestElideLeftWideCharsFitWidth(t *testing.T) {
+	// Wide (display-width-2) graphemes must not push the elided result past the
+	// box: ansi.TruncateLeft keeps a grapheme straddling the cut boundary whole,
+	// so a naive drop can return w+1. elideLeft must trim the extra column.
+	//
+	// This Japanese path's tail components are kana, each width 2, so several of
+	// the target widths (e.g. 30) land the cut on a wide grapheme — the boundary
+	// case that reproduced the original off-by-one overflow.
+	const path = "/データ/ゲノム/フォルダ/末尾ディレクトリ"
+	for _, w := range []int{30, 40, 80, 9, 8, 7, 6, 5, 4, 3, 2, 1} {
+		got := elideLeft(path, w)
+		if rw := lipgloss.Width(got); rw > w {
+			t.Errorf("elideLeft(%q, %d) width %d exceeds box width %d; got=%q", path, w, rw, w, got)
+		}
+	}
+}
+
+func TestPathHeaderWideCharsFitWidth(t *testing.T) {
+	// End-to-end mirror of the elideLeft wide-char case through the rendered
+	// header: at widths where a wide grapheme straddles the cut boundary the
+	// header's rendered width must still be <= the box width.
+	root := t.TempDir()
+	m := New(Options{StartDir: root, DirMode: true})
+	m = drainInit(t, m)
+	// Point the picker at a wide-character path directly; the header reads
+	// CurrentDirectory, so the dir need not exist on disk for the layout assertion.
+	m.fp.CurrentDirectory = "/データ/ゲノム/フォルダ/末尾ディレクトリ"
+	for _, boxW := range []int{30, 40, 80} {
+		m.SetSize(boxW, 20)
+		header := strings.SplitN(m.View(), "\n", 2)[0]
+		if w := lipgloss.Width(header); w > boxW {
+			t.Errorf("wide-char header width %d exceeds box width %d; header=%q", w, boxW, header)
+		}
+	}
+}
+
 func TestViewNeverOverflowsSmallBox(t *testing.T) {
 	// At a small box height the total rendered View height must not exceed the box
 	// the parent reserved (box height + the filepicker's inclusive one-line pad).

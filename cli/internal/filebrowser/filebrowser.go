@@ -307,8 +307,21 @@ func elideLeft(path string, w int) string {
 	const prefix = "…"
 	// Drop just enough leading width that "…" + the remaining tail fits in w:
 	// the result width is 1 (prefix) + (width - drop), so drop = width - w + 1.
-	drop := width - w + 1
-	return ansi.TruncateLeft(path, drop, prefix)
+	//
+	// TruncateLeft drops graphemes until the accumulated width *exceeds* drop, so
+	// a display-width-2 grapheme straddling the cut boundary is kept whole and the
+	// result can come back one column too wide. Re-truncate with a larger drop
+	// until the rendered width fits — each extra unit removes at least one column,
+	// so this converges in at most one extra step for a single straddling wide
+	// grapheme.
+	for drop := width - w + 1; drop < width; drop++ {
+		out := ansi.TruncateLeft(path, drop, prefix)
+		if ansi.StringWidth(out) <= w {
+			return out
+		}
+	}
+	// Degenerate fallback (w smaller than the prefix itself): the prefix alone.
+	return prefix
 }
 
 // dirHasSelectable reports whether CurrentDirectory contains at least one entry

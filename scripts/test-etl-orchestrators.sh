@@ -247,6 +247,19 @@ test_phenotype_skip_weights() {
     "hydrate_dictionary --clear"
 }
 
+# (f2) --entry is passed THROUGH to load_csv (archive-content validation lives in
+#      load_csv, so the orchestrator just forwards it). The no-entry calls above
+#      prove the argv is unchanged when --entry is absent.
+test_phenotype_entry_passthrough() {
+  local log="$TEST_ROOT/f2.log" rc
+  rc="$(run_orchestrator "$log" load_phenotype \
+    --file "$FIX/allConcepts.csv" --entry b.csv --skip-weights)"
+  assert_exit "$rc" 0 "phenotype/entry-passthrough"
+  assert_order "$log" "phenotype/entry-passthrough" \
+    "load_csv --file $FIX/allConcepts.csv --heap 4096 --entry b.csv" \
+    "hydrate_dictionary --clear"
+}
+
 # ===========================================================================
 # load-genomic
 # ===========================================================================
@@ -313,6 +326,7 @@ test_phenotype_facets_partial
 test_phenotype_auto_happy
 test_phenotype_custom_happy
 test_phenotype_skip_weights
+test_phenotype_entry_passthrough
 test_genomic_bad_partition
 test_genomic_full_happy
 test_genomic_no_promote

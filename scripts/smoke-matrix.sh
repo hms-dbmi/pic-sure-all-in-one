@@ -56,6 +56,7 @@ bash -n scripts/test-release-control.sh
 bash -n scripts/test-repo-reset.sh
 bash -n scripts/test-db-secrets.sh
 bash -n scripts/test-etl-orchestrators.sh
+bash -n scripts/test-etl-load-csv.sh
 bash -n scripts/smoke-matrix.sh
 bash -n scripts/smoke-remote-db.sh
 
@@ -74,6 +75,9 @@ echo "[smoke] DB secret-exposure tests"
 
 echo "[smoke] ETL orchestrator tests"
 ./scripts/test-etl-orchestrators.sh
+
+echo "[smoke] ETL load-csv decompression tests"
+./scripts/test-etl-load-csv.sh
 
 if [ -f .env ]; then
   echo "[smoke] Update dry run"

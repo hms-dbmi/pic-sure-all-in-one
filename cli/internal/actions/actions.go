@@ -283,8 +283,15 @@ func Uninstall() Action {
 // File field is required; every other field is omitted from the argv when
 // empty/zero, letting etl.sh's own defaults take effect.
 type PhenotypeOpts struct {
-	// File is the path to the phenotype CSV (required).
+	// File is the path to the phenotype CSV (required). May be a raw .csv, a
+	// gzip (.gz/.csv.gz), or a gzipped tar (.tgz/.tar.gz) — etl.sh detects the
+	// form by content.
 	File string
+	// ArchiveEntry selects which CSV to load from a tar that holds more than one
+	// (forwarded as --entry). Must match an `etl.sh archive-csvs` line verbatim
+	// (including any subdir prefix). Empty lets etl.sh auto-pick a single-CSV tar
+	// or decompress a plain gzip.
+	ArchiveEntry string
 	// Heap is the JVM heap size string passed verbatim as --heap (e.g. "16g").
 	// Empty means: let etl.sh default.
 	Heap string
@@ -338,6 +345,11 @@ func LoadPhenotype(o PhenotypeOpts) Action {
 	args := []string{"load-phenotype", "--file", o.File}
 	if o.Heap != "" {
 		args = append(args, "--heap", o.Heap)
+	}
+	// --entry selects one CSV from a multi-CSV tar; positioned per etl.sh's
+	// documented load-phenotype order (--file [--heap] [--entry] [--dictionary]).
+	if o.ArchiveEntry != "" {
+		args = append(args, "--entry", o.ArchiveEntry)
 	}
 	if o.CustomDictionary {
 		args = append(args, "--dictionary", "custom")

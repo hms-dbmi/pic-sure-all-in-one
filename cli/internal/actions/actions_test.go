@@ -221,6 +221,20 @@ func TestLoadPhenotypeArgs(t *testing.T) {
 			opts: PhenotypeOpts{File: "pheno.csv", SkipWeights: true},
 			want: []string{"load-phenotype", "--file", "pheno.csv", "--skip-weights"},
 		},
+		{
+			// ArchiveEntry forwards --entry after --heap (the documented
+			// load-phenotype flag order), selecting one CSV from a multi-CSV tar.
+			name: "archive entry",
+			opts: PhenotypeOpts{File: "pheno.tgz", Heap: "4096", ArchiveEntry: "sub/dataA.csv"},
+			want: []string{"load-phenotype", "--file", "pheno.tgz", "--heap", "4096", "--entry", "sub/dataA.csv"},
+		},
+		{
+			// Empty ArchiveEntry must emit no --entry (single-CSV tar / plain gzip
+			// auto-handled by etl.sh).
+			name: "empty archive entry omits flag",
+			opts: PhenotypeOpts{File: "pheno.gz", Heap: "4096"},
+			want: []string{"load-phenotype", "--file", "pheno.gz", "--heap", "4096"},
+		},
 	}
 
 	for _, c := range cases {

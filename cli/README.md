@@ -231,6 +231,10 @@ headless via `pic-sure etl load-phenotype …` / `pic-sure etl load-genomic …`
    `PATIENT_NUM`, `CONCEPT_PATH`, `NVAL_NUM`, `TVAL_CHAR`, `TIMESTAMP`. A tiny
    non-sensitive example lives at
    [`fixtures/etl/custom/allConcepts.csv`](../fixtures/etl/custom/allConcepts.csv).
+   The browser also accepts compressed and archived CSVs — `.gz`/`.csv.gz`
+   (plain gzip) and `.tgz`/`.tar.gz` (gzipped tar); the load decompresses them
+   automatically. If a tar holds more than one `.csv`, the wizard lists the
+   entries and asks which one to load.
 3. **JVM heap.** Prefilled `4096` (MB) — the floor for <1M rows; raise to
    `8000`+ for larger CSVs.
 4. **Dictionary.** Pick **Auto** — rebuild the dictionary from the loaded data

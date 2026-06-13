@@ -11,7 +11,9 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/hms-dbmi/pic-sure-all-in-one/cli/internal/actions"
+	picexec "github.com/hms-dbmi/pic-sure-all-in-one/cli/internal/exec"
 	"github.com/hms-dbmi/pic-sure-all-in-one/cli/internal/filebrowser"
+	"github.com/hms-dbmi/pic-sure-all-in-one/cli/internal/scripts"
 	"github.com/hms-dbmi/pic-sure-all-in-one/cli/internal/styles"
 )
 
@@ -23,7 +25,9 @@ import (
 // Step state machine (loadStep):
 //
 //	loadKind ──phenotype──▶ loadPhenoFile ─▶ loadPhenoHeap ─▶ loadPhenoDict
-//	   │ genomic                                                  │
+//	   │ genomic                  │ (≥2 CSVs in archive)            │
+//	   │                          ▼                                 │
+//	   │                 loadPhenoArchiveEntry ─▶ loadPhenoHeap     │
 //	   │                                               auto ──────┤
 //	   │                                     custom ─▶ loadPhenoDatasets
 //	   │                                              ─▶ loadPhenoConcepts
@@ -56,6 +60,7 @@ type loadStep int
 const (
 	loadKind loadStep = iota
 	loadPhenoFile
+	loadPhenoArchiveEntry
 	loadPhenoHeap
 	loadPhenoDict
 	loadPhenoDatasets
@@ -86,6 +91,43 @@ const defaultHeap = "4096"
 // phenotype floor.
 const defaultGenomicHeap = "16000"
 
+// fetchArchiveCSVs lists the *.csv entries of a compressed/archived phenotype
+// file via the read-only `etl.sh archive-csvs <file>` lister (LD-7a contract):
+// it prints the tar entries one per line (LC_ALL=C sorted), prints nothing for
+// a raw .csv or a plain .gz, and exits non-zero on a missing/unreadable file.
+// A package var so tests inject entries without forking etl.sh, mirroring
+// landing.go's fetchDevOverlays. It MUST run inside a tea.Cmd (never in Update)
+// because it forks a bash process.
+var fetchArchiveCSVs = func(root, file string) ([]string, error) {
+	code, out, err := picexec.RunOutput(root, scripts.Etl, []string{"archive-csvs", file})
+	if err != nil {
+		return nil, err
+	}
+	if code != 0 {
+		return nil, fmt.Errorf("archive-csvs exited %d", code)
+	}
+	var entries []string
+	for _, line := range strings.Split(out, "\n") {
+		// archive-csvs already sorts and emits exact entry paths; trim only the
+		// trailing newline framing, never the entry text (a subdir prefix is
+		// significant and must be passed to --entry verbatim).
+		if line = strings.TrimRight(line, "\r"); line != "" {
+			entries = append(entries, line)
+		}
+	}
+	return entries, nil
+}
+
+// archiveCSVsFillMsg carries the result of the async `etl.sh archive-csvs` call
+// off the update hot-path. seq stamps the loadPhenoFile selection it was fetched
+// for, so a result that arrives after the file step was re-entered or the screen
+// closed cannot land in the wrong place (mirrors devOverlaysFillMsg).
+type archiveCSVsFillMsg struct {
+	seq     int
+	entries []string
+	err     error
+}
+
 // openLoadDataMsg asks the app to open the guided load screen.
 type openLoadDataMsg struct{}
 
@@ -113,6 +155,7 @@ type loadScreen struct {
 	// Collected values.
 	kind            string // "phenotype" | "genomic" | "" (cancel)
 	file            string
+	archiveEntry    string // chosen CSV inside a multi-CSV archive (--entry); "" otherwise
 	heap            string
 	dictMode        string // "auto" | "custom"
 	includeFacets   bool
@@ -135,6 +178,18 @@ type loadScreen struct {
 	// esc once any data has been collected, so a multi-step flow is not silently
 	// thrown away by a reflexive esc. A pristine screen closes immediately.
 	discarding bool
+
+	// Archive-inspection state for the phenotype file step. When a non-plain-.csv
+	// file is chosen, the screen runs `etl.sh archive-csvs` asynchronously to
+	// learn whether the archive holds multiple CSVs (≥2 → entry picker). While the
+	// call is in flight inspecting is true (the view shows a placeholder and the
+	// filebrowser is parked); archiveSeq stamps each inspection so a stale result
+	// for a since-re-entered/closed file step is dropped; archiveErr surfaces a
+	// failed lookup inline so the user can re-pick.
+	inspecting     bool
+	archiveSeq     int
+	archiveEntries []string
+	archiveErr     string
 
 	width, height int
 }
@@ -204,6 +259,13 @@ func isFileStep(step loadStep) bool {
 }
 
 func (s *loadScreen) update(msg tea.Msg) (*loadScreen, tea.Cmd) {
+	// The async archive-csvs result is handled before any gate so it reaches the
+	// inspecting file step regardless of which overlay (discard prompt) is up; its
+	// own seq guard drops a result for a since-re-entered/closed step.
+	if fill, ok := msg.(archiveCSVsFillMsg); ok {
+		return s.applyArchiveCSVsFill(fill)
+	}
+
 	// A discard confirm owns the keyboard until answered. Swallow every
 	// non-key message (huh/filepicker ticks) so the prompt stays put.
 	if s.discarding {
@@ -231,6 +293,13 @@ func (s *loadScreen) update(msg tea.Msg) (*loadScreen, tea.Cmd) {
 		return s, closeLoad(true)
 	}
 
+	// While the archive is being inspected the filebrowser is parked behind a
+	// placeholder; only the fill (handled above) and esc/discard (above) act.
+	// Swallow everything else so a stray filepicker tick can't re-select.
+	if s.inspecting {
+		return s, nil
+	}
+
 	switch s.step {
 	case loadPhenoFile, loadPhenoDatasets, loadPhenoConcepts,
 		loadPhenoFacetCategories, loadPhenoFacets, loadPhenoFacetConcepts,
@@ -245,7 +314,7 @@ func (s *loadScreen) update(msg tea.Msg) (*loadScreen, tea.Cmd) {
 		}
 		return s, cmd
 
-	default: // huh form steps: kind, heap, dict, facets-ask, confirm
+	default: // huh form steps: kind, heap, dict, facets-ask, confirm, archive entry
 		return s.updateForm(msg)
 	}
 }
@@ -281,6 +350,10 @@ func (s *loadScreen) formCompleted() (*loadScreen, tea.Cmd) {
 		default: // "" — Cancel
 			return s, closeLoad(true)
 		}
+	case loadPhenoArchiveEntry:
+		// archiveEntry is bound to the select and preselected to the first entry,
+		// so it is always a real archive path here — store it and advance to heap.
+		return s.enterStep(loadPhenoHeap)
 	case loadPhenoHeap:
 		return s.enterStep(loadPhenoDict)
 	case loadPhenoDict:
@@ -328,7 +401,15 @@ func (s *loadScreen) consumeFile(path string) (*loadScreen, tea.Cmd) {
 	switch s.step {
 	case loadPhenoFile:
 		s.file = path
-		return s.enterStep(loadPhenoHeap)
+		s.archiveErr = "" // a fresh pick retires any prior inspection error
+		// A plain .csv loads verbatim — no archive to inspect, no entry to pick.
+		// Anything else (.gz/.csv.gz/.tgz/.tar.gz) may be a tar holding multiple
+		// CSVs, so inspect it asynchronously before choosing the next step.
+		if isPlainCSV(path) {
+			s.archiveEntry = "" // ensure a re-pick to plain CSV drops any stale entry
+			return s.enterStep(loadPhenoHeap)
+		}
+		return s.startArchiveInspection(path)
 	case loadPhenoDatasets:
 		s.datasets = path
 		return s.enterStep(loadPhenoConcepts)
@@ -354,13 +435,76 @@ func (s *loadScreen) consumeFile(path string) (*loadScreen, tea.Cmd) {
 	return s, nil
 }
 
+// isPlainCSV reports whether path is a raw, uncompressed CSV (the fast path that
+// needs no archive inspection). A bare ".csv" suffix that is NOT also ".csv.gz"
+// — the latter is a gzip the bash side decompresses — qualifies.
+func isPlainCSV(path string) bool {
+	return strings.HasSuffix(path, ".csv") && !strings.HasSuffix(path, ".csv.gz")
+}
+
+// startArchiveInspection parks the file step behind an "(inspecting archive…)"
+// placeholder and schedules the read-only `etl.sh archive-csvs` lister in a
+// tea.Cmd (it forks bash, so it must never run in Update). archiveSeq stamps the
+// dispatch so a result for a since-re-entered/closed file step is dropped. The
+// step stays loadPhenoFile while inspecting (the view keys off s.inspecting); the
+// fill handler advances it. Mirrors landing.startDevPicker's async pattern.
+func (s *loadScreen) startArchiveInspection(file string) (*loadScreen, tea.Cmd) {
+	s.inspecting = true
+	s.archiveErr = ""
+	s.archiveEntries = nil
+	s.archiveEntry = "" // a new inspection invalidates any prior entry choice
+	s.archiveSeq++
+	seq, root := s.archiveSeq, s.root
+	return s, func() tea.Msg {
+		entries, err := fetchArchiveCSVs(root, file)
+		return archiveCSVsFillMsg{seq: seq, entries: entries, err: err}
+	}
+}
+
+// applyArchiveCSVsFill lands the async archive-csvs result. Staleness is guarded
+// by seq (a result for a since-re-entered/closed file step is dropped) and by
+// requiring the inspection to still be in flight. Decision rule (LD-7a):
+//   - error → surface it inline and let the user re-pick (stay on the file step).
+//   - 0 or 1 entries → no picker; the bash side auto-picks a single-CSV tar and
+//     handles a plain .gz, so advance to heap with ArchiveEntry empty.
+//   - ≥2 entries → open the entry picker (loadPhenoArchiveEntry).
+func (s *loadScreen) applyArchiveCSVsFill(msg archiveCSVsFillMsg) (*loadScreen, tea.Cmd) {
+	if !s.inspecting || msg.seq != s.archiveSeq {
+		return s, nil
+	}
+	s.inspecting = false
+	if msg.err != nil {
+		// Re-open the file browser so the user can pick a different file; the
+		// inline error tells them why the chosen one was rejected.
+		s.archiveErr = "could not inspect archive: " + msg.err.Error()
+		return s.enterStep(loadPhenoFile)
+	}
+	if len(msg.entries) >= 2 {
+		s.archiveEntries = msg.entries
+		// Preselect the first entry so the select cursor starts on a real option
+		// (never on an empty/zero value — the afa885b cursor-on-Cancel lesson).
+		s.archiveEntry = msg.entries[0]
+		return s.enterStep(loadPhenoArchiveEntry)
+	}
+	// 0 or 1 CSV: nothing to choose — leave ArchiveEntry empty and let bash
+	// auto-pick (single-CSV tar) or decompress (plain gzip / empty .gz output).
+	s.archiveEntries = nil
+	return s.enterStep(loadPhenoHeap)
+}
+
 // enterStep sets the step and constructs (and sizes) its form or filebrowser,
 // returning the model's Init command.
 func (s *loadScreen) enterStep(step loadStep) (*loadScreen, tea.Cmd) {
 	s.step = step
 	switch step {
 	case loadPhenoFile:
-		return s.openBrowser([]string{".csv"}, "Select the phenotype CSV")
+		// Accept raw CSVs and the compressed/archived forms LD-7a handles. The
+		// filebrowser does suffix matching, so ".gz" also admits ".csv.gz" and
+		// ".tar.gz", and ".tgz" admits ".tgz".
+		return s.openBrowser([]string{".csv", ".gz", ".tgz"}, "Select the phenotype CSV (.csv/.gz/.tgz)")
+	case loadPhenoArchiveEntry:
+		s.form = s.sizeForm(s.buildArchiveEntryForm())
+		return s, s.form.Init()
 	case loadPhenoHeap:
 		s.form = s.sizeForm(s.buildHeapForm())
 		return s, s.form.Init()
@@ -439,6 +583,7 @@ func (s *loadScreen) dirty() bool {
 func (s *loadScreen) opts() actions.PhenotypeOpts {
 	o := actions.PhenotypeOpts{
 		File:             s.file,
+		ArchiveEntry:     s.archiveEntry,
 		Heap:             s.heap,
 		CustomDictionary: s.dictMode == "custom",
 	}
@@ -498,6 +643,27 @@ func (s *loadScreen) buildKindForm() *huh.Form {
 				huh.NewOption("Genomic data (VCF)", "genomic"),
 				huh.NewOption("Cancel", ""),
 			),
+	))
+}
+
+// buildArchiveEntryForm lists the CSV entries found inside a multi-CSV archive
+// so the user picks which one to load (forwarded as --entry). No Cancel option:
+// esc backs out of the whole step (the screen's esc handler owns cancel), so the
+// select carries only real entries and the cursor preselects archiveEntry (set
+// to the first entry by applyArchiveCSVsFill) — never an empty value that would
+// reintroduce the cursor-on-Cancel collision. Value is bound BEFORE Options, per
+// the huh gotcha.
+func (s *loadScreen) buildArchiveEntryForm() *huh.Form {
+	opts := make([]huh.Option[string], 0, len(s.archiveEntries))
+	for _, e := range s.archiveEntries {
+		opts = append(opts, huh.NewOption(e, e))
+	}
+	return huh.NewForm(huh.NewGroup(
+		huh.NewSelect[string]().
+			Title("Choose the CSV to load").
+			Description("This archive holds multiple CSVs — pick the phenotype CSV to load.").
+			Value(&s.archiveEntry).
+			Options(opts...),
 	))
 }
 
@@ -649,8 +815,13 @@ func validatePartition(v string) error {
 func (s *loadScreen) confirmSummary() string {
 	rows := [][2]string{
 		{"File", s.file},
-		{"Heap", s.heap + " MB"},
 	}
+	// For a multi-CSV archive the file line is the archive path; name the chosen
+	// entry on its own line so the user sees exactly which CSV will load.
+	if s.archiveEntry != "" {
+		rows = append(rows, [2]string{"Archive entry", s.archiveEntry})
+	}
+	rows = append(rows, [2]string{"Heap", s.heap + " MB"})
 	if s.dictMode == "custom" {
 		rows = append(rows,
 			[2]string{"Dictionary", "custom"},
@@ -749,11 +920,20 @@ func yesNo(b bool) string {
 
 func (s *loadScreen) view() string {
 	var body, footer string
-	switch s.step {
-	case loadPhenoFile, loadPhenoDatasets, loadPhenoConcepts,
-		loadPhenoFacetCategories, loadPhenoFacets, loadPhenoFacetConcepts,
-		loadGenomicIndex, loadGenomicDir:
-		body = s.fb.View()
+	switch {
+	case s.inspecting:
+		// The archive-csvs lister is running; park the file browser behind a brief
+		// placeholder so the screen doesn't look frozen during the bash fork.
+		body = loadTitleStyle.Render("(inspecting archive…)")
+		footer = loadFooterStyle.Render("esc cancel")
+	case isFileStep(s.step):
+		fbView := s.fb.View()
+		// Surface a failed archive inspection inline above the re-opened browser so
+		// the user knows why their previous pick was rejected and can re-pick.
+		if s.archiveErr != "" {
+			fbView = lipgloss.JoinVertical(lipgloss.Left, styles.Bad.Render(s.archiveErr), fbView)
+		}
+		body = fbView
 		footer = loadFooterStyle.Render("enter select · esc cancel")
 	default:
 		body = s.form.View()

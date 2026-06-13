@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
@@ -688,6 +689,376 @@ func TestLoadWizardKindStepSingleTitle(t *testing.T) {
 		t.Errorf("kind step renders %q %d times, want 1:\n%s", "Load your data", n, view)
 	}
 }
+
+// drivePhenoFile selects the phenotype kind and consumes a file path, returning
+// the screen and the command consumeFile produced (the async archive-csvs fetch
+// for a non-plain-.csv path, or nil/an Init cmd for a plain .csv).
+func drivePhenoFile(t *testing.T, s *loadScreen, path string) (*loadScreen, tea.Cmd) {
+	t.Helper()
+	s.kind = "phenotype"
+	s, _ = completeForm(s)
+	if s.step != loadPhenoFile {
+		t.Fatalf("after kind=phenotype, step = %v, want loadPhenoFile", s.step)
+	}
+	return s.consumeFile(path)
+}
+
+// runArchiveCmd executes the archive-inspection command (which calls the stubbed
+// fetchArchiveCSVs synchronously) and routes the resulting message back through
+// update, returning the post-fill screen. Fails if cmd does not deliver an
+// archiveCSVsFillMsg.
+func runArchiveCmd(t *testing.T, s *loadScreen, cmd tea.Cmd) *loadScreen {
+	t.Helper()
+	if cmd == nil {
+		t.Fatal("archive inspection produced no command")
+	}
+	msg, ok := cmd().(archiveCSVsFillMsg)
+	if !ok {
+		t.Fatalf("inspection cmd = %#v, want archiveCSVsFillMsg", cmd())
+	}
+	s, _ = s.update(msg)
+	return s
+}
+
+// stubArchiveCSVs installs a fetchArchiveCSVs returning entries/err and restores
+// the original on cleanup. called (if non-nil) is set true when the stub runs.
+func stubArchiveCSVs(t *testing.T, entries []string, err error, called *bool) {
+	t.Helper()
+	orig := fetchArchiveCSVs
+	fetchArchiveCSVs = func(string, string) ([]string, error) {
+		if called != nil {
+			*called = true
+		}
+		return entries, err
+	}
+	t.Cleanup(func() { fetchArchiveCSVs = orig })
+}
+
+// TestLoadWizardPlainCSVNoInspection: a plain .csv advances straight to heap
+// without calling archive-csvs and without an --entry in the dispatched argv.
+func TestLoadWizardPlainCSVNoInspection(t *testing.T) {
+	called := false
+	stubArchiveCSVs(t, nil, nil, &called)
+
+	s := newLoadScreen("/tmp/x")
+	s.setSize(100, 35)
+	s, cmd := drivePhenoFile(t, s, "/data/pheno.csv")
+	if called {
+		t.Fatal("archive-csvs was called for a plain .csv")
+	}
+	if s.step != loadPhenoHeap {
+		t.Fatalf("plain .csv step = %v, want loadPhenoHeap", s.step)
+	}
+	if s.inspecting {
+		t.Fatal("plain .csv must not enter the inspecting state")
+	}
+	// The cmd here is the heap form's Init (or nil) — never an archive fetch.
+	if cmd != nil {
+		if _, ok := cmd().(archiveCSVsFillMsg); ok {
+			t.Fatal("plain .csv scheduled an archive-csvs fetch")
+		}
+	}
+
+	// Drive to dispatch and assert no --entry.
+	s, _ = completeForm(s) // heap → dict
+	s.dictMode = "auto"
+	s, _ = completeForm(s) // → confirm
+	s.confirmed = true
+	_, cmd = completeForm(s)
+	run := cmd().(runActionMsg)
+	if contains(run.act.Args, "--entry") {
+		t.Errorf("plain .csv argv unexpectedly has --entry: %v", run.act.Args)
+	}
+	want := []string{"load-phenotype", "--file", "/data/pheno.csv", "--heap", defaultHeap}
+	if !eq(run.act.Args, want) {
+		t.Errorf("args = %v, want %v", run.act.Args, want)
+	}
+}
+
+// TestLoadWizardSingleCSVArchiveNoPicker: an archive whose lister returns exactly
+// one CSV needs no picker — the screen advances to heap with ArchiveEntry empty
+// (bash auto-picks the single CSV).
+func TestLoadWizardSingleCSVArchiveNoPicker(t *testing.T) {
+	stubArchiveCSVs(t, []string{"only.csv"}, nil, nil)
+
+	s := newLoadScreen("/tmp/x")
+	s.setSize(100, 35)
+	s, cmd := drivePhenoFile(t, s, "/data/pheno.tgz")
+	if !s.inspecting {
+		t.Fatal("a non-plain file must enter the inspecting state")
+	}
+	s = runArchiveCmd(t, s, cmd)
+
+	if s.inspecting {
+		t.Fatal("inspecting flag not cleared after the fill")
+	}
+	if s.step != loadPhenoHeap {
+		t.Fatalf("single-CSV archive step = %v, want loadPhenoHeap", s.step)
+	}
+	if s.archiveEntry != "" {
+		t.Errorf("single-CSV archive set ArchiveEntry = %q, want empty", s.archiveEntry)
+	}
+
+	s, _ = completeForm(s) // heap → dict
+	s.dictMode = "auto"
+	s, _ = completeForm(s)
+	s.confirmed = true
+	_, cmd = completeForm(s)
+	run := cmd().(runActionMsg)
+	if contains(run.act.Args, "--entry") {
+		t.Errorf("single-CSV archive argv unexpectedly has --entry: %v", run.act.Args)
+	}
+}
+
+// TestLoadWizardMultiCSVArchivePicker: an archive with ≥2 CSVs opens the entry
+// picker with the cursor on the FIRST entry (never a Cancel row); choosing the
+// second entry forwards it as --entry in the dispatched argv.
+func TestLoadWizardMultiCSVArchivePicker(t *testing.T) {
+	entries := []string{"a/first.csv", "b/second.csv"}
+	stubArchiveCSVs(t, entries, nil, nil)
+
+	s := newLoadScreen("/tmp/x")
+	s.setSize(100, 35)
+	s, cmd := drivePhenoFile(t, s, "/data/pheno.tgz")
+	s = runArchiveCmd(t, s, cmd)
+
+	if s.step != loadPhenoArchiveEntry {
+		t.Fatalf("multi-CSV archive step = %v, want loadPhenoArchiveEntry", s.step)
+	}
+	// Cursor preselects the first entry; never a Cancel row (afa885b lesson).
+	if s.archiveEntry != entries[0] {
+		t.Errorf("picker preselect = %q, want first entry %q", s.archiveEntry, entries[0])
+	}
+	view := wizardANSI.ReplaceAllString(s.view(), "")
+	if !strings.Contains(view, "> "+entries[0]) {
+		t.Errorf("picker cursor not on the first entry %q:\n%s", entries[0], view)
+	}
+	if strings.Contains(view, "> Cancel") {
+		t.Errorf("picker cursor is on a Cancel row (cursor-on-Cancel bug):\n%s", view)
+	}
+	for _, e := range entries {
+		if !strings.Contains(view, e) {
+			t.Errorf("picker render missing entry %q:\n%s", e, view)
+		}
+	}
+
+	// Choose the second entry and dispatch.
+	s.archiveEntry = entries[1]
+	s, _ = completeForm(s)
+	if s.step != loadPhenoHeap {
+		t.Fatalf("after entry pick, step = %v, want loadPhenoHeap", s.step)
+	}
+	s, _ = completeForm(s) // heap → dict
+	s.dictMode = "auto"
+	s, _ = completeForm(s)
+	s.confirmed = true
+	_, cmd = completeForm(s)
+	run := cmd().(runActionMsg)
+	if !containsPair(run.act.Args, "--entry", entries[1]) {
+		t.Errorf("argv missing --entry %q: %v", entries[1], run.act.Args)
+	}
+	want := []string{
+		"load-phenotype", "--file", "/data/pheno.tgz", "--heap", defaultHeap,
+		"--entry", entries[1],
+	}
+	if !eq(run.act.Args, want) {
+		t.Errorf("args = %v, want %v", run.act.Args, want)
+	}
+}
+
+// TestLoadWizardArchiveEntryInConfirmSummary: with a chosen entry the confirm
+// summary names both the archive path (File) and the chosen Archive entry.
+func TestLoadWizardArchiveEntryInConfirmSummary(t *testing.T) {
+	entries := []string{"a/first.csv", "b/second.csv"}
+	stubArchiveCSVs(t, entries, nil, nil)
+
+	s := newLoadScreen("/tmp/x")
+	s.setSize(100, 35)
+	s, cmd := drivePhenoFile(t, s, "/data/pheno.tgz")
+	s = runArchiveCmd(t, s, cmd)
+	s.archiveEntry = entries[1]
+	s, _ = completeForm(s) // entry → heap
+	s, _ = completeForm(s) // heap → dict
+	s.dictMode = "auto"
+	s, _ = completeForm(s) // → confirm
+
+	view := wizardANSI.ReplaceAllString(s.view(), "")
+	for _, want := range []string{"/data/pheno.tgz", "Archive entry", entries[1]} {
+		if !strings.Contains(view, want) {
+			t.Errorf("confirm summary missing %q:\n%s", want, view)
+		}
+	}
+}
+
+// TestLoadWizardArchiveCSVsErrorRePick: a failed archive-csvs lookup surfaces an
+// inline error and re-opens the file browser so the user can re-pick.
+func TestLoadWizardArchiveCSVsErrorRePick(t *testing.T) {
+	stubArchiveCSVs(t, nil, errInspect, nil)
+
+	s := newLoadScreen("/tmp/x")
+	s.setSize(100, 35)
+	s, cmd := drivePhenoFile(t, s, "/data/pheno.tgz")
+	s = runArchiveCmd(t, s, cmd)
+
+	if s.inspecting {
+		t.Fatal("inspecting flag not cleared after an error fill")
+	}
+	if s.step != loadPhenoFile {
+		t.Fatalf("after archive error, step = %v, want loadPhenoFile (re-pick)", s.step)
+	}
+	if s.archiveErr == "" {
+		t.Fatal("archive error not recorded for inline display")
+	}
+	view := wizardANSI.ReplaceAllString(s.view(), "")
+	if !strings.Contains(view, "could not inspect archive") {
+		t.Errorf("file step does not surface the inspection error inline:\n%s", view)
+	}
+
+	// Re-picking a plain CSV clears the error and advances.
+	called := false
+	stubArchiveCSVs(t, nil, nil, &called)
+	s, _ = s.consumeFile("/data/pheno.csv")
+	if s.archiveErr != "" {
+		t.Errorf("re-pick did not clear the archive error: %q", s.archiveErr)
+	}
+	if called {
+		t.Error("re-pick to a plain .csv should not call archive-csvs")
+	}
+	if s.step != loadPhenoHeap {
+		t.Fatalf("re-pick step = %v, want loadPhenoHeap", s.step)
+	}
+}
+
+// TestLoadWizardArchiveFillStaleness: a fill stamped with a stale seq (the file
+// step was re-entered, bumping archiveSeq) must be dropped, leaving the fresh
+// inspection untouched.
+func TestLoadWizardArchiveFillStaleness(t *testing.T) {
+	stubArchiveCSVs(t, []string{"a.csv", "b.csv"}, nil, nil)
+
+	s := newLoadScreen("/tmp/x")
+	s.setSize(100, 35)
+	s, _ = drivePhenoFile(t, s, "/data/one.tgz")
+	staleSeq := s.archiveSeq
+
+	// Re-pick (a fresh selection bumps archiveSeq and restarts inspection).
+	s, _ = s.consumeFile("/data/two.tgz")
+	if s.archiveSeq == staleSeq {
+		t.Fatal("re-picking did not bump archiveSeq")
+	}
+	if !s.inspecting {
+		t.Fatal("re-pick should leave the screen inspecting")
+	}
+
+	// A stale fill must be dropped: still inspecting, still on the file step.
+	s, _ = s.update(archiveCSVsFillMsg{seq: staleSeq, entries: []string{"a.csv", "b.csv"}})
+	if !s.inspecting {
+		t.Error("stale fill cleared the inspecting state of the fresh inspection")
+	}
+	if s.step != loadPhenoFile {
+		t.Errorf("stale fill advanced the step to %v", s.step)
+	}
+}
+
+// TestLoadWizardArchiveAfterCloseDropped: a fill arriving after the screen left
+// the inspecting state (e.g. closed/advanced) is dropped, not applied.
+func TestLoadWizardArchiveAfterCloseDropped(t *testing.T) {
+	stubArchiveCSVs(t, []string{"a.csv", "b.csv"}, nil, nil)
+
+	s := newLoadScreen("/tmp/x")
+	s.setSize(100, 35)
+	s, cmd := drivePhenoFile(t, s, "/data/pheno.tgz")
+	s = runArchiveCmd(t, s, cmd) // applies → loadPhenoArchiveEntry, inspecting=false
+	if s.inspecting {
+		t.Fatal("setup: inspection should have completed")
+	}
+	stepBefore := s.step
+	// A second (stale, duplicate) fill at the same seq must be ignored because
+	// inspecting is already false.
+	s, _ = s.update(archiveCSVsFillMsg{seq: s.archiveSeq, entries: []string{"x.csv", "y.csv", "z.csv"}})
+	if s.step != stepBefore {
+		t.Errorf("late fill re-applied: step = %v, want %v", s.step, stepBefore)
+	}
+}
+
+// TestLoadWizardArchiveEntryPickerShortHeight is the afa885b regression guard for
+// the new select: on a short terminal the entry picker's first render must show
+// all entries with the cursor on the first one (not scrolled out / not on a
+// would-be Cancel row).
+func TestLoadWizardArchiveEntryPickerShortHeight(t *testing.T) {
+	entries := []string{"a/first.csv", "b/second.csv", "c/third.csv"}
+	stubArchiveCSVs(t, entries, nil, nil)
+
+	s := newLoadScreen("/tmp/x")
+	s.setSize(60, 12) // short terminal — forces group viewport clipping
+	s, cmd := drivePhenoFile(t, s, "/data/pheno.tgz")
+	s = runArchiveCmd(t, s, cmd)
+	s.setSize(60, 12) // re-size after entering the picker step
+
+	view := wizardANSI.ReplaceAllString(s.view(), "")
+	for _, e := range entries {
+		if !strings.Contains(view, e) {
+			t.Errorf("short-height picker hides entry %q on first render:\n%s", e, view)
+		}
+	}
+	if !strings.Contains(view, "> "+entries[0]) {
+		t.Errorf("short-height picker cursor not on the first entry:\n%s", view)
+	}
+}
+
+// TestLoadWizardArchiveEntryEscDiscards: esc on the entry picker (a dirty screen,
+// file already collected) raises the discard prompt; y discards.
+func TestLoadWizardArchiveEntryEscDiscards(t *testing.T) {
+	stubArchiveCSVs(t, []string{"a.csv", "b.csv"}, nil, nil)
+
+	s := newLoadScreen("/tmp/x")
+	s.setSize(100, 35)
+	s, cmd := drivePhenoFile(t, s, "/data/pheno.tgz")
+	s = runArchiveCmd(t, s, cmd)
+	if s.step != loadPhenoArchiveEntry {
+		t.Fatalf("setup: step = %v, want loadPhenoArchiveEntry", s.step)
+	}
+	if !s.dirty() {
+		t.Fatal("screen should be dirty (file collected) at the entry picker")
+	}
+
+	// esc raises the discard prompt (file is collected → dirty).
+	s, cmd = s.update(tea.KeyMsg{Type: tea.KeyEsc})
+	if !s.discarding {
+		t.Fatal("esc on the entry picker did not raise the discard prompt")
+	}
+	if cmd != nil {
+		t.Fatal("esc on a dirty entry picker must not close yet")
+	}
+	// y discards (closes aborted).
+	_, cmd = s.update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'y'}})
+	if msg, ok := cmd().(loadDataClosedMsg); !ok || !msg.aborted {
+		t.Fatalf("y at discard prompt = %#v, want loadDataClosedMsg{aborted:true}", cmd())
+	}
+}
+
+// TestLoadWizardInspectingEscCancels: esc while the archive is being inspected
+// (no further input collected beyond the file) still raises the discard prompt
+// (the file is already collected, making the screen dirty).
+func TestLoadWizardInspectingEscDiscards(t *testing.T) {
+	stubArchiveCSVs(t, []string{"a.csv", "b.csv"}, nil, nil)
+
+	s := newLoadScreen("/tmp/x")
+	s.setSize(100, 35)
+	s, _ = drivePhenoFile(t, s, "/data/pheno.tgz")
+	if !s.inspecting {
+		t.Fatal("setup: screen should be inspecting")
+	}
+	s, cmd := s.update(tea.KeyMsg{Type: tea.KeyEsc})
+	if !s.discarding {
+		t.Fatal("esc while inspecting did not raise the discard prompt")
+	}
+	if cmd != nil {
+		t.Fatal("esc while inspecting must not close yet")
+	}
+}
+
+// errInspect is the canned archive-csvs failure used by the error-path test.
+var errInspect = fmt.Errorf("missing or unreadable file")
 
 // containsPair reports whether flag is immediately followed by val in argv.
 func containsPair(args []string, flag, val string) bool {

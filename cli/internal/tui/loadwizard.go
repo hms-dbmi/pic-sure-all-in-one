@@ -140,7 +140,11 @@ type loadScreen struct {
 }
 
 func newLoadScreen(root string) *loadScreen {
-	s := &loadScreen{root: root, step: loadKind, heap: defaultHeap, dictMode: "auto"}
+	// kind is pre-set to "phenotype" (the first real option) so the huh select
+	// cursor starts there on first paint. Without this, s.kind="" collides with
+	// Cancel's value "" and huh preselects Cancel — the same gotcha fixed in the
+	// dev-picker (landing.go startSelectPicker).
+	s := &loadScreen{root: root, step: loadKind, heap: defaultHeap, dictMode: "auto", kind: "phenotype"}
 	s.form = s.buildKindForm()
 	return s
 }

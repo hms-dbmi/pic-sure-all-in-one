@@ -698,3 +698,56 @@ func containsPair(args []string, flag, val string) bool {
 	}
 	return false
 }
+
+// TestLoadWizardKindSelectShowsAllOptionsInitially mirrors
+// TestLandingDevPickerShowsAllOptionsInitially: on first render (no keypress),
+// the kind-select must show all three options with the cursor on the first real
+// option ("Phenotype data (CSV)"), not on "Cancel".
+//
+// Root-cause guard: huh preselects the option whose value equals the bound
+// value; if s.kind=="" (the zero value) and Cancel's value is also "", huh
+// places the cursor on Cancel and the group viewport scrolls it into view,
+// hiding the two real options on a short terminal.
+func TestLoadWizardKindSelectShowsAllOptionsInitially(t *testing.T) {
+	s := newLoadScreen("/tmp/x")
+	s.setSize(100, 35)
+	_ = s.init()
+
+	view := wizardANSI.ReplaceAllString(s.view(), "")
+
+	// All three options must appear.
+	for _, opt := range []string{"Phenotype data (CSV)", "Genomic data (VCF)", "Cancel"} {
+		if !strings.Contains(view, opt) {
+			t.Errorf("kind-select render missing option %q", opt)
+		}
+	}
+	// Cursor must NOT be on Cancel.
+	if strings.Contains(view, "> Cancel") {
+		t.Error("kind-select cursor is on Cancel on first render (bug: empty s.kind collides with Cancel's \"\" value)")
+	}
+	// Cursor must be on the first real option.
+	if !strings.Contains(view, "> Phenotype data (CSV)") {
+		t.Error("kind-select cursor is not on \"Phenotype data (CSV)\" on first render")
+	}
+}
+
+// TestLoadWizardKindSelectShortHeightShowsOptions is the short-terminal variant
+// capturing the user-reported symptom: on a small terminal the group viewport
+// scrolls to whichever option has the cursor; if the cursor is on Cancel the
+// real options are scrolled out of view above.
+func TestLoadWizardKindSelectShortHeightShowsOptions(t *testing.T) {
+	s := newLoadScreen("/tmp/x")
+	s.setSize(60, 12) // short terminal — forces group viewport clipping
+	_ = s.init()
+
+	view := wizardANSI.ReplaceAllString(s.view(), "")
+
+	// "Phenotype data (CSV)" must be visible (not scrolled out).
+	if !strings.Contains(view, "Phenotype data (CSV)") {
+		t.Errorf("kind-select on short terminal hides \"Phenotype data (CSV)\" on first render:\n%s", view)
+	}
+	// Cursor must not be on Cancel.
+	if strings.Contains(view, "> Cancel") {
+		t.Errorf("kind-select cursor is on Cancel on short terminal first render:\n%s", view)
+	}
+}

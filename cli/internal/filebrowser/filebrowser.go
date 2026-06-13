@@ -196,6 +196,14 @@ func (m Model) Err() error {
 	return m.err
 }
 
+// Dir returns the directory the picker is currently showing. This is the value
+// set at construction time (from Options.StartDir, or os.Getwd() if empty) and
+// is updated as the user navigates. Tests use it to assert that the browser
+// opens at the expected root rather than the process working directory.
+func (m Model) Dir() string {
+	return m.fp.CurrentDirectory
+}
+
 // View renders the title, the filepicker, and an inline hint/error line.
 func (m Model) View() string {
 	var b strings.Builder

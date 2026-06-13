@@ -555,7 +555,7 @@ func (s *loadScreen) enterStep(step loadStep) (*loadScreen, tea.Cmd) {
 }
 
 func (s *loadScreen) openBrowser(exts []string, title string) (*loadScreen, tea.Cmd) {
-	s.fb = filebrowser.New(filebrowser.Options{AllowedExts: exts, Title: title})
+	s.fb = filebrowser.New(filebrowser.Options{AllowedExts: exts, Title: title, StartDir: s.root})
 	s.fb.SetSize(s.fbWidth(), s.fbHeight())
 	return s, s.fb.Init()
 }
@@ -563,7 +563,7 @@ func (s *loadScreen) openBrowser(exts []string, title string) (*loadScreen, tea.
 // openDirBrowser opens a DirMode filebrowser for selecting a directory (the
 // optional --vcf-dir override).
 func (s *loadScreen) openDirBrowser(title string) (*loadScreen, tea.Cmd) {
-	s.fb = filebrowser.New(filebrowser.Options{DirMode: true, Title: title})
+	s.fb = filebrowser.New(filebrowser.Options{DirMode: true, Title: title, StartDir: s.root})
 	s.fb.SetSize(s.fbWidth(), s.fbHeight())
 	return s, s.fb.Init()
 }

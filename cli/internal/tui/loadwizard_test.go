@@ -1122,3 +1122,38 @@ func TestLoadWizardKindSelectShortHeightShowsOptions(t *testing.T) {
 		t.Errorf("kind-select cursor is on Cancel on short terminal first render:\n%s", view)
 	}
 }
+
+// TestOpenBrowserStartsAtRoot asserts that openBrowser (used for phenotype
+// file, datasets, concepts, facet-categories, facets, facet-concepts and genomic
+// index steps) opens the filebrowser at s.root — the PIC-SURE checkout root —
+// rather than os.Getwd() (the process cwd, typically the cli/ directory where
+// the binary was launched). This is the regression test for the UX bug where
+// the file picker opened in the Go CLI source directory instead of the checkout
+// root where demo-data/ and the user's data files live.
+func TestOpenBrowserStartsAtRoot(t *testing.T) {
+	root := t.TempDir() // a real, absolute directory distinct from cwd
+
+	s := newLoadScreen(root)
+	s.setSize(100, 35)
+
+	s, _ = s.openBrowser([]string{".csv", ".tsv"}, "Pick a file")
+
+	if got := s.fb.Dir(); got != root {
+		t.Errorf("openBrowser: filebrowser Dir = %q, want root %q (cwd leaked into start dir)", got, root)
+	}
+}
+
+// TestOpenDirBrowserStartsAtRoot asserts that openDirBrowser (used for the
+// genomic vcf-dir step) also opens at s.root, not os.Getwd().
+func TestOpenDirBrowserStartsAtRoot(t *testing.T) {
+	root := t.TempDir()
+
+	s := newLoadScreen(root)
+	s.setSize(100, 35)
+
+	s, _ = s.openDirBrowser("Pick a directory")
+
+	if got := s.fb.Dir(); got != root {
+		t.Errorf("openDirBrowser: filebrowser Dir = %q, want root %q (cwd leaked into start dir)", got, root)
+	}
+}

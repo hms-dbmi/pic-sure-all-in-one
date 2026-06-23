@@ -265,6 +265,7 @@ pipeline {
                             sh &quot;echo &apos;#Resource UUIDs:&apos; &gt;&gt; .env&quot;
                             sh &quot;echo  VITE_RESOURCE_HPDS=`cat /usr/local/docker-config/RESOURCE_ID_RAW` &gt;&gt; .env&quot;
                             sh &quot;echo &apos;VITE_RESOURCE_OPEN_HPDS=&apos; &gt;&gt; .env&quot;
+                            sh &quot;echo &apos;VITE_RESOURCE_OPEN_V3_HPDS=&apos; &gt;&gt; .env&quot;
                             sh &quot;echo &apos;VITE_RESOURCE_BASE_QUERY=&apos; &gt;&gt; .env&quot;
                             sh &quot;echo &apos;VITE_RESOURCE_VIZ=&apos; &gt;&gt; .env&quot;
                             sh &quot;echo &apos;#Google Analytics settings (leave blank to disable):&apos; &gt;&gt; .env&quot;

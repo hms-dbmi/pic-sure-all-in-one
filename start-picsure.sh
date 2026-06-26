@@ -28,8 +28,6 @@ echo "INCLUDE_AGG_DICT=$INCLUDE_AGG_DICT"
 echo "INCLUDE_PASSTHRU=$INCLUDE_PASSTHRU"
 [[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/logging" ]] && INCLUDE_LOGGING=true || INCLUDE_LOGGING=false
 echo "INCLUDE_LOGGING=$INCLUDE_LOGGING"
-# Visualization is a standard part of the stack (config/visualization/ ships by default),
-# so this directory check is normally always true.
 [[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/visualization" ]] && INCLUDE_VISUALIZATION=true || INCLUDE_VISUALIZATION=false
 echo "INCLUDE_VISUALIZATION=$INCLUDE_VISUALIZATION"
 

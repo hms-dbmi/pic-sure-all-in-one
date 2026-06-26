@@ -214,9 +214,6 @@ if $INCLUDE_PASSTHRU; then
     || exit 2
 fi
 
-# Standalone visualization service (replaces the old in-WildFly visualization WAR).
-# Reached by the API proxy at /proxy/visualization/...; the env file pins SERVER_PORT=80
-# because the proxy targets the container on port 80.
 if $INCLUDE_VISUALIZATION; then
   docker stop visualization && docker rm visualization
   docker run --restart always --name visualization --network picsure \

@@ -1,0 +1,87 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<flow-definition plugin="workflow-job@1571.vb_423c255d6d9">
+  <actions>
+    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobAction plugin="pipeline-model-definition@2.2277.v00573e73ddf1"/>
+    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction plugin="pipeline-model-definition@2.2277.v00573e73ddf1">
+      <jobProperties/>
+      <triggers/>
+      <parameters>
+        <string>DOCKER_REGISTRY</string>
+        <string>REPOSITORY_NAME</string>
+        <string>DEPLOY_METHOD</string>
+      </parameters>
+      <options/>
+    </org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction>
+  </actions>
+  <description>This Jenkins job builds and deploys the standalone pic-sure visualization service (hms-dbmi/PIC-SURE-Visualization) into all-in-one. It runs the repo jenkinsfile with DEPLOY_METHOD=docker.</description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>DOCKER_REGISTRY</name>
+          <description>Docker registry / image namespace.</description>
+          <defaultValue>hms-dbmi</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>REPOSITORY_NAME</name>
+          <description>Docker repository name (image is ${DOCKER_REGISTRY}/${REPOSITORY_NAME}).</description>
+          <defaultValue>pic-sure-visualization</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>DEPLOY_METHOD</name>
+          <description>Deployment method. all-in-one uses 'docker' (build the image and docker run the container).</description>
+          <defaultValue>docker</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>TARGET_STACK</name>
+          <description>Only used for s3 deploys (BDC/FISMA); leave blank for all-in-one.</description>
+          <defaultValue></defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>STACK_S3_BUCKET</name>
+          <description>Only used for s3 deploys (BDC/FISMA); leave blank for all-in-one.</description>
+          <defaultValue></defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>pipeline_build_id</name>
+          <defaultValue>MANUAL_RUN</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>git_hash</name>
+          <description>Branch or commit of hms-dbmi/PIC-SURE-Visualization to build.</description>
+          <defaultValue>main</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <definition class="org.jenkinsci.plugins.workflow.cps.CpsScmFlowDefinition" plugin="workflow-cps@4255.vd9c37f80fd8a_">
+    <scm class="hudson.plugins.git.GitSCM" plugin="git@5.9.0">
+      <configVersion>2</configVersion>
+      <userRemoteConfigs>
+        <hudson.plugins.git.UserRemoteConfig>
+          <url>https://github.com/hms-dbmi/PIC-SURE-Visualization.git</url>
+        </hudson.plugins.git.UserRemoteConfig>
+      </userRemoteConfigs>
+      <branches>
+        <hudson.plugins.git.BranchSpec>
+          <name>${git_hash}</name>
+        </hudson.plugins.git.BranchSpec>
+      </branches>
+      <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+      <submoduleCfg class="empty-list"/>
+      <extensions/>
+    </scm>
+    <scriptPath>jenkinsfile</scriptPath>
+    <lightweight>false</lightweight>
+  </definition>
+  <triggers/>
+  <disabled>false</disabled>
+</flow-definition>

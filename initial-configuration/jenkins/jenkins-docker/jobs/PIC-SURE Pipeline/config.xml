@@ -79,6 +79,29 @@ pipeline {
                 }
             }
         }
+        stage(&apos;PIC-SURE Visualization&apos;) {
+            steps {
+                script {
+                    sh &quot;&quot;&quot;
+                        if [ ! -f /usr/local/docker-config/visualization/visualization.env ]; then
+                            mkdir -p /usr/local/docker-config/visualization
+                            echo &apos;SERVER_PORT=80&apos; &gt; /usr/local/docker-config/visualization/visualization.env
+                            echo &apos;HPDS_BASE_URL=http://hpds:8080/PIC-SURE&apos; &gt;&gt; /usr/local/docker-config/visualization/visualization.env
+                            echo AUTH_HPDS_RESOURCE_UUID=`cat /usr/local/docker-config/RESOURCE_ID_RAW` &gt;&gt; /usr/local/docker-config/visualization/visualization.env
+                            echo OPEN_HPDS_RESOURCE_UUID=`cat /usr/local/docker-config/RESOURCE_ID_RAW` &gt;&gt; /usr/local/docker-config/visualization/visualization.env
+                        else
+                            echo &apos;visualization.env already exists; leaving existing config untouched.&apos;
+                        fi
+                    &quot;&quot;&quot;
+
+                    def result = build job: &apos;PIC-SURE Visualization Build and Deploy&apos;, parameters: [
+                        [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],
+                        [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSV&apos;] ?: &apos;main&apos;],
+                        [$class: &apos;StringParameterValue&apos;, name: &apos;DEPLOY_METHOD&apos;, value: &apos;docker&apos;]
+                    ]
+                }
+            }
+        }
         stage(&apos;PIC-SURE Auth&apos;) {
             steps {
                 script{

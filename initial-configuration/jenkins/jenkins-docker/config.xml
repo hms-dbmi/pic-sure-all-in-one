@@ -54,13 +54,13 @@
         <string>PIC-SURE Auth Micro-App Build - Jenkinsfile</string>
         <string>PIC-SURE Build and Deploy Uploader</string>
         <string>Build Passthru Image</string>
-        <string>Create PIC-SURE Visualization Build</string>
         <string>PIC-SURE Dictionary API Build and Deploy</string>
         <string>PIC-SURE Dictionary-ETL Build</string>
         <string>PIC-SURE Pipeline</string>
         <string>PIC-SURE Wildfly Image Build</string>
         <string>PIC-SURE-API Build</string>
         <string>PIC-SURE-HPDS Build</string>
+        <string>PIC-SURE Visualization Build and Deploy</string>
       </jobNames>
       <jobFilters/>
       <columns>
@@ -144,7 +144,6 @@
         <comparator class="hudson.util.CaseInsensitiveComparator" reference="../../../listView/jobNames/comparator"/>
         <string>Backup Jenkins Home</string>
         <string>Create PIC-SURE Aggregate Resource</string>
-        <string>Create PIC-SURE Visualization Build</string>
         <string>Create Self-Signed SSL Certificate</string>
         <string>Download PSAMA Configuration</string>
         <string>Export builds</string>

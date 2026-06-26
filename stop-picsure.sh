@@ -28,6 +28,8 @@ echo "INCLUDE_AGG_DICT=$INCLUDE_AGG_DICT"
 echo "INCLUDE_PASSTHRU=$INCLUDE_PASSTHRU"
 [[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/logging" ]] && INCLUDE_LOGGING=true || INCLUDE_LOGGING=false
 echo "INCLUDE_LOGGING=$INCLUDE_LOGGING"
+[[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/visualization" ]] && INCLUDE_VISUALIZATION=true || INCLUDE_VISUALIZATION=false
+echo "INCLUDE_VISUALIZATION=$INCLUDE_VISUALIZATION"
 
 if $INCLUDE_HPDS; then
   docker stop hpds && docker rm hpds
@@ -50,4 +52,7 @@ if $INCLUDE_PASSTHRU; then
 fi
 if $INCLUDE_LOGGING; then
   docker stop pic-sure-logging && docker rm pic-sure-logging
+fi
+if $INCLUDE_VISUALIZATION; then
+  docker stop visualization && docker rm visualization
 fi

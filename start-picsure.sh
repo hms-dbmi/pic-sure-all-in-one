@@ -28,6 +28,8 @@ echo "INCLUDE_AGG_DICT=$INCLUDE_AGG_DICT"
 echo "INCLUDE_PASSTHRU=$INCLUDE_PASSTHRU"
 [[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/logging" ]] && INCLUDE_LOGGING=true || INCLUDE_LOGGING=false
 echo "INCLUDE_LOGGING=$INCLUDE_LOGGING"
+[[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/visualization" ]] && INCLUDE_VISUALIZATION=true || INCLUDE_VISUALIZATION=false
+echo "INCLUDE_VISUALIZATION=$INCLUDE_VISUALIZATION"
 
 # Docker Volumes
 export PICSURE_BANNER_VOLUME="-v $DOCKER_CONFIG_DIR/httpd/banner_config.json:/usr/local/apache2/htdocs/picsureui/settings/banner_config.json"
@@ -152,7 +154,6 @@ docker run --name=wildfly --restart always --network=picsure --network=hpds --ne
   -v "$DOCKER_CONFIG_DIR"/log/wildfly-docker-os-logs/:/var/log/ \
   -v $DOCKER_CONFIG_DIR/wildfly/passthru/:/opt/jboss/wildfly/standalone/configuration/passthru/ \
   -v $DOCKER_CONFIG_DIR/wildfly/aggregate-data-sharing/:/opt/jboss/wildfly/standalone/configuration/aggregate-data-sharing/ \
-  -v $DOCKER_CONFIG_DIR/wildfly/visualization/:/opt/jboss/wildfly/standalone/configuration/visualization/ \
   $WILDFLY_DEBUG \
   -v $DOCKER_CONFIG_DIR/wildfly/standalone.xml:/opt/jboss/wildfly/standalone/configuration/standalone.xml \
   $TRUSTSTORE_VOLUME \
@@ -166,7 +167,7 @@ docker run --name=wildfly --restart always --network=picsure --network=hpds --ne
   || exit 2
 # Workaround for macOS bind-mount limitations: macOS does not support atomic file moves on mounted volumes,
 # causing "Device or resource busy" errors during hot deployments. We just copy the files into the running container.
-# This refreshes ALL deployed WARs (pic-sure-api plus any aggregate/visualization resource WARs) from the shared
+# This refreshes ALL deployed WARs (pic-sure-api plus any aggregate resource WARs) from the shared
 # deployments dir. docker cp reads its source from the Jenkins (current) filesystem, so it MUST use
 # CURRENT_FS_DOCKER_CONFIG_DIR -- $DOCKER_CONFIG_DIR is the host path and does not exist inside this container.
 docker cp "${CURRENT_FS_DOCKER_CONFIG_DIR}/wildfly/deployments/." "wildfly:/opt/jboss/wildfly/standalone/deployments/"
@@ -208,5 +209,15 @@ if $INCLUDE_PASSTHRU; then
     --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/passthru/passthru.env \
     $PASSTHRU_DEBUG \
     -d hms-dbmi/pic-sure-passthru:LATEST \
+    || exit 2
+fi
+
+if $INCLUDE_VISUALIZATION; then
+  docker stop visualization && docker rm visualization
+  docker run --restart always --name visualization --network picsure \
+    -v $DOCKER_CONFIG_DIR/log/visualization-docker-logs/:/var/log/ \
+    --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/visualization/visualization.env \
+    $LOGGING_ENVS \
+    -d hms-dbmi/pic-sure-visualization:LATEST \
     || exit 2
 fi

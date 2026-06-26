@@ -82,14 +82,6 @@ pipeline {
         stage(&apos;PIC-SURE Visualization&apos;) {
             steps {
                 script {
-                    // Mandatory: the standalone visualization service is always built and deployed.
-                    // Runs after HPDS so resource-api (from PIC-SURE API) and client-api (from HPDS)
-                    // are already installed in the shared maven_m2_cache.
-
-                    // Render the visualization service env file here (re-runnable on every pipeline),
-                    // not in the one-time install scripts, so existing deployments get it too.
-                    // Only create it if missing -- never clobber an operator-customized env file.
-                    // The HPDS resource UUIDs are the all-in-one hpds resource UUID (RESOURCE_ID).
                     sh &quot;&quot;&quot;
                         if [ ! -f /usr/local/docker-config/visualization/visualization.env ]; then
                             mkdir -p /usr/local/docker-config/visualization

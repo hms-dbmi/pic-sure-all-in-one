@@ -46,17 +46,28 @@ pipeline {
                 }
             }
         }
-        stage(&apos;Install Logging Client Library&apos;) {
+        stage(&apos;Install Shared Libraries&apos;) {
             steps {
-                script {
-                    try {
-                        build job: &apos;PIC-SURE Logging Client Install&apos;, parameters: [
-                            [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId]
-                        ]
-                    } catch (Exception e) {
-                        echo &quot;Logging client install failed (${e.message}). Downstream builds will proceed without it.&quot;
+                parallel(
+                    commonLibrary: {
+                        script {
+                            build job: &apos;PIC-SURE Common Install&apos;, parameters: [
+                                [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId]
+                            ]
+                        }
+                    },
+                    loggingClient: {
+                        script {
+                            try {
+                                build job: &apos;PIC-SURE Logging Client Install&apos;, parameters: [
+                                    [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId]
+                                ]
+                            } catch (Exception e) {
+                                echo &quot;Logging client install failed (${e.message}). Downstream builds will proceed without it.&quot;
+                            }
+                        }
                     }
-                }
+                )
             }
         }
         stage(&apos;PIC-SURE API&apos;) {

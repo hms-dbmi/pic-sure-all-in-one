@@ -446,6 +446,15 @@
                 <simple name="java:global/openAccessEnabled" value="false"/>
                 <simple name="java:global/openAccessValidateUrl" value="http://psama:8090/auth/open/validate"/>
 
+                <!-- Phase 2 (gateway owns auth). When gatewayOwnsAuth=true, WildFly stops
+                     introspecting/auditing gateway-owned routes and trusts the gateway-set
+                     X-User-* headers (GatewayHeaderFilter). MUST be flipped in lockstep with
+                     the gateway's own GATEWAY_OWNS_AUTH env, per the cutover runbook. The
+                     result/signed-url read paths stay WildFly-owned until Phase 4
+                     (gatewayOwnsQueryReadAuth flips then). -->
+                <simple name="java:global/gatewayOwnsAuth" value="false"/>
+                <simple name="java:global/gatewayOwnsQueryReadAuth" value="false"/>
+
                 <simple name="java:global/token_introspection_token" value="__PIC_SURE_TOKEN_INTROSPECTION_TOKEN__"/>
                <!-- psama configuration-->
                 <simple name="java:global/client_secret" value="__PIC_SURE_CLIENT_SECRET__"/>

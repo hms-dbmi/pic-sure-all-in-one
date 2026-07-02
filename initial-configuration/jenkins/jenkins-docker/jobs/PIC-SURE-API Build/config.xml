@@ -1,7 +1,7 @@
 <?xml version='1.1' encoding='UTF-8'?>
 <project>
   <actions/>
-  <description></description>
+  <description>Builds and deploys the WildFly WAR (pic-sure-api-2.war) + the all-in-one WildFly image. LAYOUT-AWARE: on the monorepo branch (pic_sure_api_rewrite) the WAR is built from the non-aggregated pic-sure-legacy reactor; on flat pre-monorepo main it builds from the repo root. Both on JDK 11. For Phase 2 (gateway owns auth), point git_hash at pic_sure_api_rewrite so the WAR includes GatewayHeaderFilter + the gateway-owns-auth bypass; main works until the cutover but lacks that code.</description>
   <keepDependencies>false</keepDependencies>
   <properties>
     <hudson.model.ParametersDefinitionProperty>
@@ -48,8 +48,14 @@
    . /usr/local/docker-config/setProxy.sh
 fi
 
-GIT_BRANCH_SHORT=`echo ${GIT_BRANCH} | cut -d &quot;/&quot; -f 2` 
+GIT_BRANCH_SHORT=`echo ${GIT_BRANCH} | cut -d &quot;/&quot; -f 2`
 GIT_COMMIT_SHORT=`echo ${GIT_COMMIT} | cut -c1-7`
+
+# Layout-aware: the monorepo branch keeps the WildFly WAR in the non-aggregated
+# pic-sure-legacy reactor (root reactor is the Java-25 3.0.0 line and must NOT be
+# built here); flat pre-monorepo main has it at the repo root. Build the right one.
+if [ -d pic-sure-legacy ]; then LEGACY_DIR=pic-sure-legacy; else LEGACY_DIR=.; fi
+echo &quot;Building PIC-SURE WildFly WAR from: $LEGACY_DIR&quot;
 
 docker run --rm \
   -v &quot;$DOCKER_CONFIG_DIR/jenkins_home/workspace/$JOB_NAME/:/app&quot; \
@@ -57,13 +63,13 @@ docker run --rm \
   -w /app \
   --platform=linux/amd64 \
   maven:3.9-eclipse-temurin-11 \
-  sh -lc &quot;mvn clean install -DskipTests&quot;
+  sh -lc &quot;cd $LEGACY_DIR &amp;&amp; mvn clean install -DskipTests&quot;
 
 mkdir -p /usr/local/docker-config/wildfly/deployments
-cp pic-sure-api-war/target/pic-sure-api-war.war /usr/local/docker-config/wildfly/deployments/pic-sure-api-2.war
+cp &quot;$LEGACY_DIR/pic-sure-api-war/target/pic-sure-api-war.war&quot; /usr/local/docker-config/wildfly/deployments/pic-sure-api-2.war
 
 docker build \
--f docker/all-in-one/all-in-one.Dockerfile \
+-f &quot;$LEGACY_DIR/docker/all-in-one/all-in-one.Dockerfile&quot; \
 --build-arg http_proxy=$http_proxy \
 --build-arg https_proxy=$http_proxy \
 --build-arg no_proxy=&quot;$no_proxy&quot; \
@@ -71,7 +77,7 @@ docker build \
 --build-arg HTTPS_PROXY=$http_proxy \
 --build-arg NO_PROXY=&quot;$no_proxy&quot; \
 --build-arg PIC_SURE_BUILD_VERSION=LATEST \
--t hms-dbmi/pic-sure-wildfly:${pipeline_build_id} .
+-t hms-dbmi/pic-sure-wildfly:${pipeline_build_id} &quot;$LEGACY_DIR&quot;
 
 docker tag hms-dbmi/pic-sure-wildfly:${pipeline_build_id} hms-dbmi/pic-sure-wildfly:LATEST</command>
       <configuredLocalRules/>

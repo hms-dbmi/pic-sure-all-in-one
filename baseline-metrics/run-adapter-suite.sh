@@ -30,14 +30,16 @@
 #   SKIP_HEALTH=1  metrics only;  HEALTH_ONLY=1  gate only
 set -euo pipefail
 
+# TODO: Many of the defaults are based on my local AIO and development environment.
+# TODO: Make them more generic and/or document the assumptions.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ADAPTER_DIR="${ADAPTER_DIR:-$HOME/code_workspaces/adapters/pic-sure-python-adapter-hpds}"
 BASE_URL="${BASE_URL:-https://localhost}"
 TOKEN="${TOKEN:-}"
-CONCEPT_PATH="${CONCEPT_PATH:-}"
+CONCEPT_PATH="${CONCEPT_PATH:-"\\\\Nhanes\\\\demographics\\\\AGE\\\\"}"
 SEARCH_TERM="${SEARCH_TERM:-age}"
 GENE="${GENE:-}"
-RESOURCE_UUID="${RESOURCE_UUID:-}"
+RESOURCE_UUID="${RESOURCE_UUID:-"30df301e-3a70-4f73-a370-e15d87f20d99"}"
 N="${N:-30}"
 WARMUP="${WARMUP:-3}"
 OUT_ROOT="${OUT_ROOT:-$SCRIPT_DIR/results}"

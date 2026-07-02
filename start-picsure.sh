@@ -30,6 +30,8 @@ echo "INCLUDE_PASSTHRU=$INCLUDE_PASSTHRU"
 echo "INCLUDE_LOGGING=$INCLUDE_LOGGING"
 [[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/visualization" ]] && INCLUDE_VISUALIZATION=true || INCLUDE_VISUALIZATION=false
 echo "INCLUDE_VISUALIZATION=$INCLUDE_VISUALIZATION"
+[[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/gateway" ]] && INCLUDE_GATEWAY=true || INCLUDE_GATEWAY=false
+echo "INCLUDE_GATEWAY=$INCLUDE_GATEWAY"
 
 # Docker Volumes
 export PICSURE_BANNER_VOLUME="-v $DOCKER_CONFIG_DIR/httpd/banner_config.json:/usr/local/apache2/htdocs/picsureui/settings/banner_config.json"
@@ -171,6 +173,18 @@ docker run --name=wildfly --restart always --network=picsure --network=hpds --ne
 # deployments dir. docker cp reads its source from the Jenkins (current) filesystem, so it MUST use
 # CURRENT_FS_DOCKER_CONFIG_DIR -- $DOCKER_CONFIG_DIR is the host path and does not exist inside this container.
 docker cp "${CURRENT_FS_DOCKER_CONFIG_DIR}/wildfly/deployments/." "wildfly:/opt/jboss/wildfly/standalone/deployments/"
+
+# Phase-1 gateway: transparent pass-through in front of WildFly (catch-all route
+# re-adds the /pic-sure-api-2/PICSURE/ prefix). httpd reaches it as http://gateway:8080
+# once the PHASE-1 CUTOVER rules in httpd-vhosts.conf are swapped in. No $LOGGING_ENVS
+# yet -- the gateway does not use pic-sure-logging-client until Phase 2 (audit stays on WildFly).
+if $INCLUDE_GATEWAY; then
+  docker stop gateway && docker rm gateway
+  docker run --name=gateway --restart always --network=picsure \
+    --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/gateway/gateway.env \
+    -d hms-dbmi/pic-sure-gateway:LATEST \
+    || exit 2
+fi
 
 if $INCLUDE_UPLOADER; then
   docker compose --profile production -f $CURRENT_FS_DOCKER_CONFIG_DIR/uploader/docker-compose.yml up -d

@@ -1,0 +1,235 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description>Verify a PIC-SURE environment is healthy by running the pic-sure-python-adapter-hpds live integration tests against it (connect/PSAMA, dictionary search, facets, legacy + v3 queries, export, genomic). A failing build means the environment is NOT fit to baseline, cut over, or promote.
+
+REQUIRES a one-time setup step: a &quot;Secret text&quot; credential with ID picsure-health-check-token holding a long-term PSAMA token for the target environment. Full setup and usage guide: docs/health-check.md in the pic-sure-all-in-one repo.
+
+Stages:
+  1. HEALTH GATE (always) — pytest tests/integration inside a throwaway uv/python container. Any failure fails the build.
+  2. METRICS (optional, collect_metrics=true) — scripts/collect_env_metrics.py samples every route N times and archives per-route p50/p95/p99 as build artifacts (metrics-results/).
+
+Targeting: leave target_url empty to auto-target the LOCAL all-in-one (the ServerName from the deployed httpd vhosts; the container trusts the deployed cert chain and resolves the FQDN to this host). Set target_url to check a remote environment with a public cert — pair it with a token valid THERE.
+
+Tests that need environment-specific inputs (concept_path, gene) skip cleanly when the parameter is empty — set them to widen coverage on environments where you know valid values.</description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>git_hash</name>
+          <description>pic-sure-python-adapter-hpds revision to run the suite from</description>
+          <defaultValue>origin/main</defaultValue>
+          <trim>true</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>target_url</name>
+          <description>Base URL of the environment to check (e.g. https://bdc-predev.example.org). LEAVE EMPTY to auto-target the local all-in-one via the deployed httpd ServerName + cert chain.</description>
+          <defaultValue></defaultValue>
+          <trim>true</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>concept_path</name>
+          <description>Concept path that exists on the target dataset (e.g. \1000Genomes\open_access-1000Genomes\SIMULATED AGE\). Empty = query/export tests skip.</description>
+          <defaultValue></defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>search_term</name>
+          <description>Dictionary search term; &quot;age&quot; exists on most deployments</description>
+          <defaultValue>age</defaultValue>
+          <trim>true</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>gene</name>
+          <description>Gene symbol present in the target&apos;s variant data (e.g. CHD8). Empty = genomic tests skip.</description>
+          <defaultValue></defaultValue>
+          <trim>true</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>resource_uuid</name>
+          <description>Only needed when the target exposes more than one resource</description>
+          <defaultValue></defaultValue>
+          <trim>true</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>collect_metrics</name>
+          <description>Also collect per-route p50/p95/p99 latency and archive it as build artifacts</description>
+          <defaultValue>false</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>metrics_label</name>
+          <description>Label for the metrics run. Empty = auto-detect wildfly-direct / via-gateway from the deployed httpd rules (local only).</description>
+          <defaultValue></defaultValue>
+          <trim>true</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>pipeline_build_id</name>
+          <defaultValue>MANUAL_RUN</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.plugins.git.GitSCM" plugin="git">
+    <configVersion>2</configVersion>
+    <userRemoteConfigs>
+      <hudson.plugins.git.UserRemoteConfig>
+        <url>https://github.com/hms-dbmi/pic-sure-python-adapter-hpds.git</url>
+      </hudson.plugins.git.UserRemoteConfig>
+    </userRemoteConfigs>
+    <branches>
+      <hudson.plugins.git.BranchSpec>
+        <name>${git_hash}</name>
+      </hudson.plugins.git.BranchSpec>
+    </branches>
+    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+    <submoduleCfg class="empty-list"/>
+    <extensions/>
+  </scm>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <jdk>(System)</jdk>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash
+set -e
+
+# ============================================================================
+# PIC-SURE Health Check
+#
+# Runs the python adapter&apos;s LIVE integration suite against a PIC-SURE
+# environment inside a throwaway uv/python container (docker sibling, house
+# style — the Jenkins container itself has no python toolchain).
+#
+# Secrets: PICSURE_TOKEN is injected by the credentials-binding build wrapper
+# from the &quot;Secret text&quot; credential with ID picsure-health-check-token.
+# It is passed to the sibling container as an env var and never echoed
+# (this script has a shebang, so Jenkins does not run it with -x).
+#
+# Full documentation: docs/health-check.md in pic-sure-all-in-one.
+# ============================================================================
+
+CONFIG_DIR=/usr/local/docker-config
+# The adapter&apos;s pinned interpreter is 3.10 (.python-version); keep in sync.
+IMAGE=ghcr.io/astral-sh/uv:python3.10-bookworm-slim
+
+if [ -z &quot;$PICSURE_TOKEN&quot; ]; then
+    echo &quot;ERROR: PICSURE_TOKEN is empty.&quot;
+    echo &quot;Add a &apos;Secret text&apos; credential with ID picsure-health-check-token&quot;
+    echo &quot;(Manage Jenkins -&gt; Credentials). See docs/health-check.md.&quot;
+    exit 2
+fi
+
+# ---- resolve the target environment ---------------------------------------
+# Local mode (target_url empty): the stack&apos;s FQDN comes from the deployed
+# vhosts. Containers don&apos;t inherit the host&apos;s /etc/hosts, so the FQDN is
+# mapped to this docker host (host-gateway -&gt; httpd&apos;s published :443), and
+# python is pointed at the deployed cert chain (httpx trusts only certifi
+# unless SSL_CERT_FILE says otherwise — mkcert/self-signed certs need this).
+if [ -n &quot;$target_url&quot; ]; then
+    TARGET_URL=&quot;$target_url&quot;
+    LOCAL_TARGET=0
+else
+    SERVER_NAME=$(grep -m1 -E &apos;^[[:space:]]*ServerName&apos; &quot;$CONFIG_DIR/httpd/httpd-vhosts.conf&quot; | awk &apos;{print $2}&apos;)
+    if [ -z &quot;$SERVER_NAME&quot; ]; then
+        echo &quot;ERROR: could not read ServerName from $CONFIG_DIR/httpd/httpd-vhosts.conf.&quot;
+        echo &quot;Pass target_url explicitly instead.&quot;
+        exit 2
+    fi
+    TARGET_URL=&quot;https://$SERVER_NAME&quot;
+    LOCAL_TARGET=1
+fi
+echo &quot;Target: $TARGET_URL (local=$LOCAL_TARGET)&quot;
+
+# ---- shared container arguments -------------------------------------------
+# Workspace is mounted via its HOST path (docker-out-of-docker convention);
+# uv_cache persists downloads across builds like maven_m2_cache does.
+DOCKER_ARGS=( --rm
+  -v &quot;$DOCKER_CONFIG_DIR/jenkins_home/workspace/$JOB_NAME/:/workspace&quot;
+  -w /workspace
+  -v uv_cache:/opt/uv-cache
+  -e UV_CACHE_DIR=/opt/uv-cache
+  -e UV_PROJECT_ENVIRONMENT=/opt/venv
+  -e PICSURE_INTEGRATION=1
+  -e PICSURE_TEST_PLATFORM=&quot;$TARGET_URL&quot;
+  -e PICSURE_TEST_TOKEN=&quot;$PICSURE_TOKEN&quot;
+  -e PICSURE_TEST_CONCEPT_PATH=&quot;$concept_path&quot;
+  -e PICSURE_TEST_SEARCH_TERM=&quot;$search_term&quot;
+  -e PICSURE_TEST_GENE=&quot;$gene&quot;
+  -e PICSURE_TEST_RESOURCE_UUID=&quot;$resource_uuid&quot;
+)
+if [ &quot;$LOCAL_TARGET&quot; = &quot;1&quot; ]; then
+    FQDN=&quot;${TARGET_URL#https://}&quot;
+    DOCKER_ARGS+=( --add-host &quot;$FQDN:host-gateway&quot; )
+    DOCKER_ARGS+=( -v &quot;$DOCKER_CONFIG_DIR/httpd/cert/server.chain:/opt/ca-chain.pem:ro&quot;
+                   -e SSL_CERT_FILE=/opt/ca-chain.pem )
+fi
+
+# ---- stage 1: health gate (always) -----------------------------------------
+echo &quot;== Stage 1/2: health gate (adapter live integration tests) ==&quot;
+if ! docker run &quot;${DOCKER_ARGS[@]}&quot; --entrypoint /bin/sh &quot;$IMAGE&quot; \
+        -c &apos;uv sync --frozen &amp;&amp; uv run pytest tests/integration -q&apos;; then
+    echo &quot;&quot;
+    echo &quot;HEALTH GATE FAILED: $TARGET_URL failed live integration tests.&quot;
+    echo &quot;Do NOT baseline, cut over, or promote until this passes.&quot;
+    echo &quot;Common causes: expired token (regenerate + update the Jenkins&quot;
+    echo &quot;credential), a stopped container, or a broken route — see the&quot;
+    echo &quot;pytest output above for which route family failed.&quot;
+    exit 1
+fi
+echo &quot;Health gate PASSED for $TARGET_URL&quot;
+
+# ---- stage 2: per-route latency metrics (optional) --------------------------
+if [ &quot;$collect_metrics&quot; = &quot;true&quot; ]; then
+    LABEL=&quot;$metrics_label&quot;
+    if [ -z &quot;$LABEL&quot; ]; then
+        # Which way is the local httpd routing /picsure right now?
+        if grep -F &apos;http://gateway:8080/$1&apos; &quot;$CONFIG_DIR/httpd/httpd-vhosts.conf&quot; 2>/dev/null | grep -qv &apos;^[[:space:]]*#&apos;; then
+            LABEL=via-gateway
+        else
+            LABEL=wildfly-direct
+        fi
+    fi
+    echo &quot;== Stage 2/2: per-route latency metrics (label=adapter-$LABEL) ==&quot;
+    docker run &quot;${DOCKER_ARGS[@]}&quot; --entrypoint /bin/sh &quot;$IMAGE&quot; \
+        -c &quot;uv sync --frozen &amp;&amp; uv run python scripts/collect_env_metrics.py --label &apos;adapter-$LABEL&apos; --out /workspace/metrics-results&quot;
+    echo &quot;Metrics summary archived as build artifacts (metrics-results/).&quot;
+else
+    echo &quot;collect_metrics=false — skipping metrics stage.&quot;
+fi</command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers>
+    <hudson.tasks.ArtifactArchiver>
+      <artifacts>metrics-results/**</artifacts>
+      <allowEmptyArchive>true</allowEmptyArchive>
+      <onlyIfSuccessful>false</onlyIfSuccessful>
+      <fingerprint>false</fingerprint>
+      <defaultExcludes>true</defaultExcludes>
+      <caseSensitive>true</caseSensitive>
+      <followSymlinks>false</followSymlinks>
+    </hudson.tasks.ArtifactArchiver>
+  </publishers>
+  <buildWrappers>
+    <hudson.plugins.ws__cleanup.PreBuildCleanup plugin="ws-cleanup">
+      <deleteDirs>false</deleteDirs>
+      <cleanupParameter></cleanupParameter>
+      <externalDelete></externalDelete>
+      <disableDeferredWipeout>false</disableDeferredWipeout>
+    </hudson.plugins.ws__cleanup.PreBuildCleanup>
+    <org.jenkinsci.plugins.credentialsbinding.impl.SecretBuildWrapper plugin="credentials-binding">
+      <bindings>
+        <org.jenkinsci.plugins.credentialsbinding.impl.StringBinding>
+          <credentialsId>picsure-health-check-token</credentialsId>
+          <variable>PICSURE_TOKEN</variable>
+        </org.jenkinsci.plugins.credentialsbinding.impl.StringBinding>
+      </bindings>
+    </org.jenkinsci.plugins.credentialsbinding.impl.SecretBuildWrapper>
+  </buildWrappers>
+</project>

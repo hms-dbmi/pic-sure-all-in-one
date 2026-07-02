@@ -1,0 +1,12 @@
+{
+  "resourceUUID": "__RESOURCE_UUID__",
+  "resourceCredentials": {},
+  "query": {
+    "categoryFilters": {},
+    "numericFilters": {},
+    "requiredFields": [],
+    "anyRecordOf": [],
+    "fields": [],
+    "expectedResultType": "COUNT"
+  }
+}

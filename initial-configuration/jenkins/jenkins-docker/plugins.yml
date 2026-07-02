@@ -62,3 +62,6 @@ plugins:
   - artifactId: docker-workflow
     source:
       version: 634.vedc7242b_eda_7
+  - artifactId: credentials-binding
+    source:
+      version: latest

@@ -1,0 +1,115 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description>Build and deploy the PIC-SURE Gateway container (Phase 1: transparent pass-through in front of WildFly). Builds services/pic-sure-gateway from the pic-sure monorepo reactor. NOTE: git_hash defaults to the long-lived rewrite branch during the gateway migration; change the default to origin/main after the final merge.</description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.FileParameterDefinition>
+          <name>gateway.env</name>
+        </hudson.model.FileParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>pipeline_build_id</name>
+          <defaultValue>MANUAL_RUN</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>git_hash</name>
+          <defaultValue>origin/pic_sure_api_rewrite</defaultValue>
+          <trim>true</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@5.2.2">
+    <configVersion>2</configVersion>
+    <userRemoteConfigs>
+      <hudson.plugins.git.UserRemoteConfig>
+        <url>https://github.com/hms-dbmi/pic-sure.git</url>
+      </hudson.plugins.git.UserRemoteConfig>
+    </userRemoteConfigs>
+    <branches>
+      <hudson.plugins.git.BranchSpec>
+        <name>${git_hash}</name>
+      </hudson.plugins.git.BranchSpec>
+    </branches>
+    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+    <submoduleCfg class="empty-list"/>
+    <extensions/>
+  </scm>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <jdk>(System)</jdk>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash
+
+CONFIG_DIR=&quot;/usr/local/docker-config/gateway&quot;
+mkdir -p &quot;$CONFIG_DIR&quot;
+
+# Build ONLY the gateway module (+ its reactor deps: platform BOM + libs) from the
+# pic-sure monorepo. This never builds pic-sure-legacy (quarantined, not aggregated),
+# so it cannot touch the frozen Java 11 artifact line.
+docker run --rm \
+  -v &quot;$DOCKER_CONFIG_DIR/jenkins_home/workspace/$JOB_NAME/:/app&quot; \
+  -v maven_m2_cache:/root/.m2 \
+  -w /app \
+  --platform=linux/amd64 \
+  maven:3-amazoncorretto-25 \
+  sh -lc &quot;mvn -B -pl services/pic-sure-gateway -am clean package -DskipTests&quot;
+
+# Step 1: env-file cascade (uploaded param &gt; existing config &gt; generated default)
+if [ -f gateway.env ]; then
+    echo &quot;A new gateway.env was loaded.&quot;
+    cp gateway.env &quot;$CONFIG_DIR/gateway.env&quot;
+elif [ -f &quot;$CONFIG_DIR/gateway.env&quot; ]; then
+    echo &quot;Using existing gateway.env&quot;
+else
+    echo &quot;Creating new gateway.env file.&quot;
+    {
+        echo &quot;WILDFLY_URL=http://wildfly:8080&quot;
+        echo &quot;SPRING_PROFILE=aio&quot;
+    } &gt; &quot;$CONFIG_DIR/gateway.env&quot;
+fi
+
+# Step 2: build the runtime image (amazoncorretto:25; the jar comes from the Maven step)
+docker build -t hms-dbmi/pic-sure-gateway:LATEST services/pic-sure-gateway/
+
+# Step 3: (re)deploy on the picsure network. httpd only routes to it after the
+# PHASE-1 CUTOVER rules in httpd-vhosts.conf are swapped in, so this deploy is
+# dark until then.
+docker stop gateway &amp;&amp; docker rm gateway
+docker run --name=gateway --restart always --network=picsure \
+  --env-file &quot;$CONFIG_DIR/gateway.env&quot; \
+  -d hms-dbmi/pic-sure-gateway:LATEST \
+  || exit 2
+
+# Step 4: smoke -- poll the gateway&apos;s own health endpoint from inside the network
+for i in $(seq 1 12); do
+  if docker run --rm --network=picsure busybox wget -qO- http://gateway:8080/actuator/health &gt;/dev/null 2&gt;&amp;1; then
+    echo &quot;Gateway is healthy.&quot;
+    exit 0
+  fi
+  sleep 5
+done
+echo &quot;ERROR: gateway did not become healthy within 60s&quot;
+docker logs --tail 50 gateway
+exit 2</command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers>
+    <hudson.plugins.ws__cleanup.PreBuildCleanup plugin="ws-cleanup@0.46">
+      <deleteDirs>false</deleteDirs>
+      <cleanupParameter></cleanupParameter>
+      <externalDelete></externalDelete>
+      <disableDeferredWipeout>false</disableDeferredWipeout>
+    </hudson.plugins.ws__cleanup.PreBuildCleanup>
+  </buildWrappers>
+</project>

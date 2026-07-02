@@ -30,6 +30,8 @@ echo "INCLUDE_PASSTHRU=$INCLUDE_PASSTHRU"
 echo "INCLUDE_LOGGING=$INCLUDE_LOGGING"
 [[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/visualization" ]] && INCLUDE_VISUALIZATION=true || INCLUDE_VISUALIZATION=false
 echo "INCLUDE_VISUALIZATION=$INCLUDE_VISUALIZATION"
+[[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/gateway" ]] && INCLUDE_GATEWAY=true || INCLUDE_GATEWAY=false
+echo "INCLUDE_GATEWAY=$INCLUDE_GATEWAY"
 
 if $INCLUDE_HPDS; then
   docker stop hpds && docker rm hpds
@@ -55,4 +57,7 @@ if $INCLUDE_LOGGING; then
 fi
 if $INCLUDE_VISUALIZATION; then
   docker stop visualization && docker rm visualization
+fi
+if $INCLUDE_GATEWAY; then
+  docker stop gateway && docker rm gateway
 fi

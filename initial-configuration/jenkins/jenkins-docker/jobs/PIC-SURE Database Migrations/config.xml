@@ -89,7 +89,7 @@ node {
         //git url: &apos;https://github.com/hms-dbmi/pic-sure&apos;
         docker.image(&apos;dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0&apos;).inside(&apos;--network=picsure -v $DOCKER_CONFIG_DIR/flyway/picsure:/opt/flyway-migrations/picsure &quot;--entrypoint=&quot; &apos;) {
             sh &quot;rm -rf /opt/flyway-migrations/picsure/sql&quot;
-            sh &quot;cp -R ./pic-sure-api-data/src/main/resources/db/sql /opt/flyway-migrations/picsure/sql&quot;
+            sh &quot;cp -R ./pic-sure-legacy/pic-sure-api-data/src/main/resources/db/sql /opt/flyway-migrations/picsure/sql&quot;
             sh &quot;/opt/flyway/flyway -X -configFiles=/opt/flyway-migrations/picsure/flyway-picsure.conf migrate&quot;
             sleep(time:1,unit:&quot;SECONDS&quot;)
         }

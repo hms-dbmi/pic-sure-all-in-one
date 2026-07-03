@@ -91,7 +91,7 @@ docker run --name=gateway --restart always --network=picsure \
 
 # Step 4: smoke -- poll the gateway&apos;s own health endpoint from inside the network
 for i in $(seq 1 12); do
-  if docker run --rm --network=picsure busybox wget -qO- http://gateway:8080/actuator/health &gt;/dev/null 2&gt;&amp;1; then
+  if docker run --rm --network=picsure busybox wget -qO- http://gateway:8080/actuator/health/liveness &gt;/dev/null 2&gt;&amp;1; then
     echo &quot;Gateway is healthy.&quot;
     exit 0
   fi

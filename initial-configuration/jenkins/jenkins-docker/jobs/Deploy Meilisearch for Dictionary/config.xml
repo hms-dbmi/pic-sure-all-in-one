@@ -1,0 +1,107 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description>Deploy Meilisearch for the Dictionary API. Creates a Meilisearch container on the dictionary network, generates an API key, configures the dictionary to use Meilisearch as its search backend, and restarts the dictionary-api.</description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>meili_image_version</name>
+          <defaultValue>v1.12</defaultValue>
+          <description>Meilisearch Docker image version tag</description>
+          <trim>true</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.scm.NullSCM"/>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <jdk>(System)</jdk>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash
+set -e
+
+CONFIG_DIR=&quot;/usr/local/docker-config/dictionary&quot;
+MEILI_DIR=&quot;$CONFIG_DIR/meilisearch&quot;
+MEILI_IMAGE=&quot;getmeili/meilisearch:${meili_image_version}&quot;
+
+echo &quot;=== Deploy Meilisearch for Dictionary ===&quot;
+
+# Step 1: Create meilisearch config directory (acts as feature flag)
+mkdir -p &quot;$MEILI_DIR&quot;
+
+# Step 2: Generate a master key if one does not already exist
+if [ -f &quot;$MEILI_DIR/meilisearch.env&quot; ]; then
+    echo &quot;Using existing meilisearch.env&quot;
+else
+    echo &quot;Generating new Meilisearch master key&quot;
+    MEILI_MASTER_KEY=$(tr -dc A-Za-z0-9 &lt;/dev/urandom | head -c 32)
+    {
+        echo &quot;MEILI_MASTER_KEY=$MEILI_MASTER_KEY&quot;
+        echo &quot;MEILI_ENV=production&quot;
+    } &gt; &quot;$MEILI_DIR/meilisearch.env&quot;
+fi
+
+# Source the key for later use
+MEILI_MASTER_KEY=$(grep MEILI_MASTER_KEY &quot;$MEILI_DIR/meilisearch.env&quot; | cut -d&apos;=&apos; -f2)
+
+# Step 3: Add Meilisearch settings to dictionary.env
+if [ ! -f &quot;$CONFIG_DIR/dictionary.env&quot; ]; then
+    echo &quot;ERROR: dictionary.env not found. Deploy the Dictionary API first.&quot;
+    exit 1
+fi
+
+# Remove any existing Meilisearch lines to avoid duplicates
+grep -v &apos;^SEARCH_BACKEND=&apos; &quot;$CONFIG_DIR/dictionary.env&quot; | \
+grep -v &apos;^MEILISEARCH_URL=&apos; | \
+grep -v &apos;^MEILISEARCH_API_KEY=&apos; &gt; &quot;$CONFIG_DIR/dictionary.env.tmp&quot;
+
+{
+    cat &quot;$CONFIG_DIR/dictionary.env.tmp&quot;
+    echo &quot;SEARCH_BACKEND=meilisearch&quot;
+    echo &quot;MEILISEARCH_URL=http://meilisearch:7700&quot;
+    echo &quot;MEILISEARCH_API_KEY=$MEILI_MASTER_KEY&quot;
+} &gt; &quot;$CONFIG_DIR/dictionary.env&quot;
+rm &quot;$CONFIG_DIR/dictionary.env.tmp&quot;
+
+echo &quot;Updated dictionary.env with Meilisearch configuration&quot;
+
+# Step 4: Pull Meilisearch image
+docker pull &quot;$MEILI_IMAGE&quot;
+
+# Step 5: Deploy Meilisearch container
+docker stop meilisearch 2&gt;/dev/null &amp;&amp; docker rm meilisearch 2&gt;/dev/null || true
+
+# Ensure dictionary network exists
+docker network inspect dictionary &gt;/dev/null 2&gt;&amp;1 || docker network create --internal dictionary
+
+docker run --name meilisearch --restart always \
+    --network=dictionary \
+    --env-file &quot;$MEILI_DIR/meilisearch.env&quot; \
+    -v meili-data:/meili_data \
+    -d &quot;$MEILI_IMAGE&quot;
+
+echo &quot;Meilisearch container started on dictionary network&quot;
+
+# Step 6: Restart dictionary-api to pick up new config
+if docker ps --filter &quot;name=dictionary-api&quot; --format &apos;{{.Names}}&apos; | grep -q &quot;dictionary-api&quot;; then
+    echo &quot;Restarting dictionary-api to pick up Meilisearch configuration&quot;
+    /scripts/start-picsure.sh
+else
+    echo &quot;dictionary-api is not running. Run start-picsure.sh or the Dictionary API Build and Deploy job to start it.&quot;
+fi
+
+echo &quot;=== Meilisearch deployment complete ===&quot;</command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

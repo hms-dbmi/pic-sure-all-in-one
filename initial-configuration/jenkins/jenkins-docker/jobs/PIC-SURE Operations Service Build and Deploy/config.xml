@@ -16,7 +16,7 @@
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>git_hash</name>
-          <defaultValue>pic_sure_api_rewrite_p4</defaultValue>
+          <defaultValue>pic_sure_api_rewrite</defaultValue>
           <trim>true</trim>
         </hudson.model.StringParameterDefinition>
       </parameterDefinitions>

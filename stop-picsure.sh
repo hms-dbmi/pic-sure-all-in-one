@@ -37,8 +37,7 @@ if $INCLUDE_HPDS; then
   docker stop hpds && docker rm hpds
 fi
 docker stop httpd && docker rm httpd
-# WildFly may not be deployed (wildfly/DISABLE_DEPLOY toggle) -- stop it tolerantly, and
-# always, so flipping the toggle on a running stack never orphans the container.
+# WildFly is no longer deployed; clean up a leftover container from older installs.
 docker stop wildfly 2>/dev/null; docker rm wildfly 2>/dev/null || true
 docker stop psama && docker rm psama
 

@@ -202,13 +202,6 @@ else
   echo "dictionary network already exists. Leaving it alone."
 fi
 
-if [ -z "$(docker volume ls --format '{{.Name}}' | grep ^wildfly_deployments$)" ]; then
-  echo "Creating docker volume for WildFly"
-  docker volume create wildfly_deployments
-else
-  echo "docker volume for WildFly already exists."
-fi
-
 #-------------------------------------------------------------------------------------------------#
 #                                           MySQL Start                                           #
 #                                 Install Mysql and configure DB                                  #
@@ -239,7 +232,6 @@ mkdir -p "$DOCKER_CONFIG_DIR"/log/httpd-docker-logs/ssl_mutex
 export APP_ID=`uuidgen | tr '[:upper:]' '[:lower:]'`
 export APP_ID_HEX=`echo $APP_ID | awk '{ print toupper($0) }'|sed 's/-//g'`
 sed_inplace "s/__STACK_SPECIFIC_APPLICATION_ID__/$APP_ID/g" $DOCKER_CONFIG_DIR/httpd/picsureui_settings.json
-sed_inplace "s/__STACK_SPECIFIC_APPLICATION_ID__/$APP_ID/g" $DOCKER_CONFIG_DIR/wildfly/standalone.xml
 sed_inplace "s/__STACK_SPECIFIC_APPLICATION_ID__/$APP_ID/g" $DOCKER_CONFIG_DIR/psama/psama.env
 
 export RESOURCE_ID=`uuidgen | tr '[:upper:]' '[:lower:]'`

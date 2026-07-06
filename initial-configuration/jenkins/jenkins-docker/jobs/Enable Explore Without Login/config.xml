@@ -1,7 +1,7 @@
 <?xml version='1.1' encoding='UTF-8'?>
 <project>
-    <actions/>
-    <description>Enables "Explore without Login" functionality. This configures the frontend, PSAMA, and Wildfly to allow unauthenticated users to use the explorer page with a limited feature set.</description>
+    <actions />
+    <description>Enables "Explore without Login" functionality. This configures the frontend, PSAMA, and gateway to allow unauthenticated users to use the explorer page with a limited feature set.</description>
     <keepDependencies>false</keepDependencies>
     <properties>
         <hudson.model.ParametersDefinitionProperty>
@@ -19,12 +19,12 @@
             </parameterDefinitions>
         </hudson.model.ParametersDefinitionProperty>
     </properties>
-    <scm class="hudson.scm.NullSCM"/>
+    <scm class="hudson.scm.NullSCM" />
     <canRoam>true</canRoam>
     <disabled>false</disabled>
     <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
     <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
-    <triggers/>
+    <triggers />
     <concurrentBuild>false</concurrentBuild>
     <builders>
         <hudson.tasks.Shell>
@@ -114,20 +114,24 @@ sed -i "s/^OPEN_IDP_PROVIDER_IS_ENABLED=.*/OPEN_IDP_PROVIDER_IS_ENABLED=$ENABLE_
 echo "Set OPEN_IDP_PROVIDER_IS_ENABLED=$ENABLE_OPEN_ACCESS"
 
 ##
-## 3. Wildfly Configuration (standalone.xml)
+## 3. Gateway Configuration (gateway.env)
 ##
 echo ""
-echo "--- Configuring Wildfly (standalone.xml) ---"
+echo "--- Configuring Gateway (gateway.env) ---"
 
-STANDALONE_XML="$CONFIG_DIR/wildfly/standalone.xml"
+GATEWAY_ENV="$CONFIG_DIR/gateway/gateway.env"
 
-if [ ! -f "$STANDALONE_XML" ]; then
-    echo "ERROR: $STANDALONE_XML not found."
+if [ ! -f "$GATEWAY_ENV" ]; then
+    echo "ERROR: $GATEWAY_ENV not found."
     exit 1
 fi
 
-sed -i "s|&lt;simple name=\"java:global/openAccessEnabled\" value=\"[^\"]*\"|&lt;simple name=\"java:global/openAccessEnabled\" value=\"$ENABLE_OPEN_ACCESS\"|" "$STANDALONE_XML"
-echo "Set openAccessEnabled=$ENABLE_OPEN_ACCESS"
+if grep -q '^GATEWAY_OPEN_ACCESS_ENABLED=' "$GATEWAY_ENV"; then
+    sed -i "s|^GATEWAY_OPEN_ACCESS_ENABLED=.*|GATEWAY_OPEN_ACCESS_ENABLED=$ENABLE_OPEN_ACCESS|" "$GATEWAY_ENV"
+else
+    echo "GATEWAY_OPEN_ACCESS_ENABLED=$ENABLE_OPEN_ACCESS" &gt;&gt; "$GATEWAY_ENV"
+fi
+echo "Set GATEWAY_OPEN_ACCESS_ENABLED=$ENABLE_OPEN_ACCESS (applies when the gateway container is recreated)"
 
 echo ""
 echo "============================================"
@@ -137,6 +141,6 @@ echo "============================================"
 </command>
         </hudson.tasks.Shell>
     </builders>
-    <publishers/>
-    <buildWrappers/>
+    <publishers />
+    <buildWrappers />
 </project>

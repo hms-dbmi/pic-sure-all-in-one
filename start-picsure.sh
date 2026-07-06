@@ -32,16 +32,10 @@ echo "INCLUDE_LOGGING=$INCLUDE_LOGGING"
 echo "INCLUDE_VISUALIZATION=$INCLUDE_VISUALIZATION"
 [[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/gateway" ]] && INCLUDE_GATEWAY=true || INCLUDE_GATEWAY=false
 echo "INCLUDE_GATEWAY=$INCLUDE_GATEWAY"
-# WildFly is opt-OUT, not dir-presence gated: the wildfly/ config dir must exist even
-# without the container (psama mounts wildfly/emailTemplates). Touch the DISABLE_DEPLOY
-# marker to skip deploying WildFly; remove it (and rerun the pipeline) to bring it back.
-[[ -f "$CURRENT_FS_DOCKER_CONFIG_DIR/wildfly/DISABLE_DEPLOY" ]] && INCLUDE_WILDFLY=false || INCLUDE_WILDFLY=true
-echo "INCLUDE_WILDFLY=$INCLUDE_WILDFLY"
 
 # Docker Volumes
 export PICSURE_BANNER_VOLUME="-v $DOCKER_CONFIG_DIR/httpd/banner_config.json:/usr/local/apache2/htdocs/picsureui/settings/banner_config.json"
-export EMAIL_TEMPLATE_VOLUME="-v $DOCKER_CONFIG_DIR/wildfly/emailTemplates:/opt/jboss/wildfly/standalone/configuration/emailTemplates "
-export TRUSTSTORE_VOLUME="-v $DOCKER_CONFIG_DIR/wildfly/application.truststore:/opt/jboss/wildfly/standalone/configuration/application.truststore"
+export EMAIL_TEMPLATE_VOLUME="-v $DOCKER_CONFIG_DIR/psama/emailTemplates:/opt/jboss/wildfly/standalone/configuration/emailTemplates "
 export PSAMA_TRUSTSTORE_VOLUME="-v $DOCKER_CONFIG_DIR/psama/application.truststore:/usr/local/tomcat/conf/application.truststore"
 if [ -f $DOCKER_CONFIG_DIR/httpd/custom_httpd_volumes ]; then
 	export CUSTOM_HTTPD_VOLUMES=`cat $DOCKER_CONFIG_DIR/httpd/custom_httpd_volumes`
@@ -49,14 +43,13 @@ fi
 
 # Debug Ports
 echo "This script sets debug ports if you set specific variables"
-echo "Example: if you set WILDFLY_DEBUG=5005, it will expose 5005 on the wildfly container"
+echo "Example: if you set HPDS_DEBUG_PORT=5005, it will expose 5005 on the hpds container"
 echo "You will still have to manually edit the corrosponding .env file"
 echo "So that Java knows to support remote debugging"
 echo "Looking for ports in the following vars:"
-echo "  HPDS_DEBUG_PORT, WILDFLY_DEBUG_PORT, PSAMA_DEBUG_PORT, DICTIONARY_DEBUG_PORT"
+echo "  HPDS_DEBUG_PORT, PSAMA_DEBUG_PORT, DICTIONARY_DEBUG_PORT"
 echo "  AGGREGATE_DEBUG_PORT, PASSTHRU_DEBUG_PORT"
 HPDS_DEBUG="${HPDS_DEBUG_PORT:+-p $HPDS_DEBUG_PORT:$HPDS_DEBUG_PORT }"
-WILDFLY_DEBUG="${WILDFLY_DEBUG_PORT:+-p $WILDFLY_DEBUG_PORT:$WILDFLY_DEBUG_PORT }"
 PSAMA_DEBUG="${PSAMA_DEBUG_PORT:+-p $PSAMA_DEBUG_PORT:$PSAMA_DEBUG_PORT }"
 DICTIONARY_DEBUG="${DICTIONARY_DEBUG_PORT:+-p $DICTIONARY_DEBUG_PORT:$DICTIONARY_DEBUG_PORT }"
 AGGREGATE_DEBUG="${AGGREGATE_DEBUG_PORT:+-p $AGGREGATE_DEBUG_PORT:$AGGREGATE_DEBUG_PORT }"
@@ -74,7 +67,7 @@ docker network inspect hpds >/dev/null 2>&1 || docker network create --internal 
 # Start Commands
 
 # When logging is enabled, every Java service that uses pic-sure-logging-client
-# (hpds, psama, wildfly, dictionary-api) gets LOGGING_API_KEY and
+# (hpds, psama, dictionary-api) gets LOGGING_API_KEY and
 # LOGGING_SERVICE_URL injected as individual -e flags sourced from logging.env.
 # We deliberately do NOT pass logging.env as a second --env-file to those
 # containers because it also contains PSL-only config (PORT, ENVIRONMENT, etc.)
@@ -145,50 +138,10 @@ docker run --name=psama --restart always \
   || exit 2
 
 
-if $INCLUDE_WILDFLY; then
-  # This ensure the volume is created for existing environments providing some level of "safety" when updating an
-  # existing environment.
-  if [ -z "$(docker volume ls --format '{{.Name}}' | grep ^wildfly_deployments$)" ]; then
-    echo "Creating docker volume for WildFly"
-    docker volume create wildfly_deployments
-  else
-    echo "docker volume for WildFly already exists."
-  fi
+# WildFly is no longer part of the all-in-one (the rewrite's gateway + services replaced it).
+# Remove a leftover container from an older deployment so it cannot keep serving legacy paths.
+docker stop wildfly 2>/dev/null; docker rm wildfly 2>/dev/null || true
 
-  docker stop wildfly && docker rm wildfly
-  docker run --name=wildfly --restart always --network=picsure --network=hpds --network=dictionary -u root \
-    -v "$DOCKER_CONFIG_DIR"/log/wildfly-docker-logs/:/opt/jboss/wildfly/standalone/log/ \
-    -v /etc/hosts:/etc/hosts \
-    -v "$DOCKER_CONFIG_DIR"/log/wildfly-docker-os-logs/:/var/log/ \
-    -v $DOCKER_CONFIG_DIR/wildfly/passthru/:/opt/jboss/wildfly/standalone/configuration/passthru/ \
-    -v $DOCKER_CONFIG_DIR/wildfly/aggregate-data-sharing/:/opt/jboss/wildfly/standalone/configuration/aggregate-data-sharing/ \
-    $WILDFLY_DEBUG \
-    -v $DOCKER_CONFIG_DIR/wildfly/standalone.xml:/opt/jboss/wildfly/standalone/configuration/standalone.xml \
-    $TRUSTSTORE_VOLUME \
-    $EMAIL_TEMPLATE_VOLUME \
-    -v $DOCKER_CONFIG_DIR/wildfly/wildfly_mysql_module.xml:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/module.xml  \
-    -v $DOCKER_CONFIG_DIR/wildfly/mysql-connector-java-5.1.49.jar:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/mysql-connector-java-5.1.49.jar  \
-    -v wildfly_deployments:/opt/jboss/wildfly/standalone/deployments \
-    --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/wildfly/wildfly.env \
-    $LOGGING_ENVS \
-    -d hms-dbmi/pic-sure-wildfly:LATEST \
-    || exit 2
-  # Workaround for macOS bind-mount limitations: macOS does not support atomic file moves on mounted volumes,
-  # causing "Device or resource busy" errors during hot deployments. We just copy the files into the running container.
-  # This refreshes ALL deployed WARs (pic-sure-api plus any aggregate resource WARs) from the shared
-  # deployments dir. docker cp reads its source from the Jenkins (current) filesystem, so it MUST use
-  # CURRENT_FS_DOCKER_CONFIG_DIR -- $DOCKER_CONFIG_DIR is the host path and does not exist inside this container.
-  docker cp "${CURRENT_FS_DOCKER_CONFIG_DIR}/wildfly/deployments/." "wildfly:/opt/jboss/wildfly/standalone/deployments/"
-else
-  echo "WildFly deploy disabled (wildfly/DISABLE_DEPLOY marker present)"
-  # A container left over from before the flip must not keep serving legacy paths.
-  docker stop wildfly 2>/dev/null; docker rm wildfly 2>/dev/null || true
-fi
-
-# Phase-1 gateway: transparent pass-through in front of WildFly (catch-all route
-# re-adds the /pic-sure-api-2/PICSURE/ prefix). httpd reaches it as http://gateway:8080
-# once the PHASE-1 CUTOVER rules in httpd-vhosts.conf are swapped in. No $LOGGING_ENVS
-# yet -- the gateway does not use pic-sure-logging-client until Phase 2 (audit stays on WildFly).
 if $INCLUDE_GATEWAY; then
   docker stop gateway && docker rm gateway
   docker run --name=gateway --restart always --network=picsure \

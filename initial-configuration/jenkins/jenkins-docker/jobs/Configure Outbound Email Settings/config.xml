@@ -1,7 +1,7 @@
 <?xml version='1.1' encoding='UTF-8'?>
 <project>
   <actions />
-  <description></description>
+  <description />
   <keepDependencies>false</keepDependencies>
   <properties>
     <hudson.model.ParametersDefinitionProperty>
@@ -35,28 +35,19 @@
   <concurrentBuild>false</concurrentBuild>
   <builders>
     <hudson.tasks.Shell>
-      <command>export oldpassword=`cat /usr/local/docker-config/wildfly/standalone.xml | grep smtp-server | grep mail-smtp-gmail | grep -oP &apos;password(\S)*&apos; | cut -d \&quot; -f 2`
-		export olduser=`cat /usr/local/docker-config/wildfly/standalone.xml | grep smtp-server | grep mail-smtp-gmail | grep -oP &apos;username(\S)*&apos; | cut -d \&quot; -f 2`
-		export oldfrom=`cat /usr/local/docker-config/wildfly/standalone.xml | grep mail-session | grep &apos;jboss/mail/gmail&apos; | grep -oP &apos;from(\S)*&apos; | cut -d \&quot; -f 2`
+      <command>export oldpassword=`grep '^EMAIL_PASSWORD=' /usr/local/docker-config/psama/psama.env | cut -d '=' -f 2-`
+		export olduser=`grep '^EMAIL_ADDRESS=' /usr/local/docker-config/psama/psama.env | cut -d '=' -f 2-`
+		export oldfrom=`grep '^USER_ACTIVATION_REPLY_TO=' /usr/local/docker-config/psama/psama.env | cut -d '=' -f 2-`
 
-if [ -n &quot;$OUTBOUND_EMAIL_USER_PASSWORD&quot; ] &amp;&amp; [ -n &quot;$oldpassword&quot; ] ; then
-	sed -i &quot;s/$oldpassword/$OUTBOUND_EMAIL_USER_PASSWORD/g&quot; /usr/local/docker-config/wildfly/standalone.xml
-fi
-if [ -n &quot;$OUTBOUND_EMAIL_USER&quot; ] &amp;&amp; [ -n &quot;$olduser&quot; ] ; then
-	sed -i &quot;s/$olduser/$OUTBOUND_EMAIL_USER/g&quot; /usr/local/docker-config/wildfly/standalone.xml
-fi
-if [ -n &quot;$EMAIL_FROM&quot; ] &amp;&amp; [ -n &quot;$oldfrom&quot; ] ; then
-	sed -i &quot;s/$oldfrom/$EMAIL_FROM/g&quot; /usr/local/docker-config/wildfly/standalone.xml
-fi
 
-if [ -n &quot;$OUTBOUND_EMAIL_USER_PASSWORD&quot; ] &amp;&amp; [ -n &quot;$oldpassword&quot; ] ; then
-	sed -i &quot;s/$oldpassword/$OUTBOUND_EMAIL_USER_PASSWORD/g&quot; /usr/local/docker-config/psama/psama.env
+if [ -n "$OUTBOUND_EMAIL_USER_PASSWORD" ] &amp;&amp; [ -n "$oldpassword" ] ; then
+	sed -i "s/$oldpassword/$OUTBOUND_EMAIL_USER_PASSWORD/g" /usr/local/docker-config/psama/psama.env
 fi
-if [ -n &quot;$OUTBOUND_EMAIL_USER&quot; ] &amp;&amp; [ -n &quot;$olduser&quot; ] ; then
-	sed -i &quot;s/$olduser/$OUTBOUND_EMAIL_USER/g&quot; /usr/local/docker-config/psama/psama.env
+if [ -n "$OUTBOUND_EMAIL_USER" ] &amp;&amp; [ -n "$olduser" ] ; then
+	sed -i "s/$olduser/$OUTBOUND_EMAIL_USER/g" /usr/local/docker-config/psama/psama.env
 fi
-if [ -n &quot;$EMAIL_FROM&quot; ] &amp;&amp; [ -n &quot;$oldfrom&quot; ] ; then
-	sed -i &quot;s/$oldfrom/$EMAIL_FROM/g&quot; /usr/local/docker-config/psama/psama.env
+if [ -n "$EMAIL_FROM" ] &amp;&amp; [ -n "$oldfrom" ] ; then
+	sed -i "s/$oldfrom/$EMAIL_FROM/g" /usr/local/docker-config/psama/psama.env
 fi
 </command>
     </hudson.tasks.Shell>

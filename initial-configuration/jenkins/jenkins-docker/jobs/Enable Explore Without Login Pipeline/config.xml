@@ -9,7 +9,7 @@
       <options/>
     </org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction>
   </actions>
-  <description>Enables or disables Explore without Login. Updates frontend, PSAMA, and Wildfly configuration, rebuilds the frontend, and restarts PIC-SURE.</description>
+  <description>Enables or disables Explore without Login. Updates frontend, PSAMA, and gateway configuration, rebuilds the frontend, and restarts PIC-SURE.</description>
   <keepDependencies>false</keepDependencies>
   <properties>
     <hudson.model.ParametersDefinitionProperty>

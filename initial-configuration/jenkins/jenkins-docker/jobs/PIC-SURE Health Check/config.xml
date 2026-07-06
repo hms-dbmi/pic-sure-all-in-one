@@ -59,7 +59,7 @@ Tests that need environment-specific inputs (concept_path, gene) skip cleanly wh
         </hudson.model.BooleanParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>metrics_label</name>
-          <description>Label for the metrics run. Empty = auto-detect wildfly-direct / via-gateway from the deployed httpd rules (local only).</description>
+          <description>Label for the metrics run. Empty = via-gateway (the only routing mode).</description>
           <defaultValue></defaultValue>
           <trim>true</trim>
         </hudson.model.StringParameterDefinition>
@@ -188,12 +188,7 @@ echo &quot;Health gate PASSED for $TARGET_URL&quot;
 if [ &quot;$collect_metrics&quot; = &quot;true&quot; ]; then
     LABEL=&quot;$metrics_label&quot;
     if [ -z &quot;$LABEL&quot; ]; then
-        # Which way is the local httpd routing /picsure right now?
-        if grep -F &apos;http://gateway:8080/$1&apos; &quot;$CONFIG_DIR/httpd/httpd-vhosts.conf&quot; 2>/dev/null | grep -qv &apos;^[[:space:]]*#&apos;; then
-            LABEL=via-gateway
-        else
-            LABEL=wildfly-direct
-        fi
+        LABEL=via-gateway
     fi
     echo &quot;== Stage 2/2: per-route latency metrics (label=adapter-$LABEL) ==&quot;
     docker run &quot;${DOCKER_ARGS[@]}&quot; --entrypoint /bin/sh &quot;$IMAGE&quot; \

@@ -1,7 +1,7 @@
 <?xml version='1.1' encoding='UTF-8'?>
 <project>
   <actions/>
-  <description>Build and deploy the PIC-SURE Gateway container (Phase 1: transparent pass-through in front of WildFly). Builds services/pic-sure-gateway from the pic-sure monorepo reactor. NOTE: git_hash defaults to the long-lived rewrite branch during the gateway migration; change the default to origin/main after the final merge.</description>
+  <description>Build and deploy the PIC-SURE Gateway container (the stack ingress behind httpd). Builds services/pic-sure-gateway from the pic-sure monorepo reactor. NOTE: git_hash defaults to the long-lived rewrite branch during the gateway migration; change the default to origin/main after the final merge.</description>
   <keepDependencies>false</keepDependencies>
   <properties>
     <hudson.model.ParametersDefinitionProperty>
@@ -72,7 +72,6 @@ elif [ -f &quot;$CONFIG_DIR/gateway.env&quot; ]; then
 else
     echo &quot;Creating new gateway.env file.&quot;
     {
-        echo &quot;WILDFLY_URL=http://wildfly:8080&quot;
         echo &quot;SPRING_PROFILE=aio&quot;
     } &gt; &quot;$CONFIG_DIR/gateway.env&quot;
 fi

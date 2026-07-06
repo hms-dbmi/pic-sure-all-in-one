@@ -32,6 +32,11 @@ echo "INCLUDE_LOGGING=$INCLUDE_LOGGING"
 echo "INCLUDE_VISUALIZATION=$INCLUDE_VISUALIZATION"
 [[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/gateway" ]] && INCLUDE_GATEWAY=true || INCLUDE_GATEWAY=false
 echo "INCLUDE_GATEWAY=$INCLUDE_GATEWAY"
+# WildFly is opt-OUT, not dir-presence gated: the wildfly/ config dir must exist even
+# without the container (psama mounts wildfly/emailTemplates). Touch the DISABLE_DEPLOY
+# marker to skip deploying WildFly; remove it (and rerun the pipeline) to bring it back.
+[[ -f "$CURRENT_FS_DOCKER_CONFIG_DIR/wildfly/DISABLE_DEPLOY" ]] && INCLUDE_WILDFLY=false || INCLUDE_WILDFLY=true
+echo "INCLUDE_WILDFLY=$INCLUDE_WILDFLY"
 
 # Docker Volumes
 export PICSURE_BANNER_VOLUME="-v $DOCKER_CONFIG_DIR/httpd/banner_config.json:/usr/local/apache2/htdocs/picsureui/settings/banner_config.json"
@@ -140,39 +145,45 @@ docker run --name=psama --restart always \
   || exit 2
 
 
-# This ensure the volume is created for existing environments providing some level of "safety" when updating an
-# existing environment.
-if [ -z "$(docker volume ls --format '{{.Name}}' | grep ^wildfly_deployments$)" ]; then
-  echo "Creating docker volume for WildFly"
-  docker volume create wildfly_deployments
-else
-  echo "docker volume for WildFly already exists."
-fi
+if $INCLUDE_WILDFLY; then
+  # This ensure the volume is created for existing environments providing some level of "safety" when updating an
+  # existing environment.
+  if [ -z "$(docker volume ls --format '{{.Name}}' | grep ^wildfly_deployments$)" ]; then
+    echo "Creating docker volume for WildFly"
+    docker volume create wildfly_deployments
+  else
+    echo "docker volume for WildFly already exists."
+  fi
 
-docker stop wildfly && docker rm wildfly
-docker run --name=wildfly --restart always --network=picsure --network=hpds --network=dictionary -u root \
-  -v "$DOCKER_CONFIG_DIR"/log/wildfly-docker-logs/:/opt/jboss/wildfly/standalone/log/ \
-  -v /etc/hosts:/etc/hosts \
-  -v "$DOCKER_CONFIG_DIR"/log/wildfly-docker-os-logs/:/var/log/ \
-  -v $DOCKER_CONFIG_DIR/wildfly/passthru/:/opt/jboss/wildfly/standalone/configuration/passthru/ \
-  -v $DOCKER_CONFIG_DIR/wildfly/aggregate-data-sharing/:/opt/jboss/wildfly/standalone/configuration/aggregate-data-sharing/ \
-  $WILDFLY_DEBUG \
-  -v $DOCKER_CONFIG_DIR/wildfly/standalone.xml:/opt/jboss/wildfly/standalone/configuration/standalone.xml \
-  $TRUSTSTORE_VOLUME \
-  $EMAIL_TEMPLATE_VOLUME \
-  -v $DOCKER_CONFIG_DIR/wildfly/wildfly_mysql_module.xml:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/module.xml  \
-  -v $DOCKER_CONFIG_DIR/wildfly/mysql-connector-java-5.1.49.jar:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/mysql-connector-java-5.1.49.jar  \
-  -v wildfly_deployments:/opt/jboss/wildfly/standalone/deployments \
-  --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/wildfly/wildfly.env \
-  $LOGGING_ENVS \
-  -d hms-dbmi/pic-sure-wildfly:LATEST \
-  || exit 2
-# Workaround for macOS bind-mount limitations: macOS does not support atomic file moves on mounted volumes,
-# causing "Device or resource busy" errors during hot deployments. We just copy the files into the running container.
-# This refreshes ALL deployed WARs (pic-sure-api plus any aggregate resource WARs) from the shared
-# deployments dir. docker cp reads its source from the Jenkins (current) filesystem, so it MUST use
-# CURRENT_FS_DOCKER_CONFIG_DIR -- $DOCKER_CONFIG_DIR is the host path and does not exist inside this container.
-docker cp "${CURRENT_FS_DOCKER_CONFIG_DIR}/wildfly/deployments/." "wildfly:/opt/jboss/wildfly/standalone/deployments/"
+  docker stop wildfly && docker rm wildfly
+  docker run --name=wildfly --restart always --network=picsure --network=hpds --network=dictionary -u root \
+    -v "$DOCKER_CONFIG_DIR"/log/wildfly-docker-logs/:/opt/jboss/wildfly/standalone/log/ \
+    -v /etc/hosts:/etc/hosts \
+    -v "$DOCKER_CONFIG_DIR"/log/wildfly-docker-os-logs/:/var/log/ \
+    -v $DOCKER_CONFIG_DIR/wildfly/passthru/:/opt/jboss/wildfly/standalone/configuration/passthru/ \
+    -v $DOCKER_CONFIG_DIR/wildfly/aggregate-data-sharing/:/opt/jboss/wildfly/standalone/configuration/aggregate-data-sharing/ \
+    $WILDFLY_DEBUG \
+    -v $DOCKER_CONFIG_DIR/wildfly/standalone.xml:/opt/jboss/wildfly/standalone/configuration/standalone.xml \
+    $TRUSTSTORE_VOLUME \
+    $EMAIL_TEMPLATE_VOLUME \
+    -v $DOCKER_CONFIG_DIR/wildfly/wildfly_mysql_module.xml:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/module.xml  \
+    -v $DOCKER_CONFIG_DIR/wildfly/mysql-connector-java-5.1.49.jar:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/mysql-connector-java-5.1.49.jar  \
+    -v wildfly_deployments:/opt/jboss/wildfly/standalone/deployments \
+    --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/wildfly/wildfly.env \
+    $LOGGING_ENVS \
+    -d hms-dbmi/pic-sure-wildfly:LATEST \
+    || exit 2
+  # Workaround for macOS bind-mount limitations: macOS does not support atomic file moves on mounted volumes,
+  # causing "Device or resource busy" errors during hot deployments. We just copy the files into the running container.
+  # This refreshes ALL deployed WARs (pic-sure-api plus any aggregate resource WARs) from the shared
+  # deployments dir. docker cp reads its source from the Jenkins (current) filesystem, so it MUST use
+  # CURRENT_FS_DOCKER_CONFIG_DIR -- $DOCKER_CONFIG_DIR is the host path and does not exist inside this container.
+  docker cp "${CURRENT_FS_DOCKER_CONFIG_DIR}/wildfly/deployments/." "wildfly:/opt/jboss/wildfly/standalone/deployments/"
+else
+  echo "WildFly deploy disabled (wildfly/DISABLE_DEPLOY marker present)"
+  # A container left over from before the flip must not keep serving legacy paths.
+  docker stop wildfly 2>/dev/null; docker rm wildfly 2>/dev/null || true
+fi
 
 # Phase-1 gateway: transparent pass-through in front of WildFly (catch-all route
 # re-adds the /pic-sure-api-2/PICSURE/ prefix). httpd reaches it as http://gateway:8080

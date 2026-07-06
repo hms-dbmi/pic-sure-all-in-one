@@ -37,7 +37,9 @@ if $INCLUDE_HPDS; then
   docker stop hpds && docker rm hpds
 fi
 docker stop httpd && docker rm httpd
-docker stop wildfly && docker rm wildfly
+# WildFly may not be deployed (wildfly/DISABLE_DEPLOY toggle) -- stop it tolerantly, and
+# always, so flipping the toggle on a running stack never orphans the container.
+docker stop wildfly 2>/dev/null; docker rm wildfly 2>/dev/null || true
 docker stop psama && docker rm psama
 
 if $INCLUDE_UPLOADER; then

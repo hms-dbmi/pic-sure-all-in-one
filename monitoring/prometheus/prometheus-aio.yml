@@ -1,0 +1,80 @@
+# AIO scrape config. Only services that expose /actuator/prometheus TODAY are
+# active; M2 targets are pre-written but commented (spec §4/§8).
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    env: aio
+
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: gateway
+    metrics_path: /actuator/prometheus
+    http_headers:
+      X-Application-Token:
+        files:
+          - /etc/prometheus/secrets/app-token
+    static_configs:
+      - targets: ["gateway:8080"]
+
+  # --- M2 targets: uncomment per service as it gains micrometer-prometheus ---
+  # - job_name: hpds
+  #   metrics_path: /actuator/prometheus
+  #   http_headers:
+  #     X-Application-Token:
+  #       files: [/etc/prometheus/secrets/app-token]
+  #   static_configs:
+  #     - targets: ["hpds:8080"]
+  # - job_name: dictionary
+  #   metrics_path: /actuator/prometheus
+  #   http_headers:
+  #     X-Application-Token:
+  #       files: [/etc/prometheus/secrets/app-token]
+  #   static_configs:
+  #     - targets: ["dictionary-api:80", "dictionary-dump:80"]
+  # - job_name: psama
+  #   metrics_path: /auth/actuator/prometheus
+  #   http_headers:
+  #     X-Application-Token:
+  #       files: [/etc/prometheus/secrets/app-token]
+  #   static_configs:
+  #     - targets: ["psama:8090"]
+  # - job_name: visualization
+  #   metrics_path: /actuator/prometheus
+  #   http_headers:
+  #     X-Application-Token:
+  #       files: [/etc/prometheus/secrets/app-token]
+  #   static_configs:
+  #     - targets: ["visualization:8080"]   # verify 8080-vs-80 (spec §4)
+  # - job_name: logging
+  #   metrics_path: /metrics
+  #   http_headers:
+  #     X-Application-Token:
+  #       files: [/etc/prometheus/secrets/app-token]
+  #   static_configs:
+  #     - targets: ["pic-sure-logging:8080"]
+  # - job_name: query-ops           # once start-picsure.sh runs these containers
+  #   metrics_path: /actuator/prometheus
+  #   http_headers:
+  #     X-Application-Token:
+  #       files: [/etc/prometheus/secrets/app-token]
+  #   static_configs:
+  #     - targets: ["pic-sure-hpds-query-service:8080", "pic-sure-operations-service:8080"]
+
+  - job_name: node
+    static_configs:
+      - targets: ["node-exporter:9100"]
+
+  - job_name: cadvisor
+    static_configs:
+      - targets: ["cadvisor:8080"]
+
+  - job_name: apache
+    static_configs:
+      - targets: ["apache-exporter:9117"]

@@ -1,0 +1,86 @@
+# PIC-SURE monitoring stack (AIO). Runtime home: $DOCKER_CONFIG_DIR/monitoring/
+# (start-monitoring.sh syncs this directory there and runs compose from it).
+# Spec: pic-sure docs/superpowers/specs/2026-07-06-monitoring-stack-design.md
+name: picsure-monitoring
+
+services:
+  prometheus:
+    image: prom/prometheus:v3.4.1
+    container_name: prometheus
+    restart: always
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.retention.time=15d
+      - --storage.tsdb.path=/prometheus
+    volumes:
+      - ./prometheus/prometheus-aio.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/rules:/etc/prometheus/rules:ro
+      - ./secrets:/etc/prometheus/secrets:ro
+      - prometheus-data:/prometheus
+    networks:
+      - monitoring
+      - picsure
+      - dictionary   # dictionary-dump is reachable only on this internal network
+
+  grafana:
+    image: grafana/grafana:11.6.0
+    container_name: grafana
+    restart: always
+    env_file:
+      - ./monitoring.env   # GF_SECURITY_ADMIN_PASSWORD
+    environment:
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    ports:
+      - "127.0.0.1:3001:3000"   # localhost only; never published wide
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    networks:
+      - monitoring
+
+  node-exporter:
+    image: prom/node-exporter:v1.9.1
+    container_name: node-exporter
+    restart: always
+    pid: host
+    command:
+      - --path.rootfs=/host
+    volumes:
+      - /:/host:ro,rslave
+    networks:
+      - monitoring
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.52.1
+    container_name: cadvisor
+    restart: always
+    privileged: true
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker/:/var/lib/docker:ro
+    networks:
+      - monitoring
+
+  apache-exporter:
+    image: lusotycoon/apache-exporter:v1.0.10
+    container_name: apache-exporter
+    restart: always
+    command:
+      - --scrape_uri=http://httpd:8081/server-status?auto
+    networks:
+      - monitoring
+      - picsure
+
+volumes:
+  prometheus-data:
+  grafana-data:
+
+networks:
+  monitoring:
+  picsure:
+    external: true
+  dictionary:
+    external: true

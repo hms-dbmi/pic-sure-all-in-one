@@ -1,0 +1,65 @@
+# BDC/FISMA scrape config — rendered by deploy-monitoring.sh (sed on __TOKENS__).
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    env: bdc
+
+rule_files:
+  - /etc/prometheus/rules/*.yml
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: node
+    ec2_sd_configs:
+      - region: __REGION__
+        port: 9100
+        filters:
+          - name: tag:Environment
+            values: ["__ENVIRONMENT_NAME__"]
+          - name: instance-state-name
+            values: ["running"]
+    relabel_configs: &ec2_relabel
+      - source_labels: [__meta_ec2_tag_Node]
+        target_label: role
+      - source_labels: [__meta_ec2_tag_Stack]
+        target_label: stack
+      - source_labels: [__meta_ec2_private_ip]
+        target_label: host_ip
+
+  - job_name: podman
+    ec2_sd_configs:
+      - region: __REGION__
+        port: 9882
+        filters:
+          - name: tag:Environment
+            values: ["__ENVIRONMENT_NAME__"]
+          - name: instance-state-name
+            values: ["running"]
+    relabel_configs: *ec2_relabel
+
+  - job_name: apache
+    ec2_sd_configs:
+      - region: __REGION__
+        port: 9117
+        filters:
+          - name: tag:Environment
+            values: ["__ENVIRONMENT_NAME__"]
+          - name: tag:Node
+            values: ["HTTPD"]
+          - name: instance-state-name
+            values: ["running"]
+    relabel_configs: *ec2_relabel
+
+  # --- M4 app targets (enable after consolidation Phase 3; spec §6.2/§8) ---
+  # wildfly host services on private-IP-bound publishes:
+  #   dictionary 9401 (/actuator/prometheus), logging 9402 (/metrics),
+  #   visualization 9403 (/actuator/prometheus), psama 9404 (/auth/actuator/prometheus)
+  # hpds hosts: 8080 (/actuator/prometheus), filter tag:Node values [HPDS, OPEN_HPDS]
+  # All with:
+  #   http_headers:
+  #     X-Application-Token:
+  #       files: [/etc/prometheus/secrets/app-token]

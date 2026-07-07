@@ -183,6 +183,11 @@ sudo ./install-dependencies-docker.sh /path/to/desired/config/dir/
       controls what code is built and deployed. If you just want the default PIC-SURE behavior use this
       repo : https://github.com/hms-dbmi/baseline-pic-sure-release-control
 
+      All PIC-SURE Java services build from the single `hms-dbmi/pic-sure` monorepo: the build-spec's
+      `MONOREPO` entry pins one ref (branch, tag, or hash) that every service job builds from
+      (`services/<name>` subdirectories). A release is one monorepo ref — the remaining separate
+      entries are only for genuinely separate repos (`PSF` frontend, `PSM` migrations, `DICTIONARY_ETL`).
+
     - `ANALYTICS_ID`: This is the Google Analytics ID for your project. If you do not have one, you can leave this blank.
 
 Note: Ensure none of these fields contain leading or trailing whitespace, the values must be exact. Once you have

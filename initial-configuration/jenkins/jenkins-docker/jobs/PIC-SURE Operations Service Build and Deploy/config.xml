@@ -1,7 +1,7 @@
 <?xml version='1.1' encoding='UTF-8'?>
 <project>
   <actions/>
-  <description>Build+deploy pic-sure-operations-service (Phase 4: sole pic-sure-DB owner; /configuration, /dataset, internal query API). Builds services/pic-sure-operations-service from the monorepo. git_hash defaults to the rewrite branch during migration.</description>
+  <description>Build+deploy pic-sure-operations-service (sole pic-sure-DB owner; /configuration, /dataset, internal query API). Builds services/pic-sure-operations-service from the monorepo. git_hash defaults to the rewrite branch during migration.</description>
   <keepDependencies>false</keepDependencies>
   <properties>
     <hudson.model.ParametersDefinitionProperty>

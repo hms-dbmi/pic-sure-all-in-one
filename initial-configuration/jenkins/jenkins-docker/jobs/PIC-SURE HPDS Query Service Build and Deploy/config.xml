@@ -1,7 +1,7 @@
 <?xml version='1.1' encoding='UTF-8'?>
 <project>
   <actions/>
-  <description>Build+deploy pic-sure-hpds-query-service (Phase 4: DB-free single HPDS ingress; /hpds/{auth,open}[/v3]/query|search). Builds services/pic-sure-hpds-query-service from the monorepo. git_hash defaults to the rewrite branch during migration.</description>
+  <description>Build+deploy pic-sure-hpds-query-service (DB-free single HPDS ingress; /hpds/{auth,open}[/v3]/query|search). Builds services/pic-sure-hpds-query-service from the monorepo. git_hash defaults to the rewrite branch during migration.</description>
   <keepDependencies>false</keepDependencies>
   <properties>
     <hudson.model.ParametersDefinitionProperty>

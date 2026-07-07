@@ -35,6 +35,15 @@ monitoring stack up automatically (and `stop-picsure.sh` tears it down). You
 can also manage it directly with `bash monitoring/start-monitoring.sh` /
 `bash monitoring/stop-monitoring.sh`.
 
+### Existing deployments (upgrading)
+
+The mod_status block that apache-exporter scrapes (the `# --- monitoring:`
+block at the end of this repo's `initial-configuration/config/httpd/httpd-vhosts.conf`)
+is only copied into `$DOCKER_CONFIG_DIR/httpd/httpd-vhosts.conf` at install
+time. On a deployment that was installed before this block existed, re-sync
+that block into `$DOCKER_CONFIG_DIR/httpd/httpd-vhosts.conf` yourself and run
+`docker restart httpd` — otherwise the `apache` Prometheus target stays down.
+
 ## Known issues
 
 - **macOS / Docker Desktop:** node-exporter's `/:/host:ro,rslave` mount fails
@@ -43,6 +52,9 @@ can also manage it directly with `bash monitoring/start-monitoring.sh` /
   mount`). This is expected on macOS; the rest of the stack works normally,
   and the `node` Prometheus target simply shows as down. Node metrics work
   correctly on Linux hosts (e.g., EC2 all-in-one deployments).
+  `start-monitoring.sh` tolerates this automatically — it brings up the other
+  services strictly and only warns if node-exporter fails — so
+  `start-picsure.sh` / `start-monitoring.sh` still exit 0 on macOS.
 
 ## Access
 
@@ -60,8 +72,10 @@ in this repo (not from Grafana's UI-saved state). The loop is:
 1. Edit a dashboard JSON file in this repo.
 2. Run `bash monitoring/start-monitoring.sh` — it re-syncs the repo's
    `docker-compose.monitoring.yml`, `prometheus/`, and `grafana/` assets into
-   `$DOCKER_CONFIG_DIR/monitoring/` (never touching your `monitoring.env` or
-   secrets) and re-runs `docker compose up -d`.
+   `$DOCKER_CONFIG_DIR/monitoring/` (it regenerates the Prometheus app-token
+   secret from `monitoring.env` each run, but never edits `monitoring.env`
+   itself), re-runs `docker compose up -d`, and restarts the Prometheus
+   container automatically so any config/rule changes take effect.
 3. Restart the Grafana container so it reloads the provisioned dashboards:
    `docker restart grafana`.
 
@@ -70,8 +84,9 @@ in this repo (not from Grafana's UI-saved state). The loop is:
 `monitoring/prometheus/prometheus-aio.yml` has one scrape job commented out
 per service (hpds, dictionary, psama, visualization, logging, query-ops).
 As each service gains a `/actuator/prometheus` (or equivalent) endpoint,
-uncomment its job block, redeploy with `start-monitoring.sh`, and confirm it
-shows up as `up` in Prometheus targets.
+uncomment its job block, redeploy with `start-monitoring.sh` (which restarts
+Prometheus automatically so the new scrape config takes effect), and confirm
+it shows up as `up` in Prometheus targets.
 
 ## BDC / FISMA notes
 

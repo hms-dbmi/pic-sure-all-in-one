@@ -8,7 +8,7 @@
       <parameterDefinitions>
         <hudson.model.StringParameterDefinition>
           <name>git_hash</name>
-          <defaultValue>*/main</defaultValue>
+          <defaultValue>pic_sure_api_mono_repo</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
@@ -23,7 +23,7 @@
     <configVersion>2</configVersion>
     <userRemoteConfigs>
       <hudson.plugins.git.UserRemoteConfig>
-        <url>https://github.com/hms-dbmi/pic-sure-services.git</url>
+        <url>https://github.com/hms-dbmi/pic-sure.git</url>
       </hudson.plugins.git.UserRemoteConfig>
     </userRemoteConfigs>
     <branches>
@@ -45,6 +45,7 @@
   <builders>
     <hudson.tasks.Shell>
       <command>#!/bin/bash
+cd services/pic-sure-services
 if [[ ! -f /usr/local/docker-config/uploader/.env ]]; then
     mkdir -p /usr/local/docker-config/uploader
     cp uploader/env-proto /usr/local/docker-config/uploader/.env

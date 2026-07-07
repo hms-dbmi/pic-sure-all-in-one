@@ -36,6 +36,8 @@ echo "INCLUDE_GATEWAY=$INCLUDE_GATEWAY"
 echo "INCLUDE_OPERATIONS=$INCLUDE_OPERATIONS"
 [[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/query" ]] && INCLUDE_QUERY=true || INCLUDE_QUERY=false
 echo "INCLUDE_QUERY=$INCLUDE_QUERY"
+[[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/monitoring" ]] && INCLUDE_MONITORING=true || INCLUDE_MONITORING=false
+echo "INCLUDE_MONITORING=$INCLUDE_MONITORING"
 
 # Docker Volumes
 export PICSURE_BANNER_VOLUME="-v $DOCKER_CONFIG_DIR/httpd/banner_config.json:/usr/local/apache2/htdocs/picsureui/settings/banner_config.json"
@@ -221,4 +223,8 @@ if $INCLUDE_VISUALIZATION; then
     $LOGGING_ENVS \
     -d hms-dbmi/pic-sure-visualization:LATEST \
     || exit 2
+fi
+
+if $INCLUDE_MONITORING; then
+  bash "$(dirname "${BASH_SOURCE[0]}")/monitoring/start-monitoring.sh"
 fi

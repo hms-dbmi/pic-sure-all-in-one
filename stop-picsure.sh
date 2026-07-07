@@ -36,6 +36,8 @@ echo "INCLUDE_GATEWAY=$INCLUDE_GATEWAY"
 echo "INCLUDE_OPERATIONS=$INCLUDE_OPERATIONS"
 [[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/query" ]] && INCLUDE_QUERY=true || INCLUDE_QUERY=false
 echo "INCLUDE_QUERY=$INCLUDE_QUERY"
+[[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/monitoring" ]] && INCLUDE_MONITORING=true || INCLUDE_MONITORING=false
+echo "INCLUDE_MONITORING=$INCLUDE_MONITORING"
 
 if $INCLUDE_HPDS; then
   docker stop hpds && docker rm hpds
@@ -72,4 +74,8 @@ if $INCLUDE_QUERY; then
 fi
 if $INCLUDE_OPERATIONS; then
   docker stop pic-sure-operations-service && docker rm pic-sure-operations-service
+fi
+
+if $INCLUDE_MONITORING; then
+  bash "$(dirname "${BASH_SOURCE[0]}")/monitoring/stop-monitoring.sh"
 fi

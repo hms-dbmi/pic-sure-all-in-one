@@ -18,9 +18,7 @@
 def retrieveBuildSpecId;
 def pipelineBuildId;
 def build_hashes = [
-    DICTIONARY: false,
-    UPLOADER: false,
-    PSL: false,
+    MONOREPO: false,
 ];
 pipeline {
     agent any
@@ -73,7 +71,7 @@ pipeline {
                 script {
                     def result = build job: &apos;PIC-SURE-HPDS Build&apos;, parameters: [
                         [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],
-                        [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSH&apos;]]
+                        [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;MONOREPO&apos;]]
                     ]
                 }
             }
@@ -93,7 +91,7 @@ pipeline {
 
                     def result = build job: &apos;PIC-SURE Visualization Build and Deploy&apos;, parameters: [
                         [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],
-                        [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSV&apos;] ?: &apos;main&apos;],
+                        [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;MONOREPO&apos;]],
                         [$class: &apos;StringParameterValue&apos;, name: &apos;DEPLOY_METHOD&apos;, value: &apos;docker&apos;]
                     ]
                 }
@@ -104,7 +102,7 @@ pipeline {
                 script{
                     def result = build job: &apos;PIC-SURE Auth Micro-App Build - Jenkinsfile&apos;, parameters: [
                         [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],
-                        [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSAMA&apos;]]
+                        [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;MONOREPO&apos;]]
                     ]
                 }
             }
@@ -114,7 +112,7 @@ pipeline {
                 script {
                     def result = build job: &apos;PIC-SURE HPDS Query Service Build and Deploy&apos;, parameters: [
                         [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],
-                        [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSA&apos;]]
+                        [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;MONOREPO&apos;]]
                     ]
                 }
             }
@@ -124,7 +122,7 @@ pipeline {
                 script {
                     def result = build job: &apos;PIC-SURE Operations Service Build and Deploy&apos;, parameters: [
                         [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],
-                        [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSA&apos;]]
+                        [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;MONOREPO&apos;]]
                     ]
                 }
             }
@@ -134,7 +132,7 @@ pipeline {
                 script {
                     def result = build job: &apos;PIC-SURE Gateway Build and Deploy&apos;, parameters: [
                         [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],
-                        [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSA&apos;]]
+                        [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;MONOREPO&apos;]]
                     ]
                 }
             }
@@ -152,13 +150,13 @@ pipeline {
         stage(&apos;Dictionary Build &amp; Deploy&apos;) {
             steps {
                 script {
-                    if (build_hashes[&apos;DICTIONARY&apos;]) {
+                    if (build_hashes[&apos;MONOREPO&apos;]) {
                         def result = build job: &apos;PIC-SURE Dictionary API Build and Deploy&apos;, parameters: [
                             [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],
-                            [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;DICTIONARY&apos;]]
+                            [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;MONOREPO&apos;]]
                         ]
                     } else {
-                        echo &quot;No project_job_git_key DICTIONARY found in build spec. Skipping Dictionary Build&quot;
+                        echo &quot;No project_job_git_key MONOREPO found in build spec. Skipping Dictionary Build&quot;
                     }
                 }
             }
@@ -169,23 +167,23 @@ pipeline {
                 parallel (
                     uploader:{
                         script {
-                            if (build_hashes[&apos;UPLOADER&apos;]) {
+                            if (build_hashes[&apos;MONOREPO&apos;]) {
                                 echo &quot;Building Uploader API&quot;
                                 def result = build job: &apos;PIC-SURE Build and Deploy Uploader&apos;, parameters: [
                                     [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],
-                                    [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;UPLOADER&apos;]]
+                                    [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;MONOREPO&apos;]]
                                 ]
                             } else {
-                                echo &quot;No project_job_git_key UPLOADER found in build spec. Skipping Uploader Build&quot;
+                                echo &quot;No project_job_git_key MONOREPO found in build spec. Skipping Uploader Build&quot;
                             }
                         }
                     },
                     logging:{
                         script {
-                            if (build_hashes[&apos;PSL&apos;]) {
+                            if (build_hashes[&apos;MONOREPO&apos;]) {
                                 echo &quot;Building Logging Service&quot;
                                 def result = build job: &apos;PIC-SURE Logging Build and Deploy&apos;, parameters: [
-                                    [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSL&apos;]],
+                                    [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;MONOREPO&apos;]],
                                     [$class: &apos;StringParameterValue&apos;, name: &apos;DEPLOY_METHOD&apos;, value: &apos;docker&apos;]
                                 ]
                                 try {
@@ -194,7 +192,7 @@ pipeline {
                                     echo &quot;Configure Logging failed (${e.message}). Continuing pipeline.&quot;
                                 }
                             } else {
-                                echo &quot;No project_job_git_key PSL found in build spec. Skipping Logging Service Build&quot;
+                                echo &quot;No project_job_git_key MONOREPO found in build spec. Skipping Logging Service Build&quot;
                             }
                         }
                     }

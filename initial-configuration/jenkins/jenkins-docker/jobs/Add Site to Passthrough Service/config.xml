@@ -1,7 +1,7 @@
 <?xml version='1.1' encoding='UTF-8'?>
 <project>
-  <actions/>
-  <description></description>
+  <actions />
+  <description>DEPRECATED: the passthrough service is not part of the gateway-rewrite deployment (and this job writes to the legacy resource table). Kept pending a team decision on migrating the passthrough service.</description>
   <keepDependencies>false</keepDependencies>
   <properties>
     <hudson.model.ParametersDefinitionProperty>
@@ -13,7 +13,7 @@
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>SITE_REMOTE_UUID</name>
-          <description>UUID of the remote site&apos;s aggregate resource</description>
+          <description>UUID of the remote site's aggregate resource</description>
           <defaultValue>01234567-89ab-cdef-0123-4567890abcde</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
@@ -49,15 +49,15 @@
       </hudson.plugins.git.BranchSpec>
     </branches>
     <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
-    <submoduleCfg class="empty-list"/>
-    <extensions/>
+    <submoduleCfg class="empty-list" />
+    <extensions />
   </scm>
   <canRoam>true</canRoam>
   <disabled>false</disabled>
   <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
   <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
   <jdk>(System)</jdk>
-  <triggers/>
+  <triggers />
   <concurrentBuild>false</concurrentBuild>
   <builders>
     <hudson.tasks.Shell>
@@ -66,16 +66,16 @@ cd pic-sure-passthru-resource
 
 # Generate uuid
 RESOURCE_ID=`uuidgen -r`
-RESOURCE_ID_HEX=`echo $RESOURCE_ID | awk &apos;{ print toupper($0) }&apos;|sed &apos;s/-//g&apos;;`
-export SQL=&quot;INSERT INTO resource (uuid, targetURL, resourceRSPath, description, name, token) \
- VALUES (unhex(&apos;$RESOURCE_ID_HEX&apos;), NULL, &apos;http://passthru/$RESOURCE_PATH/&apos;, &apos;Passthru for $SITE_NAME&apos;, &apos;$SITE_NAME&apos;, NULL);&quot;
+RESOURCE_ID_HEX=`echo $RESOURCE_ID | awk '{ print toupper($0) }'|sed 's/-//g';`
+export SQL="INSERT INTO resource (uuid, targetURL, resourceRSPath, description, name, token) \
+ VALUES (unhex('$RESOURCE_ID_HEX'), NULL, 'http://passthru/$RESOURCE_PATH/', 'Passthru for $SITE_NAME', '$SITE_NAME', NULL);"
 
 # Add generated uuid to database
-docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e &quot;$SQL&quot; picsure
+docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e "$SQL" picsure
 
 # If there is no application.properties, make one
 mkdir -p /usr/local/docker-config/passthru/
-if [ ! -f &apos;/usr/local/docker-config/passthru/application.properties&apos; ]; then
+if [ ! -f '/usr/local/docker-config/passthru/application.properties' ]; then
     cp src/main/resources/application.properties /usr/local/docker-config/passthru
 fi
 
@@ -83,9 +83,9 @@ fi
 cd properties-updater
 docker build . -t properties-updater
 docker run --rm -i -v $DOCKER_CONFIG_DIR/passthru/application.properties:/application.properties properties-updater $SITE_NAME $SITE_REMOTE_UUID $RESOURCE_ID $SITE_BASE_URL $SITE_TOKEN</command>
-      <configuredLocalRules/>
+      <configuredLocalRules />
     </hudson.tasks.Shell>
   </builders>
-  <publishers/>
-  <buildWrappers/>
+  <publishers />
+  <buildWrappers />
 </project>

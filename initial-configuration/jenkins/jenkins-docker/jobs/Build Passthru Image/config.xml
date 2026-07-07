@@ -1,7 +1,7 @@
 <?xml version='1.1' encoding='UTF-8'?>
 <project>
-  <actions/>
-  <description>Build the Passthru image. This does not add or remove sites, nor does it start / stop the container.</description>
+  <actions />
+  <description>DEPRECATED: the passthrough service is not part of the gateway-rewrite deployment and is no longer built by the PIC-SURE Pipeline. Kept pending a team decision on migrating the passthrough service; run manually if needed. Build the Passthru image. This does not add or remove sites, nor does it start / stop the container.</description>
   <keepDependencies>false</keepDependencies>
   <properties>
     <hudson.model.ParametersDefinitionProperty>
@@ -33,32 +33,32 @@
       </hudson.plugins.git.BranchSpec>
     </branches>
     <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
-    <submoduleCfg class="empty-list"/>
-    <extensions/>
+    <submoduleCfg class="empty-list" />
+    <extensions />
   </scm>
   <canRoam>true</canRoam>
   <disabled>false</disabled>
   <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
   <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
   <jdk>(System)</jdk>
-  <triggers/>
+  <triggers />
   <concurrentBuild>false</concurrentBuild>
   <builders>
     <hudson.tasks.Shell>
       <command>docker run --rm \
-  -v &quot;$DOCKER_CONFIG_DIR/jenkins_home/workspace/$JOB_NAME/pic-sure-passthru-resource/:/app&quot; \
+  -v "$DOCKER_CONFIG_DIR/jenkins_home/workspace/$JOB_NAME/pic-sure-passthru-resource/:/app" \
   -v maven_m2_cache:/root/.m2 \
   -w /app \
   --platform=linux/amd64 \
   maven:3.9-eclipse-temurin-11 \
-  sh -lc &quot;mvn clean package -B -T 1C -DskipTests&quot;
+  sh -lc "mvn clean package -B -T 1C -DskipTests"
 
 cd pic-sure-passthru-resource
 docker build . -t hms-dbmi/pic-sure-passthru:LATEST
 </command>
-      <configuredLocalRules/>
+      <configuredLocalRules />
     </hudson.tasks.Shell>
   </builders>
-  <publishers/>
-  <buildWrappers/>
+  <publishers />
+  <buildWrappers />
 </project>

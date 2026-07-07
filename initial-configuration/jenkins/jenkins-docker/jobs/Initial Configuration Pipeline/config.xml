@@ -172,8 +172,7 @@ def retrieveBuildSpecId;
 def pipelineBuildId;
 def build_hashes = [
     DICTIONARY: false,
-    UPLOADER: false,
-    AGGREGATE: false
+    UPLOADER: false
 ];
 pipeline {
     agent any
@@ -262,12 +261,6 @@ pipeline {
                             sh &quot;echo &apos;VITE_AUTH_PROVIDER_MODULE_GOOGLE_CLIENTID=$env.AUTH0_CLIENT_ID&apos; &gt;&gt; .env&quot;
                             sh &quot;echo &apos;VITE_AUTH_PROVIDER_MODULE_GOOGLE_CONNECTION=google-oauth2&apos; &gt;&gt; .env&quot;
                             sh &quot;echo &apos;VITE_AUTH_PROVIDER_MODULE_GOOGLE_DESCRIPTION=Login&apos; &gt;&gt; .env&quot;
-                            sh &quot;echo &apos;#Resource UUIDs:&apos; &gt;&gt; .env&quot;
-                            sh &quot;echo  VITE_RESOURCE_HPDS=`cat /usr/local/docker-config/RESOURCE_ID_RAW` &gt;&gt; .env&quot;
-                            sh &quot;echo &apos;VITE_RESOURCE_OPEN_HPDS=&apos; &gt;&gt; .env&quot;
-                            sh &quot;echo &apos;VITE_RESOURCE_OPEN_V3_HPDS=&apos; &gt;&gt; .env&quot;
-                            sh &quot;echo &apos;VITE_RESOURCE_BASE_QUERY=&apos; &gt;&gt; .env&quot;
-                            sh &quot;echo &apos;VITE_RESOURCE_VIZ=&apos; &gt;&gt; .env&quot;
                             sh &quot;echo &apos;#Google Analytics settings (leave blank to disable):&apos; &gt;&gt; .env&quot;
                             sh &quot;echo &apos;VITE_GOOGLE_ANALYTICS_ID=&apos; &gt;&gt; .env&quot;
                             sh &quot;echo &apos;VITE_GOOGLE_TAG_MANAGER_ID=&apos; &gt;&gt; .env&quot;
@@ -326,20 +319,6 @@ pipeline {
             }
         }
 
-        stage(&apos;Auxiliary Configs&apos;) {
-          steps {
-            script {
-                if (build_hashes[&apos;AGGREGATE&apos;]) {
-                    def result = build job: &apos;Create PIC-SURE Aggregate Resource&apos;, parameters: [
-                        [$class: &apos;StringParameterValue&apos;, name: &apos;TARGET_OBFUSCATION_THRESHOLD&apos;, value: env.TARGET_OBFUSCATION_THRESHOLD],
-                        [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;AGGREGATE&apos;]]
-                    ]
-                } else {
-                    echo &quot;No project_job_git_key AGGREGATE found in build spec. Skipping Aggregate Resource Configuration&quot;
-                }
-            }
-          }
-        }
 
         stage(&apos;Load Demo Data&apos;) {
             steps {

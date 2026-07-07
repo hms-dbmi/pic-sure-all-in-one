@@ -56,7 +56,7 @@
         <hudson.model.StringParameterDefinition>
           <name>git_hash</name>
           <description>Branch or commit of hms-dbmi/PIC-SURE-Visualization to build.</description>
-          <defaultValue>main</defaultValue>
+          <defaultValue>pic_sure_api_mono_repo</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
       </parameterDefinitions>

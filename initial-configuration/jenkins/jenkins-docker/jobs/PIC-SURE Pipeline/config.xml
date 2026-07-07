@@ -86,6 +86,7 @@ pipeline {
                             mkdir -p /usr/local/docker-config/visualization
                             echo &apos;SERVER_PORT=80&apos; &gt; /usr/local/docker-config/visualization/visualization.env
                             echo &apos;HPDS_BASE_URL=http://hpds:8080/PIC-SURE&apos; &gt;&gt; /usr/local/docker-config/visualization/visualization.env
+                            echo &apos;PICSURE_ACTUATOR_EXPOSURE=health&apos; &gt;&gt; /usr/local/docker-config/visualization/visualization.env
                         else
                             echo &apos;visualization.env already exists; leaving existing config untouched.&apos;
                         fi

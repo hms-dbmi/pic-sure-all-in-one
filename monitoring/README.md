@@ -35,6 +35,15 @@ monitoring stack up automatically (and `stop-picsure.sh` tears it down). You
 can also manage it directly with `bash monitoring/start-monitoring.sh` /
 `bash monitoring/stop-monitoring.sh`.
 
+## Known issues
+
+- **macOS / Docker Desktop:** node-exporter's `/:/host:ro,rslave` mount fails
+  to start due to VirtioFS mount-propagation limits in Docker Desktop (error:
+  `path /host_mnt is mounted on /host_mnt but it is not a shared or slave
+  mount`). This is expected on macOS; the rest of the stack works normally,
+  and the `node` Prometheus target simply shows as down. Node metrics work
+  correctly on Linux hosts (e.g., EC2 all-in-one deployments).
+
 ## Access
 
 Grafana is reachable only at `http://127.0.0.1:3001` (never published on a

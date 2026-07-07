@@ -1,0 +1,135 @@
+{
+  "uid": "picsure-overview",
+  "title": "PIC-SURE / Platform Overview",
+  "schemaVersion": 39,
+  "refresh": "30s",
+  "time": { "from": "now-3h", "to": "now" },
+  "timezone": "browser",
+  "tags": ["picsure"],
+  "templating": { "list": [] },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Targets Down",
+      "type": "stat",
+      "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+      "gridPos": { "h": 5, "w": 4, "x": 0, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+          "expr": "count(up == 0) OR vector(0)"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Target Status",
+      "type": "table",
+      "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+      "gridPos": { "h": 5, "w": 20, "x": 4, "y": 0 },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+          "expr": "up",
+          "instant": true,
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Request Rate by Service",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 5 },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+          "expr": "picsure:http_requests:rate5m",
+          "legendFormat": "{{application}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "5xx Error Rate by Service",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 5 },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+          "expr": "picsure:http_errors:rate5m",
+          "legendFormat": "{{application}}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "p95 Latency by Service",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 14 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+          "expr": "picsure:http_latency_p95:5m",
+          "legendFormat": "{{application}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Host CPU",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+      "gridPos": { "h": 9, "w": 6, "x": 12, "y": 14 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "max": 1 }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+          "expr": "1 - avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[5m]))",
+          "legendFormat": "{{instance}}"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Host Memory Used",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+      "gridPos": { "h": 9, "w": 6, "x": 18, "y": 14 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "max": 1 }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+          "expr": "1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)",
+          "legendFormat": "{{instance}}"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,105 @@
+{
+  "uid": "picsure-jvm",
+  "title": "PIC-SURE / JVM Detail",
+  "schemaVersion": 39,
+  "refresh": "30s",
+  "time": { "from": "now-3h", "to": "now" },
+  "timezone": "browser",
+  "tags": ["picsure"],
+  "templating": {
+    "list": [
+      {
+        "name": "application",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+        "query": "label_values(jvm_memory_used_bytes, application)",
+        "refresh": 2
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Heap Used vs Max",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+          "expr": "sum by (id) (jvm_memory_used_bytes{application=\"$application\", area=\"heap\"})",
+          "legendFormat": "{{id}} used"
+        },
+        {
+          "refId": "B",
+          "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+          "expr": "sum by (id) (jvm_memory_max_bytes{application=\"$application\", area=\"heap\"})",
+          "legendFormat": "{{id}} max"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "GC Pause Time /s",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+          "expr": "sum by (action, cause) (rate(jvm_gc_pause_seconds_sum{application=\"$application\"}[5m]))",
+          "legendFormat": "{{action}} {{cause}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Live Threads",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+      "gridPos": { "h": 9, "w": 8, "x": 0, "y": 9 },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+          "expr": "jvm_threads_live_threads{application=\"$application\"}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Process CPU",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+      "gridPos": { "h": 9, "w": 8, "x": 8, "y": 9 },
+      "fieldConfig": { "defaults": { "unit": "percentunit", "max": 1 }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+          "expr": "process_cpu_usage{application=\"$application\"}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Loaded Classes",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+      "gridPos": { "h": 9, "w": 8, "x": 16, "y": 9 },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+          "expr": "jvm_classes_loaded_classes{application=\"$application\"}"
+        }
+      ]
+    }
+  ]
+}

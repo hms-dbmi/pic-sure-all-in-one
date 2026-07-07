@@ -1,0 +1,129 @@
+{
+  "uid": "picsure-infra",
+  "title": "PIC-SURE / Infrastructure",
+  "schemaVersion": 39,
+  "refresh": "30s",
+  "time": { "from": "now-3h", "to": "now" },
+  "timezone": "browser",
+  "tags": ["picsure"],
+  "templating": { "list": [] },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Host CPU",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "percentunit" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+          "expr": "1 - avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[5m]))",
+          "legendFormat": "{{instance}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Host Memory",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "percentunit" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+          "expr": "1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)",
+          "legendFormat": "{{instance}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "Disk Used",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "fieldConfig": { "defaults": { "unit": "percentunit" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+          "expr": "1 - (node_filesystem_avail_bytes{fstype!~\"tmpfs|overlay\"} / node_filesystem_size_bytes{fstype!~\"tmpfs|overlay\"})",
+          "legendFormat": "{{instance}} {{mountpoint}}"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Container CPU",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+          "expr": "sum by (name) (rate(container_cpu_usage_seconds_total{name!=\"\"}[5m]))",
+          "legendFormat": "{{name}}"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Container Memory",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+          "expr": "container_memory_working_set_bytes{name!=\"\"}",
+          "legendFormat": "{{name}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "Apache Requests /s",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 16 },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+          "expr": "rate(apache_accesses_total[5m])"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "Apache Busy/Idle Workers",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 16 },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+          "expr": "apache_workers{state=\"busy\"}",
+          "legendFormat": "busy"
+        },
+        {
+          "refId": "B",
+          "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+          "expr": "apache_workers{state=\"idle\"}",
+          "legendFormat": "idle"
+        }
+      ]
+    }
+  ]
+}

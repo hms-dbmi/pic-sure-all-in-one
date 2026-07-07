@@ -1,0 +1,98 @@
+{
+  "uid": "picsure-http",
+  "title": "PIC-SURE / HTTP Detail",
+  "schemaVersion": 39,
+  "refresh": "30s",
+  "time": { "from": "now-3h", "to": "now" },
+  "timezone": "browser",
+  "tags": ["picsure"],
+  "templating": {
+    "list": [
+      {
+        "name": "application",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+        "query": "label_values(http_server_requests_seconds_count, application)",
+        "refresh": 2
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Request Rate by Route",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 0 },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+          "expr": "sum by (uri) (rate(http_server_requests_seconds_count{application=\"$application\"}[5m]))",
+          "legendFormat": "{{uri}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Error Rate by Status",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 0 },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+          "expr": "sum by (status) (rate(http_server_requests_seconds_count{application=\"$application\", status!~\"2..\"}[5m]))",
+          "legendFormat": "{{status}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "p50/p95/p99",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 9 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+          "expr": "histogram_quantile(0.5, sum by (le) (rate(http_server_requests_seconds_bucket{application=\"$application\"}[5m])))",
+          "legendFormat": "p50"
+        },
+        {
+          "refId": "B",
+          "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_requests_seconds_bucket{application=\"$application\"}[5m])))",
+          "legendFormat": "p95"
+        },
+        {
+          "refId": "C",
+          "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(http_server_requests_seconds_bucket{application=\"$application\"}[5m])))",
+          "legendFormat": "p99"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Slowest Routes (p95)",
+      "type": "timeseries",
+      "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 9 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+          "expr": "topk(10, histogram_quantile(0.95, sum by (uri, le) (rate(http_server_requests_seconds_bucket{application=\"$application\"}[5m]))))",
+          "legendFormat": "{{uri}}"
+        }
+      ]
+    }
+  ]
+}

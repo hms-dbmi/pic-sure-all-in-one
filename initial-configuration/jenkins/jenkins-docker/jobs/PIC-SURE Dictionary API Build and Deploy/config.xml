@@ -16,7 +16,7 @@
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
           <name>git_hash</name>
-          <defaultValue>origin/main</defaultValue>
+          <defaultValue>pic_sure_api_mono_repo</defaultValue>
           <trim>true</trim>
         </hudson.model.StringParameterDefinition>
       </parameterDefinitions>
@@ -26,7 +26,7 @@
     <configVersion>2</configVersion>
     <userRemoteConfigs>
       <hudson.plugins.git.UserRemoteConfig>
-        <url>https://github.com/hms-dbmi/picsure-dictionary.git</url>
+        <url>https://github.com/hms-dbmi/pic-sure.git</url>
       </hudson.plugins.git.UserRemoteConfig>
     </userRemoteConfigs>
     <branches>
@@ -48,6 +48,7 @@
   <builders>
     <hudson.tasks.Shell>
       <command>#!/bin/bash
+cd services/picsure-dictionary
 
 CONFIG_DIR=&quot;/usr/local/docker-config/dictionary&quot;
 COMPOSE_FILE=&quot;docker-compose.yml&quot;

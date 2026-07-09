@@ -32,6 +32,10 @@ echo "INCLUDE_LOGGING=$INCLUDE_LOGGING"
 echo "INCLUDE_VISUALIZATION=$INCLUDE_VISUALIZATION"
 [[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/gateway" ]] && INCLUDE_GATEWAY=true || INCLUDE_GATEWAY=false
 echo "INCLUDE_GATEWAY=$INCLUDE_GATEWAY"
+[[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/operations" ]] && INCLUDE_OPERATIONS=true || INCLUDE_OPERATIONS=false
+echo "INCLUDE_OPERATIONS=$INCLUDE_OPERATIONS"
+[[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/query" ]] && INCLUDE_QUERY=true || INCLUDE_QUERY=false
+echo "INCLUDE_QUERY=$INCLUDE_QUERY"
 
 if $INCLUDE_HPDS; then
   docker stop hpds && docker rm hpds
@@ -61,4 +65,11 @@ if $INCLUDE_VISUALIZATION; then
 fi
 if $INCLUDE_GATEWAY; then
   docker stop gateway && docker rm gateway
+fi
+# Reverse of the start order: the gateway goes down first, then its downstreams.
+if $INCLUDE_QUERY; then
+  docker stop pic-sure-hpds-query-service && docker rm pic-sure-hpds-query-service
+fi
+if $INCLUDE_OPERATIONS; then
+  docker stop pic-sure-operations-service && docker rm pic-sure-operations-service
 fi

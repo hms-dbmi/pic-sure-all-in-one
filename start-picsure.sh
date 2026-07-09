@@ -32,6 +32,10 @@ echo "INCLUDE_LOGGING=$INCLUDE_LOGGING"
 echo "INCLUDE_VISUALIZATION=$INCLUDE_VISUALIZATION"
 [[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/gateway" ]] && INCLUDE_GATEWAY=true || INCLUDE_GATEWAY=false
 echo "INCLUDE_GATEWAY=$INCLUDE_GATEWAY"
+[[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/operations" ]] && INCLUDE_OPERATIONS=true || INCLUDE_OPERATIONS=false
+echo "INCLUDE_OPERATIONS=$INCLUDE_OPERATIONS"
+[[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/query" ]] && INCLUDE_QUERY=true || INCLUDE_QUERY=false
+echo "INCLUDE_QUERY=$INCLUDE_QUERY"
 
 # Docker Volumes
 export PICSURE_BANNER_VOLUME="-v $DOCKER_CONFIG_DIR/httpd/banner_config.json:/usr/local/apache2/htdocs/picsureui/settings/banner_config.json"
@@ -141,6 +145,25 @@ docker run --name=psama --restart always \
 # WildFly is no longer part of the all-in-one (the rewrite's gateway + services replaced it).
 # Remove a leftover container from an older deployment so it cannot keep serving legacy paths.
 docker stop wildfly 2>/dev/null; docker rm wildfly 2>/dev/null || true
+
+# operations-service owns the pic-sure database; query-service reaches every stored query
+# through it. Both start before the gateway, which aggregates their /actuator/health into
+# its own /system/status. The deploy jobs build these images.
+if $INCLUDE_OPERATIONS; then
+  docker rm -f pic-sure-operations-service 2>/dev/null || true
+  docker run --name=pic-sure-operations-service --restart always --network=picsure \
+    --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/operations/operations.env \
+    -d hms-dbmi/pic-sure-operations-service:LATEST \
+    || exit 2
+fi
+
+if $INCLUDE_QUERY; then
+  docker rm -f pic-sure-hpds-query-service 2>/dev/null || true
+  docker run --name=pic-sure-hpds-query-service --restart always --network=picsure \
+    --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/query/query.env \
+    -d hms-dbmi/pic-sure-hpds-query-service:LATEST \
+    || exit 2
+fi
 
 if $INCLUDE_GATEWAY; then
   docker stop gateway && docker rm gateway

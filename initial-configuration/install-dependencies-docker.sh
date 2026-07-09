@@ -252,6 +252,21 @@ mkdir -p $DOCKER_CONFIG_DIR/log/logging-docker-logs
 LOGGING_API_KEY=$(openssl rand -hex 32)
 sed_inplace "s/__LOGGING_API_KEY__/$LOGGING_API_KEY/g" $DOCKER_CONFIG_DIR/logging/logging.env
 
+# operations-service and hpds-query-service share one X-PIC-SURE-INTERNAL-TOKEN: the gateway and
+# the query-service both present it to operations-service's /operations/internal/** endpoints,
+# which fail closed when it does not match. Generate it once and write it to both env files.
+# The gateway's own gateway.env is created later by its deploy job, so its copy of this token
+# must be pasted in by hand -- the value lives in $DOCKER_CONFIG_DIR/operations/operations.env.
+QUERY_SERVICE_INTERNAL_TOKEN=$(openssl rand -hex 32)
+if [ -f $DOCKER_CONFIG_DIR/operations/operations.env ]; then
+  sed_inplace "s/__QUERY_SERVICE_INTERNAL_TOKEN__/$QUERY_SERVICE_INTERNAL_TOKEN/g" $DOCKER_CONFIG_DIR/operations/operations.env
+fi
+if [ -f $DOCKER_CONFIG_DIR/query/query.env ]; then
+  sed_inplace "s/__QUERY_SERVICE_INTERNAL_TOKEN__/$QUERY_SERVICE_INTERNAL_TOKEN/g" $DOCKER_CONFIG_DIR/query/query.env
+  # Salt for the aggregate/open-access count obfuscation. Random per install, stable afterwards.
+  sed_inplace "s/__AGGREGATE_OBFUSCATION_SALT__/$(openssl rand -hex 16)/g" $DOCKER_CONFIG_DIR/query/query.env
+fi
+
 mkdir -p $DOCKER_CONFIG_DIR/hpds_csv
 mkdir -p $DOCKER_CONFIG_DIR/hpds/all
 cp allConcepts.csv.tgz $DOCKER_CONFIG_DIR/hpds_csv/

@@ -81,6 +81,10 @@ if [ -z "$(docker ps --format '{{.Names}}' | grep picsure-db)" ]; then
   docker exec -t picsure-db mysql -u root -p$ROOT_PASS -e "GRANT ALL PRIVILEGES ON picsure.* TO 'airflow'@'%';FLUSH PRIVILEGES;";
 
   PICSURE_PASS=$(generate-random)
+  # operations-service is the sole owner of the picsure schema and connects as this user.
+  if [ -f "$DOCKER_CONFIG_DIR/operations/operations.env" ]; then
+    sed_inplace s/__PICSURE_MYSQL_PASSWORD__/$PICSURE_PASS/g "$DOCKER_CONFIG_DIR/operations/operations.env"
+  fi
   docker exec -t picsure-db mysql -u root -p$ROOT_PASS -e "CREATE USER 'picsure'@'%' IDENTIFIED BY '$PICSURE_PASS';";
   docker exec -t picsure-db mysql -u root -p$ROOT_PASS -e "GRANT ALL PRIVILEGES ON picsure.* to 'picsure'@'%';FLUSH PRIVILEGES";
 

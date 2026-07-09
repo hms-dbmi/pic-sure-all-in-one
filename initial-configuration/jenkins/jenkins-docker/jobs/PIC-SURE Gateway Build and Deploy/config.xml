@@ -70,8 +70,11 @@ if [ -f gateway.env ]; then
 elif [ -f &quot;$CONFIG_DIR/gateway.env&quot; ]; then
     echo &quot;Using existing gateway.env&quot;
 else
-    echo &quot;Creating new gateway.env file.&quot;
-    echo &quot;See $CONFIG_DIR/example.env for every supported key (introspection URLs, secrets).&quot;
+    # Fallback only: install-dependencies-docker.sh normally installs gateway.env from
+    # initial-configuration/config/gateway/gateway.env with its secrets already substituted.
+    # This branch is reached on upgraded installs whose config predates that file.
+    echo &quot;Creating new gateway.env file. Introspection/logging/internal-token secrets will be&quot;
+    echo &quot;missing -- the Configure* jobs fill them in, or copy the repo template by hand.&quot;
     {
         echo &quot;SPRING_PROFILE=aio&quot;
         # Actuator is off by default in application.yml (the 'none' sentinel matches no

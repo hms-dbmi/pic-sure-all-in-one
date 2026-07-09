@@ -252,17 +252,33 @@ mkdir -p $DOCKER_CONFIG_DIR/log/logging-docker-logs
 LOGGING_API_KEY=$(openssl rand -hex 32)
 sed_inplace "s/__LOGGING_API_KEY__/$LOGGING_API_KEY/g" $DOCKER_CONFIG_DIR/logging/logging.env
 
-# operations-service and hpds-query-service share one X-PIC-SURE-INTERNAL-TOKEN: the gateway and
-# the query-service both present it to operations-service's /operations/internal/** endpoints,
-# which fail closed when it does not match. Generate it once and write it to both env files.
-# The gateway's own gateway.env is created later by its deploy job, so its copy of this token
-# must be pasted in by hand -- the value lives in $DOCKER_CONFIG_DIR/operations/operations.env.
+# Secrets shared across gateway.env, operations.env and query.env. Each is generated once here so
+# the three files agree; a service that disagrees fails closed rather than falling open.
+#
+#   QUERY_SERVICE_INTERNAL_TOKEN  the gateway and query-service present this as
+#                                 X-PIC-SURE-INTERNAL-TOKEN to operations-service's
+#                                 /operations/internal/** endpoints (InternalTokenFilter).
+#   PICSURE_APPLICATION_TOKEN     the X-Application-Token gate on every service's /actuator/**.
+#   LOGGING_API_KEY               the gateway is the only logging-client consumer left; it needs
+#                                 the same key logging.env was just given.
+#
+# TOKEN_INTROSPECTION_TOKEN stays a placeholder: the "Configure PIC-SURE Token Introspection Token"
+# job mints the real PSAMA JWT once the auth database exists, and rewrites gateway.env in place.
 QUERY_SERVICE_INTERNAL_TOKEN=$(openssl rand -hex 32)
-if [ -f $DOCKER_CONFIG_DIR/operations/operations.env ]; then
-  sed_inplace "s/__QUERY_SERVICE_INTERNAL_TOKEN__/$QUERY_SERVICE_INTERNAL_TOKEN/g" $DOCKER_CONFIG_DIR/operations/operations.env
+PICSURE_APPLICATION_TOKEN=$(openssl rand -hex 32)
+for env_file in \
+  $DOCKER_CONFIG_DIR/gateway/gateway.env \
+  $DOCKER_CONFIG_DIR/operations/operations.env \
+  $DOCKER_CONFIG_DIR/query/query.env
+do
+  [ -f "$env_file" ] || continue
+  sed_inplace "s/__QUERY_SERVICE_INTERNAL_TOKEN__/$QUERY_SERVICE_INTERNAL_TOKEN/g" "$env_file"
+  sed_inplace "s/__PICSURE_APPLICATION_TOKEN__/$PICSURE_APPLICATION_TOKEN/g" "$env_file"
+done
+if [ -f $DOCKER_CONFIG_DIR/gateway/gateway.env ]; then
+  sed_inplace "s/__LOGGING_API_KEY__/$LOGGING_API_KEY/g" $DOCKER_CONFIG_DIR/gateway/gateway.env
 fi
 if [ -f $DOCKER_CONFIG_DIR/query/query.env ]; then
-  sed_inplace "s/__QUERY_SERVICE_INTERNAL_TOKEN__/$QUERY_SERVICE_INTERNAL_TOKEN/g" $DOCKER_CONFIG_DIR/query/query.env
   # Salt for the aggregate/open-access count obfuscation. Random per install, stable afterwards.
   sed_inplace "s/__AGGREGATE_OBFUSCATION_SALT__/$(openssl rand -hex 16)/g" $DOCKER_CONFIG_DIR/query/query.env
 fi

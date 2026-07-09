@@ -26,8 +26,30 @@ if [ -z "$NEW_API_KEY" ]; then
     exit 0
 fi
 
+# Propagate the key to every service that ships the logging client. WildFly used to be the only
+# consumer (via standalone.xml); the gateway is now, and it reads LOGGING_API_KEY straight from
+# its environment. Add-or-replace so a gateway.env generated without the line still gets it.
+# '|' delimiter: the key is hex, but the old value may be anything.
+GATEWAY_ENV="/usr/local/docker-config/gateway/gateway.env"
 
+if [ ! -f "$GATEWAY_ENV" ]; then
+    echo "No gateway.env found at $GATEWAY_ENV - nothing to propagate to."
+    exit 0
+fi
 
+CURRENT=$(grep '^LOGGING_API_KEY=' "$GATEWAY_ENV" | cut -d= -f2-)
+if [ "$CURRENT" = "$NEW_API_KEY" ]; then
+    echo "Logging API key already up to date in gateway.env."
+    exit 0
+fi
+
+if grep -q '^LOGGING_API_KEY=' "$GATEWAY_ENV"; then
+    sed -i "s|^LOGGING_API_KEY=.*|LOGGING_API_KEY=$NEW_API_KEY|" "$GATEWAY_ENV"
+else
+    echo "LOGGING_API_KEY=$NEW_API_KEY" &gt;&gt; "$GATEWAY_ENV"
+fi
+
+echo "gateway.env updated -- recreate the gateway container (Deploy or Start PIC-SURE) to apply."
 </command>
     </hudson.tasks.Shell>
   </builders>

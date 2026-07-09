@@ -93,6 +93,19 @@ fi
 
 AIRFLOW_PASSWORD=`grep "password" /usr/local/docker-config/flyway/auth/sql.properties | cut -d "=" -f2-`
 PICSURE_PASSWORD=`grep '^SPRING_DATASOURCE_PASSWORD=' "$OPS_ENV" | cut -d '=' -f 2-`
+
+# mysql-docker/setup.sh only substitutes __PICSURE_MYSQL_PASSWORD__ when it stands up a LOCAL
+# picsure-db, so on the remote path the placeholder is still sitting there. Mint a real password
+# rather than granting the literal placeholder string (or an empty one) below.
+if [ -z "$PICSURE_PASSWORD" ] || [ "$PICSURE_PASSWORD" = "__PICSURE_MYSQL_PASSWORD__" ]; then
+  PICSURE_PASSWORD=`tr -dc 'A-Za-z0-9' &lt;/dev/urandom | head -c 24`
+  if grep -q '^SPRING_DATASOURCE_PASSWORD=' "$OPS_ENV" 2&gt;/dev/null; then
+    sed -i "s|^SPRING_DATASOURCE_PASSWORD=.*|SPRING_DATASOURCE_PASSWORD=$PICSURE_PASSWORD|" "$OPS_ENV"
+  else
+    echo "SPRING_DATASOURCE_PASSWORD=$PICSURE_PASSWORD" &gt;&gt; "$OPS_ENV"
+  fi
+  echo "Generated a picsure datasource password into $OPS_ENV"
+fi
 AUTH_PASSWORD=`grep '^DATASOURCE_PASSWORD=' /usr/local/docker-config/psama/psama.env | cut -d '=' -f 2-`
 
 docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  "grant all privileges on auth.* to 'airflow'@'%' identified by '$AIRFLOW_PASSWORD';flush privileges;" mysql

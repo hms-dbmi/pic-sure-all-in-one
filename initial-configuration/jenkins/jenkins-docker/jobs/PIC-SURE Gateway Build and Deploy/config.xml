@@ -71,8 +71,13 @@ elif [ -f &quot;$CONFIG_DIR/gateway.env&quot; ]; then
     echo &quot;Using existing gateway.env&quot;
 else
     echo &quot;Creating new gateway.env file.&quot;
+    echo &quot;See $CONFIG_DIR/example.env for every supported key (introspection URLs, secrets).&quot;
     {
         echo &quot;SPRING_PROFILE=aio&quot;
+        # Actuator is off by default in application.yml (the 'none' sentinel matches no
+        # endpoint). Step 4 below polls /actuator/health/liveness, which 404s unless health
+        # is exposed here, so a generated env file must turn it on or the deploy never passes.
+        echo &quot;PICSURE_ACTUATOR_EXPOSURE=health,info&quot;
     } &gt; &quot;$CONFIG_DIR/gateway.env&quot;
 fi
 

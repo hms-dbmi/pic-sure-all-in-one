@@ -1,0 +1,353 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description>One-shot, idempotent migration of an existing WildFly-era environment to the gateway-era configuration: installs gateway/operations/query env files (harvesting the introspection token, picsure MySQL password and logging API key from wildfly/standalone.xml; minting the internal, application-token and obfuscation-salt secrets), appends PICSURE_ACTUATOR_EXPOSURE=health to the existing service env files, reroutes httpd /picsure from WildFly to the gateway, then stops and removes the wildfly container and archives its config dir to wildfly.retired-&lt;timestamp&gt;.
+
+RUNNING THIS JOB STARTS THE CUTOVER OUTAGE (WildFly stops; httpd points at a gateway that is not deployed yet). Order: 1) on the host, ./update-jenkins.sh  2) this job  3) PIC-SURE Database Migrations  4) PIC-SURE Pipeline  5) Stop/Start PIC-SURE (httpd must restart to pick up the vhosts edit)  6) PIC-SURE Health Check.
+
+Idempotent: re-running is safe and is the recovery path after a partial failure. Rollback: mv wildfly.retired-&lt;ts&gt; back to wildfly, re-sed httpd (gateway:8080/ -&gt; wildfly:8080/pic-sure-api-2/PICSURE/), restart httpd, redeploy the old images. Scope: dockerized all-in-one installs only (install-dependencies-docker.sh); not legacy-installer or BDC/GIC stacks.</description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>git_hash</name>
+          <description>pic-sure-all-in-one ref providing the env templates. NOTE: defaults to the long-lived rewrite branch during the gateway migration; change to main after the final merge.</description>
+          <defaultValue>pic_sure_api_rewrite</defaultValue>
+          <trim>true</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@5.2.2">
+    <configVersion>2</configVersion>
+    <userRemoteConfigs>
+      <hudson.plugins.git.UserRemoteConfig>
+        <url>https://github.com/hms-dbmi/pic-sure-all-in-one.git</url>
+      </hudson.plugins.git.UserRemoteConfig>
+    </userRemoteConfigs>
+    <branches>
+      <hudson.plugins.git.BranchSpec>
+        <name>${git_hash}</name>
+      </hudson.plugins.git.BranchSpec>
+    </branches>
+    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+    <submoduleCfg class="empty-list"/>
+    <extensions/>
+  </scm>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <jdk>(System)</jdk>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash
+# Migrate a WildFly-era $DOCKER_CONFIG_DIR to the gateway-era layout. Idempotent: every
+# phase self-guards, so re-running after a partial failure is the recovery path. Secrets
+# are resolved and validated BEFORE anything is written; their values are never printed.
+
+set -u
+
+DOCKER_CONFIG_DIR="${DOCKER_CONFIG_DIR:-/usr/local/docker-config}"
+TEMPLATE_DIR="initial-configuration/config"
+
+GATEWAY_ENV="$DOCKER_CONFIG_DIR/gateway/gateway.env"
+OPERATIONS_ENV="$DOCKER_CONFIG_DIR/operations/operations.env"
+QUERY_ENV="$DOCKER_CONFIG_DIR/query/query.env"
+LOGGING_ENV="$DOCKER_CONFIG_DIR/logging/logging.env"
+
+GATEWAY_KEYS="TOKEN_INTROSPECTION_TOKEN LOGGING_API_KEY PICSURE_APPLICATION_TOKEN QUERY_SERVICE_INTERNAL_TOKEN"
+OPERATIONS_KEYS="SPRING_DATASOURCE_PASSWORD QUERY_SERVICE_INTERNAL_TOKEN PICSURE_APPLICATION_TOKEN"
+QUERY_KEYS="QUERY_SERVICE_INTERNAL_TOKEN AGGREGATE_OBFUSCATION_SALT PICSURE_APPLICATION_TOKEN"
+
+SUMMARY=""
+note() { echo "==&gt; $1"; SUMMARY="${SUMMARY}  - $1
+"; }
+fail() { echo "ERROR: $1" &gt;&amp;2; exit 2; }
+
+[ -d "$DOCKER_CONFIG_DIR" ] || fail "DOCKER_CONFIG_DIR '$DOCKER_CONFIG_DIR' is not a directory"
+[ -f "$TEMPLATE_DIR/gateway/gateway.env" ] || fail "workspace has no env templates under $TEMPLATE_DIR (wrong git_hash?)"
+
+# ---- helpers ---------------------------------------------------------------
+
+is_placeholder() { printf '%s' "$1" | grep -qx '__[A-Z_]\{1,\}__'; }
+
+# real_value FILE KEY: prints KEY's value when present, non-empty and not a placeholder.
+real_value() {
+  local v
+  v=$(sed -n "s/^$2=//p" "$1" 2&gt;/dev/null | head -n 1)
+  [ -n "$v" ] || return 1
+  is_placeholder "$v" &amp;&amp; return 1
+  printf '%s\n' "$v"
+}
+
+# complete_env FILE KEY...: file exists, no placeholder outside comments, all KEYs real.
+complete_env() {
+  local f="$1"; shift
+  [ -f "$f" ] || return 1
+  grep -q '^[^#]*__[A-Z_]\{1,\}__' "$f" &amp;&amp; return 1
+  local k
+  for k in "$@"; do
+    real_value "$f" "$k" &gt;/dev/null || return 1
+  done
+  return 0
+}
+
+# shared_value KEY FILE...: the single real value of KEY across FILEs; fails on divergence.
+shared_value() {
+  local key="$1"; shift
+  local val="" f v
+  for f in "$@"; do
+    v=$(real_value "$f" "$key") || continue
+    if [ -n "$val" ] &amp;&amp; [ "$v" != "$val" ]; then
+      fail "$key differs between existing env files; reconcile manually, then re-run"
+    fi
+    val="$v"
+  done
+  printf '%s\n' "$val"
+}
+
+mint() { tr -dc 'A-Za-z0-9' &lt; /dev/urandom | head -c 43; }
+mint_hex() { tr -dc 'a-f0-9' &lt; /dev/urandom | head -c 32; }
+
+# Harvest source: the live wildfly dir, else the newest archived one (re-run support).
+SRC_XML=""
+if [ -f "$DOCKER_CONFIG_DIR/wildfly/standalone.xml" ]; then
+  SRC_XML="$DOCKER_CONFIG_DIR/wildfly/standalone.xml"
+else
+  SRC_XML=$(ls "$DOCKER_CONFIG_DIR"/wildfly.retired-*/standalone.xml 2&gt;/dev/null | sort | tail -n 1)
+fi
+
+# xml_prop NAME: value of &lt;simple name="java:global/NAME" value="..."/&gt;.
+xml_prop() {
+  [ -n "$SRC_XML" ] || return 0
+  sed -n "s/.*java:global\/$1\" value=\"\([^\"]*\)\".*/\1/p" "$SRC_XML" | head -n 1
+}
+
+# The PicsureDS &lt;password&gt; specifically -- standalone.xml has other &lt;password&gt; elements.
+xml_mysql_pass() {
+  [ -n "$SRC_XML" ] || return 0
+  awk '/pool-name="PicsureDS"/{f=1} f &amp;&amp; /&lt;password&gt;/{gsub(/.*&lt;password&gt;|&lt;\/password&gt;.*/,""); print; exit}' "$SRC_XML"
+}
+
+harvested() { # NAME VALUE -&gt; echoes VALUE unless it is empty or a placeholder
+  if [ -n "$2" ] &amp;&amp; ! is_placeholder "$2"; then printf '%s\n' "$2"; fi
+}
+
+# ---- phase 1: resolve secrets (read-only) -----------------------------------
+
+echo "== Phase 1: resolve secrets"
+
+# shellcheck disable=SC2086
+if complete_env "$GATEWAY_ENV" $GATEWAY_KEYS \
+    &amp;&amp; complete_env "$OPERATIONS_ENV" $OPERATIONS_KEYS \
+    &amp;&amp; complete_env "$QUERY_ENV" $QUERY_KEYS; then
+  NEED_ENV_INSTALL=false
+  # Divergence still matters on an already-migrated tree: a forked shared secret breaks at a
+  # distance (gateway-&gt;ops internal calls 401). Check and fail loudly, but resolve nothing.
+  shared_value QUERY_SERVICE_INTERNAL_TOKEN "$GATEWAY_ENV" "$OPERATIONS_ENV" "$QUERY_ENV" &gt;/dev/null || exit 2
+  shared_value PICSURE_APPLICATION_TOKEN "$GATEWAY_ENV" "$OPERATIONS_ENV" "$QUERY_ENV" &gt;/dev/null || exit 2
+  note "gateway/operations/query env files already complete; no secrets to resolve"
+else
+  NEED_ENV_INSTALL=true
+
+  TOKEN_INTROSPECTION_TOKEN=$(real_value "$GATEWAY_ENV" TOKEN_INTROSPECTION_TOKEN) \
+    &amp;&amp; note "TOKEN_INTROSPECTION_TOKEN: reused from existing gateway.env"
+  if [ -z "${TOKEN_INTROSPECTION_TOKEN:-}" ]; then
+    [ -n "$SRC_XML" ] || fail "need to harvest secrets but found no wildfly/standalone.xml (live or archived)"
+    TOKEN_INTROSPECTION_TOKEN=$(harvested token_introspection_token "$(xml_prop token_introspection_token)")
+    [ -n "$TOKEN_INTROSPECTION_TOKEN" ] || fail "token_introspection_token in $SRC_XML is missing or an unsubstituted placeholder"
+    note "TOKEN_INTROSPECTION_TOKEN: harvested from standalone.xml"
+  fi
+
+  PICSURE_MYSQL_PASSWORD=$(real_value "$OPERATIONS_ENV" SPRING_DATASOURCE_PASSWORD) \
+    &amp;&amp; note "picsure MySQL password: reused from existing operations.env"
+  if [ -z "${PICSURE_MYSQL_PASSWORD:-}" ]; then
+    [ -n "$SRC_XML" ] || fail "need to harvest secrets but found no wildfly/standalone.xml (live or archived)"
+    PICSURE_MYSQL_PASSWORD=$(harvested mysql_password "$(xml_mysql_pass)")
+    [ -n "$PICSURE_MYSQL_PASSWORD" ] || fail "PicsureDS password in $SRC_XML is missing or an unsubstituted placeholder"
+    note "picsure MySQL password: harvested from standalone.xml (PicsureDS datasource)"
+  fi
+
+  LOGGING_API_KEY=$(real_value "$GATEWAY_ENV" LOGGING_API_KEY) \
+    &amp;&amp; note "LOGGING_API_KEY: reused from existing gateway.env"
+  if [ -z "${LOGGING_API_KEY:-}" ]; then
+    LOGGING_API_KEY=$(real_value "$LOGGING_ENV" LOGGING_API_KEY) \
+      &amp;&amp; note "LOGGING_API_KEY: reused from logging/logging.env"
+  fi
+  if [ -z "${LOGGING_API_KEY:-}" ]; then
+    LOGGING_API_KEY=$(harvested logging_api_key "$(xml_prop logging_api_key)")
+    [ -z "$LOGGING_API_KEY" ] || note "LOGGING_API_KEY: harvested from standalone.xml"
+  fi
+  if [ -z "${LOGGING_API_KEY:-}" ]; then
+    LOGGING_API_KEY=$(mint)
+    if [ -f "$LOGGING_ENV" ]; then
+      if grep -q '^LOGGING_API_KEY=' "$LOGGING_ENV"; then
+        sed -i "s|^LOGGING_API_KEY=.*|LOGGING_API_KEY=$LOGGING_API_KEY|" "$LOGGING_ENV"
+      else
+        echo "LOGGING_API_KEY=$LOGGING_API_KEY" &gt;&gt; "$LOGGING_ENV"
+      fi
+      note "LOGGING_API_KEY: minted (was never configured); wrote the same key to logging/logging.env"
+    else
+      note "LOGGING_API_KEY: minted (logging service not enabled on this environment)"
+    fi
+  fi
+
+  QUERY_SERVICE_INTERNAL_TOKEN=$(shared_value QUERY_SERVICE_INTERNAL_TOKEN "$GATEWAY_ENV" "$OPERATIONS_ENV" "$QUERY_ENV") || exit 2
+  if [ -n "$QUERY_SERVICE_INTERNAL_TOKEN" ]; then
+    note "QUERY_SERVICE_INTERNAL_TOKEN: reused from existing env files"
+  else
+    QUERY_SERVICE_INTERNAL_TOKEN=$(mint); note "QUERY_SERVICE_INTERNAL_TOKEN: minted"
+  fi
+
+  PICSURE_APPLICATION_TOKEN=$(shared_value PICSURE_APPLICATION_TOKEN "$GATEWAY_ENV" "$OPERATIONS_ENV" "$QUERY_ENV") || exit 2
+  if [ -n "$PICSURE_APPLICATION_TOKEN" ]; then
+    note "PICSURE_APPLICATION_TOKEN: reused from existing env files"
+  else
+    PICSURE_APPLICATION_TOKEN=$(mint); note "PICSURE_APPLICATION_TOKEN: minted"
+  fi
+
+  AGGREGATE_OBFUSCATION_SALT=$(real_value "$QUERY_ENV" AGGREGATE_OBFUSCATION_SALT) \
+    &amp;&amp; note "AGGREGATE_OBFUSCATION_SALT: reused from existing query.env"
+  if [ -z "${AGGREGATE_OBFUSCATION_SALT:-}" ]; then
+    AGGREGATE_OBFUSCATION_SALT=$(mint_hex); note "AGGREGATE_OBFUSCATION_SALT: minted"
+  fi
+
+  for name in TOKEN_INTROSPECTION_TOKEN PICSURE_MYSQL_PASSWORD LOGGING_API_KEY \
+              QUERY_SERVICE_INTERNAL_TOKEN PICSURE_APPLICATION_TOKEN AGGREGATE_OBFUSCATION_SALT; do
+    v="${!name}"
+    [ -n "$v" ] || fail "$name resolved to an empty value"
+    is_placeholder "$v" &amp;&amp; fail "$name resolved to an unsubstituted placeholder"
+    # Values are single-line by construction (sed/awk line extraction); | and &amp; would
+    # corrupt the s|...|...| substitutions in phase 2.
+    case "$v" in
+      *'|'* | *'&amp;'*) fail "$name contains a character unsafe for substitution (| or &amp;)";;
+    esac
+  done
+fi
+
+# ---- phase 2: install the three new env files --------------------------------
+
+echo "== Phase 2: install gateway/operations/query env files"
+
+install_env() { # SUBDIR FILE KEY...
+  local sub="$1" file="$2"; shift 2
+  local dest="$DOCKER_CONFIG_DIR/$sub/$file"
+  if complete_env "$dest" "$@"; then
+    note "$sub/$file: already complete, left untouched"
+    return 0
+  fi
+  mkdir -p "$DOCKER_CONFIG_DIR/$sub"
+  if [ -f "$dest" ]; then
+    cp "$dest" "$dest.pre-migration-${BUILD_NUMBER:-manual}"
+    note "$sub/$file: incomplete -&gt; backed up (.pre-migration-${BUILD_NUMBER:-manual}) and regenerated from the template"
+  else
+    note "$sub/$file: created from the template"
+  fi
+  cp "$TEMPLATE_DIR/$sub/$file" "$dest"
+  sed -i \
+    -e "s|__TOKEN_INTROSPECTION_TOKEN__|$TOKEN_INTROSPECTION_TOKEN|g" \
+    -e "s|__LOGGING_API_KEY__|$LOGGING_API_KEY|g" \
+    -e "s|__PICSURE_APPLICATION_TOKEN__|$PICSURE_APPLICATION_TOKEN|g" \
+    -e "s|__QUERY_SERVICE_INTERNAL_TOKEN__|$QUERY_SERVICE_INTERNAL_TOKEN|g" \
+    -e "s|__PICSURE_MYSQL_PASSWORD__|$PICSURE_MYSQL_PASSWORD|g" \
+    -e "s|__AGGREGATE_OBFUSCATION_SALT__|$AGGREGATE_OBFUSCATION_SALT|g" \
+    "$dest"
+  complete_env "$dest" "$@" || fail "$sub/$file is still incomplete after substitution"
+}
+
+if [ "$NEED_ENV_INSTALL" = true ]; then
+  # shellcheck disable=SC2086
+  install_env gateway gateway.env $GATEWAY_KEYS
+  # shellcheck disable=SC2086
+  install_env operations operations.env $OPERATIONS_KEYS
+  # shellcheck disable=SC2086
+  install_env query query.env $QUERY_KEYS
+fi
+
+# ---- phase 3: edit existing services in place ---------------------------------
+
+echo "== Phase 3: actuator exposure + httpd routing"
+
+append_actuator() { # RELATIVE_PATH
+  local f="$DOCKER_CONFIG_DIR/$1"
+  if [ ! -f "$f" ]; then
+    note "$1: not present on this environment, skipped"
+    return 0
+  fi
+  if grep -q '^PICSURE_ACTUATOR_EXPOSURE=' "$f"; then
+    note "$1: PICSURE_ACTUATOR_EXPOSURE already set"
+    return 0
+  fi
+  {
+    echo ""
+    echo "# Added by 'Migrate PIC-SURE Configuration to Gateway': rewrite-era images ship actuator off"
+    echo "# by default; deploy smoke checks and the gateway /system/status probe need shallow health."
+    echo "PICSURE_ACTUATOR_EXPOSURE=health"
+  } &gt;&gt; "$f"
+  note "$1: appended PICSURE_ACTUATOR_EXPOSURE=health"
+}
+
+for f in psama/psama.env hpds/hpds.env dictionary/dictionary.env visualization/visualization.env logging/logging.env; do
+  append_actuator "$f"
+done
+
+for conf in httpd-vhosts.conf httpd-vhosts-ssloffload.conf; do
+  c="$DOCKER_CONFIG_DIR/httpd/$conf"
+  [ -f "$c" ] || continue
+  if grep -q 'wildfly:8080' "$c"; then
+    sed -i 's|http://wildfly:8080/pic-sure-api-2/PICSURE/|http://gateway:8080/|g' "$c"
+    note "httpd/$conf: rerouted /picsure from WildFly to the gateway"
+  else
+    note "httpd/$conf: already routes to the gateway"
+  fi
+done
+if grep -rq 'wildfly:8080' "$DOCKER_CONFIG_DIR/httpd/" 2&gt;/dev/null; then
+  fail "unrecognized wildfly:8080 references remain under httpd/; migrate those files manually and re-run"
+fi
+
+# ---- phase 4: retire WildFly ---------------------------------------------------
+
+echo "== Phase 4: retire WildFly"
+
+if docker ps -a --format '{{.Names}}' | grep -qx wildfly; then
+  docker stop wildfly
+  docker rm wildfly || fail "could not remove the wildfly container"
+  note "wildfly container: stopped and removed"
+else
+  note "wildfly container: not present"
+fi
+
+if [ -d "$DOCKER_CONFIG_DIR/wildfly" ]; then
+  archive="$DOCKER_CONFIG_DIR/wildfly.retired-$(date +%Y%m%d-%H%M%S)"
+  mv "$DOCKER_CONFIG_DIR/wildfly" "$archive" || fail "could not archive the wildfly config dir"
+  note "wildfly config dir: archived to $(basename "$archive") (rollback anchor -- holds the original standalone.xml)"
+else
+  note "wildfly config dir: not present"
+fi
+
+# ---- summary -------------------------------------------------------------------
+
+echo ""
+echo "================ migration summary ================"
+printf '%s' "$SUMMARY"
+echo "==================================================="
+echo "Next: 'PIC-SURE Database Migrations' -&gt; 'PIC-SURE Pipeline' -&gt; restart httpd (Stop/Start PIC-SURE) -&gt; 'PIC-SURE Health Check'."
+exit 0
+</command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers>
+    <hudson.plugins.ws__cleanup.PreBuildCleanup plugin="ws-cleanup@0.46">
+      <deleteDirs>false</deleteDirs>
+      <cleanupParameter></cleanupParameter>
+      <externalDelete></externalDelete>
+      <disableDeferredWipeout>false</disableDeferredWipeout>
+    </hudson.plugins.ws__cleanup.PreBuildCleanup>
+  </buildWrappers>
+</project>

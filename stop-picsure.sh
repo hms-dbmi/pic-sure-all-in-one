@@ -77,5 +77,7 @@ if $INCLUDE_OPERATIONS; then
 fi
 
 if $INCLUDE_MONITORING; then
-  bash "$(dirname "${BASH_SOURCE[0]}")/monitoring/stop-monitoring.sh"
+  MONITORING_SCRIPT="$(dirname "${BASH_SOURCE[0]}")/monitoring/stop-monitoring.sh"
+  [[ -f "$MONITORING_SCRIPT" ]] || MONITORING_SCRIPT=/scripts/monitoring/stop-monitoring.sh
+  bash "$MONITORING_SCRIPT"
 fi

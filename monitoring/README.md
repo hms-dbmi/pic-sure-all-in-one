@@ -51,8 +51,12 @@ that block into `$DOCKER_CONFIG_DIR/httpd/httpd-vhosts.conf` yourself and run
 
 Two dedicated jobs — `Start Monitoring` and `Stop Monitoring`
 (`initial-configuration/jenkins/jenkins-docker/jobs/`) run
-`monitoring/start-monitoring.sh` / `monitoring/stop-monitoring.sh` directly,
+`/scripts/monitoring/start-monitoring.sh` / `/scripts/monitoring/stop-monitoring.sh`,
 mirroring the existing `Start PIC-SURE` / `Stop PIC-SURE` job conventions.
+The Jenkins container mounts this repo's `monitoring/` directory at
+`/scripts/monitoring` (see `start-jenkins.sh`), so a Jenkins container restart
+via `stop-jenkins.sh`/`start-jenkins.sh` is required after pulling this change
+for the mount to take effect.
 Load them into a running Jenkins instance with:
 
 ```bash

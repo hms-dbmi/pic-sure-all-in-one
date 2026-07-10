@@ -15,7 +15,7 @@
     <hudson.tasks.Shell>
       <command>
 export CURRENT_FS_DOCKER_CONFIG_DIR=/usr/local/docker-config/
-bash monitoring/start-monitoring.sh
+bash /scripts/monitoring/start-monitoring.sh
 </command>
     </hudson.tasks.Shell>
   </builders>

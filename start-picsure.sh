@@ -226,5 +226,7 @@ if $INCLUDE_VISUALIZATION; then
 fi
 
 if $INCLUDE_MONITORING; then
-  bash "$(dirname "${BASH_SOURCE[0]}")/monitoring/start-monitoring.sh"
+  MONITORING_SCRIPT="$(dirname "${BASH_SOURCE[0]}")/monitoring/start-monitoring.sh"
+  [[ -f "$MONITORING_SCRIPT" ]] || MONITORING_SCRIPT=/scripts/monitoring/start-monitoring.sh
+  bash "$MONITORING_SCRIPT"
 fi

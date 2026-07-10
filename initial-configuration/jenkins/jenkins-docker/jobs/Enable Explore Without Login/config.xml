@@ -69,31 +69,8 @@ else
     echo "VITE_OPEN_EXPLORER=$ENABLE_OPEN_ACCESS" &gt;&gt; "$HTTPD_ENV"
 fi
 
-# Set VITE_RESOURCE_OPEN_HPDS to match VITE_RESOURCE_HPDS when enabling
-if [ "$ENABLE_OPEN_ACCESS" = "true" ]; then
-    AUTH_HPDS=$(grep "^VITE_RESOURCE_HPDS=" "$HTTPD_ENV" | cut -d'=' -f2)
-    if [ -n "$AUTH_HPDS" ]; then
-        if grep -q "^VITE_RESOURCE_OPEN_HPDS=" "$HTTPD_ENV"; then
-            sed -i "s/^VITE_RESOURCE_OPEN_HPDS=.*/VITE_RESOURCE_OPEN_HPDS=$AUTH_HPDS/" "$HTTPD_ENV"
-        else
-            echo "VITE_RESOURCE_OPEN_HPDS=$AUTH_HPDS" &gt;&gt; "$HTTPD_ENV"
-        fi
-        echo "Set VITE_RESOURCE_OPEN_HPDS=$AUTH_HPDS"
-
-        # Update visualization resource if it exists
-        VIZ_RESOURCE=$(grep "^VITE_RESOURCE_VIZ=" "$HTTPD_ENV" | cut -d'=' -f2)
-        if [ -n "$VIZ_RESOURCE" ]; then
-            echo "Visualization resource found: $VIZ_RESOURCE (HPDS UUIDs should match)"
-        fi
-    else
-        echo "WARNING: VITE_RESOURCE_HPDS not found in $HTTPD_ENV. VITE_RESOURCE_OPEN_HPDS must be set manually."
-    fi
-else
-    # Clear the open HPDS resource when disabling
-    if grep -q "^VITE_RESOURCE_OPEN_HPDS=" "$HTTPD_ENV"; then
-        sed -i "s/^VITE_RESOURCE_OPEN_HPDS=.*/VITE_RESOURCE_OPEN_HPDS=/" "$HTTPD_ENV"
-    fi
-fi
+# No VITE_RESOURCE_* handling: the frontend selects backends by gateway path, not by resource
+# UUID, so VITE_OPEN + VITE_OPEN_EXPLORER are the only frontend switches open access needs.
 
 echo "Frontend configuration updated."
 

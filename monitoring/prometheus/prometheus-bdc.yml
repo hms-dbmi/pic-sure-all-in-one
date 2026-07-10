@@ -63,3 +63,28 @@ scrape_configs:
   #   http_headers:
   #     X-Application-Token:
   #       files: [/etc/prometheus/secrets/app-token]
+
+  - job_name: blackbox
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets: ["https://__PUBLIC_DNS__/picsure/health", "https://__STAGING_DNS__/picsure/health"]
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+  - job_name: mysql
+    static_configs:
+      - targets: ["mysqld-exporter:9104"]
+
+  # --- FISMA dictionary-PG stub: postgres_exporter is intentionally NOT wired
+  # here. The dictionary-PG endpoint is not in this repo — it lives only in
+  # the S3-managed `configs/picsure-dictionary/picsure-dictionary.env`
+  # (see aio README.md "DB exporters"). Once that endpoint is known, add a
+  # `postgres` job here targeting `postgres-exporter:9187` on the podman
+  # `monitoring` network, same pattern as the mysql job above.

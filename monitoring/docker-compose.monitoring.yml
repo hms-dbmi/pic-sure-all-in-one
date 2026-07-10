@@ -74,6 +74,43 @@ services:
       - monitoring
       - picsure
 
+  blackbox-exporter:
+    image: prom/blackbox-exporter:v0.26.0
+    container_name: blackbox-exporter
+    restart: always
+    command:
+      - --config.file=/etc/blackbox/blackbox.yml
+    volumes:
+      - ./blackbox:/etc/blackbox:ro
+    networks:
+      - monitoring
+      - picsure   # must reach httpd
+
+  # --- Opt-in DB exporters (profile db-exporters; started only when
+  # MONITORING_* credentials are present in monitoring.env — see start-monitoring.sh) ---
+  postgres-exporter:
+    image: quay.io/prometheuscommunity/postgres-exporter:v0.16.0
+    container_name: postgres-exporter
+    restart: always
+    profiles: ["db-exporters"]
+    env_file: ./secrets/db-exporters.env
+    networks:
+      - monitoring
+      - dictionary
+
+  mysqld-exporter:
+    image: prom/mysqld-exporter:v0.17.2
+    container_name: mysqld-exporter
+    restart: always
+    profiles: ["db-exporters"]
+    command:
+      - --mysqld.username=${MONITORING_MYSQL_USER:-monitoring}
+      - --mysqld.address=picsure-db:3306
+    env_file: ./secrets/db-exporters.env
+    networks:
+      - monitoring
+      - picsure
+
 volumes:
   prometheus-data:
   grafana-data:

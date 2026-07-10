@@ -1,0 +1,15 @@
+modules:
+  http_2xx:            # strict TLS — use for publicly-resolvable names (FISMA ALB, staging)
+    prober: http
+    timeout: 10s
+    http:
+      preferred_ip_protocol: ip4
+      follow_redirects: true
+  http_2xx_insecure:   # docker-internal names (cert CN won't match) — expiry metrics still collected
+    prober: http
+    timeout: 10s
+    http:
+      preferred_ip_protocol: ip4
+      follow_redirects: true
+      tls_config:
+        insecure_skip_verify: true

@@ -3,12 +3,15 @@
 This directory holds the opt-in Prometheus + Grafana observability stack for the
 all-in-one (AIO) deployment: Prometheus v3.4.1, Grafana 11.6.0 (bound to
 `127.0.0.1:3001` only), node-exporter (host/container metrics), cadvisor
-(container metrics), and an apache-exporter reading httpd's `mod_status`
-endpoint. It scrapes Prometheus itself, the gateway's `/actuator/prometheus`
-(token-gated), node-exporter, cadvisor, and apache-exporter today; further
-per-service jobs are pre-written but commented out until those services expose
-metrics (see "M2 activation" below). Design rationale, architecture, and the
-full rollout plan live in the pic-sure repo at
+(container metrics), an apache-exporter reading httpd's `mod_status`
+endpoint, and a blackbox-exporter for synthetic HTTP probes + TLS certificate
+expiry. It scrapes Prometheus itself, the gateway's `/actuator/prometheus`
+(token-gated), node-exporter, cadvisor, apache-exporter, and blackbox today;
+further per-service jobs are pre-written but commented out until those
+services expose metrics (see "M2 activation" below). Two DB exporters
+(postgres-exporter, mysqld-exporter) are also available but opt-in — see
+"DB exporters" below. Design rationale, architecture, and the full rollout
+plan live in the pic-sure repo at
 `docs/superpowers/specs/2026-07-06-monitoring-stack-design.md`.
 
 ## Setup (opt-in)
@@ -88,14 +91,75 @@ uncomment its job block, redeploy with `start-monitoring.sh` (which restarts
 Prometheus automatically so the new scrape config takes effect), and confirm
 it shows up as `up` in Prometheus targets.
 
+## M5: Synthetic probes & TLS certificate expiry
+
+blackbox-exporter (v0.26.0) probes a small set of HTTP(S) endpoints and
+exposes the results (up/down, latency, HTTP status, TLS certificate expiry)
+to Prometheus. In AIO it probes `https://httpd/picsure/health` and
+`https://httpd/` using the `http_2xx_insecure` module
+(`monitoring/blackbox/blackbox.yml`): httpd's cert is issued for the
+publicly-resolvable name, not the docker-internal `httpd` hostname, so
+strict TLS verification would always fail there even though the site is
+healthy — `insecure_skip_verify` is used only to avoid that false negative;
+`probe_ssl_earliest_cert_expiry` is still collected normally, so expiry
+alerts remain meaningful. Publicly-resolvable targets (FISMA ALB, staging —
+see BDC notes below) use the strict `http_2xx` module instead.
+
+The `PIC-SURE / Synthetics & Certificates` Grafana dashboard
+(`monitoring/grafana/dashboards/synthetics-certificates.json`) shows probe
+success, probe duration, HTTP status code, and days-to-certificate-expiry
+per target (red below 14 days, yellow below 30).
+
+## M5: DB exporters (opt-in)
+
+postgres-exporter (v0.16.0) and mysqld-exporter (v0.17.2) are defined in
+`docker-compose.monitoring.yml` under the `db-exporters` compose profile, so
+a plain `docker compose up -d` never starts them — they only come up when
+`start-monitoring.sh` finds matching credentials in `monitoring.env`.
+
+To opt in:
+
+1. Create a **read-only** monitoring user on each database you want metrics
+   from. MySQL (`picsure-db`):
+
+   ```sql
+   CREATE USER 'monitoring'@'%' IDENTIFIED BY '...';
+   GRANT PROCESS, REPLICATION CLIENT, SELECT ON performance_schema.* TO 'monitoring'@'%';
+   ```
+
+   PostgreSQL (`dictionary-db`, database `dictionary`):
+
+   ```sql
+   CREATE ROLE monitoring LOGIN PASSWORD '...';
+   GRANT pg_monitor TO monitoring;
+   ```
+
+2. Set the corresponding keys in `$DOCKER_CONFIG_DIR/monitoring/monitoring.env`
+   (see `monitoring.env.example`): `MONITORING_MYSQL_USER` /
+   `MONITORING_MYSQL_PASSWORD` for mysqld-exporter, `MONITORING_PG_USER` /
+   `MONITORING_PG_PASSWORD` for postgres-exporter. Leave a pair empty to skip
+   that exporter.
+3. Rerun `bash monitoring/start-monitoring.sh`. It writes
+   `$DOCKER_CONFIG_DIR/monitoring/secrets/db-exporters.env` (chmod 600) from
+   those keys and starts each exporter only if both of its keys are present;
+   otherwise it prints a one-line "skipping <exporter> (no MONITORING_*
+   credentials in monitoring.env)" and moves on.
+
+Once running, `postgres-exporter:9187` and `mysqld-exporter:9104` are scraped
+by the `postgres` / `mysql` Prometheus jobs (they show `down` until the
+profile is enabled) and surfaced on the `PIC-SURE / Databases` dashboard
+(`monitoring/grafana/dashboards/databases.json`), alongside the existing
+Micrometer JDBC pool metrics from the app side.
+
 ## BDC / FISMA notes
 
 `monitoring/prometheus/prometheus-bdc.yml` in this repo is a template with
-`__REGION__` / `__ENVIRONMENT_NAME__` placeholders; it is not deployed
-directly from here. It gets rendered (placeholders substituted) by
-`deploy-monitoring.sh` in the `pic-sure-bdc-infrastructure` repo, which also
-provisions the EC2-SD-based Prometheus/Grafana instance in AWS. Grafana there
-is not publicly reachable — access it via an SSM port-forward, e.g.:
+`__REGION__` / `__ENVIRONMENT_NAME__` / `__PUBLIC_DNS__` / `__STAGING_DNS__`
+placeholders; it is not deployed directly from here. It gets rendered
+(placeholders substituted) by `deploy-monitoring.sh` in the
+`pic-sure-bdc-infrastructure` repo, which also provisions the EC2-SD-based
+Prometheus/Grafana instance in AWS. Grafana there is not publicly
+reachable — access it via an SSM port-forward, e.g.:
 
 ```bash
 aws ssm start-session --target <monitoring-instance-id> \
@@ -104,6 +168,16 @@ aws ssm start-session --target <monitoring-instance-id> \
 ```
 
 then browse `http://127.0.0.1:3001` as usual.
+
+`monitoring/grafana/provisioning-bdc/` and `monitoring/grafana/dashboards-bdc/`
+are **FISMA-only** assets (a CloudWatch datasource and an AWS Edge dashboard
+for ALB/RDS/EBS metrics) — they are installed by `deploy-monitoring.sh` in
+the BDC repo, not by this repo's `start-monitoring.sh`, which only ever
+syncs `grafana/provisioning` and `grafana/dashboards`. The `prometheus-bdc.yml`
+mysql job scrapes `mysqld-exporter:9104` directly (no compose profile there —
+BDC's podman-based deploy wires it unconditionally); there is intentionally
+no `postgres` job in that file yet — see the stub comment in
+`prometheus-bdc.yml` for why.
 
 ## Explicitly deferred (do not re-litigate; see spec §10)
 

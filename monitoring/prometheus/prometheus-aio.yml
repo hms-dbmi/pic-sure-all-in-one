@@ -78,3 +78,28 @@ scrape_configs:
   - job_name: apache
     static_configs:
       - targets: ["apache-exporter:9117"]
+
+  - job_name: blackbox
+    metrics_path: /probe
+    params:
+      module: [http_2xx_insecure]
+    static_configs:
+      - targets: ["https://httpd/picsure/health", "https://httpd/"]
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+  # postgres/mysql targets show `down` until the db-exporters compose profile
+  # is enabled (MONITORING_* credentials set in monitoring.env) — mirrors the
+  # documented opt-in flow in README.md.
+  - job_name: postgres
+    static_configs:
+      - targets: ["postgres-exporter:9187"]
+
+  - job_name: mysql
+    static_configs:
+      - targets: ["mysqld-exporter:9104"]

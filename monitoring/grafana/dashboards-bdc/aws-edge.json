@@ -1,0 +1,200 @@
+{
+  "uid": "picsure-aws-edge",
+  "title": "PIC-SURE / AWS Edge (BDC)",
+  "schemaVersion": 39,
+  "refresh": "1m",
+  "time": { "from": "now-3h", "to": "now" },
+  "timezone": "browser",
+  "tags": ["picsure", "bdc"],
+  "templating": {
+    "list": [
+      {
+        "name": "loadbalancer",
+        "label": "Load Balancer",
+        "type": "query",
+        "datasource": { "type": "cloudwatch", "uid": "picsure-cloudwatch" },
+        "query": "dimension_values(us-east-1,AWS/ApplicationELB,RequestCount,LoadBalancer)",
+        "refresh": 1,
+        "includeAll": false,
+        "multi": false,
+        "current": {}
+      },
+      {
+        "name": "dbinstance",
+        "label": "RDS Instance",
+        "type": "query",
+        "datasource": { "type": "cloudwatch", "uid": "picsure-cloudwatch" },
+        "query": "dimension_values(us-east-1,AWS/RDS,CPUUtilization,DBInstanceIdentifier)",
+        "refresh": 1,
+        "includeAll": false,
+        "multi": false,
+        "current": {}
+      },
+      {
+        "name": "volumeid",
+        "label": "EBS Volume",
+        "type": "query",
+        "datasource": { "type": "cloudwatch", "uid": "picsure-cloudwatch" },
+        "query": "dimension_values(us-east-1,AWS/EBS,BurstBalance,VolumeId)",
+        "refresh": 1,
+        "includeAll": false,
+        "multi": false,
+        "current": {}
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "title": "ALB Request Count",
+      "type": "timeseries",
+      "datasource": { "type": "cloudwatch", "uid": "picsure-cloudwatch" },
+      "gridPos": { "h": 8, "w": 6, "x": 0, "y": 0 },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "cloudwatch", "uid": "picsure-cloudwatch" },
+          "region": "us-east-1",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "RequestCount",
+          "statistic": "Sum",
+          "dimensions": { "LoadBalancer": "$loadbalancer" }
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "ALB 5XX Count",
+      "type": "timeseries",
+      "datasource": { "type": "cloudwatch", "uid": "picsure-cloudwatch" },
+      "gridPos": { "h": 8, "w": 6, "x": 6, "y": 0 },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "cloudwatch", "uid": "picsure-cloudwatch" },
+          "region": "us-east-1",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "HTTPCode_ELB_5XX_Count",
+          "statistic": "Sum",
+          "dimensions": { "LoadBalancer": "$loadbalancer" }
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "ALB Target Response Time (p95)",
+      "type": "timeseries",
+      "datasource": { "type": "cloudwatch", "uid": "picsure-cloudwatch" },
+      "gridPos": { "h": 8, "w": 6, "x": 12, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "cloudwatch", "uid": "picsure-cloudwatch" },
+          "region": "us-east-1",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "TargetResponseTime",
+          "statistic": "p95",
+          "dimensions": { "LoadBalancer": "$loadbalancer" }
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "ALB Healthy Host Count",
+      "type": "timeseries",
+      "datasource": { "type": "cloudwatch", "uid": "picsure-cloudwatch" },
+      "gridPos": { "h": 8, "w": 6, "x": 18, "y": 0 },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "cloudwatch", "uid": "picsure-cloudwatch" },
+          "region": "us-east-1",
+          "namespace": "AWS/ApplicationELB",
+          "metricName": "HealthyHostCount",
+          "statistic": "Minimum",
+          "dimensions": { "LoadBalancer": "$loadbalancer" }
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "RDS CPU Utilization",
+      "type": "timeseries",
+      "datasource": { "type": "cloudwatch", "uid": "picsure-cloudwatch" },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 8 },
+      "fieldConfig": { "defaults": { "unit": "percent" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "cloudwatch", "uid": "picsure-cloudwatch" },
+          "region": "us-east-1",
+          "namespace": "AWS/RDS",
+          "metricName": "CPUUtilization",
+          "statistic": "Average",
+          "dimensions": { "DBInstanceIdentifier": "$dbinstance" }
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "title": "RDS Database Connections",
+      "type": "timeseries",
+      "datasource": { "type": "cloudwatch", "uid": "picsure-cloudwatch" },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 8 },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "cloudwatch", "uid": "picsure-cloudwatch" },
+          "region": "us-east-1",
+          "namespace": "AWS/RDS",
+          "metricName": "DatabaseConnections",
+          "statistic": "Average",
+          "dimensions": { "DBInstanceIdentifier": "$dbinstance" }
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "title": "RDS Free Storage Space",
+      "type": "timeseries",
+      "datasource": { "type": "cloudwatch", "uid": "picsure-cloudwatch" },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 8 },
+      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "cloudwatch", "uid": "picsure-cloudwatch" },
+          "region": "us-east-1",
+          "namespace": "AWS/RDS",
+          "metricName": "FreeStorageSpace",
+          "statistic": "Average",
+          "dimensions": { "DBInstanceIdentifier": "$dbinstance" }
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "title": "EBS Burst Balance",
+      "type": "timeseries",
+      "datasource": { "type": "cloudwatch", "uid": "picsure-cloudwatch" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "fieldConfig": { "defaults": { "unit": "percent" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "cloudwatch", "uid": "picsure-cloudwatch" },
+          "region": "us-east-1",
+          "namespace": "AWS/EBS",
+          "metricName": "BurstBalance",
+          "statistic": "Average",
+          "dimensions": { "VolumeId": "$volumeid" }
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+apiVersion: 1
+datasources:
+  - name: CloudWatch
+    uid: picsure-cloudwatch
+    type: cloudwatch
+    jsonData:
+      authType: default
+      defaultRegion: us-east-1
+    editable: false

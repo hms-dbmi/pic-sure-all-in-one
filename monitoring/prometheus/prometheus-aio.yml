@@ -21,7 +21,10 @@ scrape_configs:
         files:
           - /etc/prometheus/secrets/app-token
     static_configs:
+      # application label stamped here until services set management.metrics.tags.application (M2)
       - targets: ["gateway:8080"]
+        labels:
+          application: pic-sure-gateway
 
   # --- M2 targets: uncomment per service as it gains micrometer-prometheus ---
   # - job_name: hpds
@@ -68,6 +71,8 @@ scrape_configs:
         files: [/etc/prometheus/secrets/app-token]
     static_configs:
       - targets: ["pic-sure-hpds-query-service:8080"]
+        labels:
+          application: pic-sure-hpds-query-service
   - job_name: operations-service
     metrics_path: /operations/actuator/prometheus
     http_headers:
@@ -75,6 +80,8 @@ scrape_configs:
         files: [/etc/prometheus/secrets/app-token]
     static_configs:
       - targets: ["pic-sure-operations-service:8080"]
+        labels:
+          application: pic-sure-operations-service
 
   - job_name: node
     static_configs:

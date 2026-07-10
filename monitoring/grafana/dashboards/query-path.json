@@ -3,22 +3,43 @@
   "title": "PIC-SURE / Query Path",
   "schemaVersion": 39,
   "refresh": "30s",
-  "time": { "from": "now-3h", "to": "now" },
+  "time": {
+    "from": "now-3h",
+    "to": "now"
+  },
   "timezone": "browser",
-  "tags": ["picsure"],
-  "templating": { "list": [] },
+  "tags": [
+    "picsure"
+  ],
+  "templating": {
+    "list": []
+  },
   "panels": [
     {
       "id": 1,
       "title": "Gateway Route Rate",
       "type": "timeseries",
-      "datasource": { "type": "prometheus", "uid": "picsure-prom" },
-      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 0 },
-      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "picsure-prom"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
       "targets": [
         {
           "refId": "A",
-          "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "picsure-prom"
+          },
           "expr": "sum by (uri) (rate(http_server_requests_seconds_count{application=\"pic-sure-gateway\"}[5m]))",
           "legendFormat": "{{uri}}"
         }
@@ -28,13 +49,29 @@
       "id": 2,
       "title": "Gateway p95 by Route",
       "type": "timeseries",
-      "datasource": { "type": "prometheus", "uid": "picsure-prom" },
-      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 0 },
-      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "picsure-prom"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
       "targets": [
         {
           "refId": "A",
-          "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "picsure-prom"
+          },
           "expr": "histogram_quantile(0.95, sum by (uri, le) (rate(http_server_requests_seconds_bucket{application=\"pic-sure-gateway\"}[5m])))",
           "legendFormat": "{{uri}}"
         }
@@ -42,31 +79,64 @@
     },
     {
       "id": 3,
-      "title": "Downstream Client p95 (per host)",
+      "title": "Downstream Client Mean Latency",
       "type": "timeseries",
-      "datasource": { "type": "prometheus", "uid": "picsure-prom" },
-      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 9 },
-      "fieldConfig": { "defaults": { "unit": "s" }, "overrides": [] },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "picsure-prom"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
       "targets": [
         {
           "refId": "A",
-          "datasource": { "type": "prometheus", "uid": "picsure-prom" },
-          "expr": "histogram_quantile(0.95, sum by (client_name, le) (rate(http_client_requests_seconds_bucket[5m])))",
+          "datasource": {
+            "type": "prometheus",
+            "uid": "picsure-prom"
+          },
+          "expr": "sum by (client_name) (rate(http_client_requests_seconds_sum[5m])) / sum by (client_name) (rate(http_client_requests_seconds_count[5m]))",
           "legendFormat": "{{client_name}}"
         }
-      ]
+      ],
+      "description": "Mean latency of the gateway's calls per downstream. p95 requires client-side percentile histograms — enable with the M2 instrumentation standard."
     },
     {
       "id": 4,
       "title": "Downstream Client Errors",
       "type": "timeseries",
-      "datasource": { "type": "prometheus", "uid": "picsure-prom" },
-      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 9 },
-      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "picsure-prom"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 9
+      },
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "No client errors in range"
+        },
+        "overrides": []
+      },
       "targets": [
         {
           "refId": "A",
-          "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "picsure-prom"
+          },
           "expr": "sum by (client_name, status) (rate(http_client_requests_seconds_count{outcome!=\"SUCCESS\"}[5m]))",
           "legendFormat": "{{client_name}} {{status}}"
         }

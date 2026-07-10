@@ -1,0 +1,24 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description>Starts only the monitoring stack (Prometheus/Grafana/exporters) for the all-in-one deployment, without touching app containers. Requires the opt-in $DOCKER_CONFIG_DIR/monitoring/ directory with monitoring.env populated (see monitoring/README.md &quot;Setup (opt-in)&quot;) -- monitoring/start-monitoring.sh exits 1 with an explanatory error if it is missing. Safe to re-run: it re-syncs the monitoring/ config (docker-compose, prometheus rules, grafana dashboards, blackbox config) into $DOCKER_CONFIG_DIR/monitoring/ and restarts the prometheus container automatically when config changed. Start PIC-SURE / Stop PIC-SURE already start/stop this stack implicitly via the same opt-in check; this job exists for monitoring-only cycling (e.g. dashboard rollouts) without cycling the rest of the platform.</description>
+  <keepDependencies>false</keepDependencies>
+  <properties/>
+  <scm class="hudson.scm.NullSCM"/>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>
+export CURRENT_FS_DOCKER_CONFIG_DIR=/usr/local/docker-config/
+bash monitoring/start-monitoring.sh
+</command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

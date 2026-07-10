@@ -47,6 +47,24 @@ time. On a deployment that was installed before this block existed, re-sync
 that block into `$DOCKER_CONFIG_DIR/httpd/httpd-vhosts.conf` yourself and run
 `docker restart httpd` — otherwise the `apache` Prometheus target stays down.
 
+## Jenkins
+
+Two dedicated jobs — `Start Monitoring` and `Stop Monitoring`
+(`initial-configuration/jenkins/jenkins-docker/jobs/`) run
+`monitoring/start-monitoring.sh` / `monitoring/stop-monitoring.sh` directly,
+mirroring the existing `Start PIC-SURE` / `Stop PIC-SURE` job conventions.
+Load them into a running Jenkins instance with:
+
+```bash
+./update-jenkins.sh --jobs-only
+```
+
+The existing `Start PIC-SURE` / `Stop PIC-SURE` jobs already start and stop
+the monitoring stack implicitly via the same `$DOCKER_CONFIG_DIR/monitoring/`
+opt-in check described above — the dedicated jobs exist for monitoring-only
+cycling (e.g. redeploying a dashboard change) without restarting the rest of
+the platform.
+
 ## Known issues
 
 - **macOS / Docker Desktop:** node-exporter's `/:/host:ro,rslave` mount fails

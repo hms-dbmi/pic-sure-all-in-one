@@ -1,0 +1,24 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description>Stops only the monitoring stack (Prometheus/Grafana/exporters) for the all-in-one deployment, without touching app containers. Exits cleanly (0) when monitoring was never installed -- monitoring/stop-monitoring.sh checks for $DOCKER_CONFIG_DIR/monitoring/docker-compose.monitoring.yml first and just prints &quot;monitoring not installed; nothing to stop&quot; otherwise. Does not touch the Prometheus/Grafana data volumes (TSDB history and Grafana state persist across stop/start cycles). Start PIC-SURE / Stop PIC-SURE already start/stop this stack implicitly via the same opt-in check; this job exists for monitoring-only cycling without touching the rest of the platform.</description>
+  <keepDependencies>false</keepDependencies>
+  <properties/>
+  <scm class="hudson.scm.NullSCM"/>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>
+export CURRENT_FS_DOCKER_CONFIG_DIR=/usr/local/docker-config/
+bash monitoring/stop-monitoring.sh
+</command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

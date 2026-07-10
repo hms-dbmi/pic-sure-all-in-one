@@ -59,13 +59,14 @@ scrape_configs:
   #       files: [/etc/prometheus/secrets/app-token]
   #   static_configs:
   #     - targets: ["pic-sure-logging:8080"]
-  # - job_name: query-ops           # once start-picsure.sh runs these containers
-  #   metrics_path: /actuator/prometheus
-  #   http_headers:
-  #     X-Application-Token:
-  #       files: [/etc/prometheus/secrets/app-token]
-  #   static_configs:
-  #     - targets: ["pic-sure-hpds-query-service:8080", "pic-sure-operations-service:8080"]
+  # Active since start-picsure.sh manages these containers (rewrite lifecycle commit 4edcffe)
+  - job_name: query-ops
+    metrics_path: /actuator/prometheus
+    http_headers:
+      X-Application-Token:
+        files: [/etc/prometheus/secrets/app-token]
+    static_configs:
+      - targets: ["pic-sure-hpds-query-service:8080", "pic-sure-operations-service:8080"]
 
   - job_name: node
     static_configs:

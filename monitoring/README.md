@@ -156,6 +156,24 @@ To opt in:
    GRANT pg_monitor TO monitoring;
    ```
 
+   **Statement-level metrics** (the "Top Statements"/"Mean Latency" panels on
+   the Databases dashboard): MySQL needs nothing extra — the exporter reads
+   `performance_schema` statement digests, which the grant above already
+   covers. PostgreSQL additionally needs `pg_stat_statements` loaded and the
+   extension created (as the superuser; persists in the data volume across
+   container recreations):
+
+   ```sql
+   ALTER SYSTEM SET shared_preload_libraries = 'pg_stat_statements';
+   -- restart the container, then:
+   CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+   ALTER SYSTEM SET pg_stat_statements.track = 'all';
+   SELECT pg_reload_conf();
+   ```
+
+   Without it, postgres-exporter's `--collector.stat_statements` simply
+   yields no `pg_stat_statements_*` series; everything else still works.
+
 2. Set the corresponding keys in `$DOCKER_CONFIG_DIR/monitoring/monitoring.env`
    (see `monitoring.env.example`): `MONITORING_MYSQL_USER` /
    `MONITORING_MYSQL_PASSWORD` for mysqld-exporter, `MONITORING_PG_USER` /

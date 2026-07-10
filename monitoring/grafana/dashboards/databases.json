@@ -3,28 +3,52 @@
   "title": "PIC-SURE / Databases",
   "schemaVersion": 39,
   "refresh": "30s",
-  "time": { "from": "now-3h", "to": "now" },
+  "time": {
+    "from": "now-3h",
+    "to": "now"
+  },
   "timezone": "browser",
-  "tags": ["picsure"],
-  "templating": { "list": [] },
+  "tags": [
+    "picsure"
+  ],
+  "templating": {
+    "list": []
+  },
   "panels": [
     {
       "id": 1,
       "title": "PG Connections",
       "type": "timeseries",
-      "datasource": { "type": "prometheus", "uid": "picsure-prom" },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
-      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "picsure-prom"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
       "targets": [
         {
           "refId": "A",
-          "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "picsure-prom"
+          },
           "expr": "sum by (state) (pg_stat_activity_count)",
           "legendFormat": "{{state}}"
         },
         {
           "refId": "B",
-          "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "picsure-prom"
+          },
           "expr": "pg_settings_max_connections",
           "legendFormat": "max_connections"
         }
@@ -34,19 +58,36 @@
       "id": 2,
       "title": "MySQL Threads Connected",
       "type": "timeseries",
-      "datasource": { "type": "prometheus", "uid": "picsure-prom" },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
-      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "picsure-prom"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
       "targets": [
         {
           "refId": "A",
-          "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "picsure-prom"
+          },
           "expr": "mysql_global_status_threads_connected",
           "legendFormat": "connected"
         },
         {
           "refId": "B",
-          "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "picsure-prom"
+          },
           "expr": "mysql_global_variables_max_connections",
           "legendFormat": "max_connections"
         }
@@ -56,13 +97,27 @@
       "id": 3,
       "title": "PG Deadlocks / Rollbacks",
       "type": "timeseries",
-      "datasource": { "type": "prometheus", "uid": "picsure-prom" },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
-      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "picsure-prom"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
       "targets": [
         {
           "refId": "A",
-          "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "picsure-prom"
+          },
           "expr": "rate(pg_stat_database_xact_rollback[5m])",
           "legendFormat": "{{datname}}"
         }
@@ -72,13 +127,27 @@
       "id": 4,
       "title": "MySQL Slow Queries",
       "type": "timeseries",
-      "datasource": { "type": "prometheus", "uid": "picsure-prom" },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
-      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "picsure-prom"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
       "targets": [
         {
           "refId": "A",
-          "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "picsure-prom"
+          },
           "expr": "rate(mysql_global_status_slow_queries[5m])"
         }
       ]
@@ -87,13 +156,29 @@
       "id": 5,
       "title": "MySQL Buffer Pool Utilization",
       "type": "timeseries",
-      "datasource": { "type": "prometheus", "uid": "picsure-prom" },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
-      "fieldConfig": { "defaults": { "unit": "percentunit" }, "overrides": [] },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "picsure-prom"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 16
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit"
+        },
+        "overrides": []
+      },
       "targets": [
         {
           "refId": "A",
-          "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "picsure-prom"
+          },
           "expr": "mysql_global_status_innodb_buffer_pool_bytes_data / mysql_global_variables_innodb_buffer_pool_size"
         }
       ]
@@ -102,15 +187,141 @@
       "id": 6,
       "title": "App JDBC Pool — Active Connections",
       "type": "timeseries",
-      "datasource": { "type": "prometheus", "uid": "picsure-prom" },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
-      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "picsure-prom"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 16
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
       "targets": [
         {
           "refId": "A",
-          "datasource": { "type": "prometheus", "uid": "picsure-prom" },
+          "datasource": {
+            "type": "prometheus",
+            "uid": "picsure-prom"
+          },
           "expr": "sum by (application) (hikaricp_connections_active)",
           "legendFormat": "{{application}}"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "MySQL Top Statements — DB Time Rate",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 24
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "picsure-prom"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(10, rate(mysql_perf_schema_events_statements_seconds_total[5m]))",
+          "legendFormat": "{{schema}}: {{digest_text}}"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "MySQL Statement Mean Latency",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 24
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "picsure-prom"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(10, rate(mysql_perf_schema_events_statements_seconds_total[5m]) / rate(mysql_perf_schema_events_statements_total[5m]) > 0)",
+          "legendFormat": "{{schema}}: {{digest_text}}"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "PG Top Statements — DB Time Rate (dictionary)",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 0,
+        "y": 33
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "picsure-prom"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(10, rate(pg_stat_statements_seconds_total[5m]))",
+          "legendFormat": "queryid {{queryid}}"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "PG Statement Mean Latency (dictionary)",
+      "gridPos": {
+        "h": 9,
+        "w": 12,
+        "x": 12,
+        "y": 33
+      },
+      "datasource": {
+        "type": "prometheus",
+        "uid": "picsure-prom"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "topk(10, rate(pg_stat_statements_seconds_total[5m]) / rate(pg_stat_statements_calls_total[5m]) > 0)",
+          "legendFormat": "queryid {{queryid}}"
         }
       ]
     }

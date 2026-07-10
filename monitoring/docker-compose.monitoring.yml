@@ -93,6 +93,9 @@ services:
     container_name: postgres-exporter
     restart: always
     profiles: ["db-exporters"]
+    command:
+      # statement-level metrics; requires pg_stat_statements preloaded on the DB (see README)
+      - --collector.stat_statements
     env_file: ./secrets/db-exporters.env
     networks:
       - monitoring
@@ -106,6 +109,8 @@ services:
     command:
       - --mysqld.username=${MONITORING_MYSQL_USER:-monitoring}
       - --mysqld.address=picsure-db:3306
+      # statement-digest metrics from performance_schema (monitoring user has SELECT there)
+      - --collect.perf_schema.eventsstatements
     env_file: ./secrets/db-exporters.env
     networks:
       - monitoring

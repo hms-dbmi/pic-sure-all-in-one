@@ -51,7 +51,10 @@ Idempotent: re-running is safe and is the recovery path after a partial failure.
 
 set -u
 
-DOCKER_CONFIG_DIR="${DOCKER_CONFIG_DIR:-/usr/local/docker-config}"
+# Hardcoded like every sibling job: inside the Jenkins container the DOCKER_CONFIG_DIR env
+# var holds the HOST path (for docker-run -v mounts of sibling containers); the config tree
+# itself is mounted here.
+DOCKER_CONFIG_DIR="/usr/local/docker-config"
 TEMPLATE_DIR="initial-configuration/config"
 
 GATEWAY_ENV="$DOCKER_CONFIG_DIR/gateway/gateway.env"
@@ -305,8 +308,10 @@ for conf in httpd-vhosts.conf httpd-vhosts-ssloffload.conf; do
     note "httpd/$conf: already routes to the gateway"
   fi
 done
-if grep -rq 'wildfly:8080' "$DOCKER_CONFIG_DIR/httpd/" 2&gt;/dev/null; then
-  fail "unrecognized wildfly:8080 references remain under httpd/; migrate those files manually and re-run"
+# Sweep only files httpd can actually load (*.conf): real environments keep .bak/.pre-gateway
+# backups under httpd/ that legitimately still mention wildfly.
+if grep -rq --include='*.conf' 'wildfly:8080' "$DOCKER_CONFIG_DIR/httpd/" 2&gt;/dev/null; then
+  fail "unrecognized wildfly:8080 references remain in *.conf files under httpd/; migrate those manually and re-run"
 fi
 
 # ---- phase 4: retire WildFly ---------------------------------------------------
@@ -319,6 +324,19 @@ if docker ps -a --format '{{.Names}}' | grep -qx wildfly; then
   note "wildfly container: stopped and removed"
 else
   note "wildfly container: not present"
+fi
+
+# Rescue email templates: the WildFly-era start script mounted psama's templates from
+# $DOCKER_CONFIG_DIR/wildfly/emailTemplates; the rewrite era mounts psama/emailTemplates.
+# Copy (not move) so the archive below still holds the originals.
+if [ -n "$(ls -A "$DOCKER_CONFIG_DIR/wildfly/emailTemplates" 2&gt;/dev/null)" ]; then
+  if [ -z "$(ls -A "$DOCKER_CONFIG_DIR/psama/emailTemplates" 2&gt;/dev/null)" ]; then
+    mkdir -p "$DOCKER_CONFIG_DIR/psama/emailTemplates"
+    cp -r "$DOCKER_CONFIG_DIR/wildfly/emailTemplates/." "$DOCKER_CONFIG_DIR/psama/emailTemplates/"
+    note "emailTemplates: copied wildfly/emailTemplates -&gt; psama/emailTemplates (rewrite-era mount source)"
+  else
+    note "emailTemplates: psama/emailTemplates already populated; wildfly copy stays in the archive only"
+  fi
 fi
 
 if [ -d "$DOCKER_CONFIG_DIR/wildfly" ]; then

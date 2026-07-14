@@ -1,7 +1,7 @@
 <?xml version='1.1' encoding='UTF-8'?>
 <project>
   <actions/>
-  <description>Build+deploy pic-sure-hpds-query-service (Phase 4: DB-free single HPDS ingress; /hpds/{auth,open}[/v3]/query|search). Builds services/pic-sure-hpds-query-service from the monorepo. git_hash defaults to the rewrite branch during migration.</description>
+  <description>Build and tag the pic-sure-hpds-query-service container image (Phase 4: DB-free single HPDS ingress; /hpds/{auth,open}[/v3]/query|search) from the shared "PIC-SURE Maven Build" reactor workspace. This job does not compile and does not deploy -- deploy is exclusively via Stop/Start PIC-SURE.</description>
   <keepDependencies>false</keepDependencies>
   <properties>
     <hudson.model.ParametersDefinitionProperty>
@@ -14,30 +14,10 @@
           <defaultValue>MANUAL_RUN</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
-        <hudson.model.StringParameterDefinition>
-          <name>git_hash</name>
-          <defaultValue>pic_sure_api_rewrite</defaultValue>
-          <trim>true</trim>
-        </hudson.model.StringParameterDefinition>
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
   </properties>
-  <scm class="hudson.plugins.git.GitSCM" plugin="git@5.2.2">
-    <configVersion>2</configVersion>
-    <userRemoteConfigs>
-      <hudson.plugins.git.UserRemoteConfig>
-        <url>https://github.com/hms-dbmi/pic-sure.git</url>
-      </hudson.plugins.git.UserRemoteConfig>
-    </userRemoteConfigs>
-    <branches>
-      <hudson.plugins.git.BranchSpec>
-        <name>${git_hash}</name>
-      </hudson.plugins.git.BranchSpec>
-    </branches>
-    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
-    <submoduleCfg class="empty-list"/>
-    <extensions/>
-  </scm>
+  <scm class="hudson.scm.NullSCM"/>
   <canRoam>true</canRoam>
   <disabled>false</disabled>
   <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
@@ -48,52 +28,32 @@
   <builders>
     <hudson.tasks.Shell>
       <command>#!/bin/bash
+set -e
 
-CONFIG_DIR="/usr/local/docker-config/query"
-mkdir -p "$CONFIG_DIR"
+MAVEN_WS=&quot;/var/jenkins_home/workspace/PIC-SURE Maven Build&quot;
+CONFIG_DIR=&quot;/usr/local/docker-config/query&quot;
+mkdir -p &quot;$CONFIG_DIR&quot;
 
-# Build ONLY the services/pic-sure-hpds-query-service module (+ its reactor deps) from the pic-sure monorepo.
-# Never builds pic-sure-legacy (quarantined), so it cannot touch the frozen Java 11 line.
-docker run --rm \
-  -v "$DOCKER_CONFIG_DIR/jenkins_home/workspace/$JOB_NAME/:/app" \
-  -v maven_m2_cache:/root/.m2 \
-  -w /app \
-  --platform=linux/amd64 \
-  maven:3-amazoncorretto-25 \
-  sh -lc "mvn -B -pl services/pic-sure-hpds-query-service -am clean package -DskipTests"
+if [ ! -f &quot;$MAVEN_WS/build-info.txt&quot; ] || ! ls &quot;$MAVEN_WS&quot;/services/pic-sure-hpds-query-service/target/pic-sure-hpds-query-service-*.jar &gt;/dev/null 2&gt;&amp;1; then
+  echo &quot;ERROR: no reactor artifacts found -- run &apos;PIC-SURE Maven Build&apos; first&quot;
+  exit 2
+fi
+. &quot;$MAVEN_WS/build-info.txt&quot;
 
 # env-file cascade (uploaded param &gt; existing config &gt; warn)
 if [ -f query.env ]; then
-    echo "A new query.env was loaded."
-    cp query.env "$CONFIG_DIR/query.env"
-elif [ -f "$CONFIG_DIR/query.env" ]; then
-    echo "Using existing query.env"
+    echo &quot;A new query.env was loaded.&quot;
+    cp query.env &quot;$CONFIG_DIR/query.env&quot;
+elif [ -f &quot;$CONFIG_DIR/query.env&quot; ]; then
+    echo &quot;Using existing query.env&quot;
 else
-    echo "WARNING: no query.env present -- required secrets (datasource/HPDS/internal token) will be missing."
-    touch "$CONFIG_DIR/query.env"
+    echo &quot;WARNING: no query.env present -- required secrets (datasource/HPDS/internal token) will be missing.&quot;
+    touch &quot;$CONFIG_DIR/query.env&quot;
 fi
 
-# build the runtime image (jar from the Maven step)
-docker build -t hms-dbmi/pic-sure-hpds-query-service:LATEST services/pic-sure-hpds-query-service/
-
-# (re)deploy on the picsure network
-docker rm -f pic-sure-hpds-query-service 2&gt;/dev/null || true
-docker run --name=pic-sure-hpds-query-service --restart always --network=picsure \
-  --env-file "$CONFIG_DIR/query.env" \
-  -d hms-dbmi/pic-sure-hpds-query-service:LATEST \
-  || exit 2
-
-# smoke -- poll the service health from inside the network
-for i in $(seq 1 18); do
-  if docker run --rm --network=picsure busybox wget -qO- http://pic-sure-hpds-query-service:8080/actuator/health &gt;/dev/null 2&gt;&amp;1; then
-    echo "hpds-query-service is healthy."
-    exit 0
-  fi
-  sleep 5
-done
-echo "ERROR: hpds-query-service did not become healthy within 90s"
-docker logs --tail 60 pic-sure-hpds-query-service
-exit 2</command>
+docker build -t &quot;hms-dbmi/pic-sure-hpds-query-service:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT}&quot; \
+  &quot;$MAVEN_WS/services/pic-sure-hpds-query-service/&quot;
+docker tag &quot;hms-dbmi/pic-sure-hpds-query-service:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT}&quot; hms-dbmi/pic-sure-hpds-query-service:LATEST</command>
       <configuredLocalRules/>
     </hudson.tasks.Shell>
   </builders>

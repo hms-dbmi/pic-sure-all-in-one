@@ -1,73 +1,54 @@
 <?xml version='1.1' encoding='UTF-8'?>
-<flow-definition plugin="workflow-job@1571.vb_423c255d6d9">
-  <actions>
-    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobAction plugin="pipeline-model-definition@2.2277.v00573e73ddf1"/>
-    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction plugin="pipeline-model-definition@2.2277.v00573e73ddf1">
-      <jobProperties/>
-      <triggers/>
-      <parameters>
-        <string>REPOSITORY_NAME</string>
-        <string>DEPLOY</string>
-        <string>DOCKER_REGISTRY</string>
-      </parameters>
-      <options/>
-    </org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction>
-  </actions>
-  <description>This Jenkins job will build and deploy the pic-sure-auth-micro-app.</description>
+<project>
+  <actions/>
+  <description>Build the PSAMA image (hms-dbmi/psama) from the PIC-SURE Maven Build reactor workspace. Build/tag only; deploy happens exclusively via Stop/Start PIC-SURE. Job name kept for pipeline/history compatibility; the repo jenkinsfile it once ran is deleted.</description>
   <keepDependencies>false</keepDependencies>
   <properties>
     <hudson.model.ParametersDefinitionProperty>
       <parameterDefinitions>
         <hudson.model.StringParameterDefinition>
-          <name>DOCKER_REGISTRY</name>
-          <description>Docker registry URL (e.g., ECR URL)</description>
-          <defaultValue>hms-dbmi</defaultValue>
-          <trim>false</trim>
-        </hudson.model.StringParameterDefinition>
-        <hudson.model.StringParameterDefinition>
-          <name>REPOSITORY_NAME</name>
-          <description>Docker repository name</description>
-          <defaultValue>psama</defaultValue>
-          <trim>false</trim>
-        </hudson.model.StringParameterDefinition>
-        <hudson.model.BooleanParameterDefinition>
-          <name>DEPLOY</name>
-          <description>Deploy the image to the registry</description>
-          <defaultValue>true</defaultValue>
-        </hudson.model.BooleanParameterDefinition>
-        <hudson.model.StringParameterDefinition>
           <name>pipeline_build_id</name>
           <defaultValue>MANUAL_RUN</defaultValue>
-          <trim>false</trim>
-        </hudson.model.StringParameterDefinition>
-        <hudson.model.StringParameterDefinition>
-          <name>git_hash</name>
-          <defaultValue>pic_sure_api_mono_repo</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
   </properties>
-  <definition class="org.jenkinsci.plugins.workflow.cps.CpsScmFlowDefinition" plugin="workflow-cps@4255.vd9c37f80fd8a_">
-    <scm class="hudson.plugins.git.GitSCM" plugin="git@5.9.0">
-      <configVersion>2</configVersion>
-      <userRemoteConfigs>
-        <hudson.plugins.git.UserRemoteConfig>
-          <url>https://github.com/hms-dbmi/pic-sure.git</url>
-        </hudson.plugins.git.UserRemoteConfig>
-      </userRemoteConfigs>
-      <branches>
-        <hudson.plugins.git.BranchSpec>
-          <name>${git_hash}</name>
-        </hudson.plugins.git.BranchSpec>
-      </branches>
-      <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
-      <submoduleCfg class="empty-list"/>
-      <extensions/>
-    </scm>
-    <scriptPath>services/pic-sure-auth-microapp/jenkinsfile</scriptPath>
-    <lightweight>false</lightweight>
-  </definition>
-  <triggers/>
+  <scm class="hudson.scm.NullSCM"/>
+  <canRoam>true</canRoam>
   <disabled>false</disabled>
-</flow-definition>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <jdk>(System)</jdk>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash
+set -e
+
+MAVEN_WS=&quot;/var/jenkins_home/workspace/PIC-SURE Maven Build&quot;
+AUTH_DIR=&quot;$MAVEN_WS/services/pic-sure-auth-microapp&quot;
+
+if [ -f &quot;/usr/local/docker-config/setProxy.sh&quot; ]; then
+   . /usr/local/docker-config/setProxy.sh
+fi
+
+if [ ! -f &quot;$MAVEN_WS/build-info.txt&quot; ] || ! ls &quot;$AUTH_DIR&quot;/pic-sure-auth-services/target/pic-sure-auth-services-*.jar &gt;/dev/null 2&gt;&amp;1; then
+  echo &quot;ERROR: no reactor artifacts found -- run &apos;PIC-SURE Maven Build&apos; first&quot;
+  exit 2
+fi
+. &quot;$MAVEN_WS/build-info.txt&quot;
+
+docker build -f &quot;$AUTH_DIR/pic-sure-auth-services/Dockerfile&quot; \
+  --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_proxy --build-arg no_proxy=&quot;$no_proxy&quot; \
+  --build-arg HTTP_PROXY=$http_proxy --build-arg HTTPS_PROXY=$http_proxy --build-arg NO_PROXY=&quot;$no_proxy&quot; \
+  -t &quot;hms-dbmi/psama:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT}&quot; &quot;$AUTH_DIR&quot;
+docker tag &quot;hms-dbmi/psama:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT}&quot; hms-dbmi/psama:LATEST
+</command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

@@ -1,87 +1,59 @@
 <?xml version='1.1' encoding='UTF-8'?>
-<flow-definition plugin="workflow-job@1571.vb_423c255d6d9">
-  <actions>
-    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobAction plugin="pipeline-model-definition@2.2277.v00573e73ddf1"/>
-    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction plugin="pipeline-model-definition@2.2277.v00573e73ddf1">
-      <jobProperties/>
-      <triggers/>
-      <parameters>
-        <string>DOCKER_REGISTRY</string>
-        <string>REPOSITORY_NAME</string>
-        <string>DEPLOY_METHOD</string>
-      </parameters>
-      <options/>
-    </org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction>
-  </actions>
-  <description>This Jenkins job builds and deploys the standalone pic-sure visualization service (hms-dbmi/PIC-SURE-Visualization) into all-in-one. It runs the repo jenkinsfile with DEPLOY_METHOD=docker.</description>
+<project>
+  <actions/>
+  <description>Build the PIC-SURE Visualization image (hms-dbmi/pic-sure-visualization) from the PIC-SURE Maven Build reactor workspace. Build/tag only; deploy happens exclusively via Stop/Start PIC-SURE. Converted from the repo jenkinsfile (deleted) to freestyle.</description>
   <keepDependencies>false</keepDependencies>
   <properties>
     <hudson.model.ParametersDefinitionProperty>
       <parameterDefinitions>
         <hudson.model.StringParameterDefinition>
-          <name>DOCKER_REGISTRY</name>
-          <description>Docker registry / image namespace.</description>
-          <defaultValue>hms-dbmi</defaultValue>
-          <trim>false</trim>
-        </hudson.model.StringParameterDefinition>
-        <hudson.model.StringParameterDefinition>
-          <name>REPOSITORY_NAME</name>
-          <description>Docker repository name (image is ${DOCKER_REGISTRY}/${REPOSITORY_NAME}).</description>
-          <defaultValue>pic-sure-visualization</defaultValue>
-          <trim>false</trim>
-        </hudson.model.StringParameterDefinition>
-        <hudson.model.StringParameterDefinition>
-          <name>DEPLOY_METHOD</name>
-          <description>Deployment method. all-in-one uses 'docker' (build the image and docker run the container).</description>
-          <defaultValue>docker</defaultValue>
-          <trim>false</trim>
-        </hudson.model.StringParameterDefinition>
-        <hudson.model.StringParameterDefinition>
-          <name>TARGET_STACK</name>
-          <description>Only used for s3 deploys (BDC/FISMA); leave blank for all-in-one.</description>
-          <defaultValue></defaultValue>
-          <trim>false</trim>
-        </hudson.model.StringParameterDefinition>
-        <hudson.model.StringParameterDefinition>
-          <name>STACK_S3_BUCKET</name>
-          <description>Only used for s3 deploys (BDC/FISMA); leave blank for all-in-one.</description>
-          <defaultValue></defaultValue>
-          <trim>false</trim>
-        </hudson.model.StringParameterDefinition>
-        <hudson.model.StringParameterDefinition>
           <name>pipeline_build_id</name>
           <defaultValue>MANUAL_RUN</defaultValue>
-          <trim>false</trim>
-        </hudson.model.StringParameterDefinition>
-        <hudson.model.StringParameterDefinition>
-          <name>git_hash</name>
-          <description>Branch or commit of hms-dbmi/PIC-SURE-Visualization to build.</description>
-          <defaultValue>pic_sure_api_mono_repo</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
   </properties>
-  <definition class="org.jenkinsci.plugins.workflow.cps.CpsScmFlowDefinition" plugin="workflow-cps@4255.vd9c37f80fd8a_">
-    <scm class="hudson.plugins.git.GitSCM" plugin="git@5.9.0">
-      <configVersion>2</configVersion>
-      <userRemoteConfigs>
-        <hudson.plugins.git.UserRemoteConfig>
-          <url>https://github.com/hms-dbmi/pic-sure.git</url>
-        </hudson.plugins.git.UserRemoteConfig>
-      </userRemoteConfigs>
-      <branches>
-        <hudson.plugins.git.BranchSpec>
-          <name>${git_hash}</name>
-        </hudson.plugins.git.BranchSpec>
-      </branches>
-      <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
-      <submoduleCfg class="empty-list"/>
-      <extensions/>
-    </scm>
-    <scriptPath>services/pic-sure-visualization-service/jenkinsfile</scriptPath>
-    <lightweight>false</lightweight>
-  </definition>
-  <triggers/>
+  <scm class="hudson.scm.NullSCM"/>
+  <canRoam>true</canRoam>
   <disabled>false</disabled>
-</flow-definition>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <jdk>(System)</jdk>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash
+set -e
+
+MAVEN_WS=&quot;/var/jenkins_home/workspace/PIC-SURE Maven Build&quot;
+
+if [ -f &quot;/usr/local/docker-config/setProxy.sh&quot; ]; then
+   . /usr/local/docker-config/setProxy.sh
+fi
+
+if [ ! -f &quot;$MAVEN_WS/build-info.txt&quot; ] || ! ls &quot;$MAVEN_WS&quot;/services/pic-sure-visualization-service/target/pic-sure-visualization-service-*.jar &gt;/dev/null 2&gt;&amp;1; then
+  echo &quot;ERROR: no reactor artifacts found -- run &apos;PIC-SURE Maven Build&apos; first&quot;
+  exit 2
+fi
+. &quot;$MAVEN_WS/build-info.txt&quot;
+
+PROXY_ARGS=&quot;&quot;
+if [ -n &quot;${http_proxy:-}&quot; ]; then
+  PROXY_ARGS=&quot;--build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_proxy --build-arg HTTP_PROXY=$http_proxy --build-arg HTTPS_PROXY=$http_proxy&quot;
+fi
+if [ -n &quot;${no_proxy:-}&quot; ]; then
+  PROXY_ARGS=&quot;$PROXY_ARGS --build-arg no_proxy=$no_proxy --build-arg NO_PROXY=$no_proxy&quot;
+fi
+
+docker build $PROXY_ARGS -t &quot;hms-dbmi/pic-sure-visualization:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT}&quot; \
+  &quot;$MAVEN_WS/services/pic-sure-visualization-service&quot;
+docker tag &quot;hms-dbmi/pic-sure-visualization:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT}&quot; hms-dbmi/pic-sure-visualization:LATEST
+</command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

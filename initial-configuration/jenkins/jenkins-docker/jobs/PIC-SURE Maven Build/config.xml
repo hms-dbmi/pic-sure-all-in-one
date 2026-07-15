@@ -55,6 +55,9 @@ fi
 GIT_BRANCH_SHORT=$(echo &quot;${GIT_BRANCH}&quot; | awk -F/ &apos;{print $NF}&apos;)
 GIT_COMMIT_SHORT=$(echo &quot;${GIT_COMMIT}&quot; | cut -c1-7)
 
+# Fail closed: image jobs must not consume a mixed workspace after a failed build.
+rm -f build-info.txt
+
 # The single reactor build. Every per-service image job consumes this
 # workspace; no other job may run Maven against the monorepo.
 docker run --rm \

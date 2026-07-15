@@ -29,6 +29,7 @@
     <hudson.tasks.Shell>
       <command>#!/bin/bash
 set -e
+trap &apos;rm -f &quot;$DICT_DIR/.env&quot;&apos; EXIT
 
 MAVEN_WS=&quot;/var/jenkins_home/workspace/PIC-SURE Maven Build&quot;
 DICT_DIR=&quot;$MAVEN_WS/services/picsure-dictionary&quot;

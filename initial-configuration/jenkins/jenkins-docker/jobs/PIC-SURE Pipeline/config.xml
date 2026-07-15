@@ -147,13 +147,6 @@ pipeline {
                 }
             }
         }
-        stage(&apos;Health Check&apos;) {
-            steps {
-                script {
-                    build job: &apos;PIC-SURE Health Check&apos;
-                }
-            }
-        }
     }
 }</script>
     <sandbox>true</sandbox>

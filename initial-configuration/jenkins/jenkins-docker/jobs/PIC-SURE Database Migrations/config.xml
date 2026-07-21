@@ -14,12 +14,8 @@
   <properties/>
   <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@4009.v0089238351a_9">
     <script>import groovy.json.JsonSlurper;
-def micro_app_ref = &apos;&apos;
-def pic_sure_ref = &apos;&apos;
-def psu_ref = &apos;&apos;
+def monorepo_ref = &apos;&apos;
 def psm_ref = &apos;&apos;
-def psf_ref = &apos;&apos;
-def dictionary_ref = &apos;&apos;
 
 
 node {
@@ -40,40 +36,28 @@ node {
             def buildSpec = new JsonSlurper().parse(new File(filePath))
 
             for(def build : buildSpec.application){
-                if(build.project_job_git_key.equalsIgnoreCase(&quot;PSAMA&quot;)) {
-                    micro_app_ref = build.git_hash
-                    echo &apos;micro_app_ref &apos; + micro_app_ref
-                }
-                if(build.project_job_git_key.equalsIgnoreCase(&quot;PSA&quot;)) {
-                    pic_sure_ref = build.git_hash
-                    echo &apos;pic_sure_ref &apos; + pic_sure_ref
-                }
-                if(build.project_job_git_key.equalsIgnoreCase(&quot;PSF&quot;)) {
-                    psf_ref = build.git_hash
-                    echo &apos;psf_ref &apos; + psf_ref
+                if(build.project_job_git_key.equalsIgnoreCase(&quot;MONOREPO&quot;)) {
+                    monorepo_ref = build.git_hash
+                    echo &apos;monorepo_ref &apos; + monorepo_ref
                 }
                 if(build.project_job_git_key.equalsIgnoreCase(&quot;PSM&quot;)) {
                     psm_ref = build.git_hash
                     echo &apos;psm_ref &apos; + psm_ref
                 }
-                if(build.project_job_git_key.equalsIgnoreCase(&quot;DICTIONARY&quot;)) {
-                    dictionary_ref = build.git_hash
-                    echo &apos;dictionary_ref &apos; + dictionary_ref
-                }
             }
-            if(micro_app_ref.isEmpty() || pic_sure_ref.isEmpty() || psf_ref.isEmpty() || psm_ref.isEmpty()) {
+            if(monorepo_ref.isEmpty() || psm_ref.isEmpty()) {
                 currentBuild.result = &apos;ABORTED&apos;
-                echo &apos;micro_app_ref = &apos; + micro_app_ref
-                echo &apos;psf_ref = &apos; + psf_ref
+                echo &apos;monorepo_ref = &apos; + monorepo_ref
                 echo &apos;psm_ref = &apos; + psm_ref
-                echo &apos;pic_sure_ref = &apos; + pic_sure_ref
                 error(&apos;Build Spec Not configured correctly!&apos;)
             }
         }
     }
-    stage(&apos;Auth Schema Migration&apos;) {
-        checkout([$class: &apos;GitSCM&apos;, branches: [[name: micro_app_ref ]],
+    stage(&apos;Checkout Monorepo&apos;) {
+        checkout([$class: &apos;GitSCM&apos;, branches: [[name: monorepo_ref ]],
                   userRemoteConfigs: [[url: &apos;https://github.com/hms-dbmi/pic-sure&apos;]]])
+    }
+    stage(&apos;Auth Schema Migration&apos;) {
         def image = docker.image(&apos;dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0&apos;)
         image.pull()
         docker.image(&apos;dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0&apos;).inside(&apos;--network=picsure -v $DOCKER_CONFIG_DIR/flyway/auth:/opt/flyway-migrations/auth &quot;--entrypoint=&quot; &apos;) {
@@ -84,12 +68,9 @@ node {
         }
     }
     stage(&apos;Picsure Schema Migration&apos;) {
-        checkout([$class: &apos;GitSCM&apos;, branches: [[name: pic_sure_ref ]],
-                  userRemoteConfigs: [[url: &apos;https://github.com/hms-dbmi/pic-sure&apos;]]])
-        //git url: &apos;https://github.com/hms-dbmi/pic-sure&apos;
         docker.image(&apos;dbmi/pic-sure-db-migrations:pic-sure-db-migration_v1.0&apos;).inside(&apos;--network=picsure -v $DOCKER_CONFIG_DIR/flyway/picsure:/opt/flyway-migrations/picsure &quot;--entrypoint=&quot; &apos;) {
             sh &quot;rm -rf /opt/flyway-migrations/picsure/sql&quot;
-            sh &quot;cp -R ./pic-sure-legacy/pic-sure-api-data/src/main/resources/db/sql /opt/flyway-migrations/picsure/sql&quot;
+            sh &quot;cp -R ./services/pic-sure-operations-service/db/sql /opt/flyway-migrations/picsure/sql&quot;
             sh &quot;/opt/flyway/flyway -X -configFiles=/opt/flyway-migrations/picsure/flyway-picsure.conf migrate&quot;
             sleep(time:1,unit:&quot;SECONDS&quot;)
         }
@@ -116,14 +97,10 @@ node {
     }
     stage(&apos;Dictionary Migrations&apos;) {
         script {
-            if (!dictionary_ref.isEmpty()) {
-                echo &quot;Migrating Dictionary Database&quot;
-                def result = build job: &apos;Migrate Dictionary Database&apos;, parameters: [
-                        [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: dictionary_ref]
-                ]
-            } else {
-                echo &quot;No project_job_git_key DICTIONARY found in build spec. Skipping Dictionary Migrations&quot;
-            }
+            echo &quot;Migrating Dictionary Database&quot;
+            def result = build job: &apos;Migrate Dictionary Database&apos;, parameters: [
+                    [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: monorepo_ref]
+            ]
         }
     }
     stage(&apos;Clean Workspace&apos;){

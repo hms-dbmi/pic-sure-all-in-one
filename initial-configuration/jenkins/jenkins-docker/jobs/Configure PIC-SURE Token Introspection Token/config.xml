@@ -45,11 +45,13 @@ export appplication_uuid=`docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/
 # This UUID is currently a magic number of sorts, this will need to be parameterized to make this job portable
 export new_token_introspection_token=`java -jar generateJwt.jar secret.txt sub "PSAMA_APPLICATION|${appplication_uuid}" 365 day | grep -v "Generating"`
 
-export old_token_introspection_token=`grep '^TOKEN_INTROSPECTION_TOKEN=' /usr/local/docker-config/gateway/gateway.env | cut -d '=' -f 2-`
-sed -i "s/$old_token_introspection_token/$new_token_introspection_token/g" /usr/local/docker-config/gateway/gateway.env
+gateway_env=/usr/local/docker-config/gateway/gateway.env
+if grep -q '^TOKEN_INTROSPECTION_TOKEN=' "$gateway_env"; then
+  sed -i "s|^TOKEN_INTROSPECTION_TOKEN=.*|TOKEN_INTROSPECTION_TOKEN=$new_token_introspection_token|" "$gateway_env"
+else
+  printf '\nTOKEN_INTROSPECTION_TOKEN=%s\n' "$new_token_introspection_token" &gt;&gt; "$gateway_env"
+fi
 echo "gateway.env updated -- recreate the gateway container (Deploy or Start PIC-SURE) to apply."
-
-sed -i "s/$old_token_introspection_token/$new_token_introspection_token/g" /usr/local/docker-config/psama/psama.env
 
 docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e \
 "update application set token='$new_token_introspection_token';" auth

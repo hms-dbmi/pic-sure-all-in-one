@@ -227,6 +227,8 @@ cp -r jenkins/jenkins-docker/jobs "$DOCKER_CONFIG_DIR"/jenkins_home/
 cp -r jenkins/jenkins-docker/config.xml "$DOCKER_CONFIG_DIR"/jenkins_home/config.xml
 cp -r jenkins/jenkins-docker/hudson.tasks.Maven.xml "$DOCKER_CONFIG_DIR"/jenkins_home/hudson.tasks.Maven.xml
 cp -r jenkins/jenkins-docker/scriptApproval.xml "$DOCKER_CONFIG_DIR"/jenkins_home/scriptApproval.xml
+cp -r jenkins/jenkins-docker/jenkins.install.UpgradeWizard.state "$DOCKER_CONFIG_DIR"/jenkins_home/jenkins.install.UpgradeWizard.state
+cp -r jenkins/jenkins-docker/jenkins.install.InstallUtil.lastExecVersion "$DOCKER_CONFIG_DIR"/jenkins_home/jenkins.install.InstallUtil.lastExecVersion
 mkdir -p "$DOCKER_CONFIG_DIR"/log/httpd-docker-logs/ssl_mutex
 
 export APP_ID=`uuidgen | tr '[:upper:]' '[:lower:]'`

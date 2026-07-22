@@ -11,6 +11,17 @@ DOCKER_CONFIG_DIR="${DOCKER_CONFIG_DIR:-/usr/local/docker-config}"
 # Except for --env_file commands, which refer to the current file system, not the root fs
 CURRENT_FS_DOCKER_CONFIG_DIR="${CURRENT_FS_DOCKER_CONFIG_DIR:-$DOCKER_CONFIG_DIR}"
 
+stop_and_remove_container() {
+  local container_name=$1
+
+  if ! docker container inspect "$container_name" >/dev/null 2>&1; then
+    echo "$container_name does not exist; nothing to stop."
+    return 0
+  fi
+
+  docker stop "$container_name" && docker rm "$container_name"
+}
+
 if [ -f "$CURRENT_FS_DOCKER_CONFIG_DIR/setProxy.sh" ]; then
    . $CURRENT_FS_DOCKER_CONFIG_DIR/setProxy.sh
 fi
@@ -36,34 +47,34 @@ echo "INCLUDE_OPERATIONS=$INCLUDE_OPERATIONS"
 echo "INCLUDE_QUERY=$INCLUDE_QUERY"
 
 if $INCLUDE_HPDS; then
-  docker stop hpds && docker rm hpds
+  stop_and_remove_container hpds
 fi
-docker stop httpd && docker rm httpd
+stop_and_remove_container httpd
 # WildFly is no longer deployed; clean up a leftover container from older installs.
-docker stop wildfly 2>/dev/null; docker rm wildfly 2>/dev/null || true
-docker stop psama && docker rm psama
+stop_and_remove_container wildfly
+stop_and_remove_container psama
 
 if $INCLUDE_DICTIONARY; then
-  docker stop dictionary-api && docker rm dictionary-api
+  stop_and_remove_container dictionary-api
 fi
 if $INCLUDE_AGG_DICT; then
-  docker stop dictionary-dump && docker rm dictionary-dump
+  stop_and_remove_container dictionary-dump
 fi
 if $INCLUDE_PASSTHRU; then
-  docker stop passthru && docker rm passthru
+  stop_and_remove_container passthru
 fi
 if $INCLUDE_LOGGING; then
-  docker stop pic-sure-logging && docker rm pic-sure-logging
+  stop_and_remove_container pic-sure-logging
 fi
 if $INCLUDE_VISUALIZATION; then
-  docker stop visualization && docker rm visualization
+  stop_and_remove_container visualization
 fi
 if $INCLUDE_GATEWAY; then
-  docker stop gateway && docker rm gateway
+  stop_and_remove_container gateway
 fi
 if $INCLUDE_OPERATIONS; then
-  docker stop pic-sure-operations-service && docker rm pic-sure-operations-service
+  stop_and_remove_container pic-sure-operations-service
 fi
 if $INCLUDE_QUERY; then
-  docker stop pic-sure-hpds-query-service && docker rm pic-sure-hpds-query-service
+  stop_and_remove_container pic-sure-hpds-query-service
 fi

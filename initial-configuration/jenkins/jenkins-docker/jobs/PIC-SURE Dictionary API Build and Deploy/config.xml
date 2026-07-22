@@ -42,6 +42,10 @@ if [ ! -f &quot;$MAVEN_WS/build-info.txt&quot; ] \
   exit 2
 fi
 . &quot;$MAVEN_WS/build-info.txt&quot;
+if [ &quot;${PIPELINE_BUILD_ID:-}&quot; != &quot;$pipeline_build_id&quot; ]; then
+  echo &quot;ERROR: reactor artifacts belong to pipeline &apos;${PIPELINE_BUILD_ID:-unknown}&apos;, expected &apos;$pipeline_build_id&apos;&quot;
+  exit 2
+fi
 
 mkdir -p &quot;$CONFIG_DIR&quot;
 mkdir -p &quot;$CONFIG_DIR/db/data&quot;

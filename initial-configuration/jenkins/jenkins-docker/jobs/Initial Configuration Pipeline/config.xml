@@ -166,14 +166,8 @@
     </hudson.model.ParametersDefinitionProperty>
   </properties>
   <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@4255.vd9c37f80fd8a_">
-    <script>import groovy.json.JsonSlurper;
-
-def retrieveBuildSpecId;
+    <script>def retrieveBuildSpecId;
 def pipelineBuildId;
-def build_hashes = [
-    DICTIONARY: false,
-    UPLOADER: false
-];
 pipeline {
     agent any
     stages {
@@ -197,11 +191,7 @@ pipeline {
                     sh &apos;cat build-spec.json&apos;
                     sh &apos;cat pipeline_git_commit.txt&apos;
                     sh &apos;pwd&apos;
-                    def buildSpec = new JsonSlurper().parse(new File(&apos;/var/jenkins_home/workspace/Retrieve Build Spec/build-spec.json&apos;))
-                    pipelineBuildId = new File(&apos;/var/jenkins_home/workspace/Retrieve Build Spec/pipeline_git_commit.txt&apos;).text.trim()
-                    for(def build : buildSpec.application){
-                        build_hashes[build.project_job_git_key] = build.git_hash
-                    }
+                    pipelineBuildId = new File(&apos;/var/jenkins_home/workspace/Initial Configuration Pipeline/pipeline_git_commit.txt&apos;).text.trim()
                 }
             }
         }

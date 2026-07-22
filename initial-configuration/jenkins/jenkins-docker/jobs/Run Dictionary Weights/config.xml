@@ -3,7 +3,18 @@
   <actions/>
   <description>Build the weights:latest container image from the shared &quot;PIC-SURE Maven Build&quot; reactor workspace and run the dictionary weights batch container. This job does not compile and is not part of the Pipeline -- it is a one-off data task, not a service deploy.</description>
   <keepDependencies>false</keepDependencies>
-  <properties/>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>pipeline_build_id</name>
+          <description>Identity of the PIC-SURE Maven Build reactor artifacts to consume.</description>
+          <defaultValue>MANUAL_RUN</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
   <scm class="hudson.scm.NullSCM"/>
   <canRoam>true</canRoam>
   <disabled>false</disabled>
@@ -22,6 +33,11 @@ WEIGHTS_DIR=&quot;$MAVEN_WS/services/picsure-dictionary/dictionaryweights&quot;
 
 if [ ! -f &quot;$MAVEN_WS/build-info.txt&quot; ] || ! ls &quot;$WEIGHTS_DIR&quot;/target/dictionaryweights-*.jar &gt;/dev/null 2&gt;&amp;1; then
   echo &quot;ERROR: no reactor artifacts found -- run &apos;PIC-SURE Maven Build&apos; first&quot;
+  exit 2
+fi
+. &quot;$MAVEN_WS/build-info.txt&quot;
+if [ &quot;${PIPELINE_BUILD_ID:-}&quot; != &quot;$pipeline_build_id&quot; ]; then
+  echo &quot;ERROR: reactor artifacts belong to pipeline &apos;${PIPELINE_BUILD_ID:-unknown}&apos;, expected &apos;$pipeline_build_id&apos;&quot;
   exit 2
 fi
 

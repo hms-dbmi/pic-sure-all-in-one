@@ -77,10 +77,6 @@ response content across legacy *and* v3 routes, a pre/post pair doubles as the
 **parity verification** evidence for each strangler phase — same invocation,
 different label.
 
-The same suite also runs from Jenkins as the **PIC-SURE Health Check** job
-(health gate always, metrics via `collect_metrics=true`, token from a Jenkins
-credential) — setup and usage in [`docs/health-check.md`](../docs/health-check.md).
-
 ## Notes
 
 - Errors (non-2xx) are **excluded from percentiles and reported separately** — an

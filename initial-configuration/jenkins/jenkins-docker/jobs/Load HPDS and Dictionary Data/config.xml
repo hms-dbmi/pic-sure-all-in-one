@@ -81,8 +81,6 @@ If &quot;RDBMS&quot; is selected &quot;Load HPDS Data From RDBMS&quot; will be u
 def retrieveBuildSpecId;
 def pipelineBuildId;
 def build_hashes = [
-    DICTIONARY: false,
-    UPLOADER: false,
     DICTIONARY_ETL: false
 ];
 pipeline {
@@ -121,9 +119,8 @@ pipeline {
                     sh &apos;pwd&apos;
                     def buildSpec = new JsonSlurper().parse(new File(&apos;/var/jenkins_home/workspace/Load HPDS and Dictionary Data/build-spec.json&apos;))
                     pipelineBuildId = new File(&apos;/var/jenkins_home/workspace/Load HPDS and Dictionary Data/pipeline_git_commit.txt&apos;).text.trim()
-                    for(def build : buildSpec.application){
-                        build_hashes[build.project_job_git_key] = build.git_hash
-                    }
+                    def dictionaryEtlBuild = buildSpec.application.find { it.project_job_git_key.equalsIgnoreCase(&apos;DICTIONARY_ETL&apos;) }
+                    build_hashes[&apos;DICTIONARY_ETL&apos;] = dictionaryEtlBuild?.git_hash ?: false
                 }
             }
         }
@@ -283,7 +280,9 @@ pipeline {
         stage(&apos;Dictionary Weights&apos;) {
             steps {
                 script {
-                    def result = build job: &apos;Run Dictionary Weights&apos;
+                    def result = build job: &apos;Run Dictionary Weights&apos;, parameters: [
+                        [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId]
+                    ]
                 }
             }
         }

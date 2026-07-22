@@ -49,15 +49,17 @@
       <properties class="hudson.model.View$PropertyList"/>
       <jobNames>
         <comparator class="hudson.util.CaseInsensitiveComparator"/>
-        <string>PIC-SURE Aggregate Resource Build</string>
         <string>PIC-SURE Frontend Build</string>
         <string>PIC-SURE Auth Micro-App Build - Jenkinsfile</string>
-        <string>PIC-SURE Build and Deploy Uploader</string>
         <string>Build Passthru Image</string>
         <string>PIC-SURE Dictionary API Build and Deploy</string>
         <string>PIC-SURE Dictionary-ETL Build</string>
+        <string>PIC-SURE Gateway Build and Deploy</string>
+        <string>PIC-SURE HPDS Query Service Build and Deploy</string>
+        <string>PIC-SURE Logging Build and Deploy</string>
+        <string>PIC-SURE Maven Build</string>
+        <string>PIC-SURE Operations Service Build and Deploy</string>
         <string>PIC-SURE Pipeline</string>
-        <string>PIC-SURE-API Build</string>
         <string>PIC-SURE-HPDS Build</string>
         <string>PIC-SURE Visualization Build and Deploy</string>
       </jobNames>
@@ -108,7 +110,6 @@
         <comparator class="hudson.util.CaseInsensitiveComparator" reference="../../../listView/jobNames/comparator"/>
         <string>Configure Auth0 Integration</string>
         <string>Configure Google Analytics</string>
-        <string>Configure Institution Node</string>
         <string>Configure Outbound Email Settings</string>
         <string>Configure PIC-SURE Token Introspection Token</string>
         <string>Configure Proxy</string>
@@ -142,15 +143,11 @@
       <jobNames>
         <comparator class="hudson.util.CaseInsensitiveComparator" reference="../../../listView/jobNames/comparator"/>
         <string>Backup Jenkins Home</string>
-        <string>Create PIC-SURE Aggregate Resource</string>
         <string>Create Self-Signed SSL Certificate</string>
         <string>Download PSAMA Configuration</string>
-        <string>Export builds</string>
         <string>Replace Frontend</string>
         <string>Update User Token</string>
         <string>Upload HPDS-ETL Dataset Configuration</string>
-        <string>Upload PSAMA Configuration</string>
-        <string>Upload Uploader .env File</string>
         <string>Export Jenkins Jobs</string>
       </jobNames>
       <jobFilters/>
@@ -173,9 +170,11 @@
       <properties class="hudson.model.View$PropertyList"/>
       <jobNames>
         <comparator class="java.lang.String$CaseInsensitiveComparator"/>
-        <string>Dictionary ETL - Initial Load</string>
-        <string>Dictionary ETL - Load Dictionary from HPDS API</string>
+        <string>Dictionary ETL - Load Facets from Local CSVs</string>
         <string>Dictionary ETL - Pull GIC Facet Ingestion Files from Git</string>
+        <string>Hydrate Data Dictionary Database</string>
+        <string>Load Dictionary Data from Ingest CSVs</string>
+        <string>Load Facet Configuration</string>
         <string>Load HPDS and Dictionary Data</string>
         <string>Load HPDS Data From CSV</string>
         <string>Load HPDS Data From Multiple Files</string>

@@ -18,8 +18,6 @@ fi
 # Optional services
 [[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/hpds" ]] && INCLUDE_HPDS=true || INCLUDE_HPDS=false
 echo "INCLUDE_HPDS=$INCLUDE_HPDS"
-[[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/uploader" ]] && INCLUDE_UPLOADER=true || INCLUDE_UPLOADER=false
-echo "INCLUDE_UPLOADER=$INCLUDE_UPLOADER"
 [[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/dictionary" ]] && INCLUDE_DICTIONARY=true || INCLUDE_DICTIONARY=false
 echo "INCLUDE_DICTIONARY=$INCLUDE_DICTIONARY"
 [[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/dictionary/dump" ]] && INCLUDE_AGG_DICT=true || INCLUDE_AGG_DICT=false
@@ -39,7 +37,6 @@ echo "INCLUDE_QUERY=$INCLUDE_QUERY"
 
 # Docker Volumes
 export PICSURE_BANNER_VOLUME="-v $DOCKER_CONFIG_DIR/httpd/banner_config.json:/usr/local/apache2/htdocs/picsureui/settings/banner_config.json"
-export EMAIL_TEMPLATE_VOLUME="-v $DOCKER_CONFIG_DIR/psama/emailTemplates:/opt/jboss/wildfly/standalone/configuration/emailTemplates "
 export PSAMA_TRUSTSTORE_VOLUME="-v $DOCKER_CONFIG_DIR/psama/application.truststore:/usr/local/tomcat/conf/application.truststore"
 if [ -f $DOCKER_CONFIG_DIR/httpd/custom_httpd_volumes ]; then
 	export CUSTOM_HTTPD_VOLUMES=`cat $DOCKER_CONFIG_DIR/httpd/custom_httpd_volumes`
@@ -135,7 +132,6 @@ docker run --name=psama --restart always \
   --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/psama/psama.env \
   $LOGGING_ENVS \
   -v $DOCKER_CONFIG_DIR/log/psama-docker-logs/:/var/log/ \
-  $EMAIL_TEMPLATE_VOLUME \
   $PSAMA_DEBUG \
   $PSAMA_TRUSTSTORE_VOLUME \
   -d hms-dbmi/psama:LATEST \
@@ -168,10 +164,6 @@ if $INCLUDE_GATEWAY; then
     --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/gateway/gateway.env \
     -d hms-dbmi/pic-sure-gateway:LATEST \
     || exit 2
-fi
-
-if $INCLUDE_UPLOADER; then
-  docker compose --profile production -f $CURRENT_FS_DOCKER_CONFIG_DIR/uploader/docker-compose.yml up -d
 fi
 
 if $INCLUDE_DICTIONARY; then

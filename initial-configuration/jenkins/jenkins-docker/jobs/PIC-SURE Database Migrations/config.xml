@@ -14,7 +14,7 @@
   <properties/>
   <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@4009.v0089238351a_9">
     <script>import groovy.json.JsonSlurper;
-def monorepo_ref = &apos;&apos;
+def psa_ref = &apos;&apos;
 def psm_ref = &apos;&apos;
 
 
@@ -36,25 +36,25 @@ node {
             def buildSpec = new JsonSlurper().parse(new File(filePath))
 
             for(def build : buildSpec.application){
-                if(build.project_job_git_key.equalsIgnoreCase(&quot;MONOREPO&quot;)) {
-                    monorepo_ref = build.git_hash
-                    echo &apos;monorepo_ref &apos; + monorepo_ref
+                if(build.project_job_git_key.equalsIgnoreCase(&quot;PSA&quot;)) {
+                    psa_ref = build.git_hash
+                    echo &apos;psa_ref &apos; + psa_ref
                 }
                 if(build.project_job_git_key.equalsIgnoreCase(&quot;PSM&quot;)) {
                     psm_ref = build.git_hash
                     echo &apos;psm_ref &apos; + psm_ref
                 }
             }
-            if(monorepo_ref.isEmpty() || psm_ref.isEmpty()) {
+            if(psa_ref.isEmpty() || psm_ref.isEmpty()) {
                 currentBuild.result = &apos;ABORTED&apos;
-                echo &apos;monorepo_ref = &apos; + monorepo_ref
+                echo &apos;psa_ref = &apos; + psa_ref
                 echo &apos;psm_ref = &apos; + psm_ref
                 error(&apos;Build Spec Not configured correctly!&apos;)
             }
         }
     }
     stage(&apos;Checkout Monorepo&apos;) {
-        checkout([$class: &apos;GitSCM&apos;, branches: [[name: monorepo_ref ]],
+        checkout([$class: &apos;GitSCM&apos;, branches: [[name: psa_ref ]],
                   userRemoteConfigs: [[url: &apos;https://github.com/hms-dbmi/pic-sure&apos;]]])
     }
     stage(&apos;Auth Schema Migration&apos;) {
@@ -99,7 +99,7 @@ node {
         script {
             echo &quot;Migrating Dictionary Database&quot;
             def result = build job: &apos;Migrate Dictionary Database&apos;, parameters: [
-                    [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: monorepo_ref]
+                    [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: psa_ref]
             ]
         }
     }

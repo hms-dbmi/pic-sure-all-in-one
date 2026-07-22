@@ -5,7 +5,7 @@
 &#xd;
 There is some configuration required to execute this job:&#xd;
 &#xd;
-sql.properties - A properties file with your database connection string, username and password to the database with your source data. Note that the datasource.url value in the sql.properties file will be specific to your RDBMS configuration and environment. Work with your local IT department or reach out to help from avillach_lab_developers@googlegroups.com if the loader cannot connect to your database. See this link for the correct format to use : https://github.com/hms-dbmi/pic-sure-hpds/blob/master/docker/pic-sure-hpds-etl/hpds/sql.properties&#xd;
+sql.properties - A properties file with your database connection string, username and password to the database with your source data. Note that the datasource.url value in the sql.properties file will be specific to your RDBMS configuration and environment. Work with your local IT department or reach out to help from avillach_lab_developers@googlegroups.com if the loader cannot connect to your database. See this link for the correct format to use : https://github.com/hms-dbmi/pic-sure/blob/main/services/pic-sure-hpds/docker/pic-sure-hpds-etl/hpds/sql.properties&#xd;
 &#xd;
 loadQuery.sql - A single query SQL script that results in the following 4 columns being returned:&#xd;
 &#xd;

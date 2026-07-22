@@ -72,6 +72,7 @@ docker run --rm \
 {
   echo &quot;GIT_BRANCH_SHORT=$GIT_BRANCH_SHORT&quot;
   echo &quot;GIT_COMMIT_SHORT=$GIT_COMMIT_SHORT&quot;
+  echo &quot;PIPELINE_BUILD_ID=$pipeline_build_id&quot;
 } &gt; build-info.txt
 cat build-info.txt
 </command>

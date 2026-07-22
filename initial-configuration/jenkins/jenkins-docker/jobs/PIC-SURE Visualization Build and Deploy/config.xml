@@ -38,6 +38,10 @@ if [ ! -f &quot;$MAVEN_WS/build-info.txt&quot; ] || ! ls &quot;$MAVEN_WS&quot;/s
   exit 2
 fi
 . &quot;$MAVEN_WS/build-info.txt&quot;
+if [ &quot;${PIPELINE_BUILD_ID:-}&quot; != &quot;$pipeline_build_id&quot; ]; then
+  echo &quot;ERROR: reactor artifacts belong to pipeline &apos;${PIPELINE_BUILD_ID:-unknown}&apos;, expected &apos;$pipeline_build_id&apos;&quot;
+  exit 2
+fi
 
 PROXY_ARGS=&quot;&quot;
 if [ -n &quot;${http_proxy:-}&quot; ]; then

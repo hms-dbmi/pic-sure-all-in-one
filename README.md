@@ -184,7 +184,7 @@ sudo ./install-dependencies-docker.sh /path/to/desired/config/dir/
       repo : https://github.com/hms-dbmi/baseline-pic-sure-release-control
 
       All PIC-SURE Java services build from the single `hms-dbmi/pic-sure` monorepo: the build-spec's
-      `MONOREPO` entry pins one ref (branch, tag, or hash) that every service job builds from
+      `PSA` entry pins one ref (branch, tag, or hash) that every service job builds from
       (`services/<name>` subdirectories). A release is one monorepo ref — the remaining separate
       entries are only for genuinely separate repos (`PSF` frontend, `PSM` migrations, `DICTIONARY_ETL`).
 

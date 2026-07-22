@@ -51,7 +51,6 @@
         <comparator class="hudson.util.CaseInsensitiveComparator"/>
         <string>PIC-SURE Frontend Build</string>
         <string>PIC-SURE Auth Micro-App Build - Jenkinsfile</string>
-        <string>Build Passthru Image</string>
         <string>PIC-SURE Dictionary API Build and Deploy</string>
         <string>PIC-SURE Dictionary-ETL Build</string>
         <string>PIC-SURE Gateway Build and Deploy</string>
@@ -110,7 +109,6 @@
         <comparator class="hudson.util.CaseInsensitiveComparator" reference="../../../listView/jobNames/comparator"/>
         <string>Configure Auth0 Integration</string>
         <string>Configure Google Analytics</string>
-        <string>Configure Outbound Email Settings</string>
         <string>Configure PIC-SURE Token Introspection Token</string>
         <string>Configure Proxy</string>
         <string>Configure Remote MySQL Instance</string>

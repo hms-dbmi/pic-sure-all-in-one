@@ -230,12 +230,8 @@ sudo ./stop-jenkins.sh
 
 - To start or stop PIC-SURE use the "Start PIC-SURE" and "Stop PIC-SURE" jobs.
 
-- To start or stop JupyterHub use the "Start JupyterHub" and "Stop JupyterHub" jobs. The Start JupyterHub job asks you
-  to set a password. Currently this password is shared by all JupyterHub users, we are working to integrate JupyterHub
-  with the PIC-SURE Auth Micro-App so that users can log in using the same credentials they use to access PIC-SURE UI.
-  To access JupyterHub browse to your server ip address on the path /jupyterhub
-
-For example, if your server has IP `10.109.190.146`, browse to https://10.109.190.146/jupyterhub
+- The legacy JupyterHub jobs are archived under
+  `initial-configuration/jenkins/jenkins-docker/archived-jobs` and are not installed into Jenkins.
 
 - If you have an Apache HTTPD compatible certificate, chain, and key files for SSL configuration, navigate to the
   Configuration tab and run the Configure SSL Certificates job uploading your server.crt, server.chain, and server.key

@@ -1,4 +1,7 @@
-##JupyterHub Instructions
+## JupyterHub Instructions
+
+> These legacy Jenkins jobs are archived and are not installed by the all-in-one configuration. The instructions below
+> are retained only as historical reference.
 
 To configure JupyterHub in Jenkins:
 1. Run the **Initial Configuration Pipeline** if you have not done so.
@@ -30,5 +33,4 @@ To add a JupyterHub user:
 4. **Email (required)** - Enter the new user's email address.
 5. **Roles** - Select **JupyterHub User**. Add more roles if necessary.
 6. Click **Save user**.
-
 

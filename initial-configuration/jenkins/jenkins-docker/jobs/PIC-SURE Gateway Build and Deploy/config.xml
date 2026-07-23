@@ -45,17 +45,15 @@ if [ &quot;${PIPELINE_BUILD_ID:-}&quot; != &quot;$pipeline_build_id&quot; ]; the
   exit 2
 fi
 
-# env-file cascade (uploaded param &gt; existing config &gt; generated default)
+# env-file cascade (uploaded param &gt; existing config &gt; fail)
 if [ -f gateway.env ]; then
     echo &quot;A new gateway.env was loaded.&quot;
     cp gateway.env &quot;$CONFIG_DIR/gateway.env&quot;
 elif [ -f &quot;$CONFIG_DIR/gateway.env&quot; ]; then
     echo &quot;Using existing gateway.env&quot;
 else
-    echo &quot;Creating new gateway.env file.&quot;
-    {
-        echo &quot;SPRING_PROFILE=aio&quot;
-    } &gt; &quot;$CONFIG_DIR/gateway.env&quot;
+    echo &quot;ERROR: gateway.env is required at $CONFIG_DIR/gateway.env&quot;
+    exit 2
 fi
 
 # Build/tag only. Deploy happens exclusively via Stop/Start PIC-SURE.

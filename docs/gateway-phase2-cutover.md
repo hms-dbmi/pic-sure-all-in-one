@@ -29,7 +29,7 @@ is still required to avoid the double-swap.
 
 - Branch `pic_sure_api_rewrite` pushed for both `pic-sure` and
   `pic-sure-all-in-one` (Jenkins clones from GitHub).
-- `gateway.env` populated (see `initial-configuration/config/gateway/example.env`
+- `gateway.env` populated (see `initial-configuration/config/gateway/gateway.env`
   and the george_development_notes step): PSAMA introspection URL/token,
   open-access URL, `LOGGING_SERVICE_URL`/`LOGGING_API_KEY`, and
   `GATEWAY_OWNS_AUTH=false`.

@@ -81,6 +81,16 @@ if [ -z "$(docker ps --format '{{.Names}}' | grep picsure-db)" ]; then
   docker exec -t picsure-db mysql -u root -p$ROOT_PASS -e "GRANT ALL PRIVILEGES ON picsure.* TO 'airflow'@'%';FLUSH PRIVILEGES;";
 
   PICSURE_PASS=$(generate-random)
+  OPS_ENV="$DOCKER_CONFIG_DIR/operations/operations.env"
+  if [ ! -f "$OPS_ENV" ]; then
+    echo "ERROR: operations environment template is missing: $OPS_ENV" >&2
+    exit 2
+  fi
+  if ! grep -q '^SPRING_DATASOURCE_PASSWORD=__PICSURE_MYSQL_PASSWORD__$' "$OPS_ENV"; then
+    echo "ERROR: operations database password placeholder is missing from $OPS_ENV" >&2
+    exit 2
+  fi
+  sed_inplace "s|^SPRING_DATASOURCE_PASSWORD=__PICSURE_MYSQL_PASSWORD__$|SPRING_DATASOURCE_PASSWORD=$PICSURE_PASS|" "$OPS_ENV"
   docker exec -t picsure-db mysql -u root -p$ROOT_PASS -e "CREATE USER 'picsure'@'%' IDENTIFIED BY '$PICSURE_PASS';";
   docker exec -t picsure-db mysql -u root -p$ROOT_PASS -e "GRANT ALL PRIVILEGES ON picsure.* to 'picsure'@'%';FLUSH PRIVILEGES";
 

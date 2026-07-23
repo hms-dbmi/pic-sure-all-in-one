@@ -44,15 +44,15 @@ if [ &quot;${PIPELINE_BUILD_ID:-}&quot; != &quot;$pipeline_build_id&quot; ]; the
   exit 2
 fi
 
-# env-file cascade (uploaded param &gt; existing config &gt; warn)
+# env-file cascade (uploaded param &gt; existing config &gt; fail)
 if [ -f query.env ]; then
     echo &quot;A new query.env was loaded.&quot;
     cp query.env &quot;$CONFIG_DIR/query.env&quot;
 elif [ -f &quot;$CONFIG_DIR/query.env&quot; ]; then
     echo &quot;Using existing query.env&quot;
 else
-    echo &quot;WARNING: no query.env present -- required secrets (datasource/HPDS/internal token) will be missing.&quot;
-    touch &quot;$CONFIG_DIR/query.env&quot;
+    echo &quot;ERROR: query.env is required at $CONFIG_DIR/query.env&quot;
+    exit 2
 fi
 
 docker build -t &quot;hms-dbmi/pic-sure-hpds-query-service:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT}&quot; \

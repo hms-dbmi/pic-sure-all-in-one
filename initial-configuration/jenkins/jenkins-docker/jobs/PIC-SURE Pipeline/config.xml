@@ -131,18 +131,6 @@ pipeline {
                 }
             }
         }
-        stage(&apos;Configure Logging&apos;) {
-            when { expression { return build_hashes[&apos;PSA&apos;] } }
-            steps {
-                script {
-                    try {
-                        build job: &apos;Configure Logging&apos;
-                    } catch (Exception e) {
-                        echo &quot;Configure Logging failed (${e.message}). Continuing pipeline.&quot;
-                    }
-                }
-            }
-        }
     }
 }</script>
     <sandbox>true</sandbox>

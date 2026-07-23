@@ -26,7 +26,17 @@ if [ -z "$NEW_API_KEY" ]; then
     exit 0
 fi
 
-
+GATEWAY_ENV="/usr/local/docker-config/gateway/gateway.env"
+if [ ! -f "$GATEWAY_ENV" ]; then
+    echo "ERROR: gateway.env is required at $GATEWAY_ENV"
+    exit 2
+fi
+if grep -q '^LOGGING_API_KEY=' "$GATEWAY_ENV"; then
+    sed -i "s|^LOGGING_API_KEY=.*|LOGGING_API_KEY=$NEW_API_KEY|" "$GATEWAY_ENV"
+else
+    echo "LOGGING_API_KEY=$NEW_API_KEY" &gt;&gt; "$GATEWAY_ENV"
+fi
+echo "gateway.env logging key updated -- recreate gateway to apply."
 
 </command>
     </hudson.tasks.Shell>

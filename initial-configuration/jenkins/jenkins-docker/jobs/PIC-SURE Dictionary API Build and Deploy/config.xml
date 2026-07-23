@@ -65,6 +65,7 @@ else
         echo &quot;POSTGRES_USER=picsure&quot;
         echo &quot;POSTGRES_DB=dictionary&quot;
         echo &quot;POSTGRES_HOST=dictionary-db&quot;
+        echo &quot;PICSURE_ACTUATOR_EXPOSURE=health&quot;
     } &gt; &quot;$CONFIG_DIR/dictionary.env&quot;
 fi
 

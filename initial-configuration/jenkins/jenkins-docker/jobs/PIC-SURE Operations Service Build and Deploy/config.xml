@@ -44,15 +44,15 @@ if [ &quot;${PIPELINE_BUILD_ID:-}&quot; != &quot;$pipeline_build_id&quot; ]; the
   exit 2
 fi
 
-# env-file cascade (uploaded param &gt; existing config &gt; warn)
+# env-file cascade (uploaded param &gt; existing config &gt; fail)
 if [ -f operations.env ]; then
     echo &quot;A new operations.env was loaded.&quot;
     cp operations.env &quot;$CONFIG_DIR/operations.env&quot;
 elif [ -f &quot;$CONFIG_DIR/operations.env&quot; ]; then
     echo &quot;Using existing operations.env&quot;
 else
-    echo &quot;WARNING: no operations.env present -- required secrets (datasource/HPDS/internal token) will be missing.&quot;
-    touch &quot;$CONFIG_DIR/operations.env&quot;
+    echo &quot;ERROR: operations.env is required at $CONFIG_DIR/operations.env&quot;
+    exit 2
 fi
 
 docker build -t &quot;hms-dbmi/pic-sure-operations-service:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT}&quot; \

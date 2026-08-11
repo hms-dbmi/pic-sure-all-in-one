@@ -145,6 +145,7 @@ pipeline {
                             $class: &apos;GitSCM&apos;,
                             branches: [[name: params.Dataset_Branch]],
                             userRemoteConfigs: [[url: env.GIT_REPOSITORY]],
+                            extensions: [[$class: &apos;PruneStaleBranch&apos;]],
                         ])
                     } else {
                         // Perform sparse checkout using the checkout plugin
@@ -153,7 +154,8 @@ pipeline {
                             branches: [[name: params.Dataset_Branch]],
                             userRemoteConfigs: [[url: env.GIT_REPOSITORY]],
                             extensions: [
-                                [$class: &apos;SparseCheckoutPaths&apos;, sparseCheckoutPaths: [[path: selectedFile]]]
+                                [$class: &apos;SparseCheckoutPaths&apos;, sparseCheckoutPaths: [[path: selectedFile]]],
+                                [$class: &apos;PruneStaleBranch&apos;]
                             ]
                         ])    
                     }

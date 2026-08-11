@@ -169,7 +169,8 @@ pipeline {
                         branches: [[name: env.GIT_BRANCH]],
                         userRemoteConfigs: [[url: env.GIT_REPOSITORY]],
                         extensions: [
-                            [$class: &apos;SparseCheckoutPaths&apos;, sparseCheckoutPaths: [[path: env.SPARSE_CHECKOUT_PATH]]]
+                            [$class: &apos;SparseCheckoutPaths&apos;, sparseCheckoutPaths: [[path: env.SPARSE_CHECKOUT_PATH]]],
+                            [$class: &apos;PruneStaleBranch&apos;]
                         ]
                     ])
                 }

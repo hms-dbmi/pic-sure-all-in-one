@@ -55,6 +55,7 @@ node {
     }
     stage(&apos;Checkout Monorepo&apos;) {
         checkout([$class: &apos;GitSCM&apos;, branches: [[name: psa_ref ]],
+                  extensions: [[$class: &apos;PruneStaleBranch&apos;]],
                   userRemoteConfigs: [[url: &apos;https://github.com/hms-dbmi/pic-sure&apos;]]])
     }
     stage(&apos;Auth Schema Migration&apos;) {
@@ -77,6 +78,7 @@ node {
     }
     stage(&apos;Project Specific Migrations&apos;) {
         checkout([$class: &apos;GitSCM&apos;, branches: [[name: psm_ref ]],
+                  extensions: [[$class: &apos;PruneStaleBranch&apos;]],
                   userRemoteConfigs: [[url: MIGRATION_REPO]]])
         sh &quot;&quot;&quot;
             sed -i &quot;s/__APPLICATION_UUID__/`cat /usr/local/docker-config/APP_ID_HEX`/g&quot; ./${MIGRATION_NAME}/auth/*.sql

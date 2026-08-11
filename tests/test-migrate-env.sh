@@ -30,6 +30,22 @@ file_mtime() {
   fi
 }
 
+file_mode() {
+  if stat -c '%a' "$1" >/dev/null 2>&1; then
+    stat -c '%a' "$1"
+  else
+    stat -f '%Lp' "$1"
+  fi
+}
+
+assert_mode() {
+  local expected=$1
+  local file=$2
+  local actual
+  actual=$(file_mode "$file")
+  [ "$actual" = "$expected" ] || fail "expected mode $expected on $file, found $actual"
+}
+
 assert_line_count() {
   local expected=$1
   local pattern=$2
@@ -324,8 +340,13 @@ EOF
 RewriteRule ^/picsure/(.*)$ http://wildfly:8080/pic-sure-api-2/PICSURE/$1 [P]
 EOF
   printf 'http://wildfly:8080/backup-only\n' > "$config_dir/httpd/httpd-vhosts.conf.pre-migration"
+  # a conf a previous buggy run left owner-only; the migration must repair it
+  printf 'ProxyPass /picsure http://gateway:8080/\n' > "$config_dir/httpd/httpd-locked.conf"
+  chmod 600 "$config_dir/httpd/httpd-locked.conf"
+  chmod 644 "$config_dir/httpd/httpd-vhosts.conf" "$config_dir/httpd/httpd-vhosts-ssloffload.conf"
   printf 'legacy template\n' > "$config_dir/wildfly/emailTemplates/legacy.html"
   printf 'HPDS_SETTING=true\n' > "$config_dir/hpds/hpds.env"
+  chmod 640 "$config_dir/hpds/hpds.env"
   printf 'PSAMA_SETTING=true\n' > "$config_dir/psama/psama.env"
   printf 'DICTIONARY_SETTING=true\n' > "$config_dir/dictionary/dictionary.env"
   printf 'VISUALIZATION_SETTING=true\n' > "$config_dir/visualization/visualization.env"
@@ -335,6 +356,10 @@ EOF
   assert_contains "$config_dir/httpd/httpd-vhosts.conf" 'http://gateway:8080/$1'
   assert_contains "$config_dir/httpd/httpd-vhosts-ssloffload.conf" 'http://gateway:8080/$1'
   assert_contains "$config_dir/httpd/httpd-vhosts.conf.pre-migration" 'http://wildfly:8080/backup-only'
+  assert_mode 644 "$config_dir/httpd/httpd-vhosts.conf"
+  assert_mode 644 "$config_dir/httpd/httpd-vhosts-ssloffload.conf"
+  assert_mode 644 "$config_dir/httpd/httpd-locked.conf"
+  assert_mode 640 "$config_dir/hpds/hpds.env"
   assert_contains "$config_dir/wildfly/emailTemplates/legacy.html" 'legacy template'
   assert_contains "$config_dir/psama/emailTemplates/legacy.html" 'legacy template'
 

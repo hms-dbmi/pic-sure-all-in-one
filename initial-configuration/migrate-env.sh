@@ -65,6 +65,39 @@ shared_value() {
   printf '%s\n' "$resolved"
 }
 
+file_mode() {
+  if stat -c '%a' "$1" >/dev/null 2>&1; then
+    stat -c '%a' "$1"
+  else
+    stat -f '%Lp' "$1"
+  fi
+}
+
+file_owner() {
+  if stat -c '%u:%g' "$1" >/dev/null 2>&1; then
+    stat -c '%u:%g' "$1"
+  else
+    stat -f '%u:%g' "$1"
+  fi
+}
+
+# mktemp creates files as 0600 and mv keeps that mode, which strips read
+# access from files that services read as other users (e.g. bind-mounted
+# httpd-vhosts.conf). Restore the target's mode and ownership before the
+# rename; fall back to 0644 for brand-new files.
+replace_file() {
+  local temp_file=$1
+  local target=$2
+
+  if [ -f "$target" ]; then
+    chmod "$(file_mode "$target")" "$temp_file"
+    chown "$(file_owner "$target")" "$temp_file" 2>/dev/null || true
+  else
+    chmod 644 "$temp_file"
+  fi
+  mv "$temp_file" "$target"
+}
+
 upsert_env() {
   local key=$1
   local value=$2
@@ -98,7 +131,7 @@ upsert_env() {
       if (!found) print key "=" value
     }
   ' "$file" > "$temp_file"
-  mv "$temp_file" "$file"
+  replace_file "$temp_file" "$file"
 }
 
 migrate_legacy_options() {
@@ -200,7 +233,7 @@ install_env() {
     -e "s|__PICSURE_MYSQL_PASSWORD__|$PICSURE_MYSQL_PASSWORD|g" \
     -e "s|__AGGREGATE_OBFUSCATION_SALT__|$AGGREGATE_OBFUSCATION_SALT|g" \
     "$template" > "$temp_file"
-  mv "$temp_file" "$destination"
+  replace_file "$temp_file" "$destination"
   complete_env "$destination" "$@" || fail "$subdirectory/$filename is incomplete after migration"
   note "$subdirectory/$filename: installed from current template"
 }
@@ -356,11 +389,19 @@ migrate_httpd_routes() {
       temp_file=$(mktemp "${config_file}.migration.XXXXXX")
       sed 's|http://wildfly:8080/pic-sure-api-2/PICSURE/|http://gateway:8080/|g' \
         "$config_file" > "$temp_file"
-      mv "$temp_file" "$config_file"
+      replace_file "$temp_file" "$config_file"
       note "httpd/$(basename "$config_file"): prepared gateway routing for the next restart"
       changed=true
     fi
   done < <(find "$httpd_dir" -type f -name '*.conf' -print | sort)
+
+  # Repair configs that a previous run of this script left owner-only
+  # (mktemp+mv made them 0600); httpd reads them as a different user.
+  while IFS= read -r config_file; do
+    chmod 644 "$config_file"
+    note "httpd/$(basename "$config_file"): restored world-readable permissions"
+    changed=true
+  done < <(find "$httpd_dir" -type f -name '*.conf' ! -perm -004 -print | sort)
 
   if find "$httpd_dir" -type f -name '*.conf' -exec grep -l 'wildfly:8080' {} + 2>/dev/null | grep -q .; then
     fail "unrecognized WildFly references remain in active HTTPD *.conf files"

@@ -10,6 +10,7 @@ update_script="$repo_dir/update-jenkins.sh"
 archive_dir="$jenkins_dir/archived-jobs"
 readme="$repo_dir/README.md"
 jupyterhub_instructions="$repo_dir/jupyterhub_instructions.md"
+migration_job="$jobs_dir/Migrate PIC-SURE Environment/config.xml"
 
 fail() {
   echo "FAIL: $*" >&2
@@ -50,6 +51,8 @@ test ! -d "$jobs_dir/Add Site to Passthrough Service" || fail "deprecated add-si
 test ! -d "$jobs_dir/Build Passthru Image" || fail "deprecated passthrough build job is still active"
 assert_absent "$global_config" "Add Site to Passthrough Service"
 assert_absent "$global_config" "Build Passthru Image"
+test -f "$migration_job" || fail "manual environment migration job is missing"
+assert_contains "$global_config" "Migrate PIC-SURE Environment"
 test ! -d "$jobs_dir/archived_jobs" || fail "legacy jobs are still inside the active jobs tree"
 test -d "$archive_dir" || fail "legacy job archive is missing"
 
@@ -58,5 +61,8 @@ test "$archive_count" = 9 || fail "expected 9 archived jobs, found $archive_coun
 assert_contains "$archive_dir/README.md" "not copied into Jenkins"
 assert_absent "$readme" 'To start or stop JupyterHub use the "Start JupyterHub" and "Stop JupyterHub" jobs.'
 assert_contains "$jupyterhub_instructions" "archived and are not installed"
+assert_contains "$readme" 'Run **Migrate PIC-SURE Environment**'
+assert_contains "$readme" 'WildFly remains running during this preparation step.'
+assert_contains "$readme" 'Run **PIC-SURE Database Migrations**, then run **PIC-SURE Pipeline**.'
 
 echo "Jenkins configuration checks passed"

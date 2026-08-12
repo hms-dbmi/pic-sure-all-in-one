@@ -9,19 +9,24 @@
       <options/>
     </org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction>
   </actions>
-  <description>Enables or disables Explore without Login. Updates frontend, PSAMA, and gateway configuration, rebuilds the frontend, and restarts PIC-SURE.</description>
+  <description>Configures Open Access/Discover and Explore Without Login independently, rebuilds the frontend, and restarts PIC-SURE.</description>
   <keepDependencies>false</keepDependencies>
   <properties>
     <hudson.model.ParametersDefinitionProperty>
       <parameterDefinitions>
         <hudson.model.BooleanParameterDefinition>
           <name>ENABLE_OPEN_ACCESS</name>
-          <description>Set to true to enable Explore without Login. Set to false to disable it.</description>
-          <defaultValue>true</defaultValue>
+          <description>Enable Discover using the dedicated open HPDS backend.</description>
+          <defaultValue>false</defaultValue>
         </hudson.model.BooleanParameterDefinition>
         <hudson.model.BooleanParameterDefinition>
-          <name>CONFIRM_PUBLIC_DATA</name>
-          <description>I know what I am doing and accept that all of my data will be publicly available</description>
+          <name>ENABLE_EXPLORE_WITHOUT_LOGIN</name>
+          <description>Allow anonymous users to use Explorer against the authenticated HPDS backend.</description>
+          <defaultValue>false</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
+          <name>CONFIRM_AUTH_HPDS_PUBLIC</name>
+          <description>I understand that Explore Without Login makes authenticated HPDS data publicly accessible.</description>
           <defaultValue>false</defaultValue>
         </hudson.model.BooleanParameterDefinition>
         <hudson.model.StringParameterDefinition>
@@ -37,21 +42,22 @@
     <script>pipeline {
     agent any
     stages {
-        stage(&apos;Confirm&apos;) {
+        stage(&apos;Confirm Authenticated HPDS Is Public&apos;) {
             when {
-                expression { env.ENABLE_OPEN_ACCESS.toBoolean() &amp;&amp; !env.CONFIRM_PUBLIC_DATA.toBoolean() }
+                expression { env.ENABLE_EXPLORE_WITHOUT_LOGIN.toBoolean() &amp;&amp; !env.CONFIRM_AUTH_HPDS_PUBLIC.toBoolean() }
             }
             steps {
-                error(&apos;You must check &quot;I know what I am doing and accept that all of my data will be publicly available&quot; to proceed.&apos;)
+                error(&apos;CONFIRM_AUTH_HPDS_PUBLIC must be true when ENABLE_EXPLORE_WITHOUT_LOGIN=true.&apos;)
             }
         }
 
-        stage(&apos;Configure Open Access&apos;) {
+        stage(&apos;Configure Anonymous Access&apos;) {
             steps {
                 script {
                     def result = build job: &apos;Enable Explore Without Login&apos;, parameters: [
                         [$class: &apos;BooleanParameterValue&apos;, name: &apos;ENABLE_OPEN_ACCESS&apos;, value: env.ENABLE_OPEN_ACCESS.toBoolean()],
-                        [$class: &apos;BooleanParameterValue&apos;, name: &apos;CONFIRM_PUBLIC_DATA&apos;, value: env.CONFIRM_PUBLIC_DATA.toBoolean()]
+                        [$class: &apos;BooleanParameterValue&apos;, name: &apos;ENABLE_EXPLORE_WITHOUT_LOGIN&apos;, value: env.ENABLE_EXPLORE_WITHOUT_LOGIN.toBoolean()],
+                        [$class: &apos;BooleanParameterValue&apos;, name: &apos;CONFIRM_AUTH_HPDS_PUBLIC&apos;, value: env.CONFIRM_AUTH_HPDS_PUBLIC.toBoolean()]
                     ]
                 }
             }

@@ -1,19 +1,24 @@
 <?xml version='1.1' encoding='UTF-8'?>
 <project>
     <actions />
-    <description>Enables "Explore without Login" functionality. This configures the frontend, PSAMA, and gateway to allow unauthenticated users to use the explorer page with a limited feature set.</description>
+    <description>Configures Open Access/Discover and Explore Without Login independently. Anonymous access is enabled in PSAMA and the gateway when either product feature is enabled.</description>
     <keepDependencies>false</keepDependencies>
     <properties>
         <hudson.model.ParametersDefinitionProperty>
             <parameterDefinitions>
                 <hudson.model.BooleanParameterDefinition>
                     <name>ENABLE_OPEN_ACCESS</name>
-                    <description>Set to true to enable Explore without Login. Set to false to disable it.</description>
-                    <defaultValue>true</defaultValue>
+                    <description>Enable Discover using the dedicated open HPDS backend.</description>
+                    <defaultValue>false</defaultValue>
                 </hudson.model.BooleanParameterDefinition>
                 <hudson.model.BooleanParameterDefinition>
-                    <name>CONFIRM_PUBLIC_DATA</name>
-                    <description>I know what I am doing and accept that all of my data will be publicly available</description>
+                    <name>ENABLE_EXPLORE_WITHOUT_LOGIN</name>
+                    <description>Allow anonymous users to use Explorer against the authenticated HPDS backend.</description>
+                    <defaultValue>false</defaultValue>
+                </hudson.model.BooleanParameterDefinition>
+                <hudson.model.BooleanParameterDefinition>
+                    <name>CONFIRM_AUTH_HPDS_PUBLIC</name>
+                    <description>I understand that Explore Without Login makes authenticated HPDS data publicly accessible.</description>
                     <defaultValue>false</defaultValue>
                 </hudson.model.BooleanParameterDefinition>
             </parameterDefinitions>
@@ -28,116 +33,90 @@
     <concurrentBuild>false</concurrentBuild>
     <builders>
         <hudson.tasks.Shell>
-            <command>#!/bin/bash
-set -e
+            <command>#!/usr/bin/env bash
+set -euo pipefail
 
-if [ "$ENABLE_OPEN_ACCESS" = "true" ] &amp;&amp; [ "$CONFIRM_PUBLIC_DATA" != "true" ]; then
-    echo "ERROR: You must check 'I know what I am doing and accept that all of my data will be publicly available' to proceed."
+ENABLE_OPEN_ACCESS="${ENABLE_OPEN_ACCESS:-false}"
+ENABLE_EXPLORE_WITHOUT_LOGIN="${ENABLE_EXPLORE_WITHOUT_LOGIN:-false}"
+CONFIRM_AUTH_HPDS_PUBLIC="${CONFIRM_AUTH_HPDS_PUBLIC:-false}"
+
+if [ "$ENABLE_EXPLORE_WITHOUT_LOGIN" = "true" ] &amp;&amp; [ "$CONFIRM_AUTH_HPDS_PUBLIC" != "true" ]; then
+    echo "ERROR: CONFIRM_AUTH_HPDS_PUBLIC must be true when ENABLE_EXPLORE_WITHOUT_LOGIN=true."
     exit 1
 fi
 
-CONFIG_DIR="/usr/local/docker-config"
+if [ "$ENABLE_OPEN_ACCESS" = "true" ] || [ "$ENABLE_EXPLORE_WITHOUT_LOGIN" = "true" ]; then
+    ENABLE_ANONYMOUS_REQUESTS=true
+else
+    ENABLE_ANONYMOUS_REQUESTS=false
+fi
 
-echo "============================================"
-echo "Enable Explore Without Login: $ENABLE_OPEN_ACCESS"
-echo "============================================"
-
-##
-## 1. Frontend Configuration (httpd.env)
-##
-echo ""
-echo "--- Configuring Frontend (httpd.env) ---"
-
+CONFIG_DIR="${DOCKER_CONFIG_DIR:-/usr/local/docker-config}"
 HTTPD_ENV="$CONFIG_DIR/httpd/httpd.env"
-
-if [ ! -f "$HTTPD_ENV" ]; then
-    echo "ERROR: $HTTPD_ENV not found."
-    exit 1
-fi
-
-# Update or add VITE_OPEN
-if grep -q "^VITE_OPEN=" "$HTTPD_ENV"; then
-    sed -i "s/^VITE_OPEN=.*/VITE_OPEN=$ENABLE_OPEN_ACCESS/" "$HTTPD_ENV"
-else
-    echo "VITE_OPEN=$ENABLE_OPEN_ACCESS" &gt;&gt; "$HTTPD_ENV"
-fi
-
-# Update or add VITE_OPEN_EXPLORER
-if grep -q "^VITE_OPEN_EXPLORER=" "$HTTPD_ENV"; then
-    sed -i "s/^VITE_OPEN_EXPLORER=.*/VITE_OPEN_EXPLORER=$ENABLE_OPEN_ACCESS/" "$HTTPD_ENV"
-else
-    echo "VITE_OPEN_EXPLORER=$ENABLE_OPEN_ACCESS" &gt;&gt; "$HTTPD_ENV"
-fi
-
-# Set VITE_RESOURCE_OPEN_HPDS to match VITE_RESOURCE_HPDS when enabling
-if [ "$ENABLE_OPEN_ACCESS" = "true" ]; then
-    AUTH_HPDS=$(grep "^VITE_RESOURCE_HPDS=" "$HTTPD_ENV" | cut -d'=' -f2)
-    if [ -n "$AUTH_HPDS" ]; then
-        if grep -q "^VITE_RESOURCE_OPEN_HPDS=" "$HTTPD_ENV"; then
-            sed -i "s/^VITE_RESOURCE_OPEN_HPDS=.*/VITE_RESOURCE_OPEN_HPDS=$AUTH_HPDS/" "$HTTPD_ENV"
-        else
-            echo "VITE_RESOURCE_OPEN_HPDS=$AUTH_HPDS" &gt;&gt; "$HTTPD_ENV"
-        fi
-        echo "Set VITE_RESOURCE_OPEN_HPDS=$AUTH_HPDS"
-
-        # Update visualization resource if it exists
-        VIZ_RESOURCE=$(grep "^VITE_RESOURCE_VIZ=" "$HTTPD_ENV" | cut -d'=' -f2)
-        if [ -n "$VIZ_RESOURCE" ]; then
-            echo "Visualization resource found: $VIZ_RESOURCE (HPDS UUIDs should match)"
-        fi
-    else
-        echo "WARNING: VITE_RESOURCE_HPDS not found in $HTTPD_ENV. VITE_RESOURCE_OPEN_HPDS must be set manually."
-    fi
-else
-    # Clear the open HPDS resource when disabling
-    if grep -q "^VITE_RESOURCE_OPEN_HPDS=" "$HTTPD_ENV"; then
-        sed -i "s/^VITE_RESOURCE_OPEN_HPDS=.*/VITE_RESOURCE_OPEN_HPDS=/" "$HTTPD_ENV"
-    fi
-fi
-
-echo "Frontend configuration updated."
-
-##
-## 2. PSAMA Configuration (psama.env)
-##
-echo ""
-echo "--- Configuring PSAMA (psama.env) ---"
-
 PSAMA_ENV="$CONFIG_DIR/psama/psama.env"
-
-if [ ! -f "$PSAMA_ENV" ]; then
-    echo "ERROR: $PSAMA_ENV not found."
-    exit 1
-fi
-
-sed -i "s/^OPEN_IDP_PROVIDER_IS_ENABLED=.*/OPEN_IDP_PROVIDER_IS_ENABLED=$ENABLE_OPEN_ACCESS/" "$PSAMA_ENV"
-echo "Set OPEN_IDP_PROVIDER_IS_ENABLED=$ENABLE_OPEN_ACCESS"
-
-##
-## 3. Gateway Configuration (gateway.env)
-##
-echo ""
-echo "--- Configuring Gateway (gateway.env) ---"
-
 GATEWAY_ENV="$CONFIG_DIR/gateway/gateway.env"
 
-if [ ! -f "$GATEWAY_ENV" ]; then
-    echo "ERROR: $GATEWAY_ENV not found."
-    exit 1
-fi
+for required_file in "$HTTPD_ENV" "$PSAMA_ENV" "$GATEWAY_ENV"; do
+    if [ ! -f "$required_file" ]; then
+        echo "ERROR: Required configuration file not found: $required_file"
+        exit 1
+    fi
+done
 
-if grep -q '^GATEWAY_OPEN_ACCESS_ENABLED=' "$GATEWAY_ENV"; then
-    sed -i "s|^GATEWAY_OPEN_ACCESS_ENABLED=.*|GATEWAY_OPEN_ACCESS_ENABLED=$ENABLE_OPEN_ACCESS|" "$GATEWAY_ENV"
-else
-    echo "GATEWAY_OPEN_ACCESS_ENABLED=$ENABLE_OPEN_ACCESS" &gt;&gt; "$GATEWAY_ENV"
-fi
-echo "Set GATEWAY_OPEN_ACCESS_ENABLED=$ENABLE_OPEN_ACCESS (applies when the gateway container is recreated)"
+upsert_env() {
+    local key=$1
+    local value=$2
+    local env_file=$3
+    local temp_file="${env_file}.tmp.$$"
 
-echo ""
-echo "============================================"
-echo "Configuration complete."
-echo "Run 'Start PIC-SURE' to apply changes."
-echo "============================================"
+    awk -v key="$key" -v value="$value" '
+        BEGIN { found = 0 }
+        index($0, key "=") == 1 {
+            if (!found) print key "=" value
+            found = 1
+            next
+        }
+        { print }
+        END { if (!found) print key "=" value }
+    ' "$env_file" &gt; "$temp_file"
+    cat "$temp_file" &gt; "$env_file"
+    rm "$temp_file"
+}
+
+read_env() {
+    local key=$1
+    local env_file=$2
+    sed -n "s/^${key}=//p" "$env_file"
+}
+
+validate_env() {
+    local key=$1
+    local expected=$2
+    local env_file=$3
+    local actual
+    actual="$(read_env "$key" "$env_file")"
+    if [ "$actual" != "$expected" ]; then
+        echo "ERROR: $env_file contains $key=$actual; expected $key=$expected."
+        exit 1
+    fi
+}
+
+upsert_env VITE_OPEN "$ENABLE_ANONYMOUS_REQUESTS" "$HTTPD_ENV"
+upsert_env VITE_DISCOVER "$ENABLE_OPEN_ACCESS" "$HTTPD_ENV"
+upsert_env VITE_OPEN_EXPLORER "$ENABLE_EXPLORE_WITHOUT_LOGIN" "$HTTPD_ENV"
+upsert_env OPEN_IDP_PROVIDER_IS_ENABLED "$ENABLE_ANONYMOUS_REQUESTS" "$PSAMA_ENV"
+upsert_env GATEWAY_OPEN_ACCESS_ENABLED "$ENABLE_ANONYMOUS_REQUESTS" "$GATEWAY_ENV"
+
+validate_env VITE_OPEN "$ENABLE_ANONYMOUS_REQUESTS" "$HTTPD_ENV"
+validate_env VITE_DISCOVER "$ENABLE_OPEN_ACCESS" "$HTTPD_ENV"
+validate_env VITE_OPEN_EXPLORER "$ENABLE_EXPLORE_WITHOUT_LOGIN" "$HTTPD_ENV"
+validate_env OPEN_IDP_PROVIDER_IS_ENABLED "$ENABLE_ANONYMOUS_REQUESTS" "$PSAMA_ENV"
+validate_env GATEWAY_OPEN_ACCESS_ENABLED "$ENABLE_ANONYMOUS_REQUESTS" "$GATEWAY_ENV"
+
+echo "Open Access/Discover: $ENABLE_OPEN_ACCESS"
+echo "Explore Without Login: $ENABLE_EXPLORE_WITHOUT_LOGIN"
+echo "Anonymous requests: $ENABLE_ANONYMOUS_REQUESTS"
+echo "Configuration written and validated."
 </command>
         </hudson.tasks.Shell>
     </builders>

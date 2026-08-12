@@ -9,16 +9,11 @@
       <options/>
     </org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction>
   </actions>
-  <description>Configures Open Access/Discover and Explore Without Login independently, rebuilds the frontend, and restarts PIC-SURE.</description>
+  <description>Enables or disables Explore Without Login, rebuilds the frontend, and restarts PIC-SURE. Existing Discover configuration is preserved.</description>
   <keepDependencies>false</keepDependencies>
   <properties>
     <hudson.model.ParametersDefinitionProperty>
       <parameterDefinitions>
-        <hudson.model.BooleanParameterDefinition>
-          <name>ENABLE_OPEN_ACCESS</name>
-          <description>Enable Discover using the dedicated open HPDS backend.</description>
-          <defaultValue>false</defaultValue>
-        </hudson.model.BooleanParameterDefinition>
         <hudson.model.BooleanParameterDefinition>
           <name>ENABLE_EXPLORE_WITHOUT_LOGIN</name>
           <description>Allow anonymous users to use Explorer against the authenticated HPDS backend.</description>
@@ -55,7 +50,6 @@
             steps {
                 script {
                     def result = build job: &apos;Enable Explore Without Login&apos;, parameters: [
-                        [$class: &apos;BooleanParameterValue&apos;, name: &apos;ENABLE_OPEN_ACCESS&apos;, value: env.ENABLE_OPEN_ACCESS.toBoolean()],
                         [$class: &apos;BooleanParameterValue&apos;, name: &apos;ENABLE_EXPLORE_WITHOUT_LOGIN&apos;, value: env.ENABLE_EXPLORE_WITHOUT_LOGIN.toBoolean()],
                         [$class: &apos;BooleanParameterValue&apos;, name: &apos;CONFIRM_AUTH_HPDS_PUBLIC&apos;, value: env.CONFIRM_AUTH_HPDS_PUBLIC.toBoolean()]
                     ]

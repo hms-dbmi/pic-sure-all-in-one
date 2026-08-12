@@ -1,16 +1,11 @@
 <?xml version='1.1' encoding='UTF-8'?>
 <project>
     <actions />
-    <description>Configures Open Access/Discover and Explore Without Login independently. Anonymous access is enabled in PSAMA and the gateway when either product feature is enabled.</description>
+    <description>Enables or disables Explore Without Login while preserving the existing Discover configuration. Shared anonymous access remains enabled when either feature is active.</description>
     <keepDependencies>false</keepDependencies>
     <properties>
         <hudson.model.ParametersDefinitionProperty>
             <parameterDefinitions>
-                <hudson.model.BooleanParameterDefinition>
-                    <name>ENABLE_OPEN_ACCESS</name>
-                    <description>Enable Discover using the dedicated open HPDS backend.</description>
-                    <defaultValue>false</defaultValue>
-                </hudson.model.BooleanParameterDefinition>
                 <hudson.model.BooleanParameterDefinition>
                     <name>ENABLE_EXPLORE_WITHOUT_LOGIN</name>
                     <description>Allow anonymous users to use Explorer against the authenticated HPDS backend.</description>
@@ -36,19 +31,12 @@
             <command>#!/usr/bin/env bash
 set -euo pipefail
 
-ENABLE_OPEN_ACCESS="${ENABLE_OPEN_ACCESS:-false}"
 ENABLE_EXPLORE_WITHOUT_LOGIN="${ENABLE_EXPLORE_WITHOUT_LOGIN:-false}"
 CONFIRM_AUTH_HPDS_PUBLIC="${CONFIRM_AUTH_HPDS_PUBLIC:-false}"
 
 if [ "$ENABLE_EXPLORE_WITHOUT_LOGIN" = "true" ] &amp;&amp; [ "$CONFIRM_AUTH_HPDS_PUBLIC" != "true" ]; then
     echo "ERROR: CONFIRM_AUTH_HPDS_PUBLIC must be true when ENABLE_EXPLORE_WITHOUT_LOGIN=true."
     exit 1
-fi
-
-if [ "$ENABLE_OPEN_ACCESS" = "true" ] || [ "$ENABLE_EXPLORE_WITHOUT_LOGIN" = "true" ]; then
-    ENABLE_ANONYMOUS_REQUESTS=true
-else
-    ENABLE_ANONYMOUS_REQUESTS=false
 fi
 
 # This shell runs inside the Jenkins container. DOCKER_CONFIG_DIR is the host
@@ -103,19 +91,31 @@ validate_env() {
     fi
 }
 
+DISCOVER_ENABLED="$(read_env VITE_DISCOVER "$HTTPD_ENV")"
+DISCOVER_ENABLED="${DISCOVER_ENABLED:-false}"
+if [ "$DISCOVER_ENABLED" != "true" ] &amp;&amp; [ "$DISCOVER_ENABLED" != "false" ]; then
+    echo "ERROR: $HTTPD_ENV contains invalid VITE_DISCOVER=$DISCOVER_ENABLED."
+    exit 1
+fi
+
+if [ "$DISCOVER_ENABLED" = "true" ] || [ "$ENABLE_EXPLORE_WITHOUT_LOGIN" = "true" ]; then
+    ENABLE_ANONYMOUS_REQUESTS=true
+else
+    ENABLE_ANONYMOUS_REQUESTS=false
+fi
+
 upsert_env VITE_OPEN "$ENABLE_ANONYMOUS_REQUESTS" "$HTTPD_ENV"
-upsert_env VITE_DISCOVER "$ENABLE_OPEN_ACCESS" "$HTTPD_ENV"
 upsert_env VITE_OPEN_EXPLORER "$ENABLE_EXPLORE_WITHOUT_LOGIN" "$HTTPD_ENV"
 upsert_env OPEN_IDP_PROVIDER_IS_ENABLED "$ENABLE_ANONYMOUS_REQUESTS" "$PSAMA_ENV"
 upsert_env GATEWAY_OPEN_ACCESS_ENABLED "$ENABLE_ANONYMOUS_REQUESTS" "$GATEWAY_ENV"
 
 validate_env VITE_OPEN "$ENABLE_ANONYMOUS_REQUESTS" "$HTTPD_ENV"
-validate_env VITE_DISCOVER "$ENABLE_OPEN_ACCESS" "$HTTPD_ENV"
+validate_env VITE_DISCOVER "$DISCOVER_ENABLED" "$HTTPD_ENV"
 validate_env VITE_OPEN_EXPLORER "$ENABLE_EXPLORE_WITHOUT_LOGIN" "$HTTPD_ENV"
 validate_env OPEN_IDP_PROVIDER_IS_ENABLED "$ENABLE_ANONYMOUS_REQUESTS" "$PSAMA_ENV"
 validate_env GATEWAY_OPEN_ACCESS_ENABLED "$ENABLE_ANONYMOUS_REQUESTS" "$GATEWAY_ENV"
 
-echo "Open Access/Discover: $ENABLE_OPEN_ACCESS"
+echo "Existing Open Access/Discover: $DISCOVER_ENABLED"
 echo "Explore Without Login: $ENABLE_EXPLORE_WITHOUT_LOGIN"
 echo "Anonymous requests: $ENABLE_ANONYMOUS_REQUESTS"
 echo "Configuration written and validated."

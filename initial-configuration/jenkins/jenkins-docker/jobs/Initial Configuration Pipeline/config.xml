@@ -201,6 +201,7 @@ pipeline {
                     sh &quot;echo &apos;VITE_ORIGIN=&apos; &gt;&gt; .env&quot;
                     sh &quot;echo &apos;VITE_LOGO=&apos; &gt;&gt; .env&quot;
                     sh &quot;echo &apos;VITE_AUTH0_TENANT=$env.AUTH0_TENANT&apos; &gt;&gt; .env&quot;
+                    sh &quot;echo &apos;VITE_DISCOVER=$env.ENABLE_OPEN_ACCESS&apos; &gt;&gt; .env&quot;
                     sh &quot;echo &apos;VITE_DASHBOARD=$env.DASHBOARD&apos; &gt;&gt; .env&quot;
                     sh &quot;echo &apos;VITE_DIST_EXPLORER=$env.DIST_EXPLORER&apos; &gt;&gt; .env&quot;
                     sh &quot;echo &apos;VITE_API=$env.API&apos; &gt;&gt; .env&quot;
@@ -228,7 +229,6 @@ pipeline {
                     sh &quot;mv .env &apos;/usr/local/docker-config/httpd/httpd.env&apos;&quot;
 
                     def result = build job: &apos;Enable Explore Without Login&apos;, parameters: [
-                        [$class: &apos;BooleanParameterValue&apos;, name: &apos;ENABLE_OPEN_ACCESS&apos;, value: env.ENABLE_OPEN_ACCESS.toBoolean()],
                         [$class: &apos;BooleanParameterValue&apos;, name: &apos;ENABLE_EXPLORE_WITHOUT_LOGIN&apos;, value: env.ENABLE_EXPLORE_WITHOUT_LOGIN.toBoolean()],
                         [$class: &apos;BooleanParameterValue&apos;, name: &apos;CONFIRM_AUTH_HPDS_PUBLIC&apos;, value: env.CONFIRM_AUTH_HPDS_PUBLIC.toBoolean()]
                     ]

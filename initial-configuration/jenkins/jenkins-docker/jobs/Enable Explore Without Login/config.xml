@@ -51,7 +51,9 @@ else
     ENABLE_ANONYMOUS_REQUESTS=false
 fi
 
-CONFIG_DIR="${DOCKER_CONFIG_DIR:-/usr/local/docker-config}"
+# This shell runs inside the Jenkins container. DOCKER_CONFIG_DIR is the host
+# path used by sibling Docker containers, while this bind mount is always here.
+CONFIG_DIR="/usr/local/docker-config"
 HTTPD_ENV="$CONFIG_DIR/httpd/httpd.env"
 PSAMA_ENV="$CONFIG_DIR/psama/psama.env"
 GATEWAY_ENV="$CONFIG_DIR/gateway/gateway.env"

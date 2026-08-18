@@ -20,15 +20,9 @@ source "$SCRIPT_DIR/scripts/lib/common.sh"
 
 REPOS=(
   hms-dbmi/pic-sure
-  hms-dbmi/pic-sure-auth-microapp
-  hms-dbmi/pic-sure-hpds
-  hms-dbmi/picsure-dictionary
-  hms-dbmi/picsure-dictionary-etl
   hms-dbmi/PIC-SURE-Frontend
   hms-dbmi/PIC-SURE-Migrations
-  hms-dbmi/pic-sure-visualization-resource
-  hms-dbmi/PIC-SURE-Logging
-  hms-dbmi/PIC-SURE-Logging-Client
+  hms-dbmi/picsure-dictionary-etl
 )
 
 skip()  { echo -e "${PICSURE_YELLOW}[skip]${PICSURE_NC} $*"; }

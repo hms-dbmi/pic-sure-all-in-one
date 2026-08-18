@@ -71,27 +71,15 @@ PROJECT_NAME="${COMPOSE_PROJECT_NAME:-picsure}"
 # REPO_DIRS/REPO_ENVS and release-control.sh's apply_refs.
 REPO_DIRS=(
   pic-sure
-  pic-sure-hpds
-  pic-sure-auth-microapp
   PIC-SURE-Frontend
   PIC-SURE-Migrations
-  picsure-dictionary
   picsure-dictionary-etl
-  PIC-SURE-Logging
-  PIC-SURE-Logging-Client
-  pic-sure-visualization-resource
 )
 REPO_ENVS=(
   PICSURE_REF
-  HPDS_REF
-  PSAMA_REF
   FRONTEND_REF
   MIGRATIONS_REF
-  DICTIONARY_REF
   DICTIONARY_ETL_REF
-  LOGGING_REF
-  LOGGING_CLIENT_REF
-  VISUALIZATION_REF
 )
 
 # reset_one_repo: git-preserving working-tree reset of a single sibling repo.

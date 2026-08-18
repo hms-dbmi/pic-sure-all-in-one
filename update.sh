@@ -170,30 +170,18 @@ dry_run_update() {
   echo "Component refs from .env:"
   for key in \
     PICSURE_REF \
-    HPDS_REF \
-    PSAMA_REF \
     FRONTEND_REF \
     MIGRATIONS_REF \
-    DICTIONARY_REF \
-    DICTIONARY_ETL_REF \
-    VISUALIZATION_REF \
-    LOGGING_REF \
-    LOGGING_CLIENT_REF; do
+    DICTIONARY_ETL_REF; do
     printf '  %-24s %s\n' "$key" "${!key:-main}"
   done
 
   echo ""
   echo "Repo checkout plan:"
   repo_status_line "$SCRIPT_DIR/repos/pic-sure" "PICSURE_REF"
-  repo_status_line "$SCRIPT_DIR/repos/pic-sure-hpds" "HPDS_REF"
-  repo_status_line "$SCRIPT_DIR/repos/pic-sure-auth-microapp" "PSAMA_REF"
   repo_status_line "$SCRIPT_DIR/repos/PIC-SURE-Frontend" "FRONTEND_REF"
   repo_status_line "$SCRIPT_DIR/repos/PIC-SURE-Migrations" "MIGRATIONS_REF"
-  repo_status_line "$SCRIPT_DIR/repos/picsure-dictionary" "DICTIONARY_REF"
   repo_status_line "$SCRIPT_DIR/repos/picsure-dictionary-etl" "DICTIONARY_ETL_REF"
-  repo_status_line "$SCRIPT_DIR/repos/PIC-SURE-Logging" "LOGGING_REF"
-  repo_status_line "$SCRIPT_DIR/repos/PIC-SURE-Logging-Client" "LOGGING_CLIENT_REF"
-  repo_status_line "$SCRIPT_DIR/repos/pic-sure-visualization-resource" "VISUALIZATION_REF"
 
   echo ""
   echo "Image action:"

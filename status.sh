@@ -52,15 +52,9 @@ section() {
 
 REF_KEYS=(
   PICSURE_REF
-  HPDS_REF
-  PSAMA_REF
   FRONTEND_REF
   MIGRATIONS_REF
-  DICTIONARY_REF
   DICTIONARY_ETL_REF
-  VISUALIZATION_REF
-  LOGGING_REF
-  LOGGING_CLIENT_REF
 )
 
 # Parallel arrays (bash 3.2: no associative arrays): repo dir under repos/
@@ -70,27 +64,15 @@ REF_KEYS=(
 # release-control.sh's apply_refs — keep the three in sync.
 REPO_DIRS=(
   pic-sure
-  pic-sure-hpds
-  pic-sure-auth-microapp
   PIC-SURE-Frontend
   PIC-SURE-Migrations
-  picsure-dictionary
   picsure-dictionary-etl
-  PIC-SURE-Logging
-  PIC-SURE-Logging-Client
-  pic-sure-visualization-resource
 )
 REPO_ENVS=(
   PICSURE_REF
-  HPDS_REF
-  PSAMA_REF
   FRONTEND_REF
   MIGRATIONS_REF
-  DICTIONARY_REF
   DICTIONARY_ETL_REF
-  LOGGING_REF
-  LOGGING_CLIENT_REF
-  VISUALIZATION_REF
 )
 
 ref_value() {

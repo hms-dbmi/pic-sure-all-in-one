@@ -1,0 +1,19 @@
+# Build the operations service from local monorepo source with Java remote debugging enabled.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.dev-operations.yml up -d --build pic-sure-operations-service
+#
+# Requires: the reactor run INTO the checkout first — the Dockerfile only copies
+# target/*.jar, and ./build-images.sh builds in a throwaway copy of the repo:
+#   docker run --rm -v "${PICSURE_SRC:-$PWD/repos/pic-sure}:/src" -v maven_m2_cache:/root/.m2 \
+#     -w /src maven:3-amazoncorretto-25 mvn -B clean install -T1C -DskipTests
+services:
+  pic-sure-operations-service:
+    build:
+      context: ${PICSURE_SRC:-./repos/pic-sure}/services/pic-sure-operations-service
+      dockerfile: Dockerfile
+    image: hms-dbmi/pic-sure-operations-service:dev
+    ports:
+      - "127.0.0.1:5009:5009"
+    environment:
+      JAVA_OPTS: >-
+        ${OPERATIONS_JAVA_OPTS:--Xms512m -Xmx2g}
+        -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5009

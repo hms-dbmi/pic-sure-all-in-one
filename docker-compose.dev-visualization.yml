@@ -1,15 +1,13 @@
-# Build visualization service from local source
+# Build visualization service from local monorepo source
 # Usage: docker compose -f docker-compose.yml -f docker-compose.dev-visualization.yml up -d --build visualization
 #
-# Requires: build deps from source first (populates ~/.m2):
-#   cd repos/PIC-SURE-Logging-Client && mvn install -DskipTests
-#   cd repos/pic-sure-hpds && mvn install -pl client-api -am -DskipTests
-#   cd repos/pic-sure && mvn install -pl pic-sure-resources/pic-sure-resource-api -am -DskipTests
+# Requires: the reactor run INTO the checkout first — the Dockerfile only copies
+# target/*.jar, and ./build-images.sh builds in a throwaway copy of the repo:
+#   docker run --rm -v "${PICSURE_SRC:-$PWD/repos/pic-sure}:/src" -v maven_m2_cache:/root/.m2 \
+#     -w /src maven:3-amazoncorretto-25 mvn -B clean install -T1C -DskipTests
 services:
   visualization:
     build:
-      context: ${VISUALIZATION_SRC:-./repos/pic-sure-visualization-resource}
-      dockerfile: dev.Dockerfile
-      additional_contexts:
-        m2_cache: ~/.m2/repository
+      context: ${PICSURE_SRC:-./repos/pic-sure}/services/pic-sure-visualization-service
+      dockerfile: Dockerfile
     image: hms-dbmi/pic-sure-visualization:dev

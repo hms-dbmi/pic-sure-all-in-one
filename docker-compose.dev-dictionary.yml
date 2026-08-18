@@ -1,14 +1,19 @@
-# Build dictionary services from local source
+# Build dictionary services from local monorepo source
 # Usage: docker compose -f docker-compose.yml -f docker-compose.dev-dictionary.yml up -d --build dictionary-api
+#
+# Requires: the reactor run INTO the checkout first — the Dockerfile only copies
+# target/*.jar, and ./build-images.sh builds in a throwaway copy of the repo:
+#   docker run --rm -v "${PICSURE_SRC:-$PWD/repos/pic-sure}:/src" -v maven_m2_cache:/root/.m2 \
+#     -w /src maven:3-amazoncorretto-25 mvn -B clean install -T1C -DskipTests
 services:
   dictionary-api:
     build:
-      context: ${DICTIONARY_SRC:-./repos/picsure-dictionary}
+      context: ${PICSURE_SRC:-./repos/pic-sure}/services/picsure-dictionary
       dockerfile: Dockerfile
     image: hms-dbmi/pic-sure-dictionary-api:dev
 
   dictionary-dump:
     build:
-      context: ${DICTIONARY_SRC:-./repos/picsure-dictionary}/aggregate
+      context: ${PICSURE_SRC:-./repos/pic-sure}/services/picsure-dictionary/aggregate
       dockerfile: Dockerfile
     image: hms-dbmi/pic-sure-dictionary-dump:dev

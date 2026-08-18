@@ -1,6 +1,6 @@
 // Vite dev server config overlay for all-in-one compose.
 // Mounted into the frontend container at dev time to enable HMR
-// with API proxying to wildfly/psama on the Docker network.
+// with API proxying to the gateway/psama on the Docker network.
 
 import { sveltekit } from '@sveltejs/kit/vite';
 import { defineConfig, type PluginOption } from 'vite';
@@ -21,9 +21,10 @@ export default defineConfig(async () => {
         interval: 1000,
       },
       proxy: {
-        '/picsure': {
-          target: 'http://wildfly:8080',
-          rewrite: (path: string) => path.replace(/^\/picsure/, '/pic-sure-api-2/PICSURE'),
+        '/picsure/': {
+          // Prefix stripped: the gateway's routes are /operations, /hpds, etc.
+          target: 'http://gateway:8080',
+          rewrite: (path: string) => path.replace(/^\/picsure/, ''),
         },
         '/psama': {
           target: 'http://psama:8090',

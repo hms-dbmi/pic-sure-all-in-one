@@ -36,6 +36,16 @@ assert_contains() {
   grep -Fq "$text" "$file" || fail "Expected '$text' in $file"
 }
 
+assert_no_env() {
+  local file="$1"
+  shift
+  local key
+  for key in "$@"; do
+    grep -q "^${key}=" "$file" && fail "Expected $key not to be written to $file"
+  done
+  return 0
+}
+
 git_commit_all() {
   local repo="$1"
   local message="$2"
@@ -50,6 +60,8 @@ make_release_repo() {
   git -C "$repo" config user.email "release-test@example.org"
   git -C "$repo" config user.name "Release Test"
 
+  # The main fixture keeps the pre-monorepo keys: the live build-spec still
+  # carries them, and they must be ignored rather than written to .env.
   cat > "$repo/build-spec.json" <<'JSON'
 {
   "application": [
@@ -114,16 +126,11 @@ test_resolve_full_spec() {
   run_release_control "$env_file" "$TEST_ROOT/full-cache" "$TEST_ROOT/repos" --resolve-only >"$output" 2>&1
 
   assert_env "$env_file" PICSURE_REF api-main
-  assert_env "$env_file" HPDS_REF hpds-main
-  assert_env "$env_file" PSAMA_REF psama-main
   assert_env "$env_file" FRONTEND_REF frontend-main
   assert_env "$env_file" MIGRATIONS_REF migrations-main
-  assert_env "$env_file" DICTIONARY_REF dictionary-main
-  assert_env "$env_file" DICTIONARY_ETL_REF dictionary-etl-main
-  assert_env "$env_file" LOGGING_REF logging-main
-  assert_env "$env_file" VISUALIZATION_REF visualization-main
-  assert_env "$env_file" LOGGING_CLIENT_REF main
-  pass "resolved full build spec"
+  assert_no_env "$env_file" HPDS_REF PSAMA_REF DICTIONARY_REF DICTIONARY_ETL_REF \
+    VISUALIZATION_REF LOGGING_REF LOGGING_CLIENT_REF
+  pass "resolved build spec and ignored unknown keys"
 }
 
 test_missing_keys_fall_back_to_main() {
@@ -135,10 +142,10 @@ test_missing_keys_fall_back_to_main() {
   run_release_control "$env_file" "$TEST_ROOT/partial-cache" "$TEST_ROOT/repos" --resolve-only >"$output" 2>&1
 
   assert_env "$env_file" PICSURE_REF api-partial
-  assert_env "$env_file" HPDS_REF hpds-partial
-  assert_env "$env_file" PSAMA_REF main
   assert_env "$env_file" FRONTEND_REF main
-  assert_contains "$output" "PSAMA_REF missing from build-spec.json; falling back to main."
+  assert_env "$env_file" MIGRATIONS_REF main
+  assert_contains "$output" "FRONTEND_REF missing from build-spec.json; falling back to main."
+  assert_contains "$output" "MIGRATIONS_REF missing from build-spec.json; falling back to main."
   pass "missing build-spec keys fall back to main"
 }
 
@@ -170,8 +177,8 @@ test_dry_run_does_not_mutate_env_or_cache() {
   cmp -s "$env_file" "$before" || fail "Expected dry run to leave .env unchanged"
   [ ! -e "$cache_dir" ] || fail "Expected dry run not to create release-control cache"
   assert_contains "$output" "Dry run: using temporary release-control checkout"
-  assert_contains "$output" "VISUALIZATION_REF"
-  assert_contains "$output" "visualization-main"
+  assert_contains "$output" "MIGRATIONS_REF"
+  assert_contains "$output" "migrations-main"
   pass "dry-run leaves env and cache unchanged"
 }
 
@@ -203,15 +210,9 @@ test_apply_checkout_ref() {
   git clone "$service_origin" "$repo" >/dev/null 2>&1
   cat > "$env_file" <<'EOF'
 PICSURE_REF=api-tag
-HPDS_REF=main
-PSAMA_REF=main
 FRONTEND_REF=main
 MIGRATIONS_REF=main
-DICTIONARY_REF=main
 DICTIONARY_ETL_REF=main
-VISUALIZATION_REF=main
-LOGGING_REF=main
-LOGGING_CLIENT_REF=main
 EOF
 
   run_release_control "$env_file" "$TEST_ROOT/apply-cache" "$repos_dir" --apply-only >/dev/null 2>&1
@@ -230,15 +231,9 @@ test_dirty_repo_is_not_moved() {
   echo dirty > "$repo/ref.txt"
   cat > "$env_file" <<'EOF'
 PICSURE_REF=api-tag
-HPDS_REF=main
-PSAMA_REF=main
 FRONTEND_REF=main
 MIGRATIONS_REF=main
-DICTIONARY_REF=main
 DICTIONARY_ETL_REF=main
-VISUALIZATION_REF=main
-LOGGING_REF=main
-LOGGING_CLIENT_REF=main
 EOF
 
   run_release_control "$env_file" "$TEST_ROOT/dirty-cache" "$repos_dir" --apply-only >"$TEST_ROOT/dirty.out" 2>&1

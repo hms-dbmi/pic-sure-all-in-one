@@ -137,7 +137,7 @@ resolve_refs() {
 
   local spec="$RELEASE_DIR/build-spec.json"
   if [ ! -f "$spec" ]; then
-    warn "No build-spec.json found in release control repo; using main for all component refs."
+    warn "No build-spec.json found in release control repo; using main for all spec-driven component refs."
   fi
 
   local release_commit
@@ -150,15 +150,8 @@ resolve_refs() {
       first(.application[]? | select(.project_job_git_key == $key and .git_hash) | .git_hash);
     [
       ["PICSURE_REF", ref_for("PSA")],
-      ["HPDS_REF", ref_for("PSH")],
-      ["PSAMA_REF", ref_for("PSAMA")],
       ["FRONTEND_REF", ref_for("PSF")],
-      ["MIGRATIONS_REF", ref_for("PSM")],
-      ["DICTIONARY_REF", ref_for("DICTIONARY")],
-      ["DICTIONARY_ETL_REF", ref_for("DICTIONARY_ETL")],
-      ["VISUALIZATION_REF", ref_for("PSV")],
-      ["LOGGING_REF", ref_for("PSL")],
-      ["LOGGING_CLIENT_REF", null]
+      ["MIGRATIONS_REF", ref_for("PSM")]
     ][] |
     .[0] as $env_name |
     (.[1] // "main") as $ref |
@@ -170,7 +163,7 @@ resolve_refs() {
   if [ -f "$spec" ]; then
     resolved="$(run_jq "$jq_filter" "$spec")"
   else
-    resolved=$'PICSURE_REF=main\tMISSING\nHPDS_REF=main\tMISSING\nPSAMA_REF=main\tMISSING\nFRONTEND_REF=main\tMISSING\nMIGRATIONS_REF=main\tMISSING\nDICTIONARY_REF=main\tMISSING\nDICTIONARY_ETL_REF=main\tMISSING\nVISUALIZATION_REF=main\tMISSING\nLOGGING_REF=main\tMISSING\nLOGGING_CLIENT_REF=main\tMISSING'
+    resolved=$'PICSURE_REF=main\tMISSING\nFRONTEND_REF=main\tMISSING\nMIGRATIONS_REF=main\tMISSING'
   fi
 
   set_env_var "RELEASE_CONTROL_REPO" "$repo_url"
@@ -184,9 +177,6 @@ resolve_refs() {
     set_env_var "$key" "$value"
     if [ "$marker" = "MISSING" ]; then
       warn "$key missing from build-spec.json; falling back to $value."
-      if [ "$key" = "VISUALIZATION_REF" ]; then
-        warn "VISUALIZATION_REF fallback 'main' is usually not buildable; add project_job_git_key PSV to build-spec.json."
-      fi
     else
       info "$key=$value"
     fi
@@ -237,15 +227,9 @@ apply_refs() {
   set +a
 
   checkout_repo_ref "$REPOS_DIR/pic-sure" "PICSURE_REF"
-  checkout_repo_ref "$REPOS_DIR/pic-sure-hpds" "HPDS_REF"
-  checkout_repo_ref "$REPOS_DIR/pic-sure-auth-microapp" "PSAMA_REF"
   checkout_repo_ref "$REPOS_DIR/PIC-SURE-Frontend" "FRONTEND_REF"
   checkout_repo_ref "$REPOS_DIR/PIC-SURE-Migrations" "MIGRATIONS_REF"
-  checkout_repo_ref "$REPOS_DIR/picsure-dictionary" "DICTIONARY_REF"
   checkout_repo_ref "$REPOS_DIR/picsure-dictionary-etl" "DICTIONARY_ETL_REF"
-  checkout_repo_ref "$REPOS_DIR/PIC-SURE-Logging" "LOGGING_REF"
-  checkout_repo_ref "$REPOS_DIR/PIC-SURE-Logging-Client" "LOGGING_CLIENT_REF"
-  checkout_repo_ref "$REPOS_DIR/pic-sure-visualization-resource" "VISUALIZATION_REF"
 }
 
 if [ "$RESOLVE" = "true" ]; then

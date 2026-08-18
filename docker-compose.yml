@@ -34,91 +34,143 @@ services:
       LOGGING_SERVICE_URL: ${LOGGING_SERVICE_URL:-http://pic-sure-logging/}
     networks:
       - public
-      - app    # Needs to reach wildfly and psama for reverse proxying
+      - app    # Needs to reach gateway and psama for reverse proxying
     depends_on:
-      wildfly:
+      gateway:
         condition: service_started
       psama:
         condition: service_started
+    # /picsure/health is answered locally by the vhost (no proxy, no SvelteKit
+    # render), which is what the frontend image's own HEALTHCHECK probes.
+    # 127.0.0.1, not localhost: the vhost only Listens on 0.0.0.0, so busybox
+    # wget's first (IPv6) candidate is refused.
     healthcheck:
-      test: ["CMD", "wget", "--spider", "--no-check-certificate", "-q", "https://localhost/"]
+      test: ["CMD", "wget", "--spider", "--no-check-certificate", "-q", "https://127.0.0.1/picsure/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 30s
 
   # ---------------------------------------------------------------------------
-  # Deploy WARs — copies additional WARs into wildfly deployments volume
+  # Gateway — PIC-SURE API front door (Spring Cloud Gateway)
   # ---------------------------------------------------------------------------
-  deploy-wars:
-    image: alpine:3.21
-    container_name: deploy-wars
-    volumes:
-      - ./config/wildfly/deploy-wars.sh:/deploy-wars.sh:ro
-      - ./config/wildfly/deployments/:/additional-wars/:ro
-      - wildfly-deployments:/deployments
-    command: sh /deploy-wars.sh
-    restart: "no"
-
-  # ---------------------------------------------------------------------------
-  # Wildfly — PIC-SURE API
-  # ---------------------------------------------------------------------------
-  wildfly:
-    image: hms-dbmi/pic-sure-wildfly:${PICSURE_IMAGE_TAG:-LATEST}
-    container_name: wildfly
+  # Routes /logging, /dictionary, /visualization, /hpds and /operations to the
+  # services below and runs the PSAMA introspection auth chain in front of them.
+  # The aio Spring profile supplies the AIO service DNS defaults for the
+  # introspection URLs and the /system/status deep-health downstream list, so
+  # only secrets and toggles are set here.
+  gateway:
+    image: hms-dbmi/pic-sure-gateway:${PICSURE_IMAGE_TAG:-LATEST}
+    container_name: gateway
     restart: always
-    user: root
-    volumes:
-      - ./config/wildfly/standalone.xml:/opt/jboss/wildfly/standalone/configuration/standalone.xml:ro
-      - ./config/wildfly/application.truststore:/opt/jboss/wildfly/standalone/configuration/application.truststore:ro
-      - ./config/wildfly/wildfly_mysql_module.xml:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/module.xml:ro
-      - ./config/wildfly/mysql-connector-java-5.1.49.jar:/opt/jboss/wildfly/modules/system/layers/base/com/sql/mysql/main/mysql-connector-java-5.1.49.jar:ro
-      - ./config/wildfly/visualization/:/opt/jboss/wildfly/standalone/configuration/visualization/:ro
-      - wildfly-deployments:/opt/jboss/wildfly/standalone/deployments
-      - ./.data/logs/wildfly:/opt/jboss/wildfly/standalone/log
     environment:
-      # JVM
-      JAVA_OPTS: >-
-        ${WILDFLY_JAVA_OPTS:--Xms2g -Xmx4g -XX:MetaspaceSize=96M -XX:MaxMetaspaceSize=256m}
-        -Djava.net.preferIPv4Stack=true
-        -Djavax.net.ssl.trustStore=/opt/jboss/wildfly/standalone/configuration/application.truststore
-        -Djavax.net.ssl.trustStorePassword=password
-      # Database
-      DB_HOST: ${DB_HOST:-picsure-db}
-      DB_PORT: ${DB_PORT:-3306}
-      DB_PICSURE_PASSWORD: ${DB_PICSURE_PASSWORD}
-      # Auth
-      AUTH0_CLIENT_ID: ${AUTH0_CLIENT_ID}
-      AUTH0_CLIENT_SECRET: ${AUTH0_CLIENT_SECRET}
-      AUTH0_TENANT: ${AUTH0_TENANT:-avillachlab}
-      PICSURE_INTROSPECTION_TOKEN: ${PICSURE_INTROSPECTION_TOKEN}
-      PICSURE_APPLICATION_ID: ${PICSURE_APPLICATION_ID}
-      # Email
-      EMAIL_USER: ${EMAIL_USER:-}
-      EMAIL_PASSWORD: ${EMAIL_PASSWORD:-}
-      # App config
-      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
-      SYSTEM_NAME: ${SYSTEM_NAME:-PIC-SURE All-in-one}
-      TOS_ENABLED: ${TOS_ENABLED:-false}
-      OPEN_ACCESS_ENABLED: ${OPEN_ACCESS_ENABLED:-false}
+      JAVA_OPTS: ${GATEWAY_JAVA_OPTS:--Xms512m -Xmx2g}
+      SPRING_PROFILE: aio
+      # Auth chain
+      TOKEN_INTROSPECTION_TOKEN: ${PICSURE_INTROSPECTION_TOKEN}
+      QUERY_SERVICE_INTERNAL_TOKEN: ${QUERY_SERVICE_INTERNAL_TOKEN}
+      GATEWAY_OPEN_ACCESS_ENABLED: ${GATEWAY_OPEN_ACCESS_ENABLED:-false}
+      # Actuator (gated by X-Application-Token)
+      PICSURE_APPLICATION_TOKEN: ${PICSURE_APPLICATION_TOKEN}
+      PICSURE_ACTUATOR_EXPOSURE: ${PICSURE_ACTUATOR_EXPOSURE:-health}
+      PICSURE_ACTUATOR_DETAILS: ${PICSURE_ACTUATOR_DETAILS:-when_authorized}
       # Logging
       LOGGING_API_KEY: ${LOGGING_API_KEY:-disabled}
       LOGGING_SERVICE_URL: ${LOGGING_SERVICE_URL:-http://pic-sure-logging/}
     networks:
       - app
-      - data
+      - query    # /system/status deep-health probes hpds directly
+    depends_on:
+      psama:
+        condition: service_started
+      pic-sure-operations-service:
+        condition: service_started
+      pic-sure-hpds-query-service:
+        condition: service_started
+    # Liveness, not the deep aggregate: /actuator/health folds in the downstream
+    # contributor, so an empty HPDS or dictionary would mark the gateway itself
+    # unhealthy.  The liveness group is pinned to the app's own state
+    # (application.yml) and stays open without the application token.
+    # Deep, cross-service health is /system/status.
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health/liveness"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ---------------------------------------------------------------------------
+  # Operations Service — PIC-SURE DB owner (queries, datasets, configuration)
+  # ---------------------------------------------------------------------------
+  pic-sure-operations-service:
+    image: hms-dbmi/pic-sure-operations-service:${PICSURE_IMAGE_TAG:-LATEST}
+    container_name: pic-sure-operations-service
+    restart: always
+    environment:
+      JAVA_OPTS: ${OPERATIONS_JAVA_OPTS:--Xms512m -Xmx2g}
+      # Database — the only service that talks to the picsure schema
+      SPRING_DATASOURCE_URL: jdbc:mysql://${DB_HOST:-picsure-db}:${DB_PORT:-3306}/picsure?useUnicode=true&characterEncoding=UTF-8&autoReconnect=true&autoReconnectForPools=true&serverTimezone=UTC
+      SPRING_DATASOURCE_USERNAME: picsure
+      SPRING_DATASOURCE_PASSWORD: ${DB_PICSURE_PASSWORD}
+      # Shared secret checked by InternalTokenFilter on /internal/**
+      QUERY_SERVICE_INTERNAL_TOKEN: ${QUERY_SERVICE_INTERNAL_TOKEN}
+      # Actuator (gated by X-Application-Token)
+      PICSURE_APPLICATION_TOKEN: ${PICSURE_APPLICATION_TOKEN}
+      PICSURE_ACTUATOR_EXPOSURE: ${PICSURE_ACTUATOR_EXPOSURE:-health}
+      PICSURE_ACTUATOR_DETAILS: ${PICSURE_ACTUATOR_DETAILS:-when_authorized}
+    networks:
+      - app
     depends_on:
       flyway-init:
         condition: service_completed_successfully
-      deploy-wars:
-        condition: service_completed_successfully
-    # TCP-level probe only: the jboss/wildfly:23 base image ships no
-    # wget/curl/nc (only bash), and its Dockerfile lives upstream in repos/
-    # so we cannot add one.  This catches a dead or hung process but NOT a
-    # failed WAR deployment — the API context (/pic-sure-api-2/PICSURE/)
-    # can be absent while port 8080 still accepts connections.
+    # Deep probe: the shallow aggregate stays open without the application token
+    # and folds in the datasource indicator, so a broken picsure schema turns it
+    # 503.  Context path is /operations.
     healthcheck:
-      test: ["CMD", "bash", "-c", "</dev/tcp/localhost/8080"]
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/operations/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
+  # ---------------------------------------------------------------------------
+  # HPDS Query Service — the only service allowed to reach HPDS
+  # ---------------------------------------------------------------------------
+  pic-sure-hpds-query-service:
+    image: hms-dbmi/pic-sure-hpds-query-service:${PICSURE_IMAGE_TAG:-LATEST}
+    container_name: pic-sure-hpds-query-service
+    restart: always
+    environment:
+      JAVA_OPTS: ${QUERY_SERVICE_JAVA_OPTS:--Xms512m -Xmx2g}
+      # HPDS backends — one instance in all-in-one, so auth and open are equal
+      HPDS_AUTH_URL: http://hpds:8080/PIC-SURE
+      HPDS_OPEN_URL: http://hpds:8080/PIC-SURE
+      # This service owns no database — query state lives in operations-service
+      OPERATIONS_SERVICE_URL: http://pic-sure-operations-service:8080
+      QUERY_SERVICE_INTERNAL_TOKEN: ${QUERY_SERVICE_INTERNAL_TOKEN}
+      # Open-path aggregation / obfuscation
+      VISUALIZATION_URL: http://visualization
+      AGGREGATE_VISUALIZATION_RESOURCE_ID: ${PICSURE_VIZ_RESOURCE_ID:-}
+      AGGREGATE_TARGET_RESOURCE_ID: ${OPEN_HPDS_RESOURCE_UUID:-}
+      AGGREGATE_OBFUSCATION_THRESHOLD: ${OBFUSCATION_THRESHOLD:-10}
+      AGGREGATE_OBFUSCATION_VARIANCE: ${OBFUSCATION_VARIANCE:-3}
+      AGGREGATE_OBFUSCATION_SALT: ${AGGREGATE_OBFUSCATION_SALT}
+      # Actuator (gated by X-Application-Token)
+      PICSURE_APPLICATION_TOKEN: ${PICSURE_APPLICATION_TOKEN}
+      PICSURE_ACTUATOR_EXPOSURE: ${PICSURE_ACTUATOR_EXPOSURE:-health}
+      PICSURE_ACTUATOR_DETAILS: ${PICSURE_ACTUATOR_DETAILS:-when_authorized}
+    networks:
+      - app
+      - query
+    depends_on:
+      hpds:
+        condition: service_started
+    # Liveness, not the deep aggregate: this service owns no datasource, so its
+    # only deep indicator is HpdsHealthIndicator, which inherits HPDS's own
+    # data-readiness DOWN on a fresh install.  Cross-service truth is the
+    # gateway's /system/status.
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health/liveness"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -159,7 +211,9 @@ services:
       # App config
       TOS_ENABLED: ${TOS_ENABLED:-false}
       SYSTEM_NAME: ${SYSTEM_NAME:-PIC-SURE All-in-one}
-      DENIED_EMAIL_ENABLED: "false"
+      AUTH0_DENIED_EMAIL_ENABLED: "false"
+      # Actuator
+      PICSURE_ACTUATOR_EXPOSURE: ${PICSURE_ACTUATOR_EXPOSURE:-health}
       # Logging
       LOGGING_API_KEY: ${LOGGING_API_KEY:-disabled}
       LOGGING_SERVICE_URL: ${LOGGING_SERVICE_URL:-http://pic-sure-logging/}
@@ -168,15 +222,16 @@ services:
     depends_on:
       flyway-init:
         condition: service_completed_successfully
-    # Real HTTP probe: GET /auth/tos/latest is allowlisted unauthenticated in
-    # PSAMA's SecurityConfig (repos/pic-sure-auth-microapp .../config/
-    # SecurityConfig.java) and TermsOfServiceController returns 200 even with
-    # an empty TOS table.  Unlike a TCP check this exercises the full Spring
-    # context and the DB path — a broken datasource turns the request into a
-    # 5xx, which wget --spider treats as failure.  busybox wget is in the
-    # corretto-alpine base.
+    # Real HTTP probe: PSAMA ships Actuator, and PICSURE_ACTUATOR_EXPOSURE=health
+    # puts a shallow, unauthenticated /auth/actuator/health behind the context
+    # path (permit-listed in SecurityConfig).  Its aggregate includes the
+    # datasource, so a broken DB turns the request into a 503, which wget
+    # --spider treats as failure.  This is the same endpoint the gateway folds
+    # into /system/status.  busybox wget is in the corretto-alpine base.
+    # 127.0.0.1, not localhost: PSAMA_JAVA_OPTS sets preferIPv4Stack, so busybox
+    # wget's first (IPv6) candidate for localhost is refused.
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8090/auth/tos/latest"]
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8090/auth/actuator/health"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -209,22 +264,29 @@ services:
       VCF_EXCERPT_ENABLED: ${HPDS_VCF_EXCERPT_ENABLED:-true}
       HPDS_GENOMIC_DATA_DIRECTORY: ${HPDS_GENOMIC_DATA_DIRECTORY:-/opt/local/hpds/all/}
       HPDS_GENOMIC_PROCESSOR_IMPL: localPatientDistributed
+      # Monorepo HPDS defaults this to true, which rejects V3 queries that
+      # carry no authorizationFilters — the normal shape of AIO queries.
+      # Only set true to control patient data access granularly (see
+      # data.query.v3.Query.authorizationFilters).
+      hpds.requireAuthorizationFilter: ${HPDS_REQUIRE_AUTHORIZATION_FILTER:-false}
+      # Actuator
+      PICSURE_ACTUATOR_EXPOSURE: ${PICSURE_ACTUATOR_EXPOSURE:-health}
       # Logging
       LOGGING_API_KEY: ${LOGGING_API_KEY:-disabled}
       LOGGING_SERVICE_URL: ${LOGGING_SERVICE_URL:-http://pic-sure-logging/}
     networks:
-      - app
-    # TCP-level probe.  This replaces the old `wget … || exit 0` check that
-    # could never fail (the dashboard showed healthy even when HPDS was down).
-    # HPDS has no GET-able health endpoint (its handlers are subpaths, mostly
-    # POST; bare /PIC-SURE/ is unmapped → 404, which fails wget --spider), so
-    # nc -z catches a dead/hung process only — not app-level failures.  HPDS
-    # starts slowly (data loading) and may crash-loop without data (especially
-    # with bch-dev profile); the long start_period defers evaluation until it
+      - query
+    # HPDS now ships Actuator; PICSURE_ACTUATOR_EXPOSURE=health exposes it at
+    # the host root (not under the /PIC-SURE query context).  Liveness, not the
+    # deep aggregate: HpdsReadinessHealthIndicator reports DOWN whenever no
+    # phenotype/genomic data is loaded, which is the normal state of a fresh
+    # install before the ETL runs — data readiness belongs in the gateway's
+    # /system/status view, not in "is this container alive".  HPDS starts
+    # slowly (data loading) and may crash-loop without data (especially with
+    # the bch-dev profile); the long start_period defers evaluation until it
     # is expected to be up.
-    # TODO: Add a proper /health endpoint to HPDS and tighten this probe.
     healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "8080"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/actuator/health/liveness"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -242,24 +304,21 @@ services:
     environment:
       JAVA_OPTS: ${VISUALIZATION_JAVA_OPTS:--Xms512m -Xmx1g}
       SERVER_PORT: 80
-      # HPDS connection
-      HPDS_BASE_URL: ${HPDS_BASE_URL:-http://hpds:8080/PIC-SURE}
-      # Resource UUIDs
-      AUTH_HPDS_RESOURCE_UUID: ${AUTH_HPDS_RESOURCE_UUID:-}
-      OPEN_HPDS_RESOURCE_UUID: ${OPEN_HPDS_RESOURCE_UUID:-}
+      # Single HPDS ingress — this service never talks to HPDS directly
+      HPDS_QUERY_SERVICE_URL: http://pic-sure-hpds-query-service:8080
       # Visualization tuning
-      OBFUSCATION_THRESHOLD: ${OBFUSCATION_THRESHOLD:-10}
-      OBFUSCATION_VARIANCE: ${OBFUSCATION_VARIANCE:-3}
       CHART_MAX_CATEGORIES: ${CHART_MAX_CATEGORIES:-7}
       REST_TEMPLATE_CONNECT_TIMEOUT: ${REST_TEMPLATE_CONNECT_TIMEOUT:-5000}
       REST_TEMPLATE_READ_TIMEOUT: ${REST_TEMPLATE_READ_TIMEOUT:-30000}
+      # Actuator
+      PICSURE_ACTUATOR_EXPOSURE: ${PICSURE_ACTUATOR_EXPOSURE:-health}
       # Logging
       LOGGING_API_KEY: ${LOGGING_API_KEY:-disabled}
       LOGGING_SERVICE_URL: ${LOGGING_SERVICE_URL:-http://pic-sure-logging/}
     networks:
       - app
     depends_on:
-      hpds:
+      pic-sure-hpds-query-service:
         condition: service_started
     healthcheck:
       test: ["CMD", "sh", "-c", "wget -q --spider http://localhost/actuator/health 2>/dev/null"]
@@ -278,6 +337,8 @@ services:
     env_file:
       - ./config/dictionary/dictionary.env
     environment:
+      # Actuator
+      PICSURE_ACTUATOR_EXPOSURE: ${PICSURE_ACTUATOR_EXPOSURE:-health}
       # Logging
       LOGGING_API_KEY: ${LOGGING_API_KEY:-disabled}
       LOGGING_SERVICE_URL: ${LOGGING_SERVICE_URL:-http://pic-sure-logging/}
@@ -289,13 +350,12 @@ services:
     depends_on:
       dictionary-db:
         condition: service_healthy
-    # TCP-level probe: dictionary-api (Spring Boot, server.port=80) does not
-    # include spring-boot-starter-actuator, so there is no /actuator/health
-    # endpoint (unlike the visualization service, which has it).  busybox nc
-    # is in the corretto-alpine base.  Catches a dead process only — not
-    # app-level failures.
+    # dictionary-api (Spring Boot, server.port=80) now ships Actuator;
+    # PICSURE_ACTUATOR_EXPOSURE=health exposes the shallow aggregate, which
+    # includes the Postgres datasource.  Same endpoint the gateway folds into
+    # /system/status.  busybox wget is in the corretto-alpine base.
     healthcheck:
-      test: ["CMD", "nc", "-z", "localhost", "80"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost/actuator/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -374,8 +434,9 @@ services:
   # depends_on picsure-db (service_healthy) ensures Flyway never attempts its
   # first connection before MySQL has passed its healthcheck.  Without this,
   # `pic-sure up` starts all services concurrently and Flyway can connect
-  # before MySQL is accepting queries, exit non-zero, and leave wildfly +
-  # psama permanently wedged (both gate on service_completed_successfully).
+  # before MySQL is accepting queries, exit non-zero, and leave
+  # operations-service + psama permanently wedged (both gate on
+  # service_completed_successfully).
   # FLYWAY_CONNECT_RETRIES is a belt-and-braces fallback: if the healthcheck
   # fires slightly early Flyway will retry up to 30 times before giving up.
   # The remote-db overlay resets this dependency via !reset — see
@@ -386,10 +447,10 @@ services:
     entrypoint: ["bash", "/scripts/run-migrations.sh"]
     volumes:
       - ./config/flyway/run-migrations.sh:/scripts/run-migrations.sh:ro
-      # Auth migrations — prefer local repo, fall back to config dir
-      - ${PSAMA_SRC:-./repos/pic-sure-auth-microapp}/pic-sure-auth-db/db/sql:/migrations/auth:ro
+      # Auth migrations
+      - ${PICSURE_SRC:-./repos/pic-sure}/services/pic-sure-auth-microapp/pic-sure-auth-db/db/sql:/migrations/auth:ro
       # PIC-SURE API migrations
-      - ${WILDFLY_SRC:-./repos/pic-sure}/pic-sure-api-data/src/main/resources/db/sql:/migrations/picsure:ro
+      - ${PICSURE_SRC:-./repos/pic-sure}/services/pic-sure-operations-service/db/sql:/migrations/picsure:ro
       # Project-specific migrations
       - ${MIGRATIONS_SRC:-./repos/PIC-SURE-Migrations}/${MIGRATION_NAME:-Baseline}/auth:/migrations/custom/auth:ro
       - ${MIGRATIONS_SRC:-./repos/PIC-SURE-Migrations}/${MIGRATION_NAME:-Baseline}/picsure:/migrations/custom/picsure:ro
@@ -435,6 +496,7 @@ services:
       ALLOWED_ORIGIN: "*"
     networks:
       - app
+      - query    # hpds is isolated on the query tier but still emits audit events
     healthcheck:
       # pic-sure-logging is a Java/Javalin service on PORT 80 with a real
       # GET /health endpoint — the same probe its own image HEALTHCHECK uses
@@ -454,16 +516,28 @@ networks:
     driver: bridge
 
   # App network — bridge (needs outbound internet for Auth0, email, etc.)
-  # Services: wildfly, psama, hpds, picsure-db, visualization, logging
-  # Note: PSAMA must reach Auth0 for token validation. Wildfly may need
-  # outbound for email, truststore updates, etc.
+  # Services: gateway, psama, operations-service, hpds-query-service,
+  # visualization, dictionary-api, picsure-db, flyway-init, logging
+  # Note: PSAMA must reach Auth0 for token validation.
   app:
     driver: bridge
 
   # Data network — internal, no internet access
   # Services: dictionary-api, dictionary-dump, dictionary-db
-  # Wildfly also connects here to query the dictionary
   data:
+    driver: bridge
+    internal: true
+
+  # Query network — internal, no internet access
+  # Services: hpds, hpds-query-service, gateway, logging
+  # Isolates HPDS from the app tier (visualization, dictionary, psama cannot
+  # resolve it).  The query service is its query path; the gateway probes it
+  # for /system/status; HPDS posts audit events to logging over this tier.
+  # Bridge networks are symmetric, so gateway and logging CAN technically
+  # reach HPDS — accepted: both memberships are required by the upstream aio
+  # health/audit design, and this is still strictly tighter than the
+  # reference deployment's single flat network.
+  query:
     driver: bridge
     internal: true
 
@@ -479,9 +553,6 @@ volumes:
   hpds-data:
   hpds-genomic:
   hpds-csv:
-
-  # Application
-  wildfly-deployments:
 
   # HPDS query results (GIC file sharing)
   hpds-query-results:

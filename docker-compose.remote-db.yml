@@ -1,27 +1,24 @@
 # Remote MySQL/RDS overlay.
 #
 # Use through the top-level scripts with DB_MODE=remote. It disables the bundled
-# picsure-db service and removes local DB health dependencies so Flyway, WildFly,
-# and PSAMA connect to DB_HOST/DB_PORT directly.
+# picsure-db service and removes local DB health dependencies so Flyway, the
+# operations service, and PSAMA connect to DB_HOST/DB_PORT directly.
 #
 # Note on depends_on merge semantics (B22):
 #   Compose merges overlay maps — a plain `depends_on: {}` does NOT clear the
 #   base depends_on; it is a no-op.  To actually remove inherited entries the
 #   overlay must use the YAML merge-reset tag `!reset` (Compose ≥ 2.24 /
 #   Docker Compose v2.24+).  Only flyway-init needs `!reset {}` (it must drop
-#   its inherited picsure-db dependency); wildfly and psama re-state their
-#   base conditions as plain maps since they have nothing to remove.
+#   its inherited picsure-db dependency); operations-service and psama re-state
+#   their base conditions as plain maps since they have nothing to remove.
 
 services:
-  # wildfly depends on flyway-init and deploy-wars in the base stack; both are
-  # still required in remote mode.  The base entry already omits picsure-db so
-  # no reset is needed here — we simply re-state the same conditions for
-  # clarity and to be explicit that this overlay owns the full depends_on set.
-  wildfly:
+  # pic-sure-operations-service depends on flyway-init in the base stack; still
+  # required in remote mode.  No picsure-db dependency to drop, re-stated for
+  # explicitness.
+  pic-sure-operations-service:
     depends_on:
       flyway-init:
-        condition: service_completed_successfully
-      deploy-wars:
         condition: service_completed_successfully
 
   # psama depends on flyway-init in the base stack; still required in remote

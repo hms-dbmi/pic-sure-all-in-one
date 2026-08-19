@@ -53,8 +53,8 @@
         <string>PIC-SURE Auth Micro-App Build - Jenkinsfile</string>
         <string>PIC-SURE Dictionary API Build and Deploy</string>
         <string>PIC-SURE Dictionary-ETL Build</string>
+        <string>PIC-SURE Maven Build</string>
         <string>PIC-SURE Pipeline</string>
-        <string>PIC-SURE-API Build</string>
         <string>PIC-SURE-HPDS Build</string>
         <string>PIC-SURE Visualization Build and Deploy</string>
       </jobNames>

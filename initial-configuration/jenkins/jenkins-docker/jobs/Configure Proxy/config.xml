@@ -39,7 +39,7 @@
         <hudson.model.StringParameterDefinition>
           <name>NO_PROXY</name>
           <description>Comma delimited list of DNS names where proxy server should not be used</description>
-          <defaultValue>localhost,127.0.0.1,wildfly,httpd,hpds</defaultValue>
+          <defaultValue>localhost,127.0.0.1,httpd,hpds</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
       </parameterDefinitions>

@@ -1,7 +1,7 @@
 <?xml version='1.1' encoding='UTF-8'?>
 <project>
-  <actions/>
-  <description></description>
+  <actions />
+  <description />
   <keepDependencies>false</keepDependencies>
   <properties>
     <hudson.model.ParametersDefinitionProperty>
@@ -18,11 +18,11 @@
         </hudson.model.BooleanParameterDefinition>
         <hudson.model.BooleanParameterDefinition>
           <name>build_spec_config</name>
-          <description>Use Build spec&apos;s config</description>
+          <description>Use Build spec's config</description>
           <defaultValue>true</defaultValue>
         </hudson.model.BooleanParameterDefinition>
         <hudson.model.FileParameterDefinition>
-          <name></name>
+          <name />
           <description>custom configuration.json</description>
         </hudson.model.FileParameterDefinition>
       </parameterDefinitions>
@@ -41,80 +41,82 @@
       </hudson.plugins.git.BranchSpec>
     </branches>
     <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
-    <submoduleCfg class="empty-list"/>
-    <extensions/>
+    <submoduleCfg class="empty-list" />
+    <extensions>
+      <hudson.plugins.git.extensions.impl.PruneStaleBranch/>
+    </extensions>
   </scm>
   <canRoam>true</canRoam>
   <disabled>false</disabled>
   <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
   <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
   <jdk>(System)</jdk>
-  <triggers/>
+  <triggers />
   <concurrentBuild>false</concurrentBuild>
   <builders>
     <hudson.tasks.Shell>
       <command>
-if [ -f &quot;/usr/local/docker-config/setProxy.sh&quot; ]; then
+if [ -f "/usr/local/docker-config/setProxy.sh" ]; then
    . /usr/local/docker-config/setProxy.sh
 fi
 
-GIT_BRANCH_SHORT=`echo ${GIT_BRANCH} | cut -d &quot;/&quot; -f 2` 
+GIT_BRANCH_SHORT=`echo ${GIT_BRANCH} | cut -d "/" -f 2` 
 GIT_COMMIT_SHORT=`echo ${GIT_COMMIT} | cut -c1-7`
 
 cp /usr/local/docker-config/httpd/httpd.env .env
 
 if [ ! -f .env ]; then
-  echo &quot;.env file not found&quot;
+  echo ".env file not found"
   exit 1
 fi
 
-if [ &quot;$build_spec_config&quot; = &quot;true&quot; ]; then
-  echo &quot;Checking out build_spec from GitHub and using its configuration.json&quot;
-  if [ -z &quot;$release_control_repo&quot; ]; then
-    echo &quot;ERROR: release_control_repo is not set.&quot;
+if [ "$build_spec_config" = "true" ]; then
+  echo "Checking out build_spec from GitHub and using its configuration.json"
+  if [ -z "$release_control_repo" ]; then
+    echo "ERROR: release_control_repo is not set."
     exit 1
   fi
-  BUILD_SPEC_REPO=&quot;$release_control_repo&quot;
-  BUILD_SPEC_BRANCH=&quot;${release_control_branch:-main}&quot;
+  BUILD_SPEC_REPO="$release_control_repo"
+  BUILD_SPEC_BRANCH="${release_control_branch:-main}"
 
   # Clone the repo to a temp directory
   tmpdir=$(mktemp -d)
-  git clone --depth 1 --branch &quot;$BUILD_SPEC_BRANCH&quot; &quot;$BUILD_SPEC_REPO&quot; &quot;$tmpdir&quot;
-  if [ -f &quot;$tmpdir/configuration.json&quot; ]; then
-    cp &quot;$tmpdir/configuration.json&quot; ./src/lib/assets/configuration.json
-    echo &quot;Copied configuration.json from build spec repo.&quot;
+  git clone --depth 1 --branch "$BUILD_SPEC_BRANCH" "$BUILD_SPEC_REPO" "$tmpdir"
+  if [ -f "$tmpdir/configuration.json" ]; then
+    cp "$tmpdir/configuration.json" ./src/lib/assets/configuration.json
+    echo "Copied configuration.json from build spec repo."
   else
-    echo &quot;ERROR: configuration.json not found in build spec repo.&quot;
+    echo "ERROR: configuration.json not found in build spec repo."
     exit 1
   fi
-  rm -rf &quot;$tmpdir&quot;
-elif [ -n &quot;$custom_configuration_json&quot; ]; then
-  echo &quot;Using custom configuration.json&quot;
-  cp &quot;$custom_configuration_json&quot; ./src/lib/assets/configuration.json
-elif [ -f &quot;/var/jenkins_home/workspace/Check For Updates/configuration.json&quot; ]; then
-  echo &quot;Replacing the Config file from build spec&quot;
-  cp &quot;/var/jenkins_home/workspace/Check For Updates/configuration.json&quot; ./src/lib/assets/configuration.json
+  rm -rf "$tmpdir"
+elif [ -n "$custom_configuration_json" ]; then
+  echo "Using custom configuration.json"
+  cp "$custom_configuration_json" ./src/lib/assets/configuration.json
+elif [ -f "/var/jenkins_home/workspace/Check For Updates/configuration.json" ]; then
+  echo "Replacing the Config file from build spec"
+  cp "/var/jenkins_home/workspace/Check For Updates/configuration.json" ./src/lib/assets/configuration.json
 else
-  echo &quot;Using default configuration.json&quot;
+  echo "Using default configuration.json"
 fi
 
-[ -f &quot;/usr/local/docker-config/httpd/terms.html&quot; ] &amp;&amp; cp &quot;/usr/local/docker-config/httpd/terms.html&quot; ./src/terms.svelte
+[ -f "/usr/local/docker-config/httpd/terms.html" ] &amp;&amp; cp "/usr/local/docker-config/httpd/terms.html" ./src/terms.svelte
 
-sed -i &quot;s/sourcemap: .*,/sourcemap: ${SRC_MAPS},/&quot; vite.config.ts
+sed -i "s/sourcemap: .*,/sourcemap: ${SRC_MAPS},/" vite.config.ts
 
 if [ -f $DOCKER_CONFIG_DIR/httpd/custom_httpd_volumes ]; then
 	export CUSTOM_HTTPD_VOLUMES=`cat $DOCKER_CONFIG_DIR/httpd/custom_httpd_volumes`
 fi
-docker stop httpd hpds wildfly || true
+docker stop httpd hpds || true
 
-docker build --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_proxy --build-arg no_proxy=&quot;$no_proxy&quot; \
- --build-arg HTTP_PROXY=$http_proxy --build-arg HTTPS_PROXY=$http_proxy --build-arg NO_PROXY=&quot;$no_proxy&quot; \
+docker build --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_proxy --build-arg no_proxy="$no_proxy" \
+ --build-arg HTTP_PROXY=$http_proxy --build-arg HTTPS_PROXY=$http_proxy --build-arg NO_PROXY="$no_proxy" \
  -f Dockerfile -t hms-dbmi/pic-sure-frontend:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} .
 docker tag hms-dbmi/pic-sure-frontend:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} hms-dbmi/pic-sure-frontend:LATEST
 
 docker rm httpd || true
 docker run --name=httpd --restart always --network=picsure \
-    -v &quot;$DOCKER_CONFIG_DIR&quot;/log/httpd-docker-logs/:/app/logs/ \
+    -v "$DOCKER_CONFIG_DIR"/log/httpd-docker-logs/:/app/logs/ \
     -v $DOCKER_CONFIG_DIR/httpd/cert:/usr/local/apache2/cert/ \
     -v $DOCKER_CONFIG_DIR/httpd/httpd-vhosts.conf:/usr/local/apache2/conf/extra/httpd-vhosts.conf \
     $CUSTOM_HTTPD_VOLUMES \
@@ -124,10 +126,10 @@ docker run --name=httpd --restart always --network=picsure \
     -d hms-dbmi/pic-sure-frontend:LATEST \
     || exit 2
 
-docker start hpds wildfly</command>
-      <configuredLocalRules/>
+docker start hpds</command>
+      <configuredLocalRules />
     </hudson.tasks.Shell>
   </builders>
-  <publishers/>
-  <buildWrappers/>
+  <publishers />
+  <buildWrappers />
 </project>

@@ -52,6 +52,7 @@ if $INCLUDE_HPDS; then
   stop_and_remove_container hpds
 fi
 stop_and_remove_container httpd
+# WildFly is no longer deployed; clean up a leftover container from older installs.
 stop_and_remove_container wildfly
 stop_and_remove_container psama
 

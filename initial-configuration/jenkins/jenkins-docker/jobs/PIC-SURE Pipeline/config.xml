@@ -18,14 +18,13 @@
 def retrieveBuildSpecId;
 def pipelineBuildId;
 def build_hashes = [
-    DICTIONARY: false,
-    UPLOADER: false,
-    PASSTHRU: false,
-    AGGREGATE: false,
-    PSL: false,
+    PSA: false,
 ];
 pipeline {
     agent any
+    options {
+        disableConcurrentBuilds()
+    }
     stages {
         stage(&apos;Retrieve Build Spec&apos;) {
             steps {
@@ -37,7 +36,6 @@ pipeline {
                     copyArtifacts filter: &apos;*&apos;, projectName: &apos;Retrieve Build Spec&apos;, selector: specific(&quot;&quot;+retrieveBuildSpecId)
                     sh &apos;cat build-spec.json&apos;
                     sh &apos;cat pipeline_git_commit.txt&apos;
-                    sh &apos;pwd&apos;
                     def buildSpec = new JsonSlurper().parse(new File(&apos;/var/jenkins_home/workspace/PIC-SURE Pipeline/build-spec.json&apos;))
                     pipelineBuildId = new File(&apos;/var/jenkins_home/workspace/PIC-SURE Pipeline/pipeline_git_commit.txt&apos;).text.trim()
                     for(def build : buildSpec.application){
@@ -46,169 +44,91 @@ pipeline {
                 }
             }
         }
-        stage(&apos;Install Shared Libraries&apos;) {
-            steps {
-                parallel(
-                    commonLibrary: {
-                        script {
-                            build job: &apos;PIC-SURE Common Install&apos;, parameters: [
-                                [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId]
-                            ]
-                        }
-                    },
-                    loggingClient: {
-                        script {
-                            try {
-                                build job: &apos;PIC-SURE Logging Client Install&apos;, parameters: [
-                                    [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId]
-                                ]
-                            } catch (Exception e) {
-                                echo &quot;Logging client install failed (${e.message}). Downstream builds will proceed without it.&quot;
-                            }
-                        }
-                    }
-                )
-            }
-        }
-        stage(&apos;PIC-SURE API&apos;) {
+        stage(&apos;Maven Build&apos;) {
+            when { expression { return build_hashes[&apos;PSA&apos;] } }
             steps {
                 script {
-                    def result = build job: &apos;PIC-SURE-API Build&apos;, parameters: [
+                    build job: &apos;PIC-SURE Maven Build&apos;, parameters: [
                         [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],
                         [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSA&apos;]]
                     ]
                 }
             }
         }
-        stage(&apos;PIC-SURE HPDS&apos;) {
+        stage(&apos;Build Images&apos;) {
             steps {
                 script {
-                    def result = build job: &apos;PIC-SURE-HPDS Build&apos;, parameters: [
-                        [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],
-                        [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSH&apos;]]
-                    ]
-                }
-            }
-        }
-        stage(&apos;PIC-SURE Visualization&apos;) {
-            steps {
-                script {
-                    sh &quot;&quot;&quot;
-                        if [ ! -f /usr/local/docker-config/visualization/visualization.env ]; then
-                            mkdir -p /usr/local/docker-config/visualization
-                            echo &apos;SERVER_PORT=80&apos; &gt; /usr/local/docker-config/visualization/visualization.env
-                            echo &apos;HPDS_BASE_URL=http://hpds:8080/PIC-SURE&apos; &gt;&gt; /usr/local/docker-config/visualization/visualization.env
-                            echo AUTH_HPDS_RESOURCE_UUID=`cat /usr/local/docker-config/RESOURCE_ID_RAW` &gt;&gt; /usr/local/docker-config/visualization/visualization.env
-                            echo OPEN_HPDS_RESOURCE_UUID=`cat /usr/local/docker-config/RESOURCE_ID_RAW` &gt;&gt; /usr/local/docker-config/visualization/visualization.env
-                        else
-                            echo &apos;visualization.env already exists; leaving existing config untouched.&apos;
-                        fi
-                    &quot;&quot;&quot;
-
-                    def result = build job: &apos;PIC-SURE Visualization Build and Deploy&apos;, parameters: [
-                        [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],
-                        [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSV&apos;] ?: &apos;main&apos;],
-                        [$class: &apos;StringParameterValue&apos;, name: &apos;DEPLOY_METHOD&apos;, value: &apos;docker&apos;]
-                    ]
-                }
-            }
-        }
-        stage(&apos;PIC-SURE Auth&apos;) {
-            steps {
-                script{
-                    def result = build job: &apos;PIC-SURE Auth Micro-App Build - Jenkinsfile&apos;, parameters: [
-                        [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],
-                        [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSAMA&apos;]]
-                    ]
-                }
-            }
-        }
-        stage(&apos;Frontend Build&apos;){
-            steps {
-                script {
-                    def result = build job: &apos;PIC-SURE Frontend Build&apos;, parameters: [
-                        [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],
-                        [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSF&apos;]]
-                    ]
-                }
-            }
-        }
-        stage(&apos;Dictionary Build &amp; Deploy&apos;) {
-            steps {
-                script {
-                    if (build_hashes[&apos;DICTIONARY&apos;]) {
-                        def result = build job: &apos;PIC-SURE Dictionary API Build and Deploy&apos;, parameters: [
-                            [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],
-                            [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;DICTIONARY&apos;]]
-                        ]
+                    def branches = [:]
+                    if (build_hashes[&apos;PSA&apos;]) {
+                        branches[&apos;gateway&apos;] = {
+                            build job: &apos;PIC-SURE Gateway Build and Deploy&apos;, parameters: [
+                                [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId]
+                            ]
+                        }
+                        branches[&apos;operations&apos;] = {
+                            build job: &apos;PIC-SURE Operations Service Build and Deploy&apos;, parameters: [
+                                [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId]
+                            ]
+                        }
+                        branches[&apos;query&apos;] = {
+                            build job: &apos;PIC-SURE HPDS Query Service Build and Deploy&apos;, parameters: [
+                                [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId]
+                            ]
+                        }
+                        branches[&apos;hpds&apos;] = {
+                            build job: &apos;PIC-SURE-HPDS Build&apos;, parameters: [
+                                [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId]
+                            ]
+                        }
+                        branches[&apos;visualization&apos;] = {
+                            sh &quot;&quot;&quot;
+                                if [ ! -f /usr/local/docker-config/visualization/visualization.env ]; then
+                                    mkdir -p /usr/local/docker-config/visualization
+                                    echo &apos;SERVER_PORT=80&apos; &gt; /usr/local/docker-config/visualization/visualization.env
+                                    echo &apos;HPDS_BASE_URL=http://hpds:8080/PIC-SURE&apos; &gt;&gt; /usr/local/docker-config/visualization/visualization.env
+                                    echo &apos;PICSURE_ACTUATOR_EXPOSURE=health&apos; &gt;&gt; /usr/local/docker-config/visualization/visualization.env
+                                else
+                                    echo &apos;visualization.env already exists; leaving existing config untouched.&apos;
+                                fi
+                            &quot;&quot;&quot;
+                            build job: &apos;PIC-SURE Visualization Build and Deploy&apos;, parameters: [
+                                [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId]
+                            ]
+                        }
+                        branches[&apos;auth&apos;] = {
+                            build job: &apos;PIC-SURE Auth Micro-App Build - Jenkinsfile&apos;, parameters: [
+                                [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId]
+                            ]
+                        }
+                        branches[&apos;logging&apos;] = {
+                            build job: &apos;PIC-SURE Logging Build and Deploy&apos;, parameters: [
+                                [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId]
+                            ]
+                        }
+                        branches[&apos;dictionary&apos;] = {
+                            build job: &apos;PIC-SURE Dictionary API Build and Deploy&apos;, parameters: [
+                                [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId]
+                            ]
+                        }
                     } else {
-                        echo &quot;No project_job_git_key DICTIONARY found in build spec. Skipping Dictionary Build&quot;
+                        echo &quot;No project_job_git_key PSA found in build spec. Skipping monorepo image builds.&quot;
                     }
+                    branches[&apos;frontend&apos;] = {
+                        build job: &apos;PIC-SURE Frontend Build&apos;, parameters: [
+                            [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],
+                            [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSF&apos;]]
+                        ]
+                    }
+                    parallel branches
                 }
             }
-
         }
-        stage(&apos;Auxiliary Resources&apos;) {
+        stage(&apos;Restart Stack&apos;) {
             steps {
-                parallel (
-                    uploader:{
-                        script {
-                            if (build_hashes[&apos;UPLOADER&apos;]) {
-                                echo &quot;Building Uploader API&quot;
-                                def result = build job: &apos;PIC-SURE Build and Deploy Uploader&apos;, parameters: [
-                                    [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],
-                                    [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;UPLOADER&apos;]]
-                                ]
-                            } else {
-                                echo &quot;No project_job_git_key UPLOADER found in build spec. Skipping Uploader Build&quot;
-                            }
-                        }
-                    },
-                    passthru:{
-                        script {
-                            if (build_hashes[&apos;PASSTHRU&apos;]) {
-                                echo &quot;Building Passthru Service&quot;
-                                def result = build job: &apos;Build Passthru Image&apos;, parameters: [
-                                    [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],
-                                    [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PASSTHRU&apos;]]
-                                ]
-                            } else {
-                                echo &quot;No project_job_git_key PASSTHRU found in build spec. Skipping Uploader Build&quot;
-                            }
-                        }
-                    },
-                    aggregate:{
-                        script {
-                            if (build_hashes[&apos;AGGREGATE&apos;]) {
-                                echo &quot;Building Aggregate Resource&quot;
-                                def result = build job: &apos;PIC-SURE Aggregate Resource Build&apos;, parameters: [
-                                    [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId],
-                                    [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;AGGREGATE&apos;]]
-                                ]
-                            } else {
-                                echo &quot;No project_job_git_key AGGREGATE found in build spec. Skipping Aggregate Resource Build&quot;
-                            }
-                        }
-                    },
-                    logging:{
-                        script {
-                            if (build_hashes[&apos;PSL&apos;]) {
-                                echo &quot;Building Logging Service&quot;
-                                def result = build job: &apos;PIC-SURE Logging Build and Deploy&apos;, parameters: [
-                                    [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: build_hashes[&apos;PSL&apos;]],
-                                    [$class: &apos;StringParameterValue&apos;, name: &apos;DEPLOY_METHOD&apos;, value: &apos;docker&apos;]
-                                ]
-                                try {
-                                    build job: &apos;Configure Logging&apos;
-                                } catch (Exception e) {
-                                    echo &quot;Configure Logging failed (${e.message}). Continuing pipeline.&quot;
-                                }
-                            } else {
-                                echo &quot;No project_job_git_key PSL found in build spec. Skipping Logging Service Build&quot;
-                            }
-                        }
-                    }
-                )
+                script {
+                    build job: &apos;Stop PIC-SURE&apos;
+                    build job: &apos;Start PIC-SURE&apos;
+                }
             }
         }
     }

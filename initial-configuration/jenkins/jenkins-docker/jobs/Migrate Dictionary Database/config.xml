@@ -8,7 +8,7 @@
       <parameterDefinitions>
         <hudson.model.StringParameterDefinition>
           <name>git_hash</name>
-          <description>https://github.com/hms-dbmi/picsure-dictionary/ tag, branch or hash</description>
+          <description>https://github.com/hms-dbmi/pic-sure tag, branch or hash</description>
           <defaultValue>origin/main</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
@@ -19,7 +19,7 @@
     <configVersion>2</configVersion>
     <userRemoteConfigs>
       <hudson.plugins.git.UserRemoteConfig>
-        <url>https://github.com/hms-dbmi/picsure-dictionary.git</url>
+        <url>https://github.com/hms-dbmi/pic-sure.git</url>
       </hudson.plugins.git.UserRemoteConfig>
     </userRemoteConfigs>
     <branches>
@@ -29,7 +29,9 @@
     </branches>
     <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
     <submoduleCfg class="empty-list"/>
-    <extensions/>
+    <extensions>
+      <hudson.plugins.git.extensions.impl.PruneStaleBranch/>
+    </extensions>
   </scm>
   <canRoam>true</canRoam>
   <disabled>false</disabled>
@@ -40,7 +42,8 @@
   <concurrentBuild>false</concurrentBuild>
   <builders>
     <hudson.tasks.Shell>
-      <command>
+      <command>cd services/picsure-dictionary
+
 # . is the same as source, but works in jenkins shell
 . /usr/local/docker-config/dictionary/dictionary.env
 rm -f db/flyway/flyway.conf

@@ -1,0 +1,75 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description>Build and tag the PIC-SURE Gateway container image (the stack ingress behind httpd) from the shared "PIC-SURE Maven Build" reactor workspace. This job does not compile and does not deploy -- deploy is exclusively via Stop/Start PIC-SURE.</description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.FileParameterDefinition>
+          <name>gateway.env</name>
+        </hudson.model.FileParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>pipeline_build_id</name>
+          <defaultValue>MANUAL_RUN</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.scm.NullSCM"/>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <jdk>(System)</jdk>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash
+set -e
+
+MAVEN_WS=&quot;/var/jenkins_home/workspace/PIC-SURE Maven Build&quot;
+CONFIG_DIR=&quot;/usr/local/docker-config/gateway&quot;
+mkdir -p &quot;$CONFIG_DIR&quot;
+
+# Guard: this job does not compile; it needs the reactor&apos;s artifacts.
+if [ ! -f &quot;$MAVEN_WS/build-info.txt&quot; ] || ! ls &quot;$MAVEN_WS&quot;/services/pic-sure-gateway/target/pic-sure-gateway-*.jar &gt;/dev/null 2&gt;&amp;1; then
+  echo &quot;ERROR: no reactor artifacts found -- run &apos;PIC-SURE Maven Build&apos; first&quot;
+  exit 2
+fi
+. &quot;$MAVEN_WS/build-info.txt&quot;
+if [ &quot;${PIPELINE_BUILD_ID:-}&quot; != &quot;$pipeline_build_id&quot; ]; then
+  echo &quot;ERROR: reactor artifacts belong to pipeline &apos;${PIPELINE_BUILD_ID:-unknown}&apos;, expected &apos;$pipeline_build_id&apos;&quot;
+  exit 2
+fi
+
+# env-file cascade (uploaded param &gt; existing config &gt; fail)
+if [ -f gateway.env ]; then
+    echo &quot;A new gateway.env was loaded.&quot;
+    cp gateway.env &quot;$CONFIG_DIR/gateway.env&quot;
+elif [ -f &quot;$CONFIG_DIR/gateway.env&quot; ]; then
+    echo &quot;Using existing gateway.env&quot;
+else
+    echo &quot;ERROR: gateway.env is required at $CONFIG_DIR/gateway.env&quot;
+    exit 2
+fi
+
+# Build/tag only. Deploy happens exclusively via Stop/Start PIC-SURE.
+docker build -t &quot;hms-dbmi/pic-sure-gateway:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT}&quot; \
+  &quot;$MAVEN_WS/services/pic-sure-gateway/&quot;
+docker tag &quot;hms-dbmi/pic-sure-gateway:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT}&quot; hms-dbmi/pic-sure-gateway:LATEST</command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers>
+    <hudson.plugins.ws__cleanup.PreBuildCleanup plugin="ws-cleanup@0.46">
+      <deleteDirs>false</deleteDirs>
+      <cleanupParameter></cleanupParameter>
+      <externalDelete></externalDelete>
+      <disableDeferredWipeout>false</disableDeferredWipeout>
+    </hudson.plugins.ws__cleanup.PreBuildCleanup>
+  </buildWrappers>
+</project>

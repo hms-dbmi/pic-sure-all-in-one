@@ -221,6 +221,8 @@ if [ "$DRY_RUN" = "true" ]; then
   exit 0
 fi
 
+"$SCRIPT_DIR/scripts/env-normalize.sh"
+
 if [ -x "$SCRIPT_DIR/clone-repos.sh" ]; then
   "$SCRIPT_DIR/clone-repos.sh"
 fi

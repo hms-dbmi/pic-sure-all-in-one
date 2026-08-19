@@ -196,6 +196,11 @@ set +a
 info "Generating logging API key..."
 set_env_var "LOGGING_API_KEY" "$(openssl rand -hex 32)" "$FORCE"
 
+info "Generating shared service secrets..."
+set_env_var "QUERY_SERVICE_INTERNAL_TOKEN" "$(openssl rand -hex 32)" "$FORCE"
+set_env_var "PICSURE_APPLICATION_TOKEN"    "$(openssl rand -hex 32)" "$FORCE"
+set_env_var "AGGREGATE_OBFUSCATION_SALT"   "$(openssl rand -hex 16)" "$FORCE"
+
 info "Generating introspection token..."
 # Re-source .env to pick up the APPLICATION_ID we may have just generated
 set -a
@@ -306,33 +311,31 @@ fi
 # ---------------------------------------------------------------------------
 
 info "Configuring auth mode: ${AUTH_MODE:-required}..."
-# See GLOSSARY.md for auth mode definitions.
+# Anonymous access spans three services and must move as one set: psama
+# (OPEN_IDP_PROVIDER_IS_ENABLED), the gateway (GATEWAY_OPEN_ACCESS_ENABLED) and
+# the frontend (VITE_OPEN). VITE_OPEN_EXPLORER/VITE_DISCOVER then pick which
+# anonymous surface is shown.
 # See https://pic-sure.gitbook.io/pic-sure-developer-guide/configuring-pic-sure/explore-without-login
 case "${AUTH_MODE:-required}" in
   open)
     # Open PIC-SURE: Discover page without login, no export/API
-    # PSAMA allows unauthenticated requests
     set_env_var "OPEN_IDP_PROVIDER_IS_ENABLED" "true" "true"
-    # Frontend shows open access UI
+    set_env_var "GATEWAY_OPEN_ACCESS_ENABLED" "true" "true"
     set_env_var "VITE_OPEN" "true" "true"
     set_env_var "VITE_OPEN_EXPLORER" "false" "true"
     set_env_var "VITE_DISCOVER" "true" "true"
-    # Wildfly openAccessEnabled is set via standalone.xml ${env.OPEN_ACCESS_ENABLED}
-    set_env_var "OPEN_ACCESS_ENABLED" "true" "true"
     # Open HPDS resource must match the main HPDS resource for unauthenticated queries
     set_env_var "OPEN_HPDS_RESOURCE_UUID" "${PICSURE_RESOURCE_ID}" "true"
     set_env_var "VITE_RESOURCE_OPEN_HPDS" "${PICSURE_RESOURCE_ID}" "true"
     ;;
   explore)
     # Explore Without Login: full query builder without login, export prompts login
-    # PSAMA allows unauthenticated requests
     set_env_var "OPEN_IDP_PROVIDER_IS_ENABLED" "true" "true"
-    # Frontend enables open explorer
+    set_env_var "GATEWAY_OPEN_ACCESS_ENABLED" "true" "true"
     set_env_var "VITE_OPEN" "true" "true"
     set_env_var "VITE_OPEN_EXPLORER" "true" "true"
     # Explore-Without-Login uses the query builder, NOT the Discover page.
     set_env_var "VITE_DISCOVER" "false" "true"
-    set_env_var "OPEN_ACCESS_ENABLED" "true" "true"
     # Open HPDS resource must match the main HPDS resource for unauthenticated queries
     set_env_var "OPEN_HPDS_RESOURCE_UUID" "${PICSURE_RESOURCE_ID}" "true"
     set_env_var "VITE_RESOURCE_OPEN_HPDS" "${PICSURE_RESOURCE_ID}" "true"

@@ -204,7 +204,7 @@ for path in init.sh update.sh build-images.sh release-control.sh run-migrations.
 done
 
 psection "Shell syntax"
-for path in init.sh update.sh build-images.sh preflight.sh status.sh uninstall.sh release-control.sh bootstrap-remote-db.sh run-migrations.sh seed-db.sh load-demo-data.sh etl.sh scripts/lib/common.sh scripts/lib/json.sh scripts/picsure-compose.sh scripts/env-set.sh scripts/compose.sh scripts/db-wait.sh config/scripts/generate-introspection-token.sh; do
+for path in init.sh update.sh build-images.sh preflight.sh status.sh uninstall.sh release-control.sh bootstrap-remote-db.sh run-migrations.sh seed-db.sh load-demo-data.sh etl.sh scripts/lib/common.sh scripts/lib/json.sh scripts/picsure-compose.sh scripts/env-set.sh scripts/compose.sh scripts/db-wait.sh scripts/env-normalize.sh config/scripts/generate-introspection-token.sh; do
   if [ -f "$path" ]; then
     if bash -n "$path"; then
       ok "syntax.$path" "$path syntax is valid."

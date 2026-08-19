@@ -55,6 +55,7 @@ bash -n config/scripts/generate-introspection-token.sh
 bash -n scripts/test-release-control.sh
 bash -n scripts/test-repo-reset.sh
 bash -n scripts/test-db-secrets.sh
+bash -n scripts/test-env-normalize.sh
 bash -n scripts/test-etl-orchestrators.sh
 bash -n scripts/test-etl-load-csv.sh
 bash -n scripts/smoke-matrix.sh
@@ -72,6 +73,9 @@ echo "[smoke] Repo reset tests"
 
 echo "[smoke] DB secret-exposure tests"
 ./scripts/test-db-secrets.sh
+
+echo "[smoke] env-normalize tests"
+./scripts/test-env-normalize.sh
 
 echo "[smoke] ETL orchestrator tests"
 ./scripts/test-etl-orchestrators.sh

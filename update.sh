@@ -151,7 +151,7 @@ dry_run_update() {
 
   echo ""
   echo "Release control:"
-  echo "  repo:   ${RELEASE_CONTROL_REPO:-https://github.com/hms-dbmi/pic-sure-baseline-release-control}"
+  echo "  repo:   ${RELEASE_CONTROL_REPO:-https://github.com/hms-dbmi/baseline-pic-sure-release-control}"
   echo "  branch: ${RELEASE_CONTROL_BRANCH:-main}"
   if [ -n "${RELEASE_CONTROL_COMMIT:-}" ]; then
     echo "  commit: ${RELEASE_CONTROL_COMMIT}"

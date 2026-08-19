@@ -102,7 +102,7 @@ set_env_var() {
   picsure_set_env_var "$ENV_FILE" "$1" "$2" true
 }
 
-repo_url="${RELEASE_CONTROL_REPO:-https://github.com/hms-dbmi/pic-sure-baseline-release-control}"
+repo_url="${RELEASE_CONTROL_REPO:-https://github.com/hms-dbmi/baseline-pic-sure-release-control}"
 repo_branch="${BRANCH_OVERRIDE:-${RELEASE_CONTROL_BRANCH:-main}}"
 JQ_IMAGE="${JQ_IMAGE:-ghcr.io/jqlang/jq:1.7.1}"
 warn_duplicate_env_key "RELEASE_CONTROL_BRANCH"

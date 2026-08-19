@@ -30,7 +30,7 @@ func ResetForm(scope *string, repos *bool, confirmText *string, word string) *hu
 	scopeField := huh.NewSelect[string]().
 		Title("⚠ Reset — this destroys data").
 		Description("Stops all containers and removes generated state so you can re-init:\n"+
-			"  • .env (backed up first), certs/, .data/, generated config, deployed WARs\n"+
+			"  • .env (backed up first), certs/, .data/, generated config\n"+
 			".env.example is kept; sibling repos are kept unless toggled below.\n"+
 			"Choose how much to wipe:").
 		Value(scope).

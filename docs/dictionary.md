@@ -7,59 +7,71 @@ provides both faceted search and keyword search.
 
 ## Architecture
 
-The Data Dictionary consists of two main services- `dictionary-api`, and `dictionary-db`, as well as two secondary
-services, `dictionary-dump`, and `dictionaryetl`.
+The Data Dictionary consists of two main services — `dictionary-api` and
+`dictionary-db` — plus two secondary ones, `dictionary-dump` and
+`dictionaryetl`.
 
-- `dictionary-api`: a read only REST API that returns facets, concepts, and their metadata for user searches
-- `dictionary-db`: a Postgres database used to store the data the API returns
-- `dictionary-dump`: enables the dumping and pulling of remote dictionaries. Only for distributed PIC-SURE environments
-- `dictionaryetl`: populates the Postgres database
+- `dictionary-api`: a read-only REST API that returns facets, concepts, and their metadata for user searches. Built from `pic-sure/services/picsure-dictionary`. Browsers never reach it directly: the gateway routes `/dictionary` to it, and `httpd` proxies `/picsure/*` to the gateway.
+- `dictionary-db`: a PostgreSQL 16 database storing the data the API returns. Its baseline DDL is `pic-sure/services/picsure-dictionary/db/schema.sql`; `flyway-dictionary-init` applies the migrations in `db/flyway` on top of it at startup.
+- `dictionary-dump`: enables dumping and pulling remote dictionaries. Only for distributed PIC-SURE environments.
+- `dictionaryetl`: populates the Postgres database. Not a Compose service — `etl.sh` and `load-demo-data.sh` build it from the `picsure-dictionary-etl` repo and run it as a transient container for the duration of a load.
 
-If you want to learn more about the Dictionary API, you can start by visiting 
-[the repo](https://github.com/hms-dbmi/picsure-dictionary/)
-If you want to better understand the Dictionary Schema, you can explore it by connecting the database:
+`dictionary-api`, `dictionary-db`, `dictionary-dump`, and
+`flyway-dictionary-init` share the internal `data` network and the generated
+`config/dictionary/dictionary.env` credentials.
 
-```shell
-docker exec -ti dictionary-db dictionary picsure
-set search_path to dict
-# try \dt to show tables
-```
+To explore the Dictionary schema, connect to the database — see
+[db-access.md](db-access.md) for the exact command. The tables live under the
+`dict` schema, so run `set search_path to dict;` first, then `\dt`.
 
 ## How do I load data into it?
 
 There are two ways to load data into the Data Dictionary. You can either have the ETL pull concepts directly from HPDS,
 or you can upload your own concepts, facets, and metadata via CSV.
 
+Both paths run through `etl.sh`; there are no Jenkins jobs. See
+[etl.md](etl.md) for the full command reference.
+
 ### Direct from HPDS
 Pulling directly from HPDS is less error-prone, but it doesn't allow you to customise the output. If you have important
 metadata for your concepts that you want to search on, or you have custom display names, this may not be right for you.
-To pull directly from HPDS, run the following jobs in order in Jenkins:
 
-- PIC-SURE Dictionary-ETL Build (Builds tab)
-  - git_hash: `*/main`
-  - pipeline_build_id: `MANUAL_RUN`
-- Load HPDS and Dictionary Data (Load Data tab)
-  - Dataset: `Custom`
-  - Dataset_Branch: `main`
-  - HPDS_DATA_LOAD: `Single File (CSV)`
-  - ✅ `Include_Genomic_Data`
-  - ✅ `Clear_Dictionary_Database`
-- Run Dictionary Weights (Load Data tab)
-- Start PIC-SURE (Deployment tab)
+The `load-phenotype` orchestrator does this as part of a phenotype load — it is
+the recommended entry point:
+
+```bash
+./etl.sh load-phenotype --file /path/allConcepts.csv --dictionary auto
+```
+
+To hydrate an already-loaded HPDS without touching phenotype data, run the two
+atomic steps directly:
+
+```bash
+./etl.sh hydrate-dictionary --include-dataset-facets --clear
+./etl.sh run-weights
+```
 
 ### Build from CSV
-Building from CSV allows you to add custom facets, change the names of concepts, and add metadata to enhance search. To
-build from a CSV, run the following jobs in order in Jenkins:
-- PIC-SURE Dictionary-ETL Build (Builds tab)
-    - git_hash: `*/main`
-    - pipeline_build_id: `MANUAL_RUN`
-- Load Dictionary Data from Ingest CSVs
-  - ✅ `CLEAR_DATABASE`
-  - See notes below
-- Run Dictionary Weights (Load Data tab)
-- Start PIC-SURE (Deployment tab)
+Building from CSV allows you to add custom facets, change the names of concepts, and add metadata to enhance search:
 
-The `Load Dictionary Data from Ingest CSVs` job takes two CSV parameters: `datasets.csv` and `concepts.csv`.
+```bash
+./etl.sh load-phenotype --file /path/allConcepts.csv --dictionary custom \
+  --datasets /path/datasets.csv --concepts /path/concepts.zip \
+  [--facets-categories /path/facet_categories.csv \
+   --facets /path/facets.csv \
+   --facet-concepts /path/facet_concepts.csv]
+```
+
+Or as atomic steps against an existing HPDS load:
+
+```bash
+./etl.sh load-dictionary-csv --datasets /path/datasets.csv --concepts /path/concepts.zip --clear
+./etl.sh load-facets --categories /path/facet_categories.csv --facets /path/facets.csv --concepts /path/facet_concepts.csv
+./etl.sh run-weights
+```
+
+`--datasets` takes a single `datasets.csv`. `--concepts` takes a **zip**
+containing one or more `concepts_*.csv` files; their schema is below.
 The datasets CSV has the following schema:
 ```csv
 "ref","full_name","abbreviation","description"

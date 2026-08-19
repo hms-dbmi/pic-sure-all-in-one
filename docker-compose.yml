@@ -7,7 +7,8 @@
 # Dev (build from source):
 #   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build hpds
 #
-# See PLAN.md for architecture docs, GLOSSARY.md for terminology.
+# See README.md for the architecture overview and docs/operations.md for the
+# operational runbook.
 # =============================================================================
 
 services:

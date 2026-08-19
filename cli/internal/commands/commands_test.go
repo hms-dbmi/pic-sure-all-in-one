@@ -261,11 +261,11 @@ func TestBuildScriptArgs(t *testing.T) {
 	})
 
 	t.Run("compose verbs are prepended", func(t *testing.T) {
-		argv, err := endToEndArgv(t, "restart", []string{"wildfly", "psama"}, true)
+		argv, err := endToEndArgv(t, "restart", []string{"gateway", "psama"}, true)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if want := []string{"restart", "wildfly", "psama"}; !reflect.DeepEqual(argv, want) {
+		if want := []string{"restart", "gateway", "psama"}; !reflect.DeepEqual(argv, want) {
 			t.Errorf("argv = %v, want %v", argv, want)
 		}
 	})

@@ -259,7 +259,7 @@ else
 fi
 
 psection "Release control"
-release_repo="${RELEASE_CONTROL_REPO:-https://github.com/hms-dbmi/pic-sure-baseline-release-control}"
+release_repo="${RELEASE_CONTROL_REPO:-https://github.com/hms-dbmi/baseline-pic-sure-release-control}"
 release_branch="${RELEASE_CONTROL_BRANCH:-main}"
 ok release.repo "RELEASE_CONTROL_REPO=$release_repo"
 ok release.branch "RELEASE_CONTROL_BRANCH=$release_branch"

@@ -8,7 +8,7 @@ release-control build spec to choose service refs.
 `init.sh` and `update.sh` use:
 
 ```env
-RELEASE_CONTROL_REPO=https://github.com/hms-dbmi/pic-sure-baseline-release-control
+RELEASE_CONTROL_REPO=https://github.com/hms-dbmi/baseline-pic-sure-release-control
 RELEASE_CONTROL_BRANCH=main
 ```
 

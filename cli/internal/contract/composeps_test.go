@@ -2,11 +2,11 @@ package contract
 
 import "testing"
 
-const psNDJSON = `{"Service":"wildfly","State":"running","Health":"","ExitCode":0,"Image":"hms-dbmi/pic-sure-wildfly:LATEST"}
+const psNDJSON = `{"Service":"gateway","State":"running","Health":"","ExitCode":0,"Image":"hms-dbmi/pic-sure-gateway:LATEST"}
 {"Service":"hpds","State":"running","Health":"healthy","ExitCode":0}
 {"Service":"picsure-db","State":"exited","Health":"unhealthy","ExitCode":137}`
 
-const psArray = `[{"Service":"wildfly","State":"running","Health":"","ExitCode":0},{"Service":"hpds","State":"running","Health":"healthy","ExitCode":0},{"Service":"picsure-db","State":"exited","Health":"unhealthy","ExitCode":137}]`
+const psArray = `[{"Service":"gateway","State":"running","Health":"","ExitCode":0},{"Service":"hpds","State":"running","Health":"healthy","ExitCode":0},{"Service":"picsure-db","State":"exited","Health":"unhealthy","ExitCode":137}]`
 
 func TestParseComposePSBothShapes(t *testing.T) {
 	for name, input := range map[string]string{"ndjson": psNDJSON, "array": psArray} {
@@ -18,7 +18,7 @@ func TestParseComposePSBothShapes(t *testing.T) {
 			if len(services) != 3 {
 				t.Fatalf("got %d services, want 3", len(services))
 			}
-			if services[0].Service != "wildfly" || services[0].Health != "" {
+			if services[0].Service != "gateway" || services[0].Health != "" {
 				t.Errorf("services[0] = %+v", services[0])
 			}
 			if services[1].Health != "healthy" {

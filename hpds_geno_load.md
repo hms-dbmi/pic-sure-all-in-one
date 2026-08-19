@@ -1,21 +1,78 @@
-Below are the steps to populate genomic data in HPDS.
+# Loading Genomic Data into HPDS
 
-Note: Before you begin, please update the PIC-SURE All-In-One Jenkins Server by running `git pull` then `./update-jenkins.sh` in the pic-sure-all-in-one directory on your server. This will build a new Jenkins server image and restart Jenkins with the latest jobs and plugins.
+Genomic loads run through `./etl.sh` from this checkout. There is no Jenkins
+server. See [docs/etl.md](docs/etl.md) for the full command reference.
 
-### Populate `$DOCKER_CONFIG_DIR/vcfLoad` with your source data.
+## Prepare your source data
 
-In `$DOCKER_CONFIG_DIR/vcfLoad`  directory, please include the following files:
-- vcfIndex.tsv: a file that describes the VCF file(s) to be loaded. 
-  Note: For more information about the vcfIndex.tsv format, see [https://github.com/hms-dbmi/pic-sure-hpds-genotype-load-example#loading-your-vcf-data-into-hpds](https://github.com/hms-dbmi/pic-sure-hpds-genotype-load-example#loading-your-vcf-data-into-hpds).
-- vcfLoad/: a directory containing the vcf file(s) that will be read and converted to the hpds format.
+You need two things:
 
-### Upload Data into HPDS 
+- `vcfIndex.tsv` — describes the VCF file(s) to load. For the format, see
+  [pic-sure-hpds-genotype-load-example](https://github.com/hms-dbmi/pic-sure-hpds-genotype-load-example#loading-your-vcf-data-into-hpds).
+- a directory containing the VCF file(s) to be read and converted to the HPDS
+  format.
 
-Load Genomic Data from VCF using the Jenkins job - "Load Genomic Data". To do this, access jenkins on port 8080. 
+Both live wherever you like on the host; you pass their paths as flags.
 
-This job loads HPDS data from `$DOCKER_CONFIG_DIR/vcfLoad` and may take several minutes.
+## Load
 
-### Moving genomic data between environments
+The `load-genomic` orchestrator validates every input before it touches HPDS,
+then stages the load, promotes it, and enables the genomic profile:
 
-To copy data between environments (ex: moving development data to production after testing it):
-- Copy all files from `$DOCKER_CONFIG_DIR/hpds/all` from the source environment to the target environment
+```bash
+./etl.sh load-genomic \
+  --partition my_partition \
+  --vcf-index /path/vcfIndex.tsv \
+  --vcf-dir /path/to/vcfs \
+  [--heap 16000] [--promote] [--enable-profile]
+```
+
+- `--partition` must match `^[A-Za-z0-9_-]+$`; `--heap` defaults to `16000`.
+- Without `--promote`, the load only stages into `.data/vcf-load/` — nothing in
+  the running HPDS changes yet.
+- `--enable-profile` sets `HPDS_PROFILE=bch-dev` and restarts HPDS, as the last
+  step. Enabling that profile without promoted genomic data crash-loops HPDS, so
+  the orchestrator warns if you pass it without `--promote`.
+
+This can take a long time; heap and disk are the usual constraints.
+
+To run the steps individually — for recovery, or to inspect the staged output
+before it goes live:
+
+```bash
+./etl.sh load-vcf --partition my_partition --vcf-index /path/vcfIndex.tsv --vcf-dir /path/to/vcfs --heap 16000
+./etl.sh promote-genomic [--backup-current-data] [--clean]
+```
+
+`promote-genomic` copies the staged partition into the `hpds-genomic` volume,
+which HPDS mounts at `/opt/local/hpds/all`. Add `--backup-current-data` only
+when there is disk for a second copy of the current genomic data.
+
+## Moving genomic data between environments
+
+Genomic data lives in the `hpds-genomic` Docker volume, not on the host
+filesystem. To copy it between environments (for example, promoting tested
+development data to production), export the volume from the source host and
+import it on the target:
+
+The volume name is prefixed with the Compose project name. Resolve it
+explicitly from your `.env` — never pick one from a `docker volume ls`
+listing, because a host with more than one deployment has more than one
+`hpds-genomic` volume and the import below wipes whichever volume it is
+pointed at:
+
+```bash
+# Both hosts: resolve this deployment's volume name from .env
+GENOMIC_VOLUME="$(. ./.env 2>/dev/null; echo "${COMPOSE_PROJECT_NAME:-picsure}_hpds-genomic")"
+docker volume inspect "$GENOMIC_VOLUME" >/dev/null   # fails if the name is wrong
+
+# On the source host
+docker run --rm -v "$GENOMIC_VOLUME":/data:ro \
+  -v "$PWD":/out alpine tar czf /out/hpds-genomic.tgz -C /data .
+
+# On the target host, with the stack stopped
+docker compose down
+docker run --rm -v "$GENOMIC_VOLUME":/data \
+  -v "$PWD":/in alpine sh -c 'rm -rf /data/* && tar xzf /in/hpds-genomic.tgz -C /data'
+docker compose up -d
+```

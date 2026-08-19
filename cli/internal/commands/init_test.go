@@ -151,7 +151,7 @@ DB_HOST=picsure-db
 DB_PORT=3306
 DB_ROOT_USER=root
 DB_ROOT_PASSWORD=
-RELEASE_CONTROL_REPO=https://github.com/hms-dbmi/pic-sure-baseline-release-control
+RELEASE_CONTROL_REPO=https://github.com/hms-dbmi/baseline-pic-sure-release-control
 RELEASE_CONTROL_BRANCH=main
 `
 	if err := os.WriteFile(filepath.Join(dir, ".env.example"), []byte(example), 0o644); err != nil {

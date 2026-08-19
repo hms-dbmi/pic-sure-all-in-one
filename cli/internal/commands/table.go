@@ -17,7 +17,7 @@ var scriptCommandTable = []ScriptCommand{
 		Name:      "status",
 		Script:    scripts.Status,
 		Short:     "Show configuration, repo, service, and migration status",
-		FlagsHelp: "--json (machine-readable; see docs/cli-contract.md)",
+		FlagsHelp: "--json (machine-readable; see docs/cli-contract.md)  --deep-health (probe the gateway's /system/status)",
 	},
 	{
 		Name:      "preflight",
@@ -55,7 +55,7 @@ var scriptCommandTable = []ScriptCommand{
 	{
 		Name:   "seed-db",
 		Script: scripts.SeedDB,
-		Short:  "Seed the database (baseline migrations, admin user; idempotent)",
+		Short:  "Seed the database (admin user, viz resource, token; idempotent)",
 	},
 	{
 		Name:      "migrate",

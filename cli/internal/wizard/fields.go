@@ -110,7 +110,7 @@ var Fields = []Field{
 		Flag:    "--auth-mode",
 		Group:   GroupAuth,
 		Title:   "Auth mode",
-		Help:    "open — Discover page without login, no export/API · explore — query builder without login, export prompts login · required — no access without login",
+		Help:    "open — Discover page without login, no export/API · explore — query builder without login, export prompts login · required — no access without login. open and explore make your HPDS resource queryable WITHOUT LOGIN (counts are obfuscated).",
 		Options: []string{"required", "open", "explore"},
 	},
 	{

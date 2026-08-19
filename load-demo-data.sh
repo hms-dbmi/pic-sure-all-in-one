@@ -357,7 +357,7 @@ if [ "${SKIP_DICT:-}" != "true" ]; then
 
   # Step 3d: Run dictionary weights (required for search to work)
   info "Running dictionary weights..."
-  DICT_WEIGHTS_SRC="${DICTIONARY_SRC:-$SCRIPT_DIR/repos/picsure-dictionary}/dictionaryweights"
+  DICT_WEIGHTS_SRC="${DICTIONARY_SRC:-${PICSURE_SRC:-$SCRIPT_DIR/repos/pic-sure}/services/picsure-dictionary}/dictionaryweights"
   if ! docker image inspect hms-dbmi/dictionary-weights:latest >/dev/null 2>&1; then
     if [ -f "$DICT_WEIGHTS_SRC/Dockerfile" ]; then
       run_logged "dictionary-weights-build" docker build -f "$DICT_WEIGHTS_SRC/Dockerfile" "$DICT_WEIGHTS_SRC" \
@@ -371,7 +371,7 @@ if [ "${SKIP_DICT:-}" != "true" ]; then
     POSTGRES_PASSWORD="$DICT_PASS" run_logged "dictionary-weights" docker run --rm \
       --name dictionary-weights \
       --network "$DATA_NETWORK" \
-      -v "$SCRIPT_DIR/repos/picsure-dictionary/dictionaryweights/weights.csv:/weights.csv:ro" \
+      -v "$DICT_WEIGHTS_SRC/weights.csv:/weights.csv:ro" \
       -e POSTGRES_HOST=dictionary-db \
       -e POSTGRES_DB=dictionary \
       -e POSTGRES_USER=picsure \

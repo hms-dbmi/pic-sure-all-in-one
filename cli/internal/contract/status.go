@@ -20,6 +20,7 @@ type Status struct {
 	Repos          []Repo         `json:"repos"`
 	Docker         Docker         `json:"docker"`
 	Services       []Service      `json:"services"`
+	Health         Health         `json:"health"`
 	Database       Database       `json:"database"`
 	Migrations     Migrations     `json:"migrations"`
 }
@@ -62,6 +63,17 @@ type Service struct {
 	State    *string `json:"state"`
 	Health   *string `json:"health"`
 	ExitCode *int    `json:"exit_code"`
+}
+
+// Health is the gateway's deep, cross-service probe (`/system/status`). It is
+// only populated when `status.sh --deep-health` was passed: without the flag
+// Checked is false and Healthy/Status are nil, with Message carrying the
+// reason the probe was skipped.
+type Health struct {
+	Checked bool    `json:"checked"`
+	Healthy *bool   `json:"healthy"`
+	Status  *string `json:"status"`
+	Message string  `json:"message"`
 }
 
 type Database struct {

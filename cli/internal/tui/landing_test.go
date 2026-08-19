@@ -251,7 +251,7 @@ func TestLandingQuitKeys(t *testing.T) {
 }
 
 // devOverlayNames are the overlays corresponding to devRoot.
-var devOverlayNames = []string{"httpd-hmr", "wildfly"}
+var devOverlayNames = []string{"httpd-hmr", "gateway"}
 
 // devRoot creates a minimal checkout root with two dev-overlay stub files and
 // installs a fetchDevOverlays stub that returns those names, matching what
@@ -260,7 +260,7 @@ var devOverlayNames = []string{"httpd-hmr", "wildfly"}
 func devRoot(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
-	for _, f := range []string{"docker-compose.dev-httpd-hmr.yml", "docker-compose.dev-wildfly.yml"} {
+	for _, f := range []string{"docker-compose.dev-httpd-hmr.yml", "docker-compose.dev-gateway.yml"} {
 		if err := os.WriteFile(filepath.Join(dir, f), []byte("services:\n  x:\n"), 0o644); err != nil {
 			t.Fatal(err)
 		}
@@ -576,7 +576,7 @@ func TestLandingResetCombinedScreen(t *testing.T) {
 // rebuilt with real options once devOverlaysFillMsg arrives; all options must
 // be visible after the fill.
 func TestLandingDevPickerShowsAllOptionsInitially(t *testing.T) {
-	// devRoot stubs fetchDevOverlays → ["httpd-hmr", "wildfly"].
+	// devRoot stubs fetchDevOverlays → ["httpd-hmr", "gateway"].
 	l := newLanding(devRoot(t), true, false)
 	l.setSize(100, 35)
 	l.dev = true
@@ -586,7 +586,7 @@ func TestLandingDevPickerShowsAllOptionsInitially(t *testing.T) {
 	l = pumpLanding(l, cmd, 0)
 
 	view := wizardANSI.ReplaceAllString(l.view(), "")
-	for _, opt := range []string{"httpd-hmr", "wildfly", "Cancel"} {
+	for _, opt := range []string{"httpd-hmr", "gateway", "Cancel"} {
 		if !strings.Contains(view, opt) {
 			t.Errorf("picker render (after fill) missing option %q", opt)
 		}
@@ -685,7 +685,7 @@ func TestLandingDevPickerOpensImmediately(t *testing.T) {
 	orig := fetchDevOverlays
 	fetchDevOverlays = func(string) []string {
 		called <- struct{}{}
-		return []string{"hpds", "wildfly"}
+		return []string{"hpds", "gateway"}
 	}
 	t.Cleanup(func() { fetchDevOverlays = orig })
 
@@ -705,7 +705,7 @@ func TestLandingDevPickerOpensImmediately(t *testing.T) {
 		t.Fatal("dev picker did not open immediately")
 	}
 	// The command must eventually deliver a devOverlaysFillMsg with the overlays.
-	if !batchEmitsDevOverlaysFill(cmd, []string{"hpds", "wildfly"}) {
+	if !batchEmitsDevOverlaysFill(cmd, []string{"hpds", "gateway"}) {
 		t.Fatal("choose did not dispatch the overlay fetch as a command delivering devOverlaysFillMsg")
 	}
 }
@@ -779,13 +779,13 @@ func TestDevOverlaysFetchParsing(t *testing.T) {
 	}{
 		{
 			name:    "normal sorted output",
-			fetched: []string{"hpds", "httpd-hmr", "wildfly"},
-			visible: []string{"hpds", "httpd-hmr", "wildfly", "Cancel"},
+			fetched: []string{"hpds", "httpd-hmr", "gateway"},
+			visible: []string{"hpds", "httpd-hmr", "gateway", "Cancel"},
 		},
 		{
 			name:    "pre-sorted output stays sorted",
-			fetched: []string{"hpds", "wildfly"},
-			visible: []string{"hpds", "wildfly", "Cancel"},
+			fetched: []string{"hpds", "gateway"},
+			visible: []string{"hpds", "gateway", "Cancel"},
 		},
 		{
 			name:    "empty output closes picker",

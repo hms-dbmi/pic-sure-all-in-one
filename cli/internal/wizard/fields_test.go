@@ -112,7 +112,7 @@ func TestValidateAll(t *testing.T) {
 		"HTTPS_PORT":             "443",
 		"AUTH_MODE":              "required",
 		"DB_MODE":                "local",
-		"RELEASE_CONTROL_REPO":   "https://github.com/hms-dbmi/pic-sure-baseline-release-control",
+		"RELEASE_CONTROL_REPO":   "https://github.com/hms-dbmi/baseline-pic-sure-release-control",
 		"RELEASE_CONTROL_BRANCH": "main",
 	}
 	if err := ValidateAll(base, false); err != nil {

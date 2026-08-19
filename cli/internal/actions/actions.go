@@ -71,7 +71,7 @@ func Migrate() Action {
 	return Action{
 		Name:      "migrate",
 		Script:    scripts.Migrate,
-		Describe:  "Runs Flyway database migrations, then restarts wildfly/psama\nif they are running.",
+		Describe:  "Runs Flyway migrations (PIC-SURE + dictionary databases), then\nrestarts psama and dictionary-api if they are running.",
 		AbortNote: "re-run migrate; Flyway resumes pending migrations (pass --repair via `pic-sure migrate --repair` if it reports a failed row).",
 	}
 }
@@ -80,7 +80,7 @@ func SeedDB() Action {
 	return Action{
 		Name:      "seed-db",
 		Script:    scripts.SeedDB,
-		Describe:  "Seeds baseline migrations, the admin user, and the visualization\nresource. Idempotent — safe to re-run.",
+		Describe:  "Seeds the admin user, the visualization resource, and the\nintrospection token. Requires migrations to be applied first.\nIdempotent — safe to re-run.",
 		AbortNote: "seed-db is idempotent; safe to re-run.",
 	}
 }
@@ -234,8 +234,7 @@ func ResetWith(all, repos bool) Action {
 		describe = "Stops all containers and DELETES:\n" +
 			"  • every project volume EXCEPT the database volume (picsure-db data kept)\n" +
 			"  • .env (backed up first), certs/, .data/\n" +
-			"  • generated config: dictionary.env, HPDS encryption key, truststores,\n" +
-			"    visualization resource.properties, deployed WARs"
+			"  • generated config: dictionary.env, HPDS encryption key, psama truststore"
 	}
 	// The repos sentence and the kept sentence are alternatives — never both
 	// (saying "sibling repos are kept" while also resetting them was a bug).

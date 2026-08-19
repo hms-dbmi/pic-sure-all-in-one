@@ -38,8 +38,8 @@ document, not the exit code. A non-zero exit means the script itself broke.
 | `release_control.repo` | string | |
 | `release_control.branch` | string | |
 | `release_control.commit` | string\|null | `null` when unresolved |
-| `release_control.refs` | object | exactly the ten `*_REF` keys, each a string |
-| `repos[]` | array | one entry per managed sibling repo (currently 10) |
+| `release_control.refs` | object | exactly the four `*_REF` keys, each a string |
+| `repos[]` | array | one entry per managed sibling repo (currently 4) |
 | `repos[].name` | string | directory name under `repos/` |
 | `repos[].present` | boolean | `.git` directory exists |
 | `repos[].current` | string\|null | branch, short SHA when detached; `null` when missing |
@@ -54,6 +54,10 @@ document, not the exit code. A non-zero exit means the script itself broke.
 | `services[].state` | string\|null | compose `State` |
 | `services[].health` | string\|null | `null` when the service reports no health |
 | `services[].exit_code` | number\|null | |
+| `health.checked` | boolean | `false` unless `--deep-health` was passed *and* the daemon is reachable *and* `gateway` is running |
+| `health.healthy` | boolean\|null | `true` only when the gateway reports `RUNNING`; `null` when not checked |
+| `health.status` | string\|null | raw `/system/status` text (`RUNNING`, `ONE OR MORE COMPONENTS DEGRADED`); `null` when not checked or unreachable |
+| `health.message` | string | fixed human summary, incl. the reason a check was skipped |
 | `database.mode` | string | `local` \| `remote` |
 | `database.service` | string\|null | `picsure-db` when local, `null` when remote |
 | `database.host` | string\|null | remote only |
@@ -79,20 +83,17 @@ document, not the exit code. A non-zero exit means the script itself broke.
     "picsure_image_tag": "LATEST"
   },
   "release_control": {
-    "repo": "https://github.com/hms-dbmi/pic-sure-baseline-release-control",
+    "repo": "https://github.com/hms-dbmi/baseline-pic-sure-release-control",
     "branch": "main",
     "commit": "a1b2c3d4e5f60718293a4b5c6d7e8f9012345678",
     "refs": {
-      "PICSURE_REF": "main", "HPDS_REF": "main", "PSAMA_REF": "main",
-      "FRONTEND_REF": "main", "MIGRATIONS_REF": "main",
-      "DICTIONARY_REF": "main", "DICTIONARY_ETL_REF": "main",
-      "VISUALIZATION_REF": "main", "LOGGING_REF": "main",
-      "LOGGING_CLIENT_REF": "main"
+      "PICSURE_REF": "main", "FRONTEND_REF": "main",
+      "MIGRATIONS_REF": "main", "DICTIONARY_ETL_REF": "main"
     }
   },
   "repos": [
     { "name": "pic-sure", "present": true, "current": "main", "target": "main", "state": "clean" },
-    { "name": "pic-sure-hpds", "present": false, "current": null, "target": "main", "state": "missing" }
+    { "name": "picsure-dictionary-etl", "present": false, "current": null, "target": "main", "state": "missing" }
   ],
   "docker": {
     "cli_present": true,
@@ -101,9 +102,10 @@ document, not the exit code. A non-zero exit means the script itself broke.
     "compose_config_valid": true
   },
   "services": [
-    { "name": "wildfly", "state": "running", "health": null, "exit_code": 0 },
+    { "name": "gateway", "state": "running", "health": null, "exit_code": 0 },
     { "name": "hpds", "state": "running", "health": "healthy", "exit_code": 0 }
   ],
+  "health": { "checked": false, "healthy": null, "status": null, "message": "Skipped; pass --deep-health to probe the gateway" },
   "database": { "mode": "local", "service": "picsure-db", "host": null, "port": null },
   "migrations": { "checked": true, "ready": true, "message": "Migration inputs look valid" }
 }
@@ -118,6 +120,13 @@ containers — measured ≈0.3 s total). Frontends may poll `status --json` on a
 short interval (the TUI uses 15 s) because of this. If the check ever needs
 git, network, or container access, that work MUST go behind a new opt-in
 flag, not into the default path.
+
+`health.*` is exactly that case: the gateway's `/system/status` is the only
+deep, cross-service probe (the Compose healthchecks are deliberately shallow —
+see the healthcheck comments in `docker-compose.yml`), but reaching it costs a
+`compose ps` plus a `compose exec` into the gateway container. It is therefore
+gated on `--deep-health`; without the flag `health.checked` is `false` and
+nothing is executed.
 
 ### Parsing inside status.sh
 
@@ -244,7 +253,7 @@ scripts/compose.sh dev off NAME           # base files only, up -d --no-deps;
 ```
 
 - Extra arguments pass through to docker compose verbatim
-  (e.g. `ps --format json`, `logs -f wildfly`).
+  (e.g. `ps --format json`, `logs -f gateway`).
 - Exit code is docker compose's exit code; `1` for usage errors.
 - Refuses to run (exit 1, `[env]` message on stderr) when `.env` exists but
   is not valid shell syntax.
@@ -277,7 +286,7 @@ This format is a **stable contract surface** — consumers may depend on it.
 | `uninstall.sh` | without `--yes` prints the plan and exits `0`; `1` on unknown option; non-zero on failure |
 | `release-control.sh` | `0` success, non-zero on failure |
 | `run-migrations.sh` | `--check`: `0` valid / `1` invalid; otherwise Flyway's exit code passes through |
-| `seed-db.sh` | `0` success (idempotent), non-zero on failure |
+| `seed-db.sh` | `0` success (idempotent), non-zero on failure — including `1` when migrations have not been applied yet (run `run-migrations.sh` first) |
 | `load-demo-data.sh` | `0` success, non-zero on failure |
 | `etl.sh` | `0` success, `1` usage/failure |
 | `scripts/env-set.sh` | `0` success, `2` usage error |

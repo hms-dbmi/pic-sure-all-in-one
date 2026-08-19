@@ -576,7 +576,7 @@ load_facets() {
 }
 
 run_weights() {
-  local weights="${DICTIONARY_WEIGHTS:-$SCRIPT_DIR/repos/picsure-dictionary/dictionaryweights/weights.csv}"
+  local weights="${DICTIONARY_WEIGHTS:-${PICSURE_SRC:-$SCRIPT_DIR/repos/pic-sure}/services/picsure-dictionary/dictionaryweights/weights.csv}"
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --weights) weights="${2:?--weights requires a value}"; shift 2 ;;
@@ -585,7 +585,7 @@ run_weights() {
   done
 
   require_file "$weights"
-  local src="${DICTIONARY_SRC:-$SCRIPT_DIR/repos/picsure-dictionary}/dictionaryweights"
+  local src="${DICTIONARY_SRC:-${PICSURE_SRC:-$SCRIPT_DIR/repos/pic-sure}/services/picsure-dictionary}/dictionaryweights"
   if ! docker image inspect hms-dbmi/dictionary-weights:latest >/dev/null 2>&1; then
     require_file "$src/Dockerfile"
     docker build -f "$src/Dockerfile" -t hms-dbmi/dictionary-weights:latest "$src"

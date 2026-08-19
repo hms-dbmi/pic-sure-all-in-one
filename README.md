@@ -45,6 +45,58 @@ cp .env.example .env
 Browse to **https://localhost** and log in with the configured admin Google
 account.
 
+## Architecture
+
+`httpd` is the only container published to the host. It terminates TLS, serves
+the SvelteKit frontend, and reverse-proxies two paths:
+
+- `/picsure/(.*)` → `gateway:8080` — every API call
+- `/psama/(.*)` → `psama:8090/auth/` — authentication, straight to PSAMA
+
+The gateway (Spring Cloud Gateway) is the single API front door. It runs the
+PSAMA introspection auth chain, then routes `/operations`, `/hpds`,
+`/dictionary`, `/visualization`, and `/logging` to the services behind it. Its
+own liveness is `/actuator/health/liveness`; deep cross-service health is the
+gateway's `/system/status`, surfaced by `./status.sh --deep-health`.
+
+| Service | Role |
+|---|---|
+| `httpd` | TLS, frontend, reverse proxy — the only public container |
+| `gateway` | API front door, auth chain, `/system/status` |
+| `psama` | Authentication and authorization; owns the `auth` schema |
+| `pic-sure-operations-service` | Queries, datasets, configuration; the only owner of the `picsure` schema |
+| `pic-sure-hpds-query-service` | The only query path to `hpds` |
+| `hpds` | Phenotype and genomic data store |
+| `visualization` | Chart/histogram service |
+| `dictionary-api`, `dictionary-dump` | Variable search API and remote-dictionary transfer |
+| `pic-sure-logging` | Audit event collector |
+| `picsure-db` | MySQL 8 — `picsure` and `auth` schemas |
+| `dictionary-db` | PostgreSQL 16 — dictionary schema |
+| `flyway-init`, `flyway-dictionary-init` | One-shot migration containers; run once and exit |
+
+Four Docker networks enforce the boundaries: `public` (httpd only), `app`,
+internal `data` (the dictionary tier), and internal `query`. HPDS sits on
+`query`, so the query service is its query path — visualization, dictionary,
+and PSAMA cannot resolve it.
+
+### Source repositories
+
+`./clone-repos.sh` clones four repos into `repos/`; `build-images.sh` calls it
+automatically.
+
+| Repo | Provides |
+|---|---|
+| `pic-sure` | Service monorepo — gateway, operations service, query service, PSAMA, HPDS, visualization, logging, dictionary |
+| `PIC-SURE-Frontend` | SvelteKit frontend, baked into the `httpd` image |
+| `PIC-SURE-Migrations` | Project-specific Flyway migrations (`Baseline` by default) |
+| `picsure-dictionary-etl` | Dictionary ETL loader used by `etl.sh` and `load-demo-data.sh` |
+
+`./build-images.sh` builds every Java service in a single Maven reactor pass
+(`maven:3-amazoncorretto-25`, Java 25) over the `pic-sure` checkout, then builds
+each service image from that shared reactor output — so all services ship the
+same jars. The frontend image builds separately and is rebuilt only when its
+baked-in `VITE_*` config or theme changes.
+
 ## Requirements
 
 - Docker Engine 20.10+ with Compose V2
@@ -64,6 +116,7 @@ and adds checkout-root discovery, TTY safety, and `--json` / `--yes` pass-throug
 |---|---|---|
 | `./preflight.sh` | `pic-sure preflight` | Check host tools, config shape, Compose validity, and pinned refs |
 | `./status.sh` | `pic-sure status` | Print read-only stack, release-control, repo, DB, and migration readiness |
+| `./status.sh --deep-health` | `pic-sure status --deep-health` | The above, plus the gateway's `/system/status` cross-service probe |
 | `./update.sh --dry-run` | `pic-sure update --dry-run` | Resolve release-control and preview an update |
 | `./update.sh` | `pic-sure update` | Apply release-control refs, rebuild/pull images, run migrations, rotate introspection token, restart services |
 | `./run-migrations.sh --check` | `pic-sure migrate --check` | Validate migration inputs without touching the database |
@@ -75,15 +128,19 @@ and adds checkout-root discovery, TTY safety, and `--json` / `--yes` pass-throug
 - [Operations runbook](docs/operations.md)
 - [Upgrade and release-control behavior](docs/upgrade-release-control.md)
 - [ETL commands](docs/etl.md)
+- [Data dictionary](docs/dictionary.md)
+- [Database CLI access](docs/db-access.md)
 - [pic-sure CLI & TUI — install, command reference, agent automation rules](cli/README.md)
 
 ## Project Layout
 
 ```text
 docker-compose.yml              # Main Compose stack
+docker-compose.dev*.yml         # Build-from-source overlays (all services, or one at a time)
 docker-compose.remote-db.yml    # Remote MySQL/RDS overlay
 .env.example                    # Configuration template
 init.sh                         # First install
+clone-repos.sh                  # Clone the four source repos into repos/
 preflight.sh                    # Non-mutating host/config checks
 status.sh                       # Read-only stack and release status
 uninstall.sh                    # Local stack removal

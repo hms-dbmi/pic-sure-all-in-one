@@ -53,7 +53,7 @@ func TestParseStatusFixture(t *testing.T) {
 		t.Error("missing repo should have null current")
 	}
 	if s.Services[0].Health != nil {
-		t.Error("wildfly health should be null")
+		t.Error("gateway health should be null")
 	}
 	if s.Services[1].ExitCode != nil {
 		t.Error("hpds exit_code should be null")
@@ -64,8 +64,15 @@ func TestParseStatusFixture(t *testing.T) {
 	if s.Database.Service != nil {
 		t.Error("remote database should have null service")
 	}
-	if len(s.ReleaseControl.Refs) != 10 {
-		t.Errorf("want 10 refs, got %d", len(s.ReleaseControl.Refs))
+	if len(s.ReleaseControl.Refs) != 4 {
+		t.Errorf("want 4 refs, got %d", len(s.ReleaseControl.Refs))
+	}
+	// health is skipped by default: checked=false leaves both pointers nil.
+	if s.Health.Checked || s.Health.Healthy != nil || s.Health.Status != nil {
+		t.Errorf("health should be unchecked with null healthy/status, got %+v", s.Health)
+	}
+	if s.Health.Message == "" {
+		t.Error("health.message should explain why the probe was skipped")
 	}
 	if s.Migrations.Ready == nil || *s.Migrations.Ready {
 		t.Error("migrations.ready should be false")

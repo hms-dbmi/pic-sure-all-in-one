@@ -53,7 +53,7 @@ func TestNewFormSkipAuthSeedAndConfirm(t *testing.T) {
 func TestReleaseControlFieldsSeedAndSummarize(t *testing.T) {
 	initial := map[string]string{
 		"DB_MODE":                "local",
-		"RELEASE_CONTROL_REPO":   "https://github.com/hms-dbmi/pic-sure-baseline-release-control",
+		"RELEASE_CONTROL_REPO":   "https://github.com/hms-dbmi/baseline-pic-sure-release-control",
 		"RELEASE_CONTROL_BRANCH": "main",
 	}
 	wf := NewForm(initial, true) // skipAuth: keep the summary focused on shown fields
@@ -74,7 +74,7 @@ func TestReleaseControlFieldsSeedAndSummarize(t *testing.T) {
 	}
 	s := ansi.Strip(summary(snap, desired, true))
 	for _, want := range []string{
-		"Release-control repository", "https://github.com/hms-dbmi/pic-sure-baseline-release-control",
+		"Release-control repository", "https://github.com/hms-dbmi/baseline-pic-sure-release-control",
 		"Release-control branch or tag", "main",
 	} {
 		if !strings.Contains(s, want) {

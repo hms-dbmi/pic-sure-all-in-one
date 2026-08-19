@@ -260,7 +260,7 @@ func TestRestartRequiresSelectedService(t *testing.T) {
 		t.Fatal("restart with no services should be a no-op")
 	}
 
-	m.services = []contract.ComposeService{{Service: "wildfly"}, {Service: "hpds"}}
+	m.services = []contract.ComposeService{{Service: "gateway"}, {Service: "hpds"}}
 	m.selected = 1
 	m, _ = update(t, m, keyMsg("r"))
 	if m.mode != modeConfirm || m.pending == nil || m.pending.Name != "restart hpds" {
@@ -294,7 +294,7 @@ func TestServicesMsgClampsSelection(t *testing.T) {
 func TestStaleLogLinesAreDiscarded(t *testing.T) {
 	m := testModel(t)
 	m.logSession = &logSession{id: 5, cancel: func() {}, lines: make(chan string)}
-	m.logSvc = "wildfly"
+	m.logSvc = "gateway"
 
 	m, _ = update(t, m, logLinesMsg{sessionID: 4, lines: []string{"stale line"}})
 	if len(m.logLines) != 0 {
@@ -634,10 +634,10 @@ func TestNextLogRetryDelay(t *testing.T) {
 // schedules a restart after a delay that grows on each consecutive failure.
 func TestLogClosedBacksOffAndKeepsScrollback(t *testing.T) {
 	m := testModel(t)
-	m.logSvc = "wildfly"
+	m.logSvc = "gateway"
 	// Existing scrollback incl. a follower error line (as startLogSession's
 	// failed-stub would have appended before closing).
-	m.logLines = []string{"wildfly | booting", "[log follower] start failed: boom"}
+	m.logLines = []string{"gateway | booting", "[log follower] start failed: boom"}
 	before := append([]string(nil), m.logLines...)
 	m.logSession = &logSession{id: m.logSeq, cancel: func() {}, lines: make(chan string)}
 
@@ -675,13 +675,13 @@ func TestLogClosedBacksOffAndKeepsScrollback(t *testing.T) {
 // session delivers lines, so a later transient drop retries quickly again.
 func TestLogLinesResetBackoff(t *testing.T) {
 	m := testModel(t)
-	m.logSvc = "wildfly"
+	m.logSvc = "gateway"
 	m.logRetryDelay = 16 * time.Second // as if several failures had accrued
 	ch := make(chan string, 1)
 	ch <- "next"                                                    // keep waitLines from blocking when the returned cmd runs
 	m.logSession = &logSession{id: 7, cancel: func() {}, lines: ch} // failed=false: real session
 
-	m, _ = update(t, m, logLinesMsg{sessionID: 7, lines: []string{"wildfly | up"}})
+	m, _ = update(t, m, logLinesMsg{sessionID: 7, lines: []string{"gateway | up"}})
 	if m.logRetryDelay != 0 {
 		t.Errorf("real lines did not reset the backoff: logRetryDelay = %v, want 0", m.logRetryDelay)
 	}
@@ -700,8 +700,8 @@ func TestLogLinesResetBackoff(t *testing.T) {
 // switched services) is dropped, and restartLogs keeps the scrollback.
 func TestLogRetryMsgSeqGuard(t *testing.T) {
 	m := testModel(t)
-	m.logSvc = "wildfly"
-	m.logLines = []string{"wildfly | line", "[log follower] start failed: boom"}
+	m.logSvc = "gateway"
+	m.logLines = []string{"gateway | line", "[log follower] start failed: boom"}
 	keep := append([]string(nil), m.logLines...)
 	m.logSession = nil
 	staleSeq := m.logSeq
@@ -911,7 +911,7 @@ func TestLogPaneFloodKeepsFrameInBox(t *testing.T) {
 
 	long := make([]string, 120)
 	for i := range long {
-		long[i] = strings.Repeat("wildfly | very long docker log line ", 8)
+		long[i] = strings.Repeat("gateway | very long docker log line ", 8)
 	}
 	// Append lines directly and call refreshLogPane (render path under test).
 	m.logLines = append(m.logLines, long...)
@@ -960,7 +960,7 @@ func TestServicesPaneRowsNoWrap(t *testing.T) {
 		{Service: "very-long-service-name", State: "running", Health: "unhealthy"},
 		// Real service (docker-compose.yml) at 16 chars: one past the floor svcCol=15.
 		{Service: "pic-sure-logging", State: "running", Health: "healthy"},
-		{Service: "wildfly", State: "running", Health: "healthy"},
+		{Service: "gateway", State: "running", Health: "healthy"},
 		{Service: "hpds", State: "running", Health: "starting"},
 		{Service: "short", State: "exited", Health: ""},
 	}

@@ -79,7 +79,7 @@ printf '%s' "$a" | (cd "$CLI_DIR" && go run ./smoke/validate status) || fail "st
 
 note "human status output keeps its section skeleton"
 hs="$(cd "$ROOT" && ./status.sh 2>/dev/null || true)"
-for sec in "== Environment ==" "== Release Control ==" "== Repos ==" "== Compose ==" "== Database ==" "== Migrations =="; do
+for sec in "== Environment ==" "== Release Control ==" "== Repos ==" "== Compose ==" "== Health ==" "== Database ==" "== Migrations =="; do
   case "$hs" in
     *"$sec"*) ;;
     *) fail "human status output is missing section: $sec" ;;

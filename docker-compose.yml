@@ -350,6 +350,10 @@ services:
     depends_on:
       dictionary-db:
         condition: service_healthy
+      # Same invariant the MySQL tier states via flyway-init on psama and
+      # operations-service: no consumer starts against a mid-migration schema.
+      flyway-dictionary-init:
+        condition: service_completed_successfully
     # dictionary-api (Spring Boot, server.port=80) now ships Actuator;
     # PICSURE_ACTUATOR_EXPOSURE=health exposes the shallow aggregate, which
     # includes the Postgres datasource.  Same endpoint the gateway folds into
@@ -374,6 +378,11 @@ services:
       - ./.data/logs/dictionary:/var/log
     networks:
       - data
+    depends_on:
+      dictionary-db:
+        condition: service_healthy
+      flyway-dictionary-init:
+        condition: service_completed_successfully
 
   # ---------------------------------------------------------------------------
   # MySQL — picsure-db (auth + picsure schemas)
@@ -414,7 +423,18 @@ services:
       - ./config/dictionary/dictionary.env
     volumes:
       - dictionary-db-data:/var/lib/postgresql/data
-      - ./config/dictionary/schema.sql:/docker-entrypoint-initdb.d/schema.sql:ro
+      # Baseline DDL from the monorepo — the Flyway migrations in
+      # services/picsure-dictionary/db/flyway build on top of it.
+      # create_host_path: false makes a missing checkout a hard start error;
+      # otherwise Docker creates schema.sql as an empty DIRECTORY, Postgres
+      # initializes PGDATA without the dict schema, and the volume is poisoned
+      # (later starts skip initdb and report healthy).
+      - type: bind
+        source: ${PICSURE_SRC:-./repos/pic-sure}/services/picsure-dictionary/db/schema.sql
+        target: /docker-entrypoint-initdb.d/schema.sql
+        read_only: true
+        bind:
+          create_host_path: false
     networks:
       - data
     healthcheck:
@@ -478,6 +498,50 @@ services:
         condition: service_healthy
 
   # ---------------------------------------------------------------------------
+  # Flyway — Dictionary Migrations (init container — runs once and exits)
+  # ---------------------------------------------------------------------------
+  # Separate one-shot rather than a second pass inside flyway-init, because the
+  # two differ on every axis that Compose models:
+  #   * Network — dictionary-db lives on the internal `data` tier; folding the
+  #     dictionary pass into flyway-init would have to put the MySQL migration
+  #     container on `data` too, widening its reach for no reason.
+  #   * Credentials — Postgres creds come from the generated dictionary.env,
+  #     not the .env DB_ROOT_* values flyway-init uses.
+  #   * Remote DB mode — docker-compose.remote-db.yml clears flyway-init's
+  #     depends_on with `!reset {}`.  The dictionary Postgres is always local,
+  #     so its wait must not be swept away by that reset.
+  #   * Blast radius — psama and operations-service gate on flyway-init
+  #     completing; a dictionary migration failure should not wedge the auth
+  #     tier, and vice versa.
+  flyway-dictionary-init:
+    image: flyway/flyway:10
+    container_name: flyway-dictionary-init
+    entrypoint: ["bash", "/scripts/run-dictionary-migrations.sh"]
+    # POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB / POSTGRES_HOST, generated
+    # by ./init.sh — the same file dictionary-db and dictionary-api read.
+    env_file:
+      - ./config/dictionary/dictionary.env
+    volumes:
+      - ./config/flyway/run-dictionary-migrations.sh:/scripts/run-dictionary-migrations.sh:ro
+      # Dictionary migrations (monorepo). create_host_path: false — a missing
+      # checkout must fail the start, not materialize an empty directory that
+      # also makes clone-repos.sh think the repo exists.
+      - type: bind
+        source: ${PICSURE_SRC:-./repos/pic-sure}/services/picsure-dictionary/db/flyway
+        target: /migrations/dictionary
+        read_only: true
+        bind:
+          create_host_path: false
+    environment:
+      FLYWAY_ACTION: ${FLYWAY_ACTION:-migrate}
+    networks:
+      - data
+    restart: "no"
+    depends_on:
+      dictionary-db:
+        condition: service_healthy
+
+  # ---------------------------------------------------------------------------
   # Logging — Audit event collector
   # ---------------------------------------------------------------------------
   pic-sure-logging:
@@ -523,7 +587,8 @@ networks:
     driver: bridge
 
   # Data network — internal, no internet access
-  # Services: dictionary-api, dictionary-dump, dictionary-db
+  # Services: dictionary-api, dictionary-dump, dictionary-db,
+  # flyway-dictionary-init
   data:
     driver: bridge
     internal: true

@@ -3,8 +3,8 @@
 # PIC-SURE Flyway Migration Runner
 # =============================================================================
 # Runs all database migrations in order:
-#   1. Auth schema migrations (from pic-sure-auth-microapp)
-#   2. PIC-SURE schema migrations (from pic-sure)
+#   1. Auth schema migrations (monorepo services/pic-sure-auth-microapp)
+#   2. PIC-SURE schema migrations (monorepo services/pic-sure-operations-service)
 #   3. Project-specific PIC-SURE migrations
 #   4. Project-specific auth migrations
 #
@@ -37,7 +37,7 @@ require_sql() {
 
   if ! has_sql "$dir"; then
     echo "[flyway] Missing required $label migrations at $dir." >&2
-    echo "[flyway] Run ./clone-repos.sh or set the relevant *_SRC/MIGRATIONS_SRC paths." >&2
+    echo "[flyway] Run ./clone-repos.sh or set PICSURE_SRC/MIGRATIONS_SRC." >&2
     exit 1
   fi
 }

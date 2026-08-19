@@ -101,12 +101,13 @@ run_check() {
 
   local migration_name="${MIGRATION_NAME:-Baseline}"
   local migrations_src="${MIGRATIONS_SRC:-./repos/PIC-SURE-Migrations}"
-  local psama_src="${PSAMA_SRC:-./repos/pic-sure-auth-microapp}"
-  local wildfly_src="${WILDFLY_SRC:-./repos/pic-sure}"
-  local auth_dir="$psama_src/pic-sure-auth-db/db/sql"
-  local picsure_dir="$wildfly_src/pic-sure-api-data/src/main/resources/db/sql"
+  local picsure_src="${PICSURE_SRC:-./repos/pic-sure}"
+  local auth_dir="$picsure_src/services/pic-sure-auth-microapp/pic-sure-auth-db/db/sql"
+  local picsure_dir="$picsure_src/services/pic-sure-operations-service/db/sql"
   local project_auth_dir="$migrations_src/$migration_name/auth"
   local project_picsure_dir="$migrations_src/$migration_name/picsure"
+  local dictionary_dir="$picsure_src/services/picsure-dictionary/db/flyway"
+  local dictionary_schema="$picsure_src/services/picsure-dictionary/db/schema.sql"
   local failed=false
 
   info "Checking migration inputs for MIGRATION_NAME=$migration_name"
@@ -120,6 +121,14 @@ run_check() {
   require_sql_dir "$picsure_dir" "core picsure" || failed=true
   require_sql_dir "$project_picsure_dir" "project picsure" || failed=true
   require_sql_dir "$project_auth_dir" "project auth" || failed=true
+  require_sql_dir "$dictionary_dir" "dictionary" || failed=true
+
+  # Applied by the dictionary-db initdb hook, not by Flyway — but a missing
+  # file would mount as an empty directory and break Postgres bootstrap.
+  if [ ! -f "$dictionary_schema" ]; then
+    error "Missing dictionary baseline schema at $dictionary_schema"
+    failed=true
+  fi
 
   if [ "$failed" = false ]; then
     check_legacy_tokens "$project_picsure_dir" "project picsure" || failed=true
@@ -183,6 +192,29 @@ info "Waiting for database..."
 info "Running Flyway $ACTION..."
 picsure_compose rm -sf flyway-init >/dev/null 2>&1 || true
 FLYWAY_ACTION="$ACTION" picsure_compose up --no-deps --force-recreate --exit-code-from flyway-init flyway-init
+
+# Dictionary Postgres pass.  Always local, even under DB_MODE=remote — the
+# remote overlay only redirects MySQL.  dictionary-db is started explicitly
+# because the one-shot runs with --no-deps: --exit-code-from implies
+# --abort-on-container-exit, which would otherwise stop dictionary-db the
+# moment Flyway exits.
+info "Starting dictionary database if needed..."
+picsure_compose up -d dictionary-db >/dev/null
+info "Waiting for dictionary-db to become healthy..."
+DICT_RETRIES="${DB_WAIT_RETRIES:-30}"
+until docker inspect --format='{{.State.Health.Status}}' dictionary-db 2>/dev/null | grep -q healthy; do
+  DICT_RETRIES=$((DICT_RETRIES - 1))
+  if [ "$DICT_RETRIES" -le 0 ]; then
+    error "dictionary-db did not become healthy in time."
+    error "Check logs: docker compose logs dictionary-db"
+    exit 1
+  fi
+  sleep "${DB_WAIT_SLEEP_SECONDS:-2}"
+done
+
+info "Running dictionary Flyway $ACTION..."
+picsure_compose rm -sf flyway-dictionary-init >/dev/null 2>&1 || true
+FLYWAY_ACTION="$ACTION" picsure_compose up --no-deps --force-recreate --exit-code-from flyway-dictionary-init flyway-dictionary-init
 
 if [ "$ACTION" = "migrate" ] && [ "$RESTART_APPS" = true ]; then
   running_services="$(picsure_compose ps --services --filter status=running 2>/dev/null || true)"

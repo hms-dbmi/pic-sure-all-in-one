@@ -320,6 +320,28 @@ does migrate your initial configurations.  (Does not impact PIC-SURE users)
 
 A backup of your jenkins home can be found here: `"$DOCKER_CONFIG_DIR"/jenkins_home_bak/`
 
+### Migrating an existing WildFly environment
+
+Updating Jenkins installs the mono-repo jobs, but it does not create the gateway,
+operations-service, or query-service environment files required to replace a legacy
+WildFly deployment. For an existing Docker all-in-one installation:
+
+1. Back up `DOCKER_CONFIG_DIR`, including the `wildfly`, `httpd`, `logging`, and
+   Jenkins configuration directories.
+2. Update Jenkins using the instructions above.
+3. Run **Migrate PIC-SURE Environment** and review its migration summary. The job
+   copies required values such as the token-introspection token, PIC-SURE database
+   password, and logging key into the new service env files; it also creates and
+   synchronizes the new internal service tokens. WildFly remains running during this preparation step.
+4. Run **PIC-SURE Database Migrations**, then run **PIC-SURE Pipeline**. The
+   pipeline builds the mono-repo images and performs the Stop/Start restart that
+   removes the legacy WildFly container and starts the gateway-era services.
+
+The environment migration is idempotent and is safe to rerun after a partial
+failure. It does not stop WildFly or archive the legacy configuration directory.
+Do not run **Initial Configuration Pipeline** as an upgrade procedure for an
+existing deployment.
+
 ## Users
 
 ### Adding and Removing Users

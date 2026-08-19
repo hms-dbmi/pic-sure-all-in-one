@@ -118,6 +118,7 @@
         <string>Create Custom Login (IDP) Connection</string>
         <string>Create Self-Signed SSL Certificate</string>
         <string>Import Server Cert to TrustStore</string>
+        <string>Migrate PIC-SURE Environment</string>
         <string>Update User Token</string>
       </jobNames>
       <jobFilters/>

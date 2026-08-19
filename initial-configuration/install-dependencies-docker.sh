@@ -249,8 +249,10 @@ echo $RESOURCE_ID_HEX > $DOCKER_CONFIG_DIR/RESOURCE_ID_HEX
 # existing deployments upgrading without this directory remain opt-in.
 mkdir -p $DOCKER_CONFIG_DIR/logging
 mkdir -p $DOCKER_CONFIG_DIR/log/logging-docker-logs
-LOGGING_API_KEY=$(openssl rand -hex 32)
-sed_inplace "s/__LOGGING_API_KEY__/$LOGGING_API_KEY/g" $DOCKER_CONFIG_DIR/logging/logging.env
+
+# Render secrets shared by the gateway, operations, query, and logging services.
+# The renderer preserves already-rendered values and never prints them.
+./configure-service-envs.sh
 
 mkdir -p $DOCKER_CONFIG_DIR/hpds_csv
 mkdir -p $DOCKER_CONFIG_DIR/hpds/all

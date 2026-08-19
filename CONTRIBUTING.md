@@ -2,7 +2,7 @@
 
 ## Code of Conduct
 
-When you contribute to a PIC-SURE project, you agree to abide by our ![Code of Conduct](https://github.com/hms-dbmi/pic-sure-hpds/blob/master/CODE_OF_CONDUCT.md)
+When you contribute to a PIC-SURE project, you agree to abide by our [Code of Conduct](https://github.com/hms-dbmi/pic-sure/blob/main/CODE_OF_CONDUCT.md).
 
 ## Code Contributions 
 
@@ -69,4 +69,3 @@ If you have a question about how to use PIC-SURE, first take a look through the 
 For example:
 
 ![Support Request](https://user-images.githubusercontent.com/22797913/217880722-e7095107-1514-4202-8fe5-36e8179bca1b.png)
-

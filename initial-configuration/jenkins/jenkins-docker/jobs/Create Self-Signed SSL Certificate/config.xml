@@ -27,8 +27,10 @@
     <hudson.tasks.Shell>
       <command>
     openssl req -nodes -new -x509 -keyout server.key -out server.crt -subj &quot;/CN=$SERVERNAME&quot; -addext &quot;subjectAltName=DNS:$SERVERNAME&quot;
+	cp server.crt server.chain
 	cp server.key /usr/local/docker-config/httpd/cert/server.key
 	cp server.crt /usr/local/docker-config/httpd/cert/server.crt
+	cp server.chain /usr/local/docker-config/httpd/cert/server.chain
 	rm -rf server.*
 	</command>
       <configuredLocalRules/>

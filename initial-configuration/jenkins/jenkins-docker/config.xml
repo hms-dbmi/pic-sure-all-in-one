@@ -137,14 +137,11 @@
       <jobNames>
         <comparator class="hudson.util.CaseInsensitiveComparator" reference="../../../listView/jobNames/comparator"/>
         <string>Backup Jenkins Home</string>
-        <string>Create PIC-SURE Aggregate Resource</string>
         <string>Create Self-Signed SSL Certificate</string>
         <string>Download PSAMA Configuration</string>
-        <string>Export builds</string>
         <string>Replace Frontend</string>
         <string>Update User Token</string>
         <string>Upload HPDS-ETL Dataset Configuration</string>
-        <string>Upload PSAMA Configuration</string>
         <string>Export Jenkins Jobs</string>
       </jobNames>
       <jobFilters/>

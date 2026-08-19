@@ -9,7 +9,7 @@
         <hudson.model.StringParameterDefinition>
           <name>git_hash</name>
           <description>https://github.com/hms-dbmi/pic-sure tag, branch or hash</description>
-          <defaultValue>pic_sure_api_mono_repo</defaultValue>
+          <defaultValue>origin/main</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
       </parameterDefinitions>

@@ -30,6 +30,12 @@ echo "INCLUDE_PASSTHRU=$INCLUDE_PASSTHRU"
 echo "INCLUDE_LOGGING=$INCLUDE_LOGGING"
 [[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/visualization" ]] && INCLUDE_VISUALIZATION=true || INCLUDE_VISUALIZATION=false
 echo "INCLUDE_VISUALIZATION=$INCLUDE_VISUALIZATION"
+[[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/gateway" ]] && INCLUDE_GATEWAY=true || INCLUDE_GATEWAY=false
+echo "INCLUDE_GATEWAY=$INCLUDE_GATEWAY"
+[[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/operations" ]] && INCLUDE_OPERATIONS=true || INCLUDE_OPERATIONS=false
+echo "INCLUDE_OPERATIONS=$INCLUDE_OPERATIONS"
+[[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/query" ]] && INCLUDE_QUERY=true || INCLUDE_QUERY=false
+echo "INCLUDE_QUERY=$INCLUDE_QUERY"
 
 # Docker Volumes
 export PICSURE_BANNER_VOLUME="-v $DOCKER_CONFIG_DIR/httpd/banner_config.json:/usr/local/apache2/htdocs/picsureui/settings/banner_config.json"
@@ -171,6 +177,30 @@ docker run --name=wildfly --restart always --network=picsure --network=hpds --ne
 # deployments dir. docker cp reads its source from the Jenkins (current) filesystem, so it MUST use
 # CURRENT_FS_DOCKER_CONFIG_DIR -- $DOCKER_CONFIG_DIR is the host path and does not exist inside this container.
 docker cp "${CURRENT_FS_DOCKER_CONFIG_DIR}/wildfly/deployments/." "wildfly:/opt/jboss/wildfly/standalone/deployments/"
+
+if $INCLUDE_OPERATIONS; then
+  docker stop pic-sure-operations-service && docker rm pic-sure-operations-service
+  docker run --name=pic-sure-operations-service --restart always --network=picsure \
+    --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/operations/operations.env \
+    -d hms-dbmi/pic-sure-operations-service:LATEST \
+    || exit 2
+fi
+
+if $INCLUDE_QUERY; then
+  docker stop pic-sure-hpds-query-service && docker rm pic-sure-hpds-query-service
+  docker run --name=pic-sure-hpds-query-service --restart always --network=picsure \
+    --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/query/query.env \
+    -d hms-dbmi/pic-sure-hpds-query-service:LATEST \
+    || exit 2
+fi
+
+if $INCLUDE_GATEWAY; then
+  docker stop gateway && docker rm gateway
+  docker run --name=gateway --restart always --network=picsure \
+    --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/gateway/gateway.env \
+    -d hms-dbmi/pic-sure-gateway:LATEST \
+    || exit 2
+fi
 
 if $INCLUDE_UPLOADER; then
   docker compose --profile production -f $CURRENT_FS_DOCKER_CONFIG_DIR/uploader/docker-compose.yml up -d

@@ -49,11 +49,8 @@
       <properties class="hudson.model.View$PropertyList"/>
       <jobNames>
         <comparator class="hudson.util.CaseInsensitiveComparator"/>
-        <string>PIC-SURE Aggregate Resource Build</string>
         <string>PIC-SURE Frontend Build</string>
         <string>PIC-SURE Auth Micro-App Build - Jenkinsfile</string>
-        <string>PIC-SURE Build and Deploy Uploader</string>
-        <string>Build Passthru Image</string>
         <string>PIC-SURE Dictionary API Build and Deploy</string>
         <string>PIC-SURE Dictionary-ETL Build</string>
         <string>PIC-SURE Pipeline</string>
@@ -148,7 +145,6 @@
         <string>Update User Token</string>
         <string>Upload HPDS-ETL Dataset Configuration</string>
         <string>Upload PSAMA Configuration</string>
-        <string>Upload Uploader .env File</string>
         <string>Export Jenkins Jobs</string>
       </jobNames>
       <jobFilters/>

@@ -18,8 +18,6 @@ fi
 # Optional services
 [[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/hpds" ]] && INCLUDE_HPDS=true || INCLUDE_HPDS=false
 echo "INCLUDE_HPDS=$INCLUDE_HPDS"
-[[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/uploader" ]] && INCLUDE_UPLOADER=true || INCLUDE_UPLOADER=false
-echo "INCLUDE_UPLOADER=$INCLUDE_UPLOADER"
 [[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/dictionary" ]] && INCLUDE_DICTIONARY=true || INCLUDE_DICTIONARY=false
 echo "INCLUDE_DICTIONARY=$INCLUDE_DICTIONARY"
 [[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/dictionary/dump" ]] && INCLUDE_AGG_DICT=true || INCLUDE_AGG_DICT=false
@@ -166,10 +164,6 @@ if $INCLUDE_GATEWAY; then
     --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/gateway/gateway.env \
     -d hms-dbmi/pic-sure-gateway:LATEST \
     || exit 2
-fi
-
-if $INCLUDE_UPLOADER; then
-  docker compose --profile production -f $CURRENT_FS_DOCKER_CONFIG_DIR/uploader/docker-compose.yml up -d
 fi
 
 if $INCLUDE_DICTIONARY; then

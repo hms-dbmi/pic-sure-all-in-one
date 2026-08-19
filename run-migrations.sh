@@ -217,20 +217,23 @@ picsure_compose rm -sf flyway-dictionary-init >/dev/null 2>&1 || true
 FLYWAY_ACTION="$ACTION" picsure_compose up --no-deps --force-recreate --exit-code-from flyway-dictionary-init flyway-dictionary-init
 
 if [ "$ACTION" = "migrate" ] && [ "$RESTART_APPS" = true ]; then
+  # Only the services that hold migrated rows in in-memory caches with no
+  # usable flush are bounced: psama (access rules/roles) and dictionary-api
+  # (dictionary reads). gateway and operations-service read through to the DB
+  # per request, so they are deliberately left running.
   running_services="$(picsure_compose ps --services --filter status=running 2>/dev/null || true)"
   restart_targets=()
-  if echo "$running_services" | grep -qx "wildfly"; then
-    restart_targets+=("wildfly")
-  fi
-  if echo "$running_services" | grep -qx "psama"; then
-    restart_targets+=("psama")
-  fi
+  for candidate in psama dictionary-api; do
+    if echo "$running_services" | grep -qx "$candidate"; then
+      restart_targets+=("$candidate")
+    fi
+  done
 
   if [ "${#restart_targets[@]}" -gt 0 ]; then
     info "Restarting services to pick up migrated data: ${restart_targets[*]}"
     picsure_compose restart "${restart_targets[@]}"
   else
-    warn "wildfly and psama are not running; skipping app restarts."
+    warn "psama and dictionary-api are not running; skipping app restarts."
   fi
 fi
 

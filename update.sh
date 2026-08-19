@@ -207,7 +207,7 @@ dry_run_update() {
     echo "  would skip token rotation; AUTH0_CLIENT_SECRET or PICSURE_APPLICATION_ID is missing"
   fi
   echo "  would run: docker compose up -d"
-  echo "  would restart: wildfly psama httpd"
+  echo "  would restart: psama httpd"
 
   if [ -n "$dry_tmp" ]; then
     rm -rf "$dry_tmp"
@@ -249,6 +249,11 @@ fi
 "$SCRIPT_DIR/run-migrations.sh"
 rotate_introspection_token
 picsure_compose up -d
-picsure_compose restart wildfly psama httpd
+# psama: flush its TTL-less roles/privileges caches. httpd: re-read the
+# bind-mounted vhost/settings files, which `up -d` does not notice. The gateway
+# is intentionally absent — the only thing that changes for it here is the
+# rotated TOKEN_INTROSPECTION_TOKEN, and `restart` does not re-read environment;
+# the `up -d` above already recreated it with the new value.
+picsure_compose restart psama httpd
 
 info "Update complete."

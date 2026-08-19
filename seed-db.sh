@@ -130,12 +130,14 @@ if [ -d "$MIGRATIONS_SRC/Baseline" ]; then
     AUTH_SQL_TMP=$(mktemp -d)
     cp "$MIGRATIONS_SRC/Baseline/auth/"*.sql "$AUTH_SQL_TMP/" 2>/dev/null || true
     sed_in_place "s/__APPLICATION_UUID__/$APP_ID_HEX/g" "$AUTH_SQL_TMP/"*.sql 2>/dev/null || true
-    docker run --rm \
+    # Password travels via Flyway's env var (passed by name), never argv.
+    FLYWAY_PASSWORD="$ROOT_PASS" docker run --rm \
       ${FLYWAY_NETWORK_ARGS[@]+"${FLYWAY_NETWORK_ARGS[@]}"} \
+      -e FLYWAY_PASSWORD \
       -v "$AUTH_SQL_TMP:/flyway/sql:ro" \
-      flyway/flyway:latest \
+      flyway/flyway:10 \
       -url="$AUTH_FLYWAY_URL" \
-      -user="${DB_ROOT_USER:-root}" -password="$ROOT_PASS" \
+      -user="${DB_ROOT_USER:-root}" \
       -schemas=auth \
       -locations="filesystem:/flyway/sql" \
       -baselineOnMigrate=true \
@@ -154,14 +156,13 @@ if [ -d "$MIGRATIONS_SRC/Baseline" ]; then
     PICSURE_SQL_TMP=$(mktemp -d)
     cp "$MIGRATIONS_SRC/Baseline/picsure/"*.sql "$PICSURE_SQL_TMP/" 2>/dev/null || true
     sed_in_place "s/__RESOURCE_UUID__/$RESOURCE_ID_HEX/g" "$PICSURE_SQL_TMP/"*.sql 2>/dev/null || true
-    # Fix hardcoded HPDS resource UUID to match ours
-    sed_in_place "s/16A7B3241CBF4333B65B3EA2AF954313/$RESOURCE_ID_HEX/g" "$PICSURE_SQL_TMP/"*.sql 2>/dev/null || true
-    docker run --rm \
+    FLYWAY_PASSWORD="$ROOT_PASS" docker run --rm \
       ${FLYWAY_NETWORK_ARGS[@]+"${FLYWAY_NETWORK_ARGS[@]}"} \
+      -e FLYWAY_PASSWORD \
       -v "$PICSURE_SQL_TMP:/flyway/sql:ro" \
-      flyway/flyway:latest \
+      flyway/flyway:10 \
       -url="$PICSURE_FLYWAY_URL" \
-      -user="${DB_ROOT_USER:-root}" -password="$ROOT_PASS" \
+      -user="${DB_ROOT_USER:-root}" \
       -schemas=picsure \
       -locations="filesystem:/flyway/sql" \
       -baselineOnMigrate=true \
@@ -231,16 +232,22 @@ VIZ_ID="${PICSURE_VIZ_RESOURCE_ID:-}"
 if [ -n "$VIZ_ID" ]; then
   VIZ_ID_HEX=$(echo "$VIZ_ID" | tr '[:lower:]' '[:upper:]' | sed 's/-//g')
 
+  # Baseline picsure V8__CREATE_VISUALIZATION_RESOURCE.sql owns this row: it
+  # find-or-creates on name='visualization' with a UUID it generates in SQL.
+  # So the guard must key on the name — keying on the .env UUID can never match
+  # V8's row and would add a second, differently-shaped 'visualization' resource
+  # (resource.name has no unique index). This insert is only the fallback for
+  # installs whose Baseline migrations have not run; it mirrors V8's values.
   EXISTING=$(db_mysql -N -e \
-    "SELECT COUNT(*) FROM picsure.resource WHERE uuid=UNHEX('$VIZ_ID_HEX');" 2>/dev/null || echo "0")
+    "SELECT COUNT(*) FROM picsure.resource WHERE name='visualization';" 2>/dev/null || echo "0")
 
   if [ "$EXISTING" = "0" ]; then
     info "Creating visualization resource entry..."
     db_mysql -e "
       INSERT INTO picsure.resource (uuid, targetURL, resourceRSPath, description, name, token, hidden)
       VALUES (
-        UNHEX('$VIZ_ID_HEX'), NULL, NULL,
-        'PIC-SURE Visualization Resource', 'visualization', NULL, TRUE
+        UNHEX('$VIZ_ID_HEX'), NULL, 'http://visualization/',
+        'Visualization', 'visualization', NULL, TRUE
       );
     " picsure 2>/dev/null || { error "Failed to create visualization resource (are migrations applied?)."; exit 1; }
     info "Visualization resource created."
@@ -275,5 +282,5 @@ info "  Database seeded successfully!"
 info "======================================"
 info ""
 info "  Restart services to pick up changes:"
-info "    docker compose restart wildfly psama"
+info "    docker compose restart psama"
 echo ""

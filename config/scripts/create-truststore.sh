@@ -2,8 +2,8 @@
 # =============================================================================
 # Create Java truststore with Let's Encrypt root certificates
 # =============================================================================
-# Generates JKS truststores for Wildfly and PSAMA with Let's Encrypt
-# root CA certificates so they can make HTTPS calls (e.g., to Auth0).
+# Generates a JKS truststore for PSAMA with Let's Encrypt root CA
+# certificates so it can make HTTPS calls (e.g., to Auth0).
 #
 # Usage: ./create-truststore.sh <output_dir>
 # =============================================================================

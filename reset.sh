@@ -256,13 +256,11 @@ rm -f "$ENV_FILE"
 rm -rf "$SCRIPT_DIR/certs"
 rm -f "$SCRIPT_DIR/config/dictionary/dictionary.env"
 rm -f "$SCRIPT_DIR/config/hpds/encryption_key"
-rm -f "$SCRIPT_DIR/config/wildfly/application.truststore"
 rm -f "$SCRIPT_DIR/config/psama/application.truststore"
-rm -f "$SCRIPT_DIR/config/wildfly/visualization/pic-sure-visualization-resource/resource.properties"
+# Pre-monorepo installs generated artifacts into config/wildfly/; the tracked
+# files are gone but the generated ones survive a git pull as untracked residue.
+rm -rf "$SCRIPT_DIR/config/wildfly"
 rm -rf "$SCRIPT_DIR/.data"
-
-# WAR files (copied/built)
-rm -f "$SCRIPT_DIR/config/wildfly/deployments/"*.war
 
 info "Generated config removed."
 
@@ -272,7 +270,7 @@ info "Generated config removed."
 if [ "$WIPE_DB" = "true" ]; then
   info "Removing PIC-SURE images..."
   # Keep in sync with uninstall.sh's images=() list (the two have drifted before).
-  for img in pic-sure-hpds pic-sure-psama pic-sure-wildfly pic-sure-httpd \
+  for img in pic-sure-hpds pic-sure-psama pic-sure-httpd \
              pic-sure-dictionary-api pic-sure-dictionary-dump pic-sure-hpds-etl \
              pic-sure-visualization pic-sure-logging; do
     docker rmi "hms-dbmi/$img:${PICSURE_IMAGE_TAG:-LATEST}" 2>/dev/null && \

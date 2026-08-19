@@ -66,9 +66,10 @@ generated_paths=(
   "$SCRIPT_DIR/init.log"
   "$SCRIPT_DIR/config/dictionary/dictionary.env"
   "$SCRIPT_DIR/config/hpds/encryption_key"
-  "$SCRIPT_DIR/config/wildfly/application.truststore"
   "$SCRIPT_DIR/config/psama/application.truststore"
-  "$SCRIPT_DIR/config/wildfly/visualization/pic-sure-visualization-resource/resource.properties"
+  # Pre-monorepo installs generated truststore/WARs into config/wildfly/;
+  # untracked residue survives a git pull.
+  "$SCRIPT_DIR/config/wildfly"
 )
 
 # Keep in sync with reset.sh's --all image list (the two have drifted before).
@@ -76,7 +77,6 @@ images=(
   "hms-dbmi/pic-sure-hpds:$IMAGE_TAG"
   "hms-dbmi/pic-sure-hpds-etl:$IMAGE_TAG"
   "hms-dbmi/pic-sure-psama:$IMAGE_TAG"
-  "hms-dbmi/pic-sure-wildfly:$IMAGE_TAG"
   "hms-dbmi/pic-sure-httpd:$IMAGE_TAG"
   "hms-dbmi/pic-sure-dictionary-api:$IMAGE_TAG"
   "hms-dbmi/pic-sure-dictionary-dump:$IMAGE_TAG"
@@ -155,7 +155,6 @@ info "Removing generated files..."
 for path in "${generated_paths[@]}"; do
   remove_path "$path"
 done
-rm -f "$SCRIPT_DIR/config/wildfly/deployments/"*.war 2>/dev/null || true
 
 if [ "$REMOVE_REPOS" = "true" ]; then
   remove_path "$SCRIPT_DIR/repos"

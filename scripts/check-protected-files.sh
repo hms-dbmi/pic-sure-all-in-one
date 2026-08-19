@@ -26,13 +26,7 @@ while IFS= read -r -d '' path; do
     config/dictionary/dictionary.env)
       blocked+=("$path")
       ;;
-    config/wildfly/application.truststore|config/psama/application.truststore)
-      blocked+=("$path")
-      ;;
-    config/wildfly/visualization/pic-sure-visualization-resource/resource.properties)
-      blocked+=("$path")
-      ;;
-    config/wildfly/deployments/*.war)
+    config/psama/application.truststore)
       blocked+=("$path")
       ;;
     repos/*/build/*|repos/*/target/*|repos/*/dist/*|repos/*/node_modules/*)

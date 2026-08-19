@@ -212,7 +212,9 @@ if [ -n "${AUTH0_CLIENT_SECRET:-}" ] && [ -n "${PICSURE_APPLICATION_ID:-}" ]; th
     "$AUTH0_CLIENT_SECRET" "$PICSURE_APPLICATION_ID" 365)
   set_env_var "PICSURE_INTROSPECTION_TOKEN" "$INTRO_TOKEN" "$FORCE"
   info "Introspection token generated (365-day expiry)."
-  # Also update the DB if picsure-db is running (token must match in .env, standalone.xml, AND the DB)
+  # Also update the DB if picsure-db is running. The token must match in .env
+  # (which feeds the gateway's TOKEN_INTROSPECTION_TOKEN) AND in the auth DB
+  # row PSAMA checks at /auth/token/inspect.
   # The HOST shell expands the password into docker's environment via the
   # env-prefix assignment (never into argv); the BARE `-e MYSQL_PWD` makes
   # docker forward it from its own environment into the container. The SQL —
@@ -343,10 +345,10 @@ case "${AUTH_MODE:-required}" in
   required|*)
     # Login Required: no access without authentication
     set_env_var "OPEN_IDP_PROVIDER_IS_ENABLED" "false" "true"
+    set_env_var "GATEWAY_OPEN_ACCESS_ENABLED" "false" "true"
     set_env_var "VITE_OPEN" "false" "true"
     set_env_var "VITE_OPEN_EXPLORER" "false" "true"
     set_env_var "VITE_DISCOVER" "false" "true"
-    set_env_var "OPEN_ACCESS_ENABLED" "false" "true"
     ;;
 esac
 
@@ -381,19 +383,18 @@ fi
 # Generate Java truststore (Let's Encrypt root certs)
 # ---------------------------------------------------------------------------
 
-if [ ! -f "$SCRIPT_DIR/config/wildfly/application.truststore" ] || [ "$FORCE" = "true" ]; then
+if [ ! -f "$SCRIPT_DIR/config/psama/application.truststore" ] || [ "$FORCE" = "true" ]; then
   info "Generating Java truststore with Let's Encrypt root certs..."
-  mkdir -p "$SCRIPT_DIR/config/wildfly" "$SCRIPT_DIR/config/psama"
-  rm -f "$SCRIPT_DIR/config/wildfly/application.truststore" "$SCRIPT_DIR/config/psama/application.truststore"
+  mkdir -p "$SCRIPT_DIR/config/psama"
+  rm -f "$SCRIPT_DIR/config/psama/application.truststore"
   docker run --rm \
     -v "$SCRIPT_DIR/config/scripts:/scripts:ro" \
-    -v "$SCRIPT_DIR/config/wildfly:/output" \
+    -v "$SCRIPT_DIR/config/psama:/output" \
     amazoncorretto:24-alpine \
     sh -c "apk add --no-cache curl >/dev/null 2>&1 && sh /scripts/create-truststore.sh /output" 2>/dev/null
-  cp "$SCRIPT_DIR/config/wildfly/application.truststore" "$SCRIPT_DIR/config/psama/application.truststore"
-  info "Truststores created for Wildfly and PSAMA."
+  info "Truststore created for PSAMA."
 else
-  info "Truststores already exist. Skipping. (Use --force to regenerate)"
+  info "Truststore already exists. Skipping. (Use --force to regenerate)"
 fi
 
 CUSTOM_TRUST_CERTS_DIR="${CUSTOM_TRUST_CERTS_DIR:-certs/trust}"
@@ -401,7 +402,6 @@ if [ -d "$SCRIPT_DIR/$CUSTOM_TRUST_CERTS_DIR" ]; then
   info "Importing custom trust certificates from $CUSTOM_TRUST_CERTS_DIR..."
   docker run --rm \
     -v "$SCRIPT_DIR/$CUSTOM_TRUST_CERTS_DIR:/certs:ro" \
-    -v "$SCRIPT_DIR/config/wildfly:/wildfly" \
     -v "$SCRIPT_DIR/config/psama:/psama" \
     amazoncorretto:24-alpine \
     sh -c '
@@ -411,9 +411,7 @@ if [ -d "$SCRIPT_DIR/$CUSTOM_TRUST_CERTS_DIR" ]; then
         [ -f "$cert" ] || continue
         i=$((i + 1))
         alias="custom-$i-$(basename "$cert" | tr -cd "A-Za-z0-9._-")"
-        keytool -delete -keystore /wildfly/application.truststore -storepass password -alias "$alias" >/dev/null 2>&1 || true
         keytool -delete -keystore /psama/application.truststore -storepass password -alias "$alias" >/dev/null 2>&1 || true
-        keytool -importcert -noprompt -trustcacerts -keystore /wildfly/application.truststore -storepass password -alias "$alias" -file "$cert" >/dev/null
         keytool -importcert -noprompt -trustcacerts -keystore /psama/application.truststore -storepass password -alias "$alias" -file "$cert" >/dev/null
       done
     ' 2>/dev/null
@@ -514,8 +512,6 @@ info "Seeding database..."
 
 info "Starting services..."
 picsure_compose up -d \
-  deploy-wars \
-  wildfly \
   psama \
   hpds \
   visualization \

@@ -3,11 +3,12 @@
 # PIC-SURE All-in-One — Status
 # =============================================================================
 # Read-only summary of local configuration, release refs, repo state, Compose
-# services, and migration readiness.
+# services, deep health, and migration readiness.
 #
 # Usage:
 #   ./status.sh
-#   ./status.sh --json   # machine-readable output (see docs/cli-contract.md)
+#   ./status.sh --json          # machine-readable output (see docs/cli-contract.md)
+#   ./status.sh --deep-health   # also probe the gateway's /system/status
 #
 # Exits 0 in both modes; statuses are reported in the output, not the exit code.
 # =============================================================================
@@ -27,11 +28,13 @@ source "$SCRIPT_DIR/scripts/lib/common.sh"
 source "$SCRIPT_DIR/scripts/picsure-compose.sh"
 
 JSON=false
+DEEP_HEALTH=false
 for arg in "$@"; do
   case "$arg" in
     --json) JSON=true ;;
+    --deep-health) DEEP_HEALTH=true ;;
     -h|--help)
-      sed -n '2,12p' "$0"
+      sed -n '2,13p' "$0"
       exit 0
       ;;
     *)
@@ -131,6 +134,57 @@ docker_reachable() {
   command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1
 }
 
+# Deep, cross-service health, consumed by both renderers. Sets:
+#   HEALTH_CHECKED (true/false), HEALTH_STATUS, HEALTH_HEALTHY, HEALTH_MESSAGE
+#
+# The Compose healthchecks are deliberately shallow — liveness, or one
+# service's own aggregate — so that an empty HPDS or dictionary on a fresh
+# install cannot mark a container unhealthy (see the healthcheck comments in
+# docker-compose.yml). `compose ps` therefore answers "is this container
+# alive", not "does the stack work". The gateway's /system/status is the one
+# probe that folds every downstream in, so it is what this section reports.
+#
+# Opt-in via --deep-health: this needs `compose exec` into a running container,
+# and the weight contract in docs/cli-contract.md keeps container access out of
+# the default path so frontends can poll `status --json` on a short interval.
+collect_gateway_health() {
+  HEALTH_CHECKED=false
+  HEALTH_STATUS=""
+  HEALTH_HEALTHY=""
+  HEALTH_MESSAGE=""
+
+  if [ "$DEEP_HEALTH" != "true" ]; then
+    HEALTH_MESSAGE="Skipped; pass --deep-health to probe the gateway"
+    return 0
+  fi
+  if ! docker_reachable; then
+    HEALTH_MESSAGE="Skipped because the Docker daemon is not reachable"
+    return 0
+  fi
+  if ! picsure_compose ps --services --filter status=running 2>/dev/null | grep -qx gateway; then
+    HEALTH_MESSAGE="Skipped because the gateway service is not running"
+    return 0
+  fi
+
+  HEALTH_CHECKED=true
+  local out
+  if out="$(picsure_compose exec -T gateway \
+    curl -fsS --max-time 10 http://localhost:8080/system/status 2>/dev/null)"; then
+    # Plain text: "RUNNING", "ONE OR MORE COMPONENTS DEGRADED", or "UNTESTED".
+    HEALTH_STATUS="$(printf '%s' "$out" | tr -d '\r\n')"
+    if [ "$HEALTH_STATUS" = "RUNNING" ]; then
+      HEALTH_HEALTHY=true
+      HEALTH_MESSAGE="All gateway downstreams are up"
+    else
+      HEALTH_HEALTHY=false
+      HEALTH_MESSAGE="$HEALTH_STATUS"
+    fi
+  else
+    HEALTH_HEALTHY=false
+    HEALTH_MESSAGE="gateway /system/status did not respond"
+  fi
+}
+
 release_control_commit() {
   if [ -n "${RELEASE_CONTROL_COMMIT:-}" ]; then
     printf '%s' "$RELEASE_CONTROL_COMMIT"
@@ -202,7 +256,7 @@ status_json() {
   done
 
   local rc_fields=()
-  rc_fields+=("$(json_str repo "${RELEASE_CONTROL_REPO:-https://github.com/hms-dbmi/pic-sure-baseline-release-control}")")
+  rc_fields+=("$(json_str repo "${RELEASE_CONTROL_REPO:-https://github.com/hms-dbmi/baseline-pic-sure-release-control}")")
   rc_fields+=("$(json_str branch "${RELEASE_CONTROL_BRANCH:-main}")")
   rc_fields+=("$(json_str_or_null commit "$(release_control_commit)")")
   rc_fields+=("$(json_raw refs "$(json_obj "${ref_fields[@]}")")")
@@ -255,6 +309,18 @@ status_json() {
   docker_fields+=("$(json_bool daemon_reachable "$daemon")")
   docker_fields+=("$config_frag")
 
+  # --- health (deep, cross-service) ---
+  collect_gateway_health
+  local health_fields=()
+  health_fields+=("$(json_bool checked "$HEALTH_CHECKED")")
+  if [ -n "$HEALTH_HEALTHY" ]; then
+    health_fields+=("$(json_bool healthy "$HEALTH_HEALTHY")")
+  else
+    health_fields+=("$(json_null healthy)")
+  fi
+  health_fields+=("$(json_str_or_null status "$HEALTH_STATUS")")
+  health_fields+=("$(json_str message "$HEALTH_MESSAGE")")
+
   # --- database ---
   local db_fields=()
   db_fields+=("$(json_str mode "$(eff_db_mode)")")
@@ -297,6 +363,7 @@ status_json() {
   top+=("$(json_raw repos "$(json_arr "${repo_items[@]}")")")
   top+=("$(json_raw docker "$(json_obj "${docker_fields[@]}")")")
   top+=("$(json_raw services "$services_json")")
+  top+=("$(json_raw health "$(json_obj "${health_fields[@]}")")")
   top+=("$(json_raw database "$(json_obj "${db_fields[@]}")")")
   top+=("$(json_raw migrations "$(json_obj "${mig_fields[@]}")")")
   json_obj "${top[@]}"
@@ -335,7 +402,7 @@ echo "  AUTH_MODE=$(eff_auth_mode)"
 echo "  PICSURE_IMAGE_TAG=$(eff_image_tag)"
 
 section "Release Control"
-echo "  repo:   ${RELEASE_CONTROL_REPO:-https://github.com/hms-dbmi/pic-sure-baseline-release-control}"
+echo "  repo:   ${RELEASE_CONTROL_REPO:-https://github.com/hms-dbmi/baseline-pic-sure-release-control}"
 echo "  branch: ${RELEASE_CONTROL_BRANCH:-main}"
 rc_commit="$(release_control_commit)"
 echo "  commit: ${rc_commit:-unknown}"
@@ -365,6 +432,21 @@ else
     bad "Compose config is invalid"
     warn "Skipping service listing because Compose config is invalid"
   fi
+fi
+
+section "Health"
+collect_gateway_health
+if [ "$DEEP_HEALTH" != "true" ]; then
+  echo "  $HEALTH_MESSAGE"
+elif [ "$HEALTH_CHECKED" != "true" ]; then
+  warn "$HEALTH_MESSAGE"
+elif [ "$HEALTH_HEALTHY" = "true" ]; then
+  ok "gateway /system/status: $HEALTH_STATUS"
+elif [ -n "$HEALTH_STATUS" ]; then
+  bad "gateway /system/status: $HEALTH_STATUS"
+  echo "  Per-service detail: docker compose logs gateway"
+else
+  bad "$HEALTH_MESSAGE"
 fi
 
 section "Database"

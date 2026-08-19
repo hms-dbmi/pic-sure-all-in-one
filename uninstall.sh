@@ -72,8 +72,12 @@ generated_paths=(
   "$SCRIPT_DIR/config/wildfly"
 )
 
-# Keep in sync with reset.sh's --all image list (the two have drifted before).
+# Keep in sync with reset.sh's --all image list (the two have drifted before)
+# and with build-images.sh's MONOREPO_IMAGES + the frontend's pic-sure-httpd.
 images=(
+  "hms-dbmi/pic-sure-gateway:$IMAGE_TAG"
+  "hms-dbmi/pic-sure-operations-service:$IMAGE_TAG"
+  "hms-dbmi/pic-sure-hpds-query-service:$IMAGE_TAG"
   "hms-dbmi/pic-sure-hpds:$IMAGE_TAG"
   "hms-dbmi/pic-sure-hpds-etl:$IMAGE_TAG"
   "hms-dbmi/pic-sure-psama:$IMAGE_TAG"
@@ -82,6 +86,12 @@ images=(
   "hms-dbmi/pic-sure-dictionary-dump:$IMAGE_TAG"
   "hms-dbmi/pic-sure-visualization:$IMAGE_TAG"
   "hms-dbmi/pic-sure-logging:$IMAGE_TAG"
+  # No longer built; kept so an upgraded host that still carries the
+  # pre-monorepo image gets it cleaned up.
+  "hms-dbmi/pic-sure-wildfly:$IMAGE_TAG"
+  # etl.sh builds these two with a fixed :latest tag, not $PICSURE_IMAGE_TAG.
+  "hms-dbmi/dictionary-etl:latest"
+  "hms-dbmi/dictionary-weights:latest"
 )
 
 print_plan() {

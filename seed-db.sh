@@ -2,13 +2,15 @@
 # =============================================================================
 # PIC-SURE — Seed Database
 # =============================================================================
-# Runs AFTER docker compose up -d. Seeds the database with:
-#   1. Baseline project-specific migrations (roles, connections, privileges)
-#   2. Admin user
-#   3. Visualization resource entry
+# Runs AFTER docker compose up -d and ./run-migrations.sh. Requires the Flyway
+# migrations to have been applied, then seeds the database with:
+#   - Admin user
+#   - Visualization resource entry
+#   - Introspection token
 #
 # Usage:
 #   docker compose up -d
+#   ./run-migrations.sh
 #   ./seed-db.sh
 #
 # This is idempotent — safe to re-run.
@@ -23,14 +25,6 @@ export PICSURE_ROOT
 LOG_PREFIX="seed"
 # shellcheck source=scripts/lib/common.sh
 source "$SCRIPT_DIR/scripts/lib/common.sh"
-
-# shellcheck source=scripts/picsure-compose.sh
-source "$SCRIPT_DIR/scripts/picsure-compose.sh"
-
-# Portable sed -i (macOS needs '' argument)
-sed_in_place() {
-  picsure_sed_in_place "$@"
-}
 
 # Source .env
 if [ ! -f "$SCRIPT_DIR/.env" ]; then
@@ -85,99 +79,34 @@ else
   fi
 fi
 
-ROOT_PASS="${DB_ROOT_PASSWORD}"
-APP_ID="${PICSURE_APPLICATION_ID}"
-APP_ID_HEX=$(echo "$APP_ID" | tr '[:lower:]' '[:upper:]' | sed 's/-//g')
-RESOURCE_ID="${PICSURE_RESOURCE_ID}"
-RESOURCE_ID_HEX=$(echo "$RESOURCE_ID" | tr '[:lower:]' '[:upper:]' | sed 's/-//g')
-
 # ---------------------------------------------------------------------------
-# 1. Baseline Migrations
+# 1. Precondition — migrations must already be applied
 # ---------------------------------------------------------------------------
+# Everything below is plain DML: it writes into tables that only the Flyway
+# passes create, and it depends on rows (roles, connections, privileges) that
+# the project-specific pass inserts. Probing the custom history table covers
+# both passes — the project-specific migrations are DML against core tables, so
+# they cannot have succeeded unless the core pass ran first. Fail here rather
+# than part-way through an INSERT.
+#
+# Recovery from a partly-applied run belongs to Flyway, not to this script:
+# ./run-migrations.sh --repair clears the failed history rows; running
+# ./run-migrations.sh again then applies the migrations.
+# type <> 'BASELINE': the custom passes run with -baselineOnMigrate=true, so a
+# pass that failed on its first real migration (and was then repaired) leaves a
+# successful baseline marker behind — a row that proves nothing was applied.
+MIGRATED=$(db_mysql -N -e \
+  "SELECT LEAST(
+     (SELECT COUNT(*) FROM auth.flyway_custom_schema_history WHERE success=1 AND version IS NOT NULL AND type <> 'BASELINE'),
+     (SELECT COUNT(*) FROM picsure.flyway_custom_schema_history WHERE success=1 AND version IS NOT NULL AND type <> 'BASELINE'));" \
+  2>/dev/null || echo "0")
 
-MIGRATIONS_SRC="${MIGRATIONS_SRC:-$SCRIPT_DIR/repos/PIC-SURE-Migrations}"
-
-if [ -d "$MIGRATIONS_SRC/Baseline" ]; then
-  info "Running Baseline project-specific migrations..."
-
-  # Check each schema independently (success=1 versioned rows)
-  ALREADY_AUTH=$(db_mysql -N -e \
-    "SELECT COUNT(*) FROM auth.flyway_custom_schema_history WHERE success=1 AND version IS NOT NULL;" 2>/dev/null || echo "0")
-  ALREADY_PICSURE=$(db_mysql -N -e \
-    "SELECT COUNT(*) FROM picsure.flyway_custom_schema_history WHERE success=1 AND version IS NOT NULL;" 2>/dev/null || echo "0")
-
-  # Always clean up any failed migration records so Flyway will retry on partial failures
-  db_mysql -e \
-    "DELETE FROM auth.flyway_custom_schema_history WHERE success=0;" 2>/dev/null || true
-  db_mysql -e \
-    "DELETE FROM picsure.flyway_custom_schema_history WHERE success=0;" 2>/dev/null || true
-
-  # Build Flyway connection args (network + URLs) based on DB_MODE
-  FLYWAY_NETWORK_ARGS=(--network "${COMPOSE_PROJECT_NAME:-picsure}_app")
-  AUTH_FLYWAY_URL="jdbc:mysql://picsure-db:3306/auth?useSSL=false&allowPublicKeyRetrieval=true"
-  PICSURE_FLYWAY_URL="jdbc:mysql://picsure-db:3306/picsure?useSSL=false&allowPublicKeyRetrieval=true"
-  if [ "${DB_MODE:-local}" = "remote" ]; then
-    FLYWAY_NETWORK_ARGS=()
-    AUTH_FLYWAY_URL="jdbc:mysql://${DB_HOST}:${DB_PORT:-3306}/auth?useSSL=false&allowPublicKeyRetrieval=true"
-    PICSURE_FLYWAY_URL="jdbc:mysql://${DB_HOST}:${DB_PORT:-3306}/picsure?useSSL=false&allowPublicKeyRetrieval=true"
-  fi
-
-  # Run auth baseline (skip if already applied)
-  if [ "$ALREADY_AUTH" = "0" ] || [ "$ALREADY_AUTH" = "" ]; then
-    info "Running auth baseline migrations..."
-    # Prepare auth migrations (substitute application UUID).
-    # Note: do NOT name this TMPDIR — that would change where mktemp itself works.
-    AUTH_SQL_TMP=$(mktemp -d)
-    cp "$MIGRATIONS_SRC/Baseline/auth/"*.sql "$AUTH_SQL_TMP/" 2>/dev/null || true
-    sed_in_place "s/__APPLICATION_UUID__/$APP_ID_HEX/g" "$AUTH_SQL_TMP/"*.sql 2>/dev/null || true
-    # Password travels via Flyway's env var (passed by name), never argv.
-    FLYWAY_PASSWORD="$ROOT_PASS" docker run --rm \
-      ${FLYWAY_NETWORK_ARGS[@]+"${FLYWAY_NETWORK_ARGS[@]}"} \
-      -e FLYWAY_PASSWORD \
-      -v "$AUTH_SQL_TMP:/flyway/sql:ro" \
-      flyway/flyway:10 \
-      -url="$AUTH_FLYWAY_URL" \
-      -user="${DB_ROOT_USER:-root}" \
-      -schemas=auth \
-      -locations="filesystem:/flyway/sql" \
-      -baselineOnMigrate=true \
-      -ignoreMigrationPatterns="*:missing" \
-      -table=flyway_custom_schema_history \
-      migrate
-    rm -rf "$AUTH_SQL_TMP"
-    info "Auth baseline migrations applied."
-  else
-    info "Auth baseline migrations already applied. Skipping."
-  fi
-
-  # Run picsure baseline (skip if already applied)
-  if [ "$ALREADY_PICSURE" = "0" ] || [ "$ALREADY_PICSURE" = "" ]; then
-    info "Running picsure baseline migrations..."
-    PICSURE_SQL_TMP=$(mktemp -d)
-    cp "$MIGRATIONS_SRC/Baseline/picsure/"*.sql "$PICSURE_SQL_TMP/" 2>/dev/null || true
-    sed_in_place "s/__RESOURCE_UUID__/$RESOURCE_ID_HEX/g" "$PICSURE_SQL_TMP/"*.sql 2>/dev/null || true
-    FLYWAY_PASSWORD="$ROOT_PASS" docker run --rm \
-      ${FLYWAY_NETWORK_ARGS[@]+"${FLYWAY_NETWORK_ARGS[@]}"} \
-      -e FLYWAY_PASSWORD \
-      -v "$PICSURE_SQL_TMP:/flyway/sql:ro" \
-      flyway/flyway:10 \
-      -url="$PICSURE_FLYWAY_URL" \
-      -user="${DB_ROOT_USER:-root}" \
-      -schemas=picsure \
-      -locations="filesystem:/flyway/sql" \
-      -baselineOnMigrate=true \
-      -ignoreMigrationPatterns="*:missing" \
-      -table=flyway_custom_schema_history \
-      migrate
-    rm -rf "$PICSURE_SQL_TMP"
-    info "Picsure baseline migrations applied."
-  else
-    info "Picsure baseline migrations already applied. Skipping."
-  fi
-else
-  warn "PIC-SURE-Migrations repo not found at $MIGRATIONS_SRC"
-  warn "Clone it: git clone https://github.com/hms-dbmi/PIC-SURE-Migrations.git"
-  warn "Skipping Baseline migrations."
+if [ -z "$MIGRATED" ] || [ "$MIGRATED" = "0" ]; then
+  error "Database migrations have not been applied — there is nothing to seed against."
+  error "Run './run-migrations.sh' first, then re-run ./seed-db.sh."
+  error "If a previous run failed part-way: './run-migrations.sh --repair' clears the"
+  error "failed history rows, then './run-migrations.sh' applies the migrations."
+  exit 1
 fi
 
 # ---------------------------------------------------------------------------
@@ -202,7 +131,7 @@ if [ -n "$ADMIN_EMAIL" ]; then
 
     # SQL is fed on stdin (not -e argv) so the email never reaches the host
     # process listing.
-    db_mysql 2>/dev/null <<SQL || { error "Failed to create admin user $ADMIN_EMAIL (are baseline migrations applied?)."; exit 1; }
+    db_mysql 2>/dev/null <<SQL || { error "Failed to create admin user $ADMIN_EMAIL (are migrations applied?)."; exit 1; }
       INSERT INTO auth.user (uuid, auth0_metadata, general_metadata, acceptedTOS, connectionId, email, matched, subject, is_active, long_term_token)
       VALUES (
         UNHEX('$USER_UUID'), NULL, '{"email":"$ADMIN_EMAIL_SQL"}', NULL,
@@ -237,7 +166,8 @@ if [ -n "$VIZ_ID" ]; then
   # So the guard must key on the name — keying on the .env UUID can never match
   # V8's row and would add a second, differently-shaped 'visualization' resource
   # (resource.name has no unique index). This insert is only the fallback for
-  # installs whose Baseline migrations have not run; it mirrors V8's values.
+  # installs whose project migration set does not create the row (MIGRATION_NAME
+  # other than Baseline); it mirrors V8's values.
   EXISTING=$(db_mysql -N -e \
     "SELECT COUNT(*) FROM picsure.resource WHERE name='visualization';" 2>/dev/null || echo "0")
 

@@ -493,6 +493,31 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# Verify the datadir credentials before migrating
+# ---------------------------------------------------------------------------
+# A picsure-db volume left over from an earlier install still carries the OLD
+# root password: MySQL only honours MYSQL_ROOT_PASSWORD when it initialises an
+# empty datadir. The container reports healthy anyway — `mysqladmin ping`, the
+# Compose healthcheck, answers "alive" on access-denied — so db-wait.sh passes
+# and the mismatch only surfaces as flyway-init retry-looping on its
+# connection. Probe with a real authenticated query so it is named here.
+# Remote mode has no local volume to go stale; bootstrap-remote-db.sh above
+# already authenticates against the remote server.
+if [ "${DB_MODE:-local}" = "local" ]; then
+  info "Verifying database credentials..."
+  if ! picsure_db_exec_mysql -e "SELECT 1;" >/dev/null 2>&1; then
+    error "picsure-db rejected the DB_ROOT_PASSWORD in .env."
+    error "The ${COMPOSE_PROJECT_NAME:-picsure}_picsure-db-data volume was initialised with a"
+    error "different password — MySQL only reads MYSQL_ROOT_PASSWORD when it creates"
+    error "the datadir, so a new .env cannot change an existing volume."
+    error "Fix it either way:"
+    error "  - restore the matching DB_ROOT_PASSWORD (see the .env.backup.* files here), or"
+    error "  - discard the stale database:  ./reset.sh --all && cp .env.example .env && ./init.sh"
+    exit 1
+  fi
+fi
+
+# ---------------------------------------------------------------------------
 # Run database migrations
 # ---------------------------------------------------------------------------
 
@@ -511,6 +536,13 @@ info "Seeding database..."
 # ---------------------------------------------------------------------------
 
 info "Starting services..."
+# gateway, pic-sure-operations-service and pic-sure-hpds-query-service are
+# omitted deliberately: httpd depends_on gateway, which depends_on the other
+# two (and the query service on hpds), so naming httpd starts them. The
+# services below either sit on that chain too (psama, hpds — named for
+# clarity) or are pulled in by nothing else
+# (visualization, the dictionary trio, pic-sure-logging) and must be named
+# to start at all.
 picsure_compose up -d \
   psama \
   hpds \

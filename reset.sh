@@ -269,11 +269,21 @@ info "Generated config removed."
 # -------------------------------------------------------------------------
 if [ "$WIPE_DB" = "true" ]; then
   info "Removing PIC-SURE images..."
-  # Keep in sync with uninstall.sh's images=() list (the two have drifted before).
-  for img in pic-sure-hpds pic-sure-psama pic-sure-httpd \
+  # Keep in sync with uninstall.sh's images=() list (the two have drifted before)
+  # and with build-images.sh's MONOREPO_IMAGES + the frontend's pic-sure-httpd.
+  # pic-sure-wildfly is no longer built; it stays here so an upgraded host that
+  # still carries the pre-monorepo image gets it cleaned up.
+  for img in pic-sure-gateway pic-sure-operations-service pic-sure-hpds-query-service \
+             pic-sure-hpds pic-sure-psama pic-sure-httpd \
              pic-sure-dictionary-api pic-sure-dictionary-dump pic-sure-hpds-etl \
-             pic-sure-visualization pic-sure-logging; do
+             pic-sure-visualization pic-sure-logging \
+             pic-sure-wildfly; do
     docker rmi "hms-dbmi/$img:${PICSURE_IMAGE_TAG:-LATEST}" 2>/dev/null && \
+      info "Removed image: hms-dbmi/$img" || true
+  done
+  # etl.sh builds these two with a fixed :latest tag, not $PICSURE_IMAGE_TAG.
+  for img in dictionary-etl dictionary-weights; do
+    docker rmi "hms-dbmi/$img:latest" 2>/dev/null && \
       info "Removed image: hms-dbmi/$img" || true
   done
   # Remove Maven cache volume (forces full rebuild)

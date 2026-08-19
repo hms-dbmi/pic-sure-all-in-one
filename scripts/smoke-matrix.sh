@@ -37,6 +37,7 @@ bash -n init.sh
 bash -n build-images.sh
 bash -n preflight.sh
 bash -n status.sh
+bash -n reset.sh
 bash -n uninstall.sh
 bash -n release-control.sh
 bash -n bootstrap-remote-db.sh

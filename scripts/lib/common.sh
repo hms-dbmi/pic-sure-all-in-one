@@ -103,6 +103,7 @@ picsure_set_env_var() {
     echo "${key}=${value}" >> "$env_file"
   fi
 }
+
 # picsure_browse_url: the URL a human should open for this stack.
 # The port is omitted only when it is the HTTPS default, so an install that
 # had to move off 443 (another stack, or a host process such as Tailscale
@@ -118,3 +119,19 @@ picsure_browse_url() {
   fi
 }
 
+# picsure_src_commit: HEAD of a source checkout, or empty when it is not a git
+# working tree (release tarball, vendored copy). Callers must treat empty as
+# "cannot tell" and fall back to their existing behaviour rather than
+# rebuilding on every run.
+picsure_src_commit() {
+  git -C "$1" rev-parse HEAD 2>/dev/null || true
+}
+
+# picsure_image_label: read one label off a local image, empty if the image or
+# the label is absent. Pairs with picsure_src_commit to answer "was this image
+# built from the source that is checked out right now?" — an image-exists test
+# alone cannot, so bumping a *_REF silently keeps the stale image.
+picsure_image_label() {
+  docker image inspect --format "{{ with .Config.Labels }}{{ index . \"$2\" }}{{ end }}" \
+    "$1" 2>/dev/null || true
+}

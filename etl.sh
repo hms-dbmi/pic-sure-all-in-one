@@ -37,6 +37,7 @@ PICSURE_ROOT="$SCRIPT_DIR"
 export PICSURE_ROOT
 
 LOG_PREFIX="etl"
+DICT_ETL_LABEL="org.hms-dbmi.picsure.dictionary-etl-src"
 # shellcheck source=scripts/lib/common.sh
 source "$SCRIPT_DIR/scripts/lib/common.sh"
 
@@ -121,18 +122,28 @@ start_hpds() {
 }
 
 build_dictionary_etl_image() {
+  local src="${DICT_ETL_SRC:-$SCRIPT_DIR/repos/picsure-dictionary-etl}"
+  # Rebuild when the checkout has moved, not just when the image is absent: a
+  # DICTIONARY_ETL_REF bump leaves the old image in place otherwise. An empty
+  # commit (not a git tree) falls back to exists-only.
+  local want_commit
+  want_commit="$(picsure_src_commit "$src")"
+
   if docker image inspect hms-dbmi/dictionary-etl:latest >/dev/null 2>&1; then
-    return 0
+    if [ -z "$want_commit" ] || \
+       [ "$(picsure_image_label hms-dbmi/dictionary-etl:latest "$DICT_ETL_LABEL")" = "$want_commit" ]; then
+      return 0
+    fi
+    info "Dictionary ETL image was built from different source; rebuilding."
   fi
 
-  local src="${DICT_ETL_SRC:-$SCRIPT_DIR/repos/picsure-dictionary-etl}"
   if [ ! -f "$src/Dockerfile" ]; then
     error "Dictionary ETL Dockerfile not found at $src/Dockerfile"
     exit 1
   fi
 
   info "Building dictionary ETL image..."
-  docker build -t hms-dbmi/dictionary-etl:latest "$src"
+  docker build --label "$DICT_ETL_LABEL=$want_commit" -t hms-dbmi/dictionary-etl:latest "$src"
 }
 
 start_dictionary_etl() {

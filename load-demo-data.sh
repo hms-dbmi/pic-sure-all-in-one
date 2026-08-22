@@ -282,10 +282,19 @@ info "Step 3/4: Hydrating dictionary database..."
 
 # Build dictionary-etl image if not present
 DICT_ETL_SRC="${DICT_ETL_SRC:-$SCRIPT_DIR/repos/picsure-dictionary-etl}"
-if ! docker image inspect hms-dbmi/dictionary-etl:latest >/dev/null 2>&1; then
+DICT_ETL_LABEL="org.hms-dbmi.picsure.dictionary-etl-src"
+# Rebuild when the checkout has moved, not just when the image is absent: a
+# DICTIONARY_ETL_REF bump leaves the old image in place otherwise. An empty
+# commit (not a git tree) falls back to exists-only.
+DICT_ETL_COMMIT="$(picsure_src_commit "$DICT_ETL_SRC")"
+if ! docker image inspect hms-dbmi/dictionary-etl:latest >/dev/null 2>&1 || \
+   { [ -n "$DICT_ETL_COMMIT" ] && \
+     [ "$(picsure_image_label hms-dbmi/dictionary-etl:latest "$DICT_ETL_LABEL")" != "$DICT_ETL_COMMIT" ]; }; then
   if [ -f "$DICT_ETL_SRC/Dockerfile" ]; then
     info "Building dictionary ETL image..."
-    run_logged "dictionary-etl-build" docker build -t hms-dbmi/dictionary-etl:latest "$DICT_ETL_SRC"
+    run_logged "dictionary-etl-build" docker build \
+      --label "$DICT_ETL_LABEL=$DICT_ETL_COMMIT" \
+      -t hms-dbmi/dictionary-etl:latest "$DICT_ETL_SRC"
   else
     warn "Dictionary ETL source not found at $DICT_ETL_SRC"
     warn "Clone it: git clone https://github.com/hms-dbmi/picsure-dictionary-etl.git"

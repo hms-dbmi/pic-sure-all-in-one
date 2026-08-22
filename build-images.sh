@@ -102,9 +102,23 @@ MONOREPO_IMAGES=(
 info "Checking container images..."
 docker volume create "$MAVEN_CACHE" 2>/dev/null || true
 
+# Stamped on every reactor image so a PICSURE_REF bump rebuilds them. An
+# image-exists test alone cannot see that the checkout moved, so switching refs
+# would silently keep the old jars. Empty commit (not a git tree) falls back to
+# exists-only, which is the pre-existing behaviour.
+REACTOR_LABEL="org.hms-dbmi.picsure.reactor-src"
+reactor_want_commit="$(picsure_src_commit "$PICSURE_SRC")"
+
 REACTOR_NEEDED="$FORCE"
 for entry in "${MONOREPO_IMAGES[@]}"; do
-  if ! docker image inspect "hms-dbmi/${entry%%|*}:$IMAGE_TAG" &>/dev/null; then
+  image="hms-dbmi/${entry%%|*}:$IMAGE_TAG"
+  if ! docker image inspect "$image" &>/dev/null; then
+    REACTOR_NEEDED=true
+    break
+  fi
+  if [ -n "$reactor_want_commit" ] && \
+     [ "$(picsure_image_label "$image" "$REACTOR_LABEL")" != "$reactor_want_commit" ]; then
+    info "${entry%%|*} was built from different pic-sure source; rebuilding."
     REACTOR_NEEDED=true
     break
   fi
@@ -139,6 +153,7 @@ if [ "$REACTOR_NEEDED" = "true" ]; then
     info "Building $image_name (Docker)..."
     run_step "$image_name-docker" docker build \
       -f "$REACTOR_BUILD_DIR/$image_dockerfile" \
+      --label "$REACTOR_LABEL=$reactor_want_commit" \
       -t "hms-dbmi/$image_name:$IMAGE_TAG" \
       "$REACTOR_BUILD_DIR/$image_context"
     info "Built hms-dbmi/$image_name:$IMAGE_TAG"
@@ -173,7 +188,10 @@ picsure_sha256() {
   fi
 }
 
-frontend_want_hash="$(printf '%s\nTHEME=%s\n' "$(frontend_vite_env)" "$FRONTEND_THEME" | picsure_sha256)"
+# SRC is in the hash so a FRONTEND_REF bump (or any checkout move) rebuilds:
+# the Vite env and theme alone do not change when only the source does.
+frontend_want_hash="$(printf '%s\nTHEME=%s\nSRC=%s\n' \
+  "$(frontend_vite_env)" "$FRONTEND_THEME" "$(picsure_src_commit "$FRONTEND_SRC")" | picsure_sha256)"
 frontend_have_hash="$(docker image inspect \
   --format "{{ with .Config.Labels }}{{ index . \"$FRONTEND_LABEL\" }}{{ end }}" \
   "hms-dbmi/pic-sure-httpd:$IMAGE_TAG" 2>/dev/null || true)"

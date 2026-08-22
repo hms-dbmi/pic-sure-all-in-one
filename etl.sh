@@ -585,10 +585,13 @@ run_weights() {
   done
 
   require_file "$weights"
-  local src="${DICTIONARY_SRC:-${PICSURE_SRC:-$SCRIPT_DIR/repos/pic-sure}/services/picsure-dictionary}/dictionaryweights"
-  if ! docker image inspect hms-dbmi/dictionary-weights:latest >/dev/null 2>&1; then
-    require_file "$src/Dockerfile"
-    docker build -f "$src/Dockerfile" -t hms-dbmi/dictionary-weights:latest "$src"
+  # Built by build-images.sh as part of the Maven reactor, not here: the
+  # Dockerfile COPYs target/dictionaryweights-*.jar, and that target/ only
+  # exists inside the reactor build dir (repos/pic-sure is mounted :ro).
+  local weights_image="hms-dbmi/dictionary-weights:${PICSURE_IMAGE_TAG:-LATEST}"
+  if ! docker image inspect "$weights_image" >/dev/null 2>&1; then
+    error "$weights_image not found. Run ./build-images.sh first."
+    exit 1
   fi
   local dict_env="$SCRIPT_DIR/config/dictionary/dictionary.env"
   require_file "$dict_env"
@@ -597,7 +600,7 @@ run_weights() {
     --network "$(network_name data)" \
     --env-file "$dict_env" \
     -v "$weights:/weights.csv:ro" \
-    hms-dbmi/dictionary-weights:latest
+    "$weights_image"
 }
 
 load_vcf() {

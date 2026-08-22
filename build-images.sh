@@ -93,6 +93,10 @@ MONOREPO_IMAGES=(
   "pic-sure-logging|services/pic-sure-logging|services/pic-sure-logging/Dockerfile"
   "pic-sure-dictionary-api|services/picsure-dictionary|services/picsure-dictionary/Dockerfile"
   "pic-sure-dictionary-dump|services/picsure-dictionary/aggregate|services/picsure-dictionary/aggregate/Dockerfile"
+  # Built here, not by etl.sh: its Dockerfile COPYs target/dictionaryweights-*.jar,
+  # which only exists inside the reactor build dir. $PICSURE_SRC is mounted :ro and
+  # the build dir is deleted afterwards, so repos/pic-sure never has a target/.
+  "dictionary-weights|services/picsure-dictionary/dictionaryweights|services/picsure-dictionary/dictionaryweights/Dockerfile"
 )
 
 info "Checking container images..."

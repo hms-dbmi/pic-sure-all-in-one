@@ -89,9 +89,11 @@ images=(
   # No longer built; kept so an upgraded host that still carries the
   # pre-monorepo image gets it cleaned up.
   "hms-dbmi/pic-sure-wildfly:$IMAGE_TAG"
-  # etl.sh builds these two with a fixed :latest tag, not $PICSURE_IMAGE_TAG.
+  # Built by the reactor (build-images.sh), so it carries $PICSURE_IMAGE_TAG.
+  "hms-dbmi/dictionary-weights:$IMAGE_TAG"
+  # etl.sh builds this one with a fixed :latest tag: it comes from
+  # picsure-dictionary-etl, not the pic-sure reactor.
   "hms-dbmi/dictionary-etl:latest"
-  "hms-dbmi/dictionary-weights:latest"
 )
 
 print_plan() {

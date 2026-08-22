@@ -103,3 +103,18 @@ picsure_set_env_var() {
     echo "${key}=${value}" >> "$env_file"
   fi
 }
+# picsure_browse_url: the URL a human should open for this stack.
+# The port is omitted only when it is the HTTPS default, so an install that
+# had to move off 443 (another stack, or a host process such as Tailscale
+# holding the port) prints a URL that actually works. Requires .env to have
+# been loaded by the caller; falls back to the compose default.
+picsure_browse_url() {
+  local port="${HTTPS_PORT:-443}"
+
+  if [ "$port" = "443" ]; then
+    printf 'https://localhost'
+  else
+    printf 'https://localhost:%s' "$port"
+  fi
+}
+

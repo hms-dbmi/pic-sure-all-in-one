@@ -277,15 +277,14 @@ if [ "$WIPE_DB" = "true" ]; then
              pic-sure-hpds pic-sure-psama pic-sure-httpd \
              pic-sure-dictionary-api pic-sure-dictionary-dump pic-sure-hpds-etl \
              pic-sure-visualization pic-sure-logging \
-             pic-sure-wildfly; do
+             pic-sure-wildfly dictionary-weights; do
     docker rmi "hms-dbmi/$img:${PICSURE_IMAGE_TAG:-LATEST}" 2>/dev/null && \
       info "Removed image: hms-dbmi/$img" || true
   done
-  # etl.sh builds these two with a fixed :latest tag, not $PICSURE_IMAGE_TAG.
-  for img in dictionary-etl dictionary-weights; do
-    docker rmi "hms-dbmi/$img:latest" 2>/dev/null && \
-      info "Removed image: hms-dbmi/$img" || true
-  done
+  # etl.sh builds this one with a fixed :latest tag, not $PICSURE_IMAGE_TAG
+  # (it comes from picsure-dictionary-etl, not the pic-sure reactor).
+  docker rmi "hms-dbmi/dictionary-etl:latest" 2>/dev/null && \
+    info "Removed image: hms-dbmi/dictionary-etl" || true
   # Remove Maven cache volume (forces full rebuild)
   docker volume rm maven_m2_cache 2>/dev/null && \
     info "Removed Maven cache volume." || true

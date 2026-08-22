@@ -438,6 +438,23 @@ set +a
 # Update VIZ to match
 set_env_var "VITE_RESOURCE_VIZ" "${PICSURE_VIZ_RESOURCE_ID}" "true"
 
+# The frontend's SSR config cache (src/lib/server/configCache.ts) fetches
+# ui:setting and ui:branding from ${VITE_ORIGIN}/picsure/configuration and is
+# baked in at build time. Without this key, build-images.sh's frontend_vite_env
+# falls through to the frontend repo's own .env.example, which ships the
+# placeholder https://picsure.example.com/ -- the fetches then fail ENOTFOUND
+# and the UI silently renders built-in defaults instead of the configuration
+# rows in the database.
+#
+# This is an IN-CONTAINER origin, not the browser one: the fetch runs in the
+# SvelteKit node process beside httpd, so it must not carry HTTPS_PORT (that
+# maps to 443 inside) or the public hostname. http://localhost is what the
+# port-80 vhost in config/httpd/httpd-vhosts.conf exists to serve -- it proxies
+# /picsure/* to the gateway for Host localhost|127.0.0.1 only, and redirects
+# everything else to HTTPS. Plain HTTP also sidesteps the self-signed cert,
+# which node's fetch would otherwise reject.
+set_env_var "VITE_ORIGIN" "http://localhost" "true"
+
 # ---------------------------------------------------------------------------
 # Ensure required directories exist
 # ---------------------------------------------------------------------------
@@ -562,12 +579,7 @@ info "======================================"
 info "  PIC-SURE is running!"
 info "======================================"
 echo ""
-DISPLAY_PORT="${HTTPS_PORT:-443}"
-if [ "$DISPLAY_PORT" = "443" ]; then
-  info "  Browse to: https://localhost"
-else
-  info "  Browse to: https://localhost:$DISPLAY_PORT"
-fi
+info "  Browse to: $(picsure_browse_url)"
 echo ""
 
 if [ -z "${AUTH0_CLIENT_ID:-}" ]; then

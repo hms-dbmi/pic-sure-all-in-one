@@ -358,14 +358,12 @@ if [ "${SKIP_DICT:-}" != "true" ]; then
   # Step 3d: Run dictionary weights (required for search to work)
   info "Running dictionary weights..."
   DICT_WEIGHTS_SRC="${DICTIONARY_SRC:-${PICSURE_SRC:-$SCRIPT_DIR/repos/pic-sure}/services/picsure-dictionary}/dictionaryweights"
-  if ! docker image inspect hms-dbmi/dictionary-weights:latest >/dev/null 2>&1; then
-    if [ -f "$DICT_WEIGHTS_SRC/Dockerfile" ]; then
-      run_logged "dictionary-weights-build" docker build -f "$DICT_WEIGHTS_SRC/Dockerfile" "$DICT_WEIGHTS_SRC" \
-        -t hms-dbmi/dictionary-weights:latest
-    fi
-  fi
+  # Built by build-images.sh as part of the Maven reactor, never here: the
+  # Dockerfile COPYs target/dictionaryweights-*.jar, and that target/ only
+  # exists inside the reactor build dir (repos/pic-sure is mounted :ro).
+  DICT_WEIGHTS_IMAGE="hms-dbmi/dictionary-weights:${PICSURE_IMAGE_TAG:-LATEST}"
 
-  if docker image inspect hms-dbmi/dictionary-weights:latest >/dev/null 2>&1; then
+  if docker image inspect "$DICT_WEIGHTS_IMAGE" >/dev/null 2>&1; then
     # Env-prefix + bare -e: the host shell puts the password in docker's
     # environment (not argv); docker forwards it by name into the container.
     POSTGRES_PASSWORD="$DICT_PASS" run_logged "dictionary-weights" docker run --rm \
@@ -376,10 +374,10 @@ if [ "${SKIP_DICT:-}" != "true" ]; then
       -e POSTGRES_DB=dictionary \
       -e POSTGRES_USER=picsure \
       -e POSTGRES_PASSWORD \
-      hms-dbmi/dictionary-weights:latest
+      "$DICT_WEIGHTS_IMAGE"
     info "Dictionary weights applied."
   else
-    warn "Dictionary weights image not available. Search may not return results."
+    warn "$DICT_WEIGHTS_IMAGE not found — run ./build-images.sh. Search will not return results."
   fi
 
   info "Dictionary hydrated."
@@ -408,5 +406,5 @@ else
   info "  Dictionary: skipped (ETL not available)"
 fi
 info ""
-info "  Browse to https://localhost to explore."
+info "  Browse to $(picsure_browse_url) to explore."
 echo ""

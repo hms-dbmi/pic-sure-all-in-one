@@ -43,7 +43,11 @@ cp .env.example .env
 ```
 
 Browse to **https://localhost** and log in with the configured admin Google
-account.
+account. If `HTTPS_PORT` in `.env` is not 443 — because another stack or a host
+process such as Tailscale already holds the port — use
+`https://localhost:$HTTPS_PORT` instead, and add that origin to the Auth0
+tenant's allowed callback and logout URLs or login will fail. `./init.sh` and
+`./load-demo-data.sh` both print the correct URL when they finish.
 
 ## Architecture
 

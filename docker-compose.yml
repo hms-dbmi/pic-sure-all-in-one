@@ -94,7 +94,7 @@ services:
     # (application.yml) and stays open without the application token.
     # Deep, cross-service health is /system/status.
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health/liveness"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/actuator/health/liveness"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -128,7 +128,7 @@ services:
     # and folds in the datasource indicator, so a broken picsure schema turns it
     # 503.  Context path is /operations.
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:8080/operations/actuator/health"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/operations/actuator/health"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -171,7 +171,7 @@ services:
     # data-readiness DOWN on a fresh install.  Cross-service truth is the
     # gateway's /system/status.
     healthcheck:
-      test: ["CMD", "curl", "-fsS", "http://localhost:8080/actuator/health/liveness"]
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/actuator/health/liveness"]
       interval: 30s
       timeout: 10s
       retries: 5

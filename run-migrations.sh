@@ -114,11 +114,12 @@ run_check() {
 
   require_env_var "PICSURE_APPLICATION_ID" || failed=true
   require_env_var "PICSURE_RESOURCE_ID" || failed=true
-  # Required: it keys the visualization resource row seed-db.sh inserts, the
-  # query service stamps it outbound as AGGREGATE_VISUALIZATION_RESOURCE_ID
-  # (the two must match), and config/flyway/run-migrations.sh hard-fails
-  # without it inside flyway-init. Relaxing the check here would only move that failure
-  # into the container, where it is harder to read.
+  # Required even though Baseline's V9 drops the resource table: the query
+  # service stamps it outbound as AGGREGATE_VISUALIZATION_RESOURCE_ID, the
+  # frontend reads it as VITE_RESOURCE_VIZ, and config/flyway/run-migrations.sh
+  # hard-fails without it inside flyway-init (V8 substitutes it as a token).
+  # Relaxing the check here would only move that failure into the container,
+  # where it is harder to read.
   require_env_var "PICSURE_VIZ_RESOURCE_ID" || failed=true
   check_remote_db_env || failed=true
 

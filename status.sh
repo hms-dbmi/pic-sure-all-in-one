@@ -168,8 +168,11 @@ collect_gateway_health() {
 
   HEALTH_CHECKED=true
   local out
+  # busybox wget, not curl: the corretto-alpine base the Spring services are
+  # built on ships wget and has no curl, so a curl probe fails with "executable
+  # file not found" and is reported as an unresponsive downstream.
   if out="$(picsure_compose exec -T gateway \
-    curl -fsS --max-time 10 http://localhost:8080/system/status 2>/dev/null)"; then
+    wget -q -O - -T 10 http://localhost:8080/system/status 2>/dev/null)"; then
     # Plain text: "RUNNING", "ONE OR MORE COMPONENTS DEGRADED", or "UNTESTED".
     HEALTH_STATUS="$(printf '%s' "$out" | tr -d '\r\n')"
     if [ "$HEALTH_STATUS" = "RUNNING" ]; then

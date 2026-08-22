@@ -5,7 +5,6 @@
 # Runs AFTER docker compose up -d and ./run-migrations.sh. Requires the Flyway
 # migrations to have been applied, then seeds the database with:
 #   - Admin user
-#   - Visualization resource entry
 #   - Introspection token
 #
 # Usage:
@@ -153,41 +152,7 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# 3. Visualization Resource
-# ---------------------------------------------------------------------------
-
-VIZ_ID="${PICSURE_VIZ_RESOURCE_ID:-}"
-
-if [ -n "$VIZ_ID" ]; then
-  VIZ_ID_HEX=$(echo "$VIZ_ID" | tr '[:lower:]' '[:upper:]' | sed 's/-//g')
-
-  # Baseline picsure V8__CREATE_VISUALIZATION_RESOURCE.sql owns this row: it
-  # find-or-creates on name='visualization' with a UUID it generates in SQL.
-  # So the guard must key on the name — keying on the .env UUID can never match
-  # V8's row and would add a second, differently-shaped 'visualization' resource
-  # (resource.name has no unique index). This insert is only the fallback for
-  # installs whose project migration set does not create the row (MIGRATION_NAME
-  # other than Baseline); it mirrors V8's values.
-  EXISTING=$(db_mysql -N -e \
-    "SELECT COUNT(*) FROM picsure.resource WHERE name='visualization';" 2>/dev/null || echo "0")
-
-  if [ "$EXISTING" = "0" ]; then
-    info "Creating visualization resource entry..."
-    db_mysql -e "
-      INSERT INTO picsure.resource (uuid, targetURL, resourceRSPath, description, name, token, hidden)
-      VALUES (
-        UNHEX('$VIZ_ID_HEX'), NULL, 'http://visualization/',
-        'Visualization', 'visualization', NULL, TRUE
-      );
-    " picsure 2>/dev/null || { error "Failed to create visualization resource (are migrations applied?)."; exit 1; }
-    info "Visualization resource created."
-  else
-    info "Visualization resource already exists. Skipping."
-  fi
-fi
-
-# ---------------------------------------------------------------------------
-# 4. Introspection Token in DB
+# 3. Introspection Token in DB
 # ---------------------------------------------------------------------------
 
 INTRO_TOKEN="${PICSURE_INTROSPECTION_TOKEN:-}"

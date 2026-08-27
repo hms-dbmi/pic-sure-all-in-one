@@ -95,7 +95,11 @@ else
     MYSQL_CONFIG_DIR \
     MIGRATION_REPO \
     MIGRATION_NAME; do
-    restore_jenkins_env_value "$env_key" "$backup_config" "$target_config" || exit 1
+    # Jenkins is stopped and jenkins_home is already repopulated by this point, so a
+    # key the backup lacks must not abort the update - that leaves Jenkins down.
+    if ! restore_jenkins_env_value "$env_key" "$backup_config" "$target_config"; then
+      echo "Keeping the shipped default for $env_key" >&2
+    fi
   done
 fi
 

@@ -85,23 +85,29 @@ sed -i 's/jdbc:mysql*.*auth/jdbc:mysql:\/\/'$MYSQL_HOST_NAME':'$MYSQL_PORT'\/aut
 
 # picsure DB owner is now the operations-service; point it at the remote instance too.
 OPS_ENV=/usr/local/docker-config/operations/operations.env
-mkdir -p "$(dirname "$OPS_ENV")"
-touch "$OPS_ENV"
+PICSURE_PASSWORD=""
 
-PICSURE_PASSWORD=$(grep '^SPRING_DATASOURCE_PASSWORD=' "$OPS_ENV" | cut -d '=' -f 2-)
-if [ -z "$PICSURE_PASSWORD" ] || [ "$PICSURE_PASSWORD" = "__PICSURE_MYSQL_PASSWORD__" ]; then
-  PICSURE_PASSWORD=$(tr -dc 'A-Za-z0-9' &lt; /dev/urandom | head -c 24)
-  if grep -q '^SPRING_DATASOURCE_PASSWORD=' "$OPS_ENV"; then
-    sed -i "s|^SPRING_DATASOURCE_PASSWORD=.*|SPRING_DATASOURCE_PASSWORD=$PICSURE_PASSWORD|" "$OPS_ENV"
-  else
-    echo "SPRING_DATASOURCE_PASSWORD=$PICSURE_PASSWORD" &gt;&gt; "$OPS_ENV"
-  fi
-fi
-
-if grep -q '^SPRING_DATASOURCE_URL=' "$OPS_ENV" 2&gt;/dev/null; then
-  sed -i 's|^SPRING_DATASOURCE_URL=.*|SPRING_DATASOURCE_URL=jdbc:mysql://'$MYSQL_HOST_NAME':'$MYSQL_PORT'/picsure?useUnicode=true\&amp;characterEncoding=UTF-8\&amp;autoReconnect=true\&amp;autoReconnectForPools=true\&amp;serverTimezone=UTC|' "$OPS_ENV"
+# Creating this file (or its directory) would switch INCLUDE_OPERATIONS on in
+# start-picsure.sh and deploy operations-service with no internal tokens.
+if [ ! -f "$OPS_ENV" ]; then
+  echo "operations.env is not present; skipping operations-service wiring."
+  echo "Run 'Migrate PIC-SURE Environment' or the Initial Configuration Pipeline first, then rerun this job."
 else
-  echo 'SPRING_DATASOURCE_URL=jdbc:mysql://'$MYSQL_HOST_NAME':'$MYSQL_PORT'/picsure?useUnicode=true&amp;characterEncoding=UTF-8&amp;autoReconnect=true&amp;autoReconnectForPools=true&amp;serverTimezone=UTC' &gt;&gt; "$OPS_ENV"
+  PICSURE_PASSWORD=$(grep '^SPRING_DATASOURCE_PASSWORD=' "$OPS_ENV" | cut -d '=' -f 2-)
+  if [ -z "$PICSURE_PASSWORD" ] || [ "$PICSURE_PASSWORD" = "__PICSURE_MYSQL_PASSWORD__" ]; then
+    PICSURE_PASSWORD=$(tr -dc 'A-Za-z0-9' &lt; /dev/urandom | head -c 24)
+    if grep -q '^SPRING_DATASOURCE_PASSWORD=' "$OPS_ENV"; then
+      sed -i "s|^SPRING_DATASOURCE_PASSWORD=.*|SPRING_DATASOURCE_PASSWORD=$PICSURE_PASSWORD|" "$OPS_ENV"
+    else
+      echo "SPRING_DATASOURCE_PASSWORD=$PICSURE_PASSWORD" &gt;&gt; "$OPS_ENV"
+    fi
+  fi
+
+  if grep -q '^SPRING_DATASOURCE_URL=' "$OPS_ENV"; then
+    sed -i 's|^SPRING_DATASOURCE_URL=.*|SPRING_DATASOURCE_URL=jdbc:mysql://'$MYSQL_HOST_NAME':'$MYSQL_PORT'/picsure?useUnicode=true\&amp;characterEncoding=UTF-8\&amp;autoReconnect=true\&amp;autoReconnectForPools=true\&amp;serverTimezone=UTC|' "$OPS_ENV"
+  else
+    echo 'SPRING_DATASOURCE_URL=jdbc:mysql://'$MYSQL_HOST_NAME':'$MYSQL_PORT'/picsure?useUnicode=true&amp;characterEncoding=UTF-8&amp;autoReconnect=true&amp;autoReconnectForPools=true&amp;serverTimezone=UTC' &gt;&gt; "$OPS_ENV"
+  fi
 fi
 
 AIRFLOW_PASSWORD=`grep "password" /usr/local/docker-config/flyway/auth/sql.properties | cut -d "=" -f2-`
@@ -109,7 +115,11 @@ AUTH_PASSWORD=`grep '^DATASOURCE_PASSWORD=' /usr/local/docker-config/psama/psama
 
 docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  "grant all privileges on auth.* to 'airflow'@'%' identified by '$AIRFLOW_PASSWORD';flush privileges;" mysql
 docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  "grant all privileges on picsure.* to 'airflow'@'%' identified by '$AIRFLOW_PASSWORD';flush privileges;" mysql
-docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  "grant all privileges on picsure.* to 'picsure'@'%' identified by '$PICSURE_PASSWORD';flush privileges;" mysql
+if [ -n "$PICSURE_PASSWORD" ]; then
+  docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  "grant all privileges on picsure.* to 'picsure'@'%' identified by '$PICSURE_PASSWORD';flush privileges;" mysql
+else
+  echo "No operations-service password configured; leaving the picsure MySQL user untouched."
+fi
 docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  "grant all privileges on auth.* to 'auth'@'%' identified by '$AUTH_PASSWORD';flush privileges;" mysql
 
 if [ "$DROP_EXISTING_TABLES" = "TRUE" ]; then

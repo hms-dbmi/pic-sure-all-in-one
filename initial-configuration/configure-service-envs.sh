@@ -72,3 +72,11 @@ render_shared_secret \
 render_shared_secret \
   AGGREGATE_OBFUSCATION_SALT __AGGREGATE_OBFUSCATION_SALT__ 16 \
   "$QUERY_ENV"
+
+# mysql-docker/setup.sh owns this value, not this script. Catch it here because an
+# unrendered password only surfaces later as operations-service failing to connect.
+if grep -q '^SPRING_DATASOURCE_PASSWORD=__PICSURE_MYSQL_PASSWORD__$' "$OPERATIONS_ENV"; then
+  echo "ERROR: SPRING_DATASOURCE_PASSWORD is still unrendered in $OPERATIONS_ENV" >&2
+  echo "Run mysql-docker/setup.sh, or set it to match the picsure MySQL user." >&2
+  exit 2
+fi

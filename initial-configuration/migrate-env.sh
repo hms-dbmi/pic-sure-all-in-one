@@ -238,6 +238,24 @@ install_env() {
   note "$subdirectory/$filename: installed from current template"
 }
 
+migrate_gateway_open_access() {
+  local gateway_env=$1
+  local psama_env="$DOCKER_CONFIG_DIR/psama/psama.env"
+  local open_access=false
+
+  [ -f "$gateway_env" ] || return 0
+  if [ -f "$psama_env" ]; then
+    open_access=$(sed -n 's/^OPEN_IDP_PROVIDER_IS_ENABLED=//p' "$psama_env" | head -n 1)
+  fi
+  case "$open_access" in
+    true|false) ;;
+    *) open_access=false ;;
+  esac
+
+  upsert_env GATEWAY_OPEN_ACCESS_ENABLED "$open_access" "$gateway_env"
+  note "gateway/gateway.env: open access set to $open_access to match psama.env"
+}
+
 migrate_service_envs() {
   local gateway_env="$DOCKER_CONFIG_DIR/gateway/gateway.env"
   local operations_env="$DOCKER_CONFIG_DIR/operations/operations.env"
@@ -344,6 +362,8 @@ migrate_service_envs() {
   else
     note "gateway/operations/query env files are already complete"
   fi
+
+  migrate_gateway_open_access "$gateway_env"
 
   if [ -f "$logging_env" ]; then
     upsert_env LOGGING_API_KEY "$LOGGING_API_KEY" "$logging_env"

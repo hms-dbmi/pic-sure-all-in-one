@@ -84,6 +84,7 @@
         <comparator class="hudson.util.CaseInsensitiveComparator" reference="../../../listView/jobNames/comparator"/>
         <string>Check For Updates</string>
         <string>PIC-SURE Pipeline</string>
+        <string>Rollback PIC-SURE</string>
         <string>Start PIC-SURE</string>
         <string>Stop PIC-SURE</string>
       </jobNames>

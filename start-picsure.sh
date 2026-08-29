@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC1091,SC2086
 
 # A note to developers: if you use /usr/local/docker-config to refer to a place on the host file system
 # 99 times out of 100 you are WRONG and you have just made a bug. Please:
@@ -10,6 +11,59 @@ DOCKER_CONFIG_DIR="${DOCKER_CONFIG_DIR:-/usr/local/docker-config}"
 # Use this for file system checks. Use DOCKER_CONFIG_DIR for docker commands.
 # Except for --env_file commands, which refer to the current file system, not the root fs
 CURRENT_FS_DOCKER_CONFIG_DIR="${CURRENT_FS_DOCKER_CONFIG_DIR:-$DOCKER_CONFIG_DIR}"
+AIO_HEALTH_TIMEOUT_SECONDS="${AIO_HEALTH_TIMEOUT_SECONDS:-180}"
+AIO_HEALTH_POLL_SECONDS="${AIO_HEALTH_POLL_SECONDS:-2}"
+AIO_PUBLISH_FRONTEND="${AIO_PUBLISH_FRONTEND:-true}"
+
+stop_and_remove_container() {
+  local container_name=$1
+
+  if ! docker container inspect "$container_name" >/dev/null 2>&1; then
+    return 0
+  fi
+  docker stop "$container_name" && docker rm "$container_name"
+}
+
+assert_container_running() {
+  local container_name=$1
+  local running
+  running=$(docker inspect --format='{{.State.Running}}' "$container_name") || return 1
+  if [[ "$running" != "true" ]]; then
+    echo "ERROR: $container_name did not remain running." >&2
+    return 1
+  fi
+}
+
+wait_for_container_health() {
+  local container_name=$1
+  local elapsed=0
+  local health
+
+  while (( elapsed < AIO_HEALTH_TIMEOUT_SECONDS )); do
+    health=$(docker inspect --format='{{.State.Health.Status}}' "$container_name") || return 1
+    case "$health" in
+      healthy)
+        return 0
+        ;;
+      unhealthy)
+        echo "ERROR: $container_name reported unhealthy." >&2
+        return 1
+        ;;
+    esac
+    sleep "$AIO_HEALTH_POLL_SECONDS"
+    ((elapsed += AIO_HEALTH_POLL_SECONDS))
+  done
+  echo "ERROR: $container_name did not become healthy within $AIO_HEALTH_TIMEOUT_SECONDS seconds." >&2
+  return 1
+}
+
+require_file() {
+  local path=$1
+  if [[ ! -f "$path" ]]; then
+    echo "ERROR: required rollout configuration is missing: $path" >&2
+    return 1
+  fi
+}
 
 if [ -f "$CURRENT_FS_DOCKER_CONFIG_DIR/setProxy.sh" ]; then
    . $CURRENT_FS_DOCKER_CONFIG_DIR/setProxy.sh
@@ -35,11 +89,21 @@ echo "INCLUDE_OPERATIONS=$INCLUDE_OPERATIONS"
 [[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/query" ]] && INCLUDE_QUERY=true || INCLUDE_QUERY=false
 echo "INCLUDE_QUERY=$INCLUDE_QUERY"
 
+# The gateway-era AIO cannot safely publish a banner-capable frontend without
+# every authorization and request-path service. Fail before changing containers.
+require_file "$CURRENT_FS_DOCKER_CONFIG_DIR/httpd/httpd.env" || exit 2
+require_file "$CURRENT_FS_DOCKER_CONFIG_DIR/httpd/httpd-vhosts.conf" || exit 2
+require_file "$CURRENT_FS_DOCKER_CONFIG_DIR/psama/psama.env" || exit 2
+require_file "$CURRENT_FS_DOCKER_CONFIG_DIR/operations/operations.env" || exit 2
+require_file "$CURRENT_FS_DOCKER_CONFIG_DIR/query/query.env" || exit 2
+require_file "$CURRENT_FS_DOCKER_CONFIG_DIR/gateway/gateway.env" || exit 2
+
 # Docker Volumes
 export PICSURE_BANNER_VOLUME="-v $DOCKER_CONFIG_DIR/httpd/banner_config.json:/usr/local/apache2/htdocs/picsureui/settings/banner_config.json"
 export PSAMA_TRUSTSTORE_VOLUME="-v $DOCKER_CONFIG_DIR/psama/application.truststore:/usr/local/tomcat/conf/application.truststore"
-if [ -f $DOCKER_CONFIG_DIR/httpd/custom_httpd_volumes ]; then
-	export CUSTOM_HTTPD_VOLUMES=`cat $DOCKER_CONFIG_DIR/httpd/custom_httpd_volumes`
+if [ -f "$DOCKER_CONFIG_DIR/httpd/custom_httpd_volumes" ]; then
+	CUSTOM_HTTPD_VOLUMES=$(cat "$DOCKER_CONFIG_DIR/httpd/custom_httpd_volumes")
+	export CUSTOM_HTTPD_VOLUMES
 fi
 
 # Debug Ports
@@ -113,22 +177,11 @@ if $INCLUDE_HPDS; then
     || exit 2
 fi
 
-docker stop httpd && docker rm httpd
-docker run --name=httpd --restart always --network=picsure \
-    -v "$DOCKER_CONFIG_DIR"/log/httpd-docker-logs/:/app/logs/ \
-    -v $DOCKER_CONFIG_DIR/httpd/cert:/usr/local/apache2/cert/ \
-    -v $DOCKER_CONFIG_DIR/httpd/httpd-vhosts.conf:/usr/local/apache2/conf/extra/httpd-vhosts.conf \
-    $CUSTOM_HTTPD_VOLUMES \
-    -p 443:443 \
-    --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/httpd/httpd.env \
-    $LOGGING_ENVS \
-    -d hms-dbmi/pic-sure-frontend:LATEST \
-    || exit 2
-docker restart httpd
-
-docker stop psama && docker rm psama
+stop_and_remove_container psama || exit 2
 docker run --name=psama --restart always \
   --network=picsure \
+  --health-cmd='wget -q --spider http://127.0.0.1:8090/auth/actuator/health || exit 1' \
+  --health-interval=10s --health-timeout=5s --health-start-period=30s --health-retries=5 \
   --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/psama/psama.env \
   $LOGGING_ENVS \
   -v $DOCKER_CONFIG_DIR/log/psama-docker-logs/:/var/log/ \
@@ -136,6 +189,7 @@ docker run --name=psama --restart always \
   $PSAMA_TRUSTSTORE_VOLUME \
   -d hms-dbmi/psama:LATEST \
   || exit 2
+assert_container_running psama || exit 2
 
 
 # WildFly is no longer part of the all-in-one (the rewrite's gateway + services replaced it).
@@ -143,27 +197,54 @@ docker run --name=psama --restart always \
 docker stop wildfly 2>/dev/null; docker rm wildfly 2>/dev/null || true
 
 if $INCLUDE_OPERATIONS; then
-  docker stop pic-sure-operations-service && docker rm pic-sure-operations-service
+  stop_and_remove_container pic-sure-operations-service || exit 2
   docker run --name=pic-sure-operations-service --restart always --network=picsure \
     --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/operations/operations.env \
     -d hms-dbmi/pic-sure-operations-service:LATEST \
     || exit 2
+  assert_container_running pic-sure-operations-service || exit 2
 fi
 
 if $INCLUDE_QUERY; then
-  docker stop pic-sure-hpds-query-service && docker rm pic-sure-hpds-query-service
+  stop_and_remove_container pic-sure-hpds-query-service || exit 2
   docker run --name=pic-sure-hpds-query-service --restart always --network=picsure \
     --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/query/query.env \
     -d hms-dbmi/pic-sure-hpds-query-service:LATEST \
     || exit 2
+  assert_container_running pic-sure-hpds-query-service || exit 2
 fi
 
 if $INCLUDE_GATEWAY; then
-  docker stop gateway && docker rm gateway
+  stop_and_remove_container gateway || exit 2
   docker run --name=gateway --restart always --network=picsure \
     --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/gateway/gateway.env \
     -d hms-dbmi/pic-sure-gateway:LATEST \
     || exit 2
+  assert_container_running gateway || exit 2
+fi
+
+wait_for_container_health psama || exit 2
+wait_for_container_health pic-sure-operations-service || exit 2
+wait_for_container_health pic-sure-hpds-query-service || exit 2
+wait_for_container_health gateway || exit 2
+
+if [[ "$AIO_PUBLISH_FRONTEND" == "true" ]]; then
+  stop_and_remove_container httpd || exit 2
+  # shellcheck disable=SC2086
+  docker run --name=httpd --restart always --network=picsure \
+      -v "$DOCKER_CONFIG_DIR"/log/httpd-docker-logs/:/app/logs/ \
+      -v "$DOCKER_CONFIG_DIR"/httpd/cert:/usr/local/apache2/cert/ \
+      -v "$DOCKER_CONFIG_DIR"/httpd/httpd-vhosts.conf:/usr/local/apache2/conf/extra/httpd-vhosts.conf \
+      $CUSTOM_HTTPD_VOLUMES \
+      -p 443:443 \
+      --env-file "$CURRENT_FS_DOCKER_CONFIG_DIR"/httpd/httpd.env \
+      $LOGGING_ENVS \
+      -d hms-dbmi/pic-sure-frontend:LATEST \
+      || exit 2
+  assert_container_running httpd || exit 2
+elif [[ "$AIO_PUBLISH_FRONTEND" != "false" ]]; then
+  echo "ERROR: AIO_PUBLISH_FRONTEND must be true or false." >&2
+  exit 2
 fi
 
 if $INCLUDE_DICTIONARY; then

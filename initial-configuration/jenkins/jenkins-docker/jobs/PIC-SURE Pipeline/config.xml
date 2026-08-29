@@ -11,7 +11,18 @@
   </actions>
   <description></description>
   <keepDependencies>false</keepDependencies>
-  <properties/>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>release_control_commit</name>
+          <defaultValue></defaultValue>
+          <description>Exact release-control commit for an orchestrated update.</description>
+          <trim>true</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
   <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@4255.vd9c37f80fd8a_">
     <script>import groovy.json.JsonSlurper;
 
@@ -29,7 +40,12 @@ pipeline {
         stage(&apos;Retrieve Build Spec&apos;) {
             steps {
                 script {
-                    def result = build job: &apos;Retrieve Build Spec&apos;
+                    if (!(params.release_control_commit ==~ /[0-9a-f]{40}/)) {
+                        error(&apos;PIC-SURE Pipeline requires an exact release_control_commit; use Check For Updates.&apos;)
+                    }
+                    def result = build job: &apos;Retrieve Pinned Build Spec&apos;, parameters: [
+                        [$class: &apos;StringParameterValue&apos;, name: &apos;release_control_commit&apos;, value: params.release_control_commit]
+                    ]
                     retrieveBuildSpecId = result.number
                 }
                 script {

@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC1091,SC2154
 DOCKER_CONFIG_DIR="${DOCKER_CONFIG_DIR:-/usr/local/docker-config}"
 MYSQL_CONFIG_DIR="${MYSQL_CONFIG_DIR:-$DOCKER_CONFIG_DIR/picsure-db/}"
 
-if [ -f $DOCKER_CONFIG_DIR/setProxy.sh ]; then
-   . $DOCKER_CONFIG_DIR/setProxy.sh
+if [ -f "$DOCKER_CONFIG_DIR/setProxy.sh" ]; then
+   . "$DOCKER_CONFIG_DIR/setProxy.sh"
 fi
 
 echo "DOCKER_CONFIG_DIR: $DOCKER_CONFIG_DIR"
@@ -18,6 +19,8 @@ docker run -d \
   -v "$DOCKER_CONFIG_DIR"/jenkins_home:/var/jenkins_home \
   -v "$DOCKER_CONFIG_DIR":/usr/local/docker-config \
   -v ./start-picsure.sh:/scripts/start-picsure.sh \
+  -v ./rollback-picsure.sh:/scripts/rollback-picsure.sh \
+  -v ./initial-configuration/jenkins/jenkins-docker/banner-rollout-contract.json:/scripts/banner-rollout-contract.json:ro \
   -v ./stop-picsure.sh:/scripts/stop-picsure.sh \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v "$MYSQL_CONFIG_DIR"/.my.cnf:/root/.my.cnf \

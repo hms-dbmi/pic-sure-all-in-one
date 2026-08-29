@@ -1,9 +1,20 @@
 <?xml version='1.1' encoding='UTF-8'?>
 <project>
   <actions/>
-  <description></description>
+  <description>Retrieve one exact release-control commit for an orchestrated update.</description>
   <keepDependencies>false</keepDependencies>
-  <properties/>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>release_control_commit</name>
+          <defaultValue></defaultValue>
+          <description>Required 40-character release-control commit.</description>
+          <trim>true</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
   <scm class="hudson.plugins.git.GitSCM" plugin="git@4.0.0">
     <configVersion>2</configVersion>
     <userRemoteConfigs>
@@ -13,7 +24,7 @@
     </userRemoteConfigs>
     <branches>
       <hudson.plugins.git.BranchSpec>
-        <name>${release_control_branch}</name>
+        <name>${release_control_commit}</name>
       </hudson.plugins.git.BranchSpec>
     </branches>
     <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
@@ -30,7 +41,13 @@
   <concurrentBuild>false</concurrentBuild>
   <builders>
     <hudson.tasks.Shell>
-      <command>echo ${GIT_COMMIT} &gt; pipeline_git_commit.txt</command>
+      <command>#!/usr/bin/env bash
+set -e
+[[ "$release_control_commit" =~ ^[0-9a-f]{40}$ ]]
+echo "$GIT_COMMIT" &gt; pipeline_git_commit.txt
+test "$GIT_COMMIT" = "$release_control_commit"
+</command>
+      <configuredLocalRules/>
     </hudson.tasks.Shell>
   </builders>
   <publishers>

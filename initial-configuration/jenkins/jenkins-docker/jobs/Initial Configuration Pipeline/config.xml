@@ -236,14 +236,9 @@ pipeline {
             }
         }
 
-        stage(&apos;Initial Config and Build&apos;) {
+        stage(&apos;Initial Service Configuration&apos;) {
             steps {
                 parallel (
-                    picsureBuild: {
-                        script {
-                            def result = build job: &apos;PIC-SURE Pipeline&apos;
-                        }
-                    },
                     auth0Config: {
                         script {
                             def result = build job: &apos;Configure Auth0 Integration&apos;, parameters: [
@@ -267,7 +262,19 @@ pipeline {
         stage(&apos;Migrations&apos;) {
             steps {
                 script {
-                    def result = build job: &apos;PIC-SURE Database Migrations&apos;
+                    def result = build job: &apos;PIC-SURE Database Migrations&apos;, parameters: [
+                        [$class: &apos;StringParameterValue&apos;, name: &apos;release_control_commit&apos;, value: pipelineBuildId]
+                    ]
+                }
+            }
+        }
+
+        stage(&apos;Application Build&apos;) {
+            steps {
+                script {
+                    def result = build job: &apos;PIC-SURE Pipeline&apos;, parameters: [
+                        [$class: &apos;StringParameterValue&apos;, name: &apos;release_control_commit&apos;, value: pipelineBuildId]
+                    ]
                 }
             }
         }

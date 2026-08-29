@@ -239,8 +239,52 @@ sudo ./stop-jenkins.sh
   run the Deploy PIC-SURE job to restart your containers so the updated SSL configuration is used.
 
 - As your project progresses you will run the "Check For Updates" job to pull and build the latest release of each
-  component as the release control repository is updated. To deploy the latest updates after "Check For Updates" is run,
-  execute the Start PIC-SURE job.
+  component as the release control repository is updated. The job applies migrations, builds the release, and restarts
+  PIC-SURE in the guarded order described below.
+
+### Banner-capable release order
+
+`Check For Updates` resolves one release-control commit, applies the database migrations from that release, and only
+then builds and restarts the application. `Start PIC-SURE` recreates PSAMA, starts Operations, Query, and Gateway, and
+waits for Operations and Gateway health before it starts the public httpd/frontend container. PSAMA recreation is the
+deployment-wide authorization-cache refresh. AIO has no global cache-eviction operation.
+
+The update is fail closed. A migration or backend-health failure leaves the new frontend unpublished. During startup,
+new banner management routes may remain unavailable until PSAMA has been recreated and the backend is healthy.
+
+Use `Rollback PIC-SURE` only with an operator-reviewed `rollback-state.json`. Before running the job, stop httpd to
+freeze banner management writes, retag the chosen exact frontend rollback image as
+`hms-dbmi/pic-sure-frontend:LATEST`, and disable every Active or Scheduled targeted banner through the final Operations
+management API. The state file attests those steps in this exact order and names exact local images for the backend
+rollback:
+
+```json
+{
+  "schemaVersion": 1,
+  "contractSourceCommit": "0178bbd2d1753e07dcead77a6d0e8ca37bf76dd8",
+  "contractSha256": "f8cb265d735b757872391e04fdcd5b999b785eaa427ca13f8f2eefd493715359",
+  "completedPhases": [
+    "FREEZE_BANNER_MANAGEMENT_WRITES",
+    "ROLL_BACK_FRONTEND",
+    "DISABLE_ACTIVE_AND_SCHEDULED_TARGETED_BANNERS_BEFORE_LEGACY_ACTIVE_FEED_BACKEND"
+  ],
+  "forwardSchemaRetained": true,
+  "downMigrationRequested": false,
+  "rollbackImages": {
+    "frontend": "local/pic-sure-frontend:exact-rollback-tag",
+    "psama": "local/psama:exact-rollback-tag",
+    "operations": "local/pic-sure-operations-service:exact-rollback-tag",
+    "query": "local/pic-sure-hpds-query-service:exact-rollback-tag",
+    "gateway": "local/pic-sure-gateway:exact-rollback-tag"
+  }
+}
+```
+
+The rollback job checks the shared contract and attestations, verifies that httpd is stopped and the frontend rollback
+tag is staged, retags the backend images, recreates PSAMA and the backend, and keeps httpd stopped. That outage retains
+the management-write freeze while a backend below the targeted-feed boundary is active. Do not restart the public
+entrypoint until a targeting-capable backend has been restored. Rollback always keeps the forward database schema;
+Flyway down-migrations are prohibited.
 
 - If you would like to connect to a remote database, then run the "Configure Remote MySQL Instance" Jenkins job.
     - You need to provide remote database connection information to "Configure Remote MySQL Instance" Jenkins job

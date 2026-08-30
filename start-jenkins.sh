@@ -6,6 +6,12 @@ MYSQL_CONFIG_DIR="${MYSQL_CONFIG_DIR:-$DOCKER_CONFIG_DIR/picsure-db/}"
 WORKFLOW_MANIFEST="$SCRIPT_DIR/initial-configuration/jenkins/jenkins-docker/aio-workflow-files.txt"
 WORKFLOW_ROOT=/aio-workflow
 WORKFLOW_MOUNTS=()
+for workflow_variable in AIO_WORKFLOW_SHA256_SCRIPT AIO_WORKFLOW_MODE AIO_WORKFLOW_MANIFEST AIO_WORKFLOW_REPO_ROOT AIO_WORKFLOW_JENKINS_HOME; do
+  if [[ -n "${!workflow_variable+x}" ]]; then
+    echo "ERROR: $workflow_variable is caller-controlled and must be unset." >&2
+    exit 2
+  fi
+done
 AIO_WORKFLOW_COMMIT=UNAVAILABLE
 if git -c safe.directory="$SCRIPT_DIR" -C "$SCRIPT_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
   AIO_WORKFLOW_COMMIT=$(git -c safe.directory="$SCRIPT_DIR" -C "$SCRIPT_DIR" rev-parse HEAD) || exit 2
@@ -19,7 +25,7 @@ if [[ ! -f "$WORKFLOW_MANIFEST" ]]; then
   echo "ERROR: AIO workflow manifest is missing: $WORKFLOW_MANIFEST" >&2
   exit 2
 fi
-DOCKER_CONFIG_DIR="$DOCKER_CONFIG_DIR" AIO_WORKFLOW_MODE=installed "$SCRIPT_DIR/workflow-sha256.sh" >/dev/null || exit 2
+env DOCKER_CONFIG_DIR="$DOCKER_CONFIG_DIR" AIO_WORKFLOW_MODE=installed AIO_WORKFLOW_MANIFEST="$WORKFLOW_MANIFEST" AIO_WORKFLOW_REPO_ROOT="$SCRIPT_DIR" AIO_WORKFLOW_JENKINS_HOME="$DOCKER_CONFIG_DIR/jenkins_home" "$SCRIPT_DIR/workflow-sha256.sh" >/dev/null || exit 2
 
 while IFS= read -r workflow_entry; do
   [[ -n "$workflow_entry" && "$workflow_entry" != \#* ]] || continue
@@ -47,11 +53,6 @@ docker run -d \
   -e no_proxy="$no_proxy" \
   -e DOCKER_CONFIG_DIR="$DOCKER_CONFIG_DIR" \
   -e AIO_WORKFLOW_COMMIT="$AIO_WORKFLOW_COMMIT" \
-  -e AIO_WORKFLOW_SHA256_SCRIPT="$WORKFLOW_ROOT/workflow-sha256.sh" \
-  -e AIO_WORKFLOW_MODE=installed \
-  -e AIO_WORKFLOW_MANIFEST="$WORKFLOW_ROOT/aio-workflow-files.txt" \
-  -e AIO_WORKFLOW_REPO_ROOT="$WORKFLOW_ROOT" \
-  -e AIO_WORKFLOW_JENKINS_HOME=/var/jenkins_home \
   -v "$DOCKER_CONFIG_DIR"/jenkins_cert:/var/jenkins_cert \
   -v "$DOCKER_CONFIG_DIR"/hpds_csv/:/usr/local/docker-config/hpds_csv/ \
   -v "$DOCKER_CONFIG_DIR"/jenkins_home:/var/jenkins_home \

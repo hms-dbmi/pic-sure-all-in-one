@@ -306,8 +306,9 @@ public entrypoint until a targeting-capable backend has been restored. The rollb
 file explicitly to the start script. The start script independently checks its current contract, ordered phases, schema
 flags, image IDs, retagged images, and restart-proof stopped httpd before it enables Gateway
 `/actuator/health/liveness`. Normal startup explicitly selects forward mode, rejects inherited rollback controls,
-requires the v2 banner feed, and publishes the frontend. Rollback always keeps the forward database schema; Flyway
-down-migrations are prohibited.
+requires the v2 banner feed, and publishes the frontend. It removes the frozen httpd container and recreates it with
+the ordinary `--restart always` policy. Rollback always keeps the forward database schema; Flyway down-migrations are
+prohibited.
 
 - If you would like to connect to a remote database, then run the "Configure Remote MySQL Instance" Jenkins job.
     - You need to provide remote database connection information to "Configure Remote MySQL Instance" Jenkins job

@@ -17,12 +17,31 @@ default_rollout_file() {
 
 CONTRACT_FILE="${AIO_ROLLOUT_CONTRACT_FILE:-$(default_rollout_file banner-rollout-contract.json)}"
 SOURCE_FILE="${AIO_ROLLOUT_SOURCE_FILE:-$(default_rollout_file banner-rollout-source.json)}"
-WORKFLOW_SHA256_SCRIPT="${AIO_WORKFLOW_SHA256_SCRIPT:-$(default_rollout_file workflow-sha256.sh)}"
 
 fail() {
   echo "ERROR: $*" >&2
   exit 2
 }
+
+for workflow_variable in AIO_WORKFLOW_SHA256_SCRIPT AIO_WORKFLOW_MODE AIO_WORKFLOW_MANIFEST AIO_WORKFLOW_REPO_ROOT AIO_WORKFLOW_JENKINS_HOME; do
+  [[ -z "${!workflow_variable+x}" ]] || fail "$workflow_variable is caller-controlled and must be unset"
+done
+
+if [[ "$SCRIPT_DIR" == */scripts && -x "$SCRIPT_DIR/../aio-workflow/workflow-sha256.sh" ]]; then
+  WORKFLOW_ROOT="$(cd "$SCRIPT_DIR/../aio-workflow" && pwd)"
+  WORKFLOW_SHA256_SCRIPT="$WORKFLOW_ROOT/workflow-sha256.sh"
+  WORKFLOW_MODE=installed
+  WORKFLOW_MANIFEST="$WORKFLOW_ROOT/aio-workflow-files.txt"
+  WORKFLOW_JENKINS_HOME="$SCRIPT_DIR/../var/jenkins_home"
+elif [[ -x "$SCRIPT_DIR/workflow-sha256.sh" ]]; then
+  WORKFLOW_ROOT=$SCRIPT_DIR
+  WORKFLOW_SHA256_SCRIPT="$WORKFLOW_ROOT/workflow-sha256.sh"
+  WORKFLOW_MODE=source
+  WORKFLOW_MANIFEST="$WORKFLOW_ROOT/initial-configuration/jenkins/jenkins-docker/aio-workflow-files.txt"
+  WORKFLOW_JENKINS_HOME="$WORKFLOW_ROOT/initial-configuration/jenkins/jenkins-docker/jenkins_home"
+else
+  fail "trusted workflow checksum script is unavailable"
+fi
 
 [[ $# -eq 1 && -f "$BUILD_SPEC" ]] || fail "usage: $0 <build-spec.json>"
 [[ -f "$CONTRACT_FILE" ]] || fail "rollout contract not found: $CONTRACT_FILE"
@@ -67,7 +86,7 @@ psa_commit=$(jq -er '[.application[] | select(.project_job_git_key == "PSA") | .
 
 expected_aio_commit=$(jq -er '[.application[] | select(.project_job_git_key == "AIO") | .git_hash] | if length == 1 then .[0] else error("expected one AIO entry") end' "$BUILD_SPEC")
 expected_workflow_sha=$(jq -er '.bannerRollout.aioWorkflowSha256' "$BUILD_SPEC")
-if ! actual_workflow_sha=$("$WORKFLOW_SHA256_SCRIPT"); then
+if ! actual_workflow_sha=$(env AIO_WORKFLOW_MODE="$WORKFLOW_MODE" AIO_WORKFLOW_MANIFEST="$WORKFLOW_MANIFEST" AIO_WORKFLOW_REPO_ROOT="$WORKFLOW_ROOT" AIO_WORKFLOW_JENKINS_HOME="$WORKFLOW_JENKINS_HOME" "$WORKFLOW_SHA256_SCRIPT"); then
   fail "could not fingerprint the active AIO workflow"
 fi
 [[ "$actual_workflow_sha" =~ ^[0-9a-f]{64}$ ]] || fail "installed AIO workflow content fingerprint is unavailable"

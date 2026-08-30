@@ -18,6 +18,13 @@ CONTRACT_SOURCE = ROOT / "initial-configuration/jenkins/jenkins-docker/banner-ro
 WORKFLOW_MANIFEST = ROOT / "initial-configuration/jenkins/jenkins-docker/aio-workflow-files.txt"
 VALIDATOR = ROOT / "validate-build-spec.sh"
 CHECKSUM_HELPER = ROOT / "aio-sha256.sh"
+WORKFLOW_LOCATION_VARIABLES = (
+    "AIO_WORKFLOW_SHA256_SCRIPT",
+    "AIO_WORKFLOW_MODE",
+    "AIO_WORKFLOW_MANIFEST",
+    "AIO_WORKFLOW_REPO_ROOT",
+    "AIO_WORKFLOW_JENKINS_HOME",
+)
 EXPECTED_CONTRACT_COMMIT = "0178bbd2d1753e07dcead77a6d0e8ca37bf76dd8"
 EXPECTED_CONTRACT_SHA256 = "f8cb265d735b757872391e04fdcd5b999b785eaa427ca13f8f2eefd493715359"
 EXPECTED_FORWARD = [
@@ -42,10 +49,30 @@ def xml_script(path: Path) -> str:
     return "\n".join(scripts)
 
 
+BUILD_JOB_PATTERN = re.compile(
+    r"""\bbuild\s+job\s*:\s*(['"])([^'"]+)\1"""
+)
+SCHEDULE_JOB_PATTERN = re.compile(
+    r"""\bgetItem(?:ByFullName)?\(\s*(['"])([^'"]+)\1\s*\)\s*\.scheduleBuild2\b"""
+)
+
+
+def without_matches(script: str, matches: list[re.Match]) -> str:
+    result = script
+    for match in reversed(matches):
+        result = (
+            result[: match.start()]
+            + " " * (match.end() - match.start())
+            + result[match.end() :]
+        )
+    return result
+
+
 def scheduled_jobs(script: str) -> list[str]:
-    return re.findall(
-        r'getItemByFullName\("([^"]+)"\)\s*\.scheduleBuild2', script
-    )
+    matches = list(SCHEDULE_JOB_PATTERN.finditer(script))
+    if re.search(r"\bscheduleBuild2\b", without_matches(script, matches)):
+        raise AssertionError("unresolved Jenkins downstream trigger: scheduleBuild2")
+    return [match.group(2) for match in matches]
 
 
 def validate_update_script(script: str) -> None:
@@ -183,7 +210,6 @@ def run_validator(
                 "AIO_ROLLOUT_SOURCE_FILE": str(CONTRACT_SOURCE),
                 "AIO_WORKFLOW_SHA256": workflow_sha,
                 "AIO_WORKFLOW_COMMIT": aio_commit,
-                "AIO_WORKFLOW_MODE": "source",
             }
         )
         if extra_env:
@@ -198,13 +224,38 @@ def run_validator(
         )
 
 
-def copy_validator_bundle(directory: Path) -> Path:
-    validator = directory / "validate-build-spec.sh"
+def copy_installed_jenkins_jobs(jenkins_home: Path) -> None:
+    for entry in WORKFLOW_MANIFEST.read_text().splitlines():
+        if not entry.startswith("jenkins-home:"):
+            continue
+        relative = Path(entry.split(":", 1)[1])
+        source = ROOT / "initial-configuration/jenkins/jenkins-docker" / relative
+        target = jenkins_home / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
+
+
+def create_installed_validator_bundle(directory: Path) -> Path:
+    scripts = directory / "scripts"
+    scripts.mkdir()
+    validator = scripts / "validate-build-spec.sh"
     shutil.copy2(VALIDATOR, validator)
-    shutil.copy2(CONTRACT, directory / "banner-rollout-contract.json")
-    shutil.copy2(CONTRACT_SOURCE, directory / "banner-rollout-source.json")
+    shutil.copy2(CONTRACT, scripts / "banner-rollout-contract.json")
+    shutil.copy2(CONTRACT_SOURCE, scripts / "banner-rollout-source.json")
     if CHECKSUM_HELPER.exists():
-        shutil.copy2(CHECKSUM_HELPER, directory / CHECKSUM_HELPER.name)
+        shutil.copy2(CHECKSUM_HELPER, scripts / CHECKSUM_HELPER.name)
+    workflow_root = directory / "aio-workflow"
+    workflow_root.mkdir()
+    shutil.copy2(WORKFLOW_MANIFEST, workflow_root / "aio-workflow-files.txt")
+    copy_installed_jenkins_jobs(directory / "var/jenkins_home")
+    for entry in WORKFLOW_MANIFEST.read_text().splitlines():
+        if not entry.startswith("repo:"):
+            continue
+        relative = entry.split(":", 1)[1]
+        source = ROOT / relative
+        target = workflow_root / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
     return validator
 
 
@@ -237,8 +288,13 @@ if [[ "${1:-}" == "run" ]]; then
   if [[ -n "$name" && -n "$health" ]]; then
     printf '%s\\n' "$health" > "$MOCK_DOCKER_STATE/$name.health"
   fi
-elif [[ "$*" == *"inspect --format={{.State.Running}}"* ]]; then
-  printf '%s\\n' "${MOCK_HTTPD_RUNNING:-true}"
+elif [[ "$*" == *"inspect --format={{.State.Running}}"* && "$*" != *"RestartPolicy.Name"* ]]; then
+  name="${*: -1}"
+  if [[ "$name" == "httpd" ]]; then
+    printf '%s\\n' "${MOCK_HTTPD_RUNNING:-true}"
+  else
+    printf '%s\\n' true
+  fi
 elif [[ "$*" == *"inspect --format={{.HostConfig.RestartPolicy.Name}}"* ]]; then
   printf '%s\\n' "${MOCK_HTTPD_RESTART_POLICY:-no}"
 elif [[ "$*" == *"inspect --format={{.State.Health.Status}}"* ]]; then
@@ -259,12 +315,28 @@ elif [[ "$*" == *"inspect --format={{.State.Health.Status}}"* ]]; then
     printf '%s\\n' healthy
   fi
 elif [[ "$1 ${2:-}" == "container inspect" ]]; then
-  if [[ "${3:-}" == "httpd" && "${MOCK_HTTPD_PRESENT:-false}" == "true" ]]; then
+  name="${*: -1}"
+  if [[ "$name" == "httpd" && -n "${MOCK_HTTPD_TERMINAL_INSPECT_ERROR:-}" && -f "$MOCK_DOCKER_STATE/gateway-health-checked" ]]; then
+    printf '%s\\n' "$MOCK_HTTPD_TERMINAL_INSPECT_ERROR" >&2
+    exit 42
+  fi
+  if [[ "$name" == "httpd" && -n "${MOCK_HTTPD_INSPECT_ERROR:-}" ]]; then
+    printf '%s\\n' "$MOCK_HTTPD_INSPECT_ERROR" >&2
+    exit 41
+  fi
+  if [[ "$name" == "httpd" && "${MOCK_HTTPD_PRESENT:-false}" == "true" ]]; then
+    if [[ "$*" == *"State.Running"*"RestartPolicy.Name"* ]]; then
+      printf '%s %s\\n' "${MOCK_HTTPD_RUNNING:-true}" "${MOCK_HTTPD_RESTART_POLICY:-no}"
+    fi
     exit 0
   fi
-  if [[ "${3:-}" == "httpd" && "${MOCK_HTTPD_REAPPEARS:-false}" == "true" && -f "$MOCK_DOCKER_STATE/gateway-health-checked" ]]; then
+  if [[ "$name" == "httpd" && "${MOCK_HTTPD_REAPPEARS:-false}" == "true" && -f "$MOCK_DOCKER_STATE/gateway-health-checked" ]]; then
+    if [[ "$*" == *"State.Running"*"RestartPolicy.Name"* ]]; then
+      printf '%s %s\\n' "${MOCK_HTTPD_RUNNING:-true}" "${MOCK_HTTPD_RESTART_POLICY:-no}"
+    fi
     exit 0
   fi
+  printf '%s\\n' "Error response from daemon: No such container: $name" >&2
   exit 1
 elif [[ "$1 ${2:-}" == "image inspect" ]]; then
   if [[ "$*" == *"--format={{.Id}}"* ]]; then
@@ -383,8 +455,15 @@ def split_job_names(value: str) -> set[str]:
 
 def jenkins_job_references(config: Path) -> set[str]:
     root = ET.parse(config).getroot()
-    children = set(re.findall(r"build job: '([^']+)'", xml_script(config)))
-    children.update(scheduled_jobs(xml_script(config)))
+    script = xml_script(config)
+    build_matches = list(BUILD_JOB_PATTERN.finditer(script))
+    schedule_matches = list(SCHEDULE_JOB_PATTERN.finditer(script))
+    unresolved = without_matches(script, build_matches + schedule_matches)
+    if re.search(r"\bbuild\s+job\s*:|\bscheduleBuild2\b", unresolved):
+        raise AssertionError(
+            f"unresolved Jenkins downstream trigger in {config}"
+        )
+    children = {match.group(2) for match in build_matches + schedule_matches}
     recognized = set()
     for node in root.findall(".//hudson.tasks.BuildTrigger/childProjects"):
         recognized.add(id(node))
@@ -402,6 +481,39 @@ def jenkins_job_references(config: Path) -> set[str]:
                     f"unknown Jenkins downstream trigger form in {config}: {node.tag}"
                 )
     return children
+
+
+def validate_declarative_convergence(config: Path) -> None:
+    root = ET.parse(config).getroot()
+    script = xml_script(config)
+    if "pipeline {" not in script:
+        return
+    property_class = (
+        "org.jenkinsci.plugins.workflow.job.properties."
+        "DisableConcurrentBuildsJobProperty"
+    )
+    tracker = root.find(
+        ".//org.jenkinsci.plugins.pipeline.modeldefinition.actions."
+        "DeclarativeJobPropertyTrackerAction"
+    )
+    if tracker is None:
+        raise AssertionError(f"declarative property tracker is missing: {config}")
+    tracked = {
+        node.text or "" for node in tracker.findall("./jobProperties/string")
+    }
+    has_directive = "disableConcurrentBuilds()" in script
+    has_tracker = property_class in tracked
+    property_node = root.find(f"./properties/{property_class}")
+    has_property = property_node is not None
+    if len({has_directive, has_tracker, has_property}) != 1:
+        raise AssertionError(
+            f"disableConcurrentBuilds is not converged in {config}: "
+            f"directive={has_directive}, tracker={has_tracker}, property={has_property}"
+        )
+    if has_property and property_node.findtext("abortPrevious") != "false":
+        raise AssertionError(
+            f"disableConcurrentBuilds abortPrevious is not false in {config}"
+        )
 
 
 def transitive_release_jobs(roots: set[str]) -> set[str]:
@@ -594,8 +706,8 @@ class RolloutContractTest(unittest.TestCase):
                     config,
                     {"AIO_PUBLISH_FRONTEND": value},
                 )
-            self.assertNotEqual(result.returncode, 0)
-            self.assertEqual(commands, [])
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(commands, [])
 
     def test_rollback_rejects_running_httpd_before_image_or_service_changes(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -640,6 +752,79 @@ class RolloutContractTest(unittest.TestCase):
         self.assertFalse(any(command.startswith("image inspect") for command in commands))
         self.assertFalse(any(command.startswith("tag ") for command in commands))
         self.assertFalse(any("run --name=" in command for command in commands))
+
+    def test_rollback_rejects_initial_httpd_inspect_error_without_side_effects(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            config = required_config(tmp_path / "config")
+            state = tmp_path / "state.json"
+            state.write_text(json.dumps(rollback_state()))
+            result, commands = run_script(
+                ROOT / "rollback-picsure.sh",
+                config,
+                {"MOCK_HTTPD_INSPECT_ERROR": "synthetic Docker API failure"},
+                str(state),
+            )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("synthetic Docker API failure", result.stderr)
+        self.assertFalse(any(command.startswith("image inspect") for command in commands))
+        self.assertFalse(any(command.startswith("tag ") for command in commands))
+        self.assertFalse(any("run --name=" in command for command in commands))
+
+    def test_rollback_rejects_terminal_httpd_inspect_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            config = required_config(tmp_path / "config")
+            state = tmp_path / "state.json"
+            state.write_text(json.dumps(rollback_state()))
+            result, commands = run_script(
+                ROOT / "rollback-picsure.sh",
+                config,
+                {"MOCK_HTTPD_TERMINAL_INSPECT_ERROR": "synthetic terminal API failure"},
+                str(state),
+            )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("synthetic terminal API failure", result.stderr)
+        self.assertFalse(any("run --name=httpd" in command for command in commands))
+        self.assertNotIn(
+            "Rollback backend started with the forward schema retained",
+            result.stdout,
+        )
+
+    def test_rollback_accepts_present_stopped_httpd_with_restart_disabled(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            config = required_config(tmp_path / "config")
+            state = tmp_path / "state.json"
+            state.write_text(json.dumps(rollback_state()))
+            result, commands = run_script(
+                ROOT / "rollback-picsure.sh",
+                config,
+                {
+                    "MOCK_HTTPD_PRESENT": "true",
+                    "MOCK_HTTPD_RUNNING": "false",
+                    "MOCK_HTTPD_RESTART_POLICY": "no",
+                },
+                str(state),
+            )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertTrue(any(command.startswith("tag ") for command in commands))
+        self.assertFalse(any("run --name=httpd" in command for command in commands))
+        httpd_inspections = [
+            command
+            for command in commands
+            if "inspect" in command and command.endswith(" httpd")
+        ]
+        self.assertEqual(len(httpd_inspections), 3)
+        self.assertTrue(
+            all(
+                command.startswith(
+                    "container inspect --format={{.State.Running}} "
+                    "{{.HostConfig.RestartPolicy.Name}}"
+                )
+                for command in httpd_inspections
+            )
+        )
 
     def test_rollback_mode_start_independently_requires_restart_proof(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -934,28 +1119,65 @@ class RolloutContractTest(unittest.TestCase):
         unavailable = run_validator(spec, digest, "UNAVAILABLE")
         self.assertEqual(unavailable.returncode, 0, unavailable.stdout + unavailable.stderr)
 
+    def test_validator_rejects_every_caller_controlled_workflow_location(self):
+        digest = workflow_digest()
+        aio_commit = "a" * 40
+        spec = synthetic_build_spec(aio_commit, digest)
+        for variable in WORKFLOW_LOCATION_VARIABLES:
+            with self.subTest(variable=variable):
+                hostile_value = (
+                    "source"
+                    if variable == "AIO_WORKFLOW_MODE"
+                    else "/tmp/hostile-workflow-location"
+                )
+                result = run_validator(
+                    spec,
+                    digest,
+                    aio_commit,
+                    {variable: hostile_value},
+                )
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(f"{variable} is caller-controlled", result.stderr)
+
     def test_validator_rehashes_active_jenkins_jobs_for_each_rollout(self):
         digest = workflow_digest()
         aio_commit = "a" * 40
         spec = synthetic_build_spec(aio_commit, digest)
         with tempfile.TemporaryDirectory() as tmp:
-            config = Path(tmp) / "config"
-            for entry in WORKFLOW_MANIFEST.read_text().splitlines():
-                if not entry.startswith("jenkins-home:"):
-                    continue
-                relative = Path(entry.split(":", 1)[1])
-                source = ROOT / "initial-configuration/jenkins/jenkins-docker" / relative
-                target = config / "jenkins_home" / relative
-                target.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(source, target)
-            runtime_env = {
-                "AIO_WORKFLOW_MODE": "installed",
-                "DOCKER_CONFIG_DIR": str(config),
-            }
-            coherent = run_validator(spec, digest, aio_commit, runtime_env)
-            active_pipeline = config / "jenkins_home/jobs/PIC-SURE Pipeline/config.xml"
+            tmp_path = Path(tmp)
+            validator = create_installed_validator_bundle(tmp_path)
+            spec_path = tmp_path / "build-spec.json"
+            spec_path.write_text(json.dumps(spec))
+            environment = os.environ.copy()
+            environment.update(
+                {
+                    "AIO_WORKFLOW_SHA256": "d" * 64,
+                    "AIO_WORKFLOW_COMMIT": aio_commit,
+                }
+            )
+            coherent = subprocess.run(
+                ["bash", str(validator), str(spec_path)],
+                cwd=tmp_path,
+                env=environment,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            hostile_script = tmp_path / "scripts/workflow-sha256.sh"
+            hostile_script.write_text(f"#!/usr/bin/env bash\nprintf '%s\\n' {digest}\n")
+            hostile_script.chmod(0o755)
+            active_pipeline = (
+                tmp_path / "var/jenkins_home/jobs/PIC-SURE Pipeline/config.xml"
+            )
             active_pipeline.write_text(active_pipeline.read_text() + "\n")
-            drifted = run_validator(spec, digest, aio_commit, runtime_env)
+            drifted = subprocess.run(
+                ["bash", str(validator), str(spec_path)],
+                cwd=tmp_path,
+                env=environment,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
         self.assertEqual(coherent.returncode, 0, coherent.stdout + coherent.stderr)
         self.assertNotEqual(drifted.returncode, 0)
         self.assertIn("workflow content", drifted.stderr)
@@ -968,18 +1190,15 @@ class RolloutContractTest(unittest.TestCase):
         self.assertEqual(root_result.returncode, 0, root_result.stdout + root_result.stderr)
 
         with tempfile.TemporaryDirectory() as tmp:
-            scripts = Path(tmp) / "scripts"
-            scripts.mkdir()
-            validator = copy_validator_bundle(scripts)
-            spec_path = Path(tmp) / "build-spec.json"
+            tmp_path = Path(tmp)
+            validator = create_installed_validator_bundle(tmp_path)
+            spec_path = tmp_path / "build-spec.json"
             spec_path.write_text(json.dumps(spec))
             env = os.environ.copy()
             env.update(
                 {
                     "AIO_WORKFLOW_SHA256": digest,
                     "AIO_WORKFLOW_COMMIT": aio_commit,
-                    "AIO_WORKFLOW_SHA256_SCRIPT": str(ROOT / "workflow-sha256.sh"),
-                    "AIO_WORKFLOW_MODE": "source",
                 }
             )
             mounted_result = subprocess.run(
@@ -1113,6 +1332,20 @@ printf '%064d  %s\\n' 0 "$1"
         }
         self.assertEqual(release_jobs - bound_jobs, set())
 
+    def test_bound_declarative_jobs_are_persisted_without_first_run_rewrite(self):
+        bound_configs = [
+            ROOT / "initial-configuration/jenkins/jenkins-docker" / entry.split(":", 1)[1]
+            for entry in WORKFLOW_MANIFEST.read_text().splitlines()
+            if entry.startswith("jenkins-home:jobs/")
+        ]
+        declarative_configs = [
+            config for config in bound_configs if "pipeline {" in xml_script(config)
+        ]
+        self.assertIn(JOBS / "PIC-SURE Pipeline/config.xml", declarative_configs)
+        for config in declarative_configs:
+            with self.subTest(config=config):
+                validate_declarative_convergence(config)
+
     def test_transitive_scanner_fails_closed_on_unknown_trigger_form(self):
         with tempfile.TemporaryDirectory() as tmp:
             config = Path(tmp) / "config.xml"
@@ -1125,6 +1358,38 @@ printf '%064d  %s\\n' 0 "$1"
                 AssertionError, "unknown Jenkins downstream trigger form"
             ):
                 jenkins_job_references(config)
+
+    def test_trigger_scanner_discovers_supported_literal_groovy_forms(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / "config.xml"
+            config.write_text(
+                "<flow-definition><definition><script><![CDATA["
+                'build job: "Double Quoted Build"\n'
+                "Jenkins.instance.getItem('Literal Scheduled Job').scheduleBuild2(0)"
+                "]]></script></definition></flow-definition>"
+            )
+            self.assertEqual(
+                jenkins_job_references(config),
+                {"Double Quoted Build", "Literal Scheduled Job"},
+            )
+
+    def test_trigger_scanner_rejects_dynamic_groovy_forms(self):
+        for groovy in (
+            "build job: targetJob",
+            "Jenkins.instance.getItemByFullName(targetJob).scheduleBuild2(0)",
+            "resolvedJob.scheduleBuild2(0)",
+        ):
+            with self.subTest(groovy=groovy), tempfile.TemporaryDirectory() as tmp:
+                config = Path(tmp) / "config.xml"
+                config.write_text(
+                    "<flow-definition><definition><script><![CDATA["
+                    f"{groovy}"
+                    "]]></script></definition></flow-definition>"
+                )
+                with self.assertRaisesRegex(
+                    AssertionError, "unresolved Jenkins downstream trigger"
+                ):
+                    jenkins_job_references(config)
 
     def test_exact_ref_update_handles_absent_jenkins_and_restores_branch(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1235,6 +1500,47 @@ exit 0
         self.assertIn("synthetic Docker daemon failure", inspect_failure.stderr)
         self.assertEqual(jenkins_commands_after_inspect_failure, "")
 
+    def test_start_jenkins_rejects_host_workflow_location_overrides(self):
+        for variable in WORKFLOW_LOCATION_VARIABLES:
+            with self.subTest(variable=variable), tempfile.TemporaryDirectory() as tmp:
+                tmp_path = Path(tmp)
+                bin_dir = fake_bin(tmp_path)
+                env = os.environ.copy()
+                env.update(
+                    {
+                        "PATH": f"{bin_dir}:{env['PATH']}",
+                        "MOCK_DOCKER_LOG": str(tmp_path / "docker.log"),
+                        "MOCK_DOCKER_STATE": str(tmp_path / "docker-state"),
+                        "MOCK_WGET_LOG": str(tmp_path / "wget.log"),
+                        "MOCK_CURL_LOG": str(tmp_path / "curl.log"),
+                        "MOCK_GIT_LOG": str(tmp_path / "git.log"),
+                        "DOCKER_CONFIG_DIR": str(tmp_path / "config"),
+                        variable: (
+                            "source"
+                            if variable == "AIO_WORKFLOW_MODE"
+                            else "/tmp/hostile-workflow-location"
+                        ),
+                    }
+                )
+                (tmp_path / "docker-state").mkdir()
+                copy_installed_jenkins_jobs(tmp_path / "config/jenkins_home")
+                result = subprocess.run(
+                    ["bash", str(ROOT / "start-jenkins.sh")],
+                    cwd=tmp_path,
+                    env=env,
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                docker_commands = (
+                    (tmp_path / "docker.log").read_text().splitlines()
+                    if (tmp_path / "docker.log").exists()
+                    else []
+                )
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(f"{variable} is caller-controlled", result.stderr)
+                self.assertEqual(docker_commands, [])
+
     def test_start_jenkins_binds_content_in_safe_git_and_non_git_installs(self):
         for git_mode, expected_commit in (
             ("safe", "a" * 40),
@@ -1258,14 +1564,7 @@ exit 0
                     }
                 )
                 (tmp_path / "docker-state").mkdir()
-                for entry in WORKFLOW_MANIFEST.read_text().splitlines():
-                    if not entry.startswith("jenkins-home:"):
-                        continue
-                    relative = Path(entry.split(":", 1)[1])
-                    source = ROOT / "initial-configuration/jenkins/jenkins-docker" / relative
-                    target = tmp_path / "config/jenkins_home" / relative
-                    target.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copy2(source, target)
+                copy_installed_jenkins_jobs(tmp_path / "config/jenkins_home")
                 result = subprocess.run(
                     ["bash", str(ROOT / "start-jenkins.sh")],
                     cwd=tmp_path,
@@ -1276,23 +1575,20 @@ exit 0
                 )
                 docker_command = (tmp_path / "docker.log").read_text()
                 git_commands = (tmp_path / "git.log").read_text()
-            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            self.assertIn(f"AIO_WORKFLOW_COMMIT={expected_commit}", docker_command)
-            self.assertIn(
-                "AIO_WORKFLOW_SHA256_SCRIPT=/aio-workflow/workflow-sha256.sh",
-                docker_command,
-            )
-            self.assertIn("AIO_WORKFLOW_MODE=installed", docker_command)
-            self.assertIn("AIO_WORKFLOW_JENKINS_HOME=/var/jenkins_home", docker_command)
-            self.assertIn("AIO_WORKFLOW_REPO_ROOT=/aio-workflow", docker_command)
-            self.assertNotIn("-e AIO_WORKFLOW_SHA256=", docker_command)
-            for entry in WORKFLOW_MANIFEST.read_text().splitlines():
-                if entry.startswith("repo:"):
-                    relative = entry.removeprefix("repo:")
-                    self.assertIn(f":/aio-workflow/{relative}:ro", docker_command)
-            self.assertIn("--network picsure", docker_command)
-            if git_mode == "safe":
-                self.assertIn("-c safe.directory=", git_commands)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn(
+                    f"AIO_WORKFLOW_COMMIT={expected_commit}", docker_command
+                )
+                for variable in WORKFLOW_LOCATION_VARIABLES:
+                    self.assertNotIn(f"-e {variable}=", docker_command)
+                self.assertNotIn("-e AIO_WORKFLOW_SHA256=", docker_command)
+                for entry in WORKFLOW_MANIFEST.read_text().splitlines():
+                    if entry.startswith("repo:"):
+                        relative = entry.removeprefix("repo:")
+                        self.assertIn(f":/aio-workflow/{relative}:ro", docker_command)
+                self.assertIn("--network picsure", docker_command)
+                if git_mode == "safe":
+                    self.assertIn("-c safe.directory=", git_commands)
 
     def test_jenkins_jobs_preserve_release_pin_and_call_real_rollback_script(self):
         for job in ("PIC-SURE Database Migrations", "PIC-SURE Pipeline"):
@@ -1358,8 +1654,10 @@ exit 0
         self.assertIn("validate-build-spec.sh:/scripts/validate-build-spec.sh", mounts)
         self.assertIn("banner-rollout-contract.json:/scripts/banner-rollout-contract.json:ro", mounts)
         self.assertIn("banner-rollout-source.json:/scripts/banner-rollout-source.json:ro", mounts)
+        self.assertIn('AIO_WORKFLOW_MANIFEST="$WORKFLOW_MANIFEST"', mounts)
+        self.assertIn('AIO_WORKFLOW_REPO_ROOT="$SCRIPT_DIR"', mounts)
         self.assertIn(
-            'AIO_WORKFLOW_SHA256_SCRIPT="$WORKFLOW_ROOT/workflow-sha256.sh"',
+            'AIO_WORKFLOW_JENKINS_HOME="$DOCKER_CONFIG_DIR/jenkins_home"',
             mounts,
         )
         for script in ("start-picsure.sh", "rollback-picsure.sh", "stop-picsure.sh"):
@@ -1386,6 +1684,7 @@ exit 0
         self.assertIn("http://gateway:8080", readme)
         self.assertIn("Jenkins container", readme)
         self.assertIn("shared `picsure` Docker network", readme)
+        self.assertIn("ordinary `--restart always` policy", readme)
         self.assertNotRegex(readme, r"internal\s+`picsure` Docker network")
         self.assertIn("--aio-ref", readme)
         update = (ROOT / "update-jenkins.sh").read_text()

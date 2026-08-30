@@ -40,12 +40,31 @@ require_exact_image() {
 
 require_httpd_frozen() {
   local running_error=$1
-  local restart_policy
-  if docker container inspect httpd >/dev/null 2>&1; then
-    [[ "$(docker inspect --format='{{.State.Running}}' httpd)" != "true" ]] || fail "$running_error"
-    restart_policy=$(docker inspect --format='{{.HostConfig.RestartPolicy.Name}}' httpd)
-    [[ "$restart_policy" == "no" ]] || fail "httpd restart policy is $restart_policy; banner management writes are not restart-proof fail closed"
+  local inspection
+  if inspection=$(docker container inspect --format='{{.State.Running}} {{.HostConfig.RestartPolicy.Name}}' httpd 2>&1); then
+    case "$inspection" in
+      "false no")
+        return
+        ;;
+      "true "*)
+        fail "$running_error"
+        ;;
+      "false "*)
+        fail "httpd restart policy is ${inspection#false }; banner management writes are not restart-proof fail closed"
+        ;;
+      *)
+        fail "unexpected httpd inspection result: $inspection"
+        ;;
+    esac
   fi
+  case "$inspection" in
+    "Error response from daemon: No such container: httpd"|"Error: No such container: httpd")
+      return
+      ;;
+    *)
+      fail "could not inspect httpd: $inspection"
+      ;;
+  esac
 }
 
 [[ $# -eq 1 ]] || { usage; exit 2; }

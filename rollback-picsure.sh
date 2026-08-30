@@ -5,9 +5,8 @@ set -o pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONTRACT_FILE="${AIO_ROLLOUT_CONTRACT_FILE:-$SCRIPT_DIR/initial-configuration/jenkins/jenkins-docker/banner-rollout-contract.json}"
+SOURCE_FILE="${AIO_ROLLOUT_SOURCE_FILE:-$SCRIPT_DIR/initial-configuration/jenkins/jenkins-docker/banner-rollout-source.json}"
 START_SCRIPT="${AIO_START_SCRIPT:-$SCRIPT_DIR/start-picsure.sh}"
-EXPECTED_CONTRACT_COMMIT="0178bbd2d1753e07dcead77a6d0e8ca37bf76dd8"
-EXPECTED_CONTRACT_SHA256="f8cb265d735b757872391e04fdcd5b999b785eaa427ca13f8f2eefd493715359"
 
 usage() {
   echo "Usage: $0 <rollback-state.json>" >&2
@@ -33,11 +32,17 @@ json_value() {
 require_exact_image() {
   local key=$1
   local image
+  local attested_id
+  local actual_id
   image=$(json_value ".rollbackImages.${key}")
   if [[ "$image" != *:* || "$image" == *":LATEST" || "$image" == *":latest" ]]; then
     fail "rollbackImages.$key must name an exact, non-LATEST local image tag"
   fi
   docker image inspect "$image" >/dev/null
+  attested_id=$(json_value ".rollbackImageIds.${key}")
+  [[ "$attested_id" =~ ^sha256:[0-9a-f]{64}$ ]] || fail "rollbackImageIds.$key must be a sha256 image ID"
+  actual_id=$(docker image inspect --format='{{.Id}}' "$image")
+  [[ "$actual_id" == "$attested_id" ]] || fail "rollback image $image changed after operator attestation"
   printf '%s\n' "$image"
 }
 
@@ -45,8 +50,11 @@ require_exact_image() {
 STATE_FILE=$1
 [[ -f "$STATE_FILE" ]] || fail "rollback state file not found: $STATE_FILE"
 [[ -f "$CONTRACT_FILE" ]] || fail "rollout contract not found: $CONTRACT_FILE"
+[[ -f "$SOURCE_FILE" ]] || fail "rollout contract source metadata not found: $SOURCE_FILE"
 command -v jq >/dev/null 2>&1 || fail "jq is required"
 
+EXPECTED_CONTRACT_COMMIT=$(jq -er '.contractSourceCommit' "$SOURCE_FILE")
+EXPECTED_CONTRACT_SHA256=$(jq -er '.contractSha256' "$SOURCE_FILE")
 actual_contract_sha=$(sha256_file "$CONTRACT_FILE")
 [[ "$actual_contract_sha" == "$EXPECTED_CONTRACT_SHA256" ]] || fail "local rollout contract checksum does not match backend $EXPECTED_CONTRACT_COMMIT"
 [[ "$(json_value '.schemaVersion')" == "1" ]] || fail "unsupported rollback state schema"
@@ -85,8 +93,9 @@ docker tag "$query_image" hms-dbmi/pic-sure-hpds-query-service:LATEST
 docker tag "$gateway_image" hms-dbmi/pic-sure-gateway:LATEST
 
 # Keep httpd down while a backend below the targeting-capable feed boundary is
-# active. start-picsure.sh still recreates PSAMA and health-gates the backend.
-AIO_PUBLISH_FRONTEND=false "$START_SCRIPT"
+# active. Recreate PSAMA only after the rolled-back backend is running, then
+# health-gate the full request path.
+AIO_PUBLISH_FRONTEND=false AIO_RECREATE_PSAMA_AFTER_BACKEND=true "$START_SCRIPT"
 
 if docker container inspect httpd >/dev/null 2>&1; then
   httpd_running=$(docker inspect --format='{{.State.Running}}' httpd)

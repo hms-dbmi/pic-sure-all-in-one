@@ -41,7 +41,7 @@ node {
             retrieveBuildSpecId = result.number
         }
         script {
-            copyArtifacts filter: &apos;*&apos;, projectName: &apos;Retrieve Build Spec&apos;, selector: specific(&quot;&quot;+retrieveBuildSpecId)
+            copyArtifacts filter: &apos;*&apos;, projectName: &apos;Retrieve Pinned Build Spec&apos;, selector: specific(&quot;&quot;+retrieveBuildSpecId)
             sh &apos;cat build-spec.json&apos;
             sh &apos;cat pipeline_git_commit.txt&apos;
             sh &apos;pwd&apos;
@@ -120,6 +120,10 @@ node {
                     [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: psa_ref]
             ]
         }
+    }
+    stage(&apos;Record Migration Input&apos;) {
+        writeFile file: &apos;migration-release-control-commit.txt&apos;, text: params.release_control_commit + &apos;\n&apos;
+        archiveArtifacts artifacts: &apos;migration-release-control-commit.txt&apos;, fingerprint: true
     }
     stage(&apos;Clean Workspace&apos;){
         cleanWs()

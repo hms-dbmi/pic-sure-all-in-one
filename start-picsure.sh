@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# shellcheck disable=SC1091,SC2086
+# shellcheck disable=SC1091
 
 # A note to developers: if you use /usr/local/docker-config to refer to a place on the host file system
 # 99 times out of 100 you are WRONG and you have just made a bug. Please:
@@ -14,6 +14,20 @@ CURRENT_FS_DOCKER_CONFIG_DIR="${CURRENT_FS_DOCKER_CONFIG_DIR:-$DOCKER_CONFIG_DIR
 AIO_HEALTH_TIMEOUT_SECONDS="${AIO_HEALTH_TIMEOUT_SECONDS:-180}"
 AIO_HEALTH_POLL_SECONDS="${AIO_HEALTH_POLL_SECONDS:-2}"
 AIO_PUBLISH_FRONTEND="${AIO_PUBLISH_FRONTEND:-true}"
+AIO_RECREATE_PSAMA_AFTER_BACKEND="${AIO_RECREATE_PSAMA_AFTER_BACKEND:-false}"
+
+for value_name in AIO_HEALTH_TIMEOUT_SECONDS AIO_HEALTH_POLL_SECONDS; do
+  if [[ ! "${!value_name}" =~ ^[1-9][0-9]*$ ]]; then
+    echo "ERROR: $value_name must be a positive integer." >&2
+    exit 2
+  fi
+done
+for value_name in AIO_PUBLISH_FRONTEND AIO_RECREATE_PSAMA_AFTER_BACKEND; do
+  if [[ "${!value_name}" != "true" && "${!value_name}" != "false" ]]; then
+    echo "ERROR: $value_name must be true or false." >&2
+    exit 2
+  fi
+done
 
 stop_and_remove_container() {
   local container_name=$1
@@ -66,7 +80,7 @@ require_file() {
 }
 
 if [ -f "$CURRENT_FS_DOCKER_CONFIG_DIR/setProxy.sh" ]; then
-   . $CURRENT_FS_DOCKER_CONFIG_DIR/setProxy.sh
+   . "$CURRENT_FS_DOCKER_CONFIG_DIR/setProxy.sh"
 fi
 
 # Optional services
@@ -152,8 +166,8 @@ if $INCLUDE_LOGGING; then
   docker stop pic-sure-logging && docker rm pic-sure-logging
   docker run --name=pic-sure-logging --restart always \
     --network=picsure \
-    --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/logging/logging.env \
-    -v $DOCKER_CONFIG_DIR/log/logging-docker-logs/:/app/logs \
+    --env-file "$CURRENT_FS_DOCKER_CONFIG_DIR/logging/logging.env" \
+    -v "$DOCKER_CONFIG_DIR/log/logging-docker-logs/:/app/logs" \
     -d hms-dbmi/pic-sure-logging:LATEST \
     || exit 2
 else
@@ -164,32 +178,40 @@ fi
 
 if $INCLUDE_HPDS; then
   docker stop hpds && docker rm hpds
+  # shellcheck disable=SC2086
   docker run --name=hpds --restart always --network=picsure --network=hpds \
-    -v $DOCKER_CONFIG_DIR/hpds:/opt/local/hpds \
-    -v $DOCKER_CONFIG_DIR/hpds/all:/opt/local/hpds/all \
+    -v "$DOCKER_CONFIG_DIR/hpds:/opt/local/hpds" \
+    -v "$DOCKER_CONFIG_DIR/hpds/all:/opt/local/hpds/all" \
     -v "$DOCKER_CONFIG_DIR"/log/hpds-logs/:/var/log/ \
-    -v $DOCKER_CONFIG_DIR/hpds_csv/:/usr/local/docker-config/hpds_csv/ \
+    -v "$DOCKER_CONFIG_DIR/hpds_csv/:/usr/local/docker-config/hpds_csv/" \
     $HPDS_DEBUG \
-    -v $DOCKER_CONFIG_DIR/aws_uploads/:/gic_query_results/ \
-    --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/hpds/hpds.env \
+    -v "$DOCKER_CONFIG_DIR/aws_uploads/:/gic_query_results/" \
+    --env-file "$CURRENT_FS_DOCKER_CONFIG_DIR/hpds/hpds.env" \
     $LOGGING_ENVS \
     -d hms-dbmi/pic-sure-hpds:LATEST \
     || exit 2
 fi
 
-stop_and_remove_container psama || exit 2
-docker run --name=psama --restart always \
-  --network=picsure \
-  --health-cmd='wget -q --spider http://127.0.0.1:8090/auth/actuator/health || exit 1' \
-  --health-interval=10s --health-timeout=5s --health-start-period=30s --health-retries=5 \
-  --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/psama/psama.env \
-  $LOGGING_ENVS \
-  -v $DOCKER_CONFIG_DIR/log/psama-docker-logs/:/var/log/ \
-  $PSAMA_DEBUG \
-  $PSAMA_TRUSTSTORE_VOLUME \
-  -d hms-dbmi/psama:LATEST \
-  || exit 2
-assert_container_running psama || exit 2
+start_psama() {
+  stop_and_remove_container psama || return 2
+  # shellcheck disable=SC2086
+  docker run --name=psama --restart always \
+    --network=picsure \
+    --health-cmd='wget -q --spider http://127.0.0.1:8090/auth/actuator/health || exit 1' \
+    --health-interval=10s --health-timeout=5s --health-start-period=30s --health-retries=5 \
+    --env-file "$CURRENT_FS_DOCKER_CONFIG_DIR/psama/psama.env" \
+    $LOGGING_ENVS \
+    -v "$DOCKER_CONFIG_DIR/log/psama-docker-logs/:/var/log/" \
+    $PSAMA_DEBUG \
+    $PSAMA_TRUSTSTORE_VOLUME \
+    -d hms-dbmi/psama:LATEST \
+    || return 2
+  assert_container_running psama
+}
+
+if [[ "$AIO_RECREATE_PSAMA_AFTER_BACKEND" == "false" ]]; then
+  start_psama || exit 2
+fi
 
 
 # WildFly is no longer part of the all-in-one (the rewrite's gateway + services replaced it).
@@ -199,7 +221,9 @@ docker stop wildfly 2>/dev/null; docker rm wildfly 2>/dev/null || true
 if $INCLUDE_OPERATIONS; then
   stop_and_remove_container pic-sure-operations-service || exit 2
   docker run --name=pic-sure-operations-service --restart always --network=picsure \
-    --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/operations/operations.env \
+    --health-cmd='wget -q --spider http://127.0.0.1:8080/operations/actuator/health/readiness || exit 1' \
+    --health-interval=10s --health-timeout=5s --health-start-period=60s --health-retries=6 \
+    --env-file "$CURRENT_FS_DOCKER_CONFIG_DIR/operations/operations.env" \
     -d hms-dbmi/pic-sure-operations-service:LATEST \
     || exit 2
   assert_container_running pic-sure-operations-service || exit 2
@@ -208,7 +232,9 @@ fi
 if $INCLUDE_QUERY; then
   stop_and_remove_container pic-sure-hpds-query-service || exit 2
   docker run --name=pic-sure-hpds-query-service --restart always --network=picsure \
-    --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/query/query.env \
+    --health-cmd='wget -q --spider http://127.0.0.1:8080/actuator/health || exit 1' \
+    --health-interval=10s --health-timeout=5s --health-start-period=60s --health-retries=6 \
+    --env-file "$CURRENT_FS_DOCKER_CONFIG_DIR/query/query.env" \
     -d hms-dbmi/pic-sure-hpds-query-service:LATEST \
     || exit 2
   assert_container_running pic-sure-hpds-query-service || exit 2
@@ -217,10 +243,66 @@ fi
 if $INCLUDE_GATEWAY; then
   stop_and_remove_container gateway || exit 2
   docker run --name=gateway --restart always --network=picsure \
-    --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/gateway/gateway.env \
+    --health-cmd='test "$(wget -qO- http://127.0.0.1:8080/system/status)" = RUNNING' \
+    --health-interval=10s --health-timeout=5s --health-start-period=60s --health-retries=6 \
+    --env-file "$CURRENT_FS_DOCKER_CONFIG_DIR/gateway/gateway.env" \
     -d hms-dbmi/pic-sure-gateway:LATEST \
     || exit 2
   assert_container_running gateway || exit 2
+fi
+
+if $INCLUDE_DICTIONARY; then
+  docker start dictionary-db
+  docker stop dictionary-api && docker rm dictionary-api
+  # shellcheck disable=SC2086
+  docker run --name dictionary-api --restart always \
+   --network=picsure --network=dictionary \
+   $DICTIONARY_DEBUG \
+    -v "$DOCKER_CONFIG_DIR/log/dictionary-docker-logs/:/var/log/" \
+   --env-file "$CURRENT_FS_DOCKER_CONFIG_DIR/dictionary/dictionary.env" \
+   $LOGGING_ENVS \
+   -d avillach/dictionary-api:latest \
+   || exit 2
+fi
+
+if $INCLUDE_AGG_DICT; then
+  docker stop dictionary-dump && docker rm dictionary-dump
+  # shellcheck disable=SC2086
+  docker run --name dictionary-dump --restart always \
+    --network=dictionary \
+    --env-file "$CURRENT_FS_DOCKER_CONFIG_DIR/dictionary/dictionary.env" \
+    $AGGREGATE_DEBUG \
+    -v "$DOCKER_CONFIG_DIR/log/agg-dict-docker-logs/:/var/log/" \
+    -v "$DOCKER_CONFIG_DIR/dictionary/dump/application.properties:/application.properties" \
+    -d avillach/dictionary-dump:latest \
+   || exit 2
+fi
+
+if $INCLUDE_PASSTHRU; then
+  docker stop passthru && docker rm passthru
+  # shellcheck disable=SC2086
+  docker run --restart always --name passthru --network picsure --network dictionary \
+    -v "$DOCKER_CONFIG_DIR/passthru/application.properties:/application.properties" \
+    -v "$DOCKER_CONFIG_DIR/log/passthru-docker-logs/:/var/log/" \
+    --env-file "$CURRENT_FS_DOCKER_CONFIG_DIR/passthru/passthru.env" \
+    $PASSTHRU_DEBUG \
+    -d hms-dbmi/pic-sure-passthru:LATEST \
+    || exit 2
+fi
+
+if $INCLUDE_VISUALIZATION; then
+  docker stop visualization && docker rm visualization
+  # shellcheck disable=SC2086
+  docker run --restart always --name visualization --network picsure \
+    -v "$DOCKER_CONFIG_DIR/log/visualization-docker-logs/:/var/log/" \
+    --env-file "$CURRENT_FS_DOCKER_CONFIG_DIR/visualization/visualization.env" \
+    $LOGGING_ENVS \
+    -d hms-dbmi/pic-sure-visualization:LATEST \
+    || exit 2
+fi
+
+if [[ "$AIO_RECREATE_PSAMA_AFTER_BACKEND" == "true" ]]; then
+  start_psama || exit 2
 fi
 
 wait_for_container_health psama || exit 2
@@ -242,53 +324,4 @@ if [[ "$AIO_PUBLISH_FRONTEND" == "true" ]]; then
       -d hms-dbmi/pic-sure-frontend:LATEST \
       || exit 2
   assert_container_running httpd || exit 2
-elif [[ "$AIO_PUBLISH_FRONTEND" != "false" ]]; then
-  echo "ERROR: AIO_PUBLISH_FRONTEND must be true or false." >&2
-  exit 2
-fi
-
-if $INCLUDE_DICTIONARY; then
-  docker start dictionary-db
-  docker stop dictionary-api && docker rm dictionary-api
-  docker run --name dictionary-api --restart always \
-   --network=picsure --network=dictionary \
-   $DICTIONARY_DEBUG \
-    -v $DOCKER_CONFIG_DIR/log/dictionary-docker-logs/:/var/log/ \
-   --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/dictionary/dictionary.env \
-   $LOGGING_ENVS \
-   -d avillach/dictionary-api:latest \
-   || exit 2
-fi
-
-if $INCLUDE_AGG_DICT; then
-  docker stop dictionary-dump && docker rm dictionary-dump
-  docker run --name dictionary-dump --restart always \
-    --network=dictionary \
-    --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/dictionary/dictionary.env \
-    $AGGREGATE_DEBUG \
-    -v $DOCKER_CONFIG_DIR/log/agg-dict-docker-logs/:/var/log/ \
-    -v $DOCKER_CONFIG_DIR/dictionary/dump/application.properties:/application.properties \
-    -d avillach/dictionary-dump:latest \
-   || exit 2
-fi
-
-if $INCLUDE_PASSTHRU; then
-  docker stop passthru && docker rm passthru
-  docker run --restart always --name passthru --network picsure --network dictionary \
-    -v $DOCKER_CONFIG_DIR/passthru/application.properties:/application.properties \
-    -v $DOCKER_CONFIG_DIR/log/passthru-docker-logs/:/var/log/ \
-    --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/passthru/passthru.env \
-    $PASSTHRU_DEBUG \
-    -d hms-dbmi/pic-sure-passthru:LATEST \
-    || exit 2
-fi
-
-if $INCLUDE_VISUALIZATION; then
-  docker stop visualization && docker rm visualization
-  docker run --restart always --name visualization --network picsure \
-    -v $DOCKER_CONFIG_DIR/log/visualization-docker-logs/:/var/log/ \
-    --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/visualization/visualization.env \
-    $LOGGING_ENVS \
-    -d hms-dbmi/pic-sure-visualization:LATEST \
-    || exit 2
 fi

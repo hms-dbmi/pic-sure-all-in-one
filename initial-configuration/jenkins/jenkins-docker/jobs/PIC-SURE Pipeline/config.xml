@@ -20,6 +20,12 @@
           <description>Exact release-control commit for an orchestrated update.</description>
           <trim>true</trim>
         </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>migration_build_number</name>
+          <defaultValue></defaultValue>
+          <description>Successful PIC-SURE Database Migrations build for the same release-control commit.</description>
+          <trim>true</trim>
+        </hudson.model.StringParameterDefinition>
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
   </properties>
@@ -49,13 +55,30 @@ pipeline {
                     retrieveBuildSpecId = result.number
                 }
                 script {
-                    copyArtifacts filter: &apos;*&apos;, projectName: &apos;Retrieve Build Spec&apos;, selector: specific(&quot;&quot;+retrieveBuildSpecId)
+                    copyArtifacts filter: &apos;*&apos;, projectName: &apos;Retrieve Pinned Build Spec&apos;, selector: specific(&quot;&quot;+retrieveBuildSpecId)
                     sh &apos;cat build-spec.json&apos;
                     sh &apos;cat pipeline_git_commit.txt&apos;
                     def buildSpec = new JsonSlurper().parse(new File(&apos;/var/jenkins_home/workspace/PIC-SURE Pipeline/build-spec.json&apos;))
                     pipelineBuildId = new File(&apos;/var/jenkins_home/workspace/PIC-SURE Pipeline/pipeline_git_commit.txt&apos;).text.trim()
                     for(def build : buildSpec.application){
                         build_hashes[build.project_job_git_key] = build.git_hash
+                    }
+                }
+            }
+        }
+        stage(&apos;Verify Migrations&apos;) {
+            steps {
+                script {
+                    if (!(params.migration_build_number ==~ /[1-9][0-9]*/)) {
+                        error(&apos;PIC-SURE Pipeline requires a successful migration_build_number; use Check For Updates.&apos;)
+                    }
+                    sh &apos;rm -f migration-release-control-commit.txt&apos;
+                    copyArtifacts filter: &apos;migration-release-control-commit.txt&apos;,
+                        projectName: &apos;PIC-SURE Database Migrations&apos;,
+                        selector: specific(params.migration_build_number)
+                    def migratedCommit = new File(&apos;/var/jenkins_home/workspace/PIC-SURE Pipeline/migration-release-control-commit.txt&apos;).text.trim()
+                    if (migratedCommit != params.release_control_commit) {
+                        error(&quot;Migration build ${params.migration_build_number} used release-control commit ${migratedCommit}, expected ${params.release_control_commit}.&quot;)
                     }
                 }
             }

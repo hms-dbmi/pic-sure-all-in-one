@@ -34,11 +34,12 @@
 set -e
 BUILD_SPEC=build-spec.json
 CONTRACT=/scripts/banner-rollout-contract.json
-EXPECTED_CONTRACT_COMMIT=0178bbd2d1753e07dcead77a6d0e8ca37bf76dd8
-EXPECTED_CONTRACT_SHA256=f8cb265d735b757872391e04fdcd5b999b785eaa427ca13f8f2eefd493715359
+SOURCE=/scripts/banner-rollout-source.json
+EXPECTED_CONTRACT_COMMIT=$(jq -er &apos;.contractSourceCommit&apos; "$SOURCE")
+EXPECTED_CONTRACT_SHA256=$(jq -er &apos;.contractSha256&apos; "$SOURCE")
 
 test "$(sha256sum "$CONTRACT" | awk &apos;{print $1}&apos;)" = "$EXPECTED_CONTRACT_SHA256"
-jq -e --arg commit "$EXPECTED_CONTRACT_COMMIT" --arg checksum "$EXPECTED_CONTRACT_SHA256" &apos;
+jq -e --arg commit "$EXPECTED_CONTRACT_COMMIT" --arg checksum "$EXPECTED_CONTRACT_SHA256" --arg aio "$AIO_WORKFLOW_COMMIT" &apos;
   .bannerRollout.contractSourceCommit == $commit and
   .bannerRollout.contractSha256 == $checksum and
   .bannerRollout.releaseControlCommitSource == "pipeline_git_commit.txt" and
@@ -59,7 +60,9 @@ jq -e --arg commit "$EXPECTED_CONTRACT_COMMIT" --arg checksum "$EXPECTED_CONTRAC
   .bannerRollout.schemaRollback == "KEEP_FORWARD_SCHEMA" and
   .bannerRollout.downMigrationAllowed == false and
   (["PSA", "PSF", "PSM", "AIO"] - [.application[].project_job_git_key]) == [] and
-  ([.application[] | select(.project_job_git_key == "PSA" or .project_job_git_key == "PSF" or .project_job_git_key == "PSM" or .project_job_git_key == "AIO") | .git_hash] | all(test("^[0-9a-f]{40}$")))
+  ([.application[] | select(.project_job_git_key == "PSA" or .project_job_git_key == "PSF" or .project_job_git_key == "PSM" or .project_job_git_key == "AIO") | .git_hash] | all(test("^[0-9a-f]{40}$"))) and
+  ([.application[] | select(.project_job_git_key == "PSA") | .git_hash] == [$commit]) and
+  ([.application[] | select(.project_job_git_key == "AIO") | .git_hash] == [$aio])
 &apos; "$BUILD_SPEC" &gt;/dev/null
 </command>
       <configuredLocalRules/>
@@ -90,7 +93,8 @@ if (migrationsRun.result != Result.SUCCESS) {
 
 def pipelineRun = Jenkins.instance.getItemByFullName(&quot;PIC-SURE Pipeline&quot;)
     .scheduleBuild2(0, new ParametersAction(
-        new StringParameterValue(&quot;release_control_commit&quot;, releaseControlCommit)
+        new StringParameterValue(&quot;release_control_commit&quot;, releaseControlCommit),
+        new StringParameterValue(&quot;migration_build_number&quot;, migrationsRun.number.toString())
     )).get()
 if (pipelineRun.result != Result.SUCCESS) {
     throw new Exception(&quot;PIC-SURE Pipeline failed with result: ${pipelineRun.result}&quot;)

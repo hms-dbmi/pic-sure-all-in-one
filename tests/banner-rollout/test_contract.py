@@ -13,6 +13,7 @@ import xml.etree.ElementTree as ET
 ROOT = Path(__file__).resolve().parents[2]
 JOBS = ROOT / "initial-configuration/jenkins/jenkins-docker/jobs"
 CONTRACT = ROOT / "initial-configuration/jenkins/jenkins-docker/banner-rollout-contract.json"
+CONTRACT_SOURCE = ROOT / "initial-configuration/jenkins/jenkins-docker/banner-rollout-source.json"
 EXPECTED_CONTRACT_COMMIT = "0178bbd2d1753e07dcead77a6d0e8ca37bf76dd8"
 EXPECTED_CONTRACT_SHA256 = "f8cb265d735b757872391e04fdcd5b999b785eaa427ca13f8f2eefd493715359"
 EXPECTED_FORWARD = [
@@ -56,6 +57,8 @@ def validate_update_script(script: str) -> None:
     if "migrationsRun.result != Result.SUCCESS" not in migrations_guard or "throw new Exception" not in migrations_guard:
         raise AssertionError("migration failure must stop the update before the application pipeline")
     pipeline_guard = script[pipeline_position:]
+    if "migration_build_number" not in pipeline_guard or "migrationsRun.number.toString()" not in pipeline_guard:
+        raise AssertionError("application pipeline must consume proof from the successful migration build")
     if "pipelineRun.result != Result.SUCCESS" not in pipeline_guard or "throw new Exception" not in pipeline_guard:
         raise AssertionError("application pipeline failure must fail the update")
 
@@ -110,8 +113,8 @@ elif [[ "$*" == *"inspect --format={{.State.Health.Status}}"* ]]; then
 elif [[ "$1 ${2:-}" == "container inspect" ]]; then
   exit 1
 elif [[ "$1 ${2:-}" == "image inspect" ]]; then
-  if [[ "$*" == *"--format={{.Id}}"* && "$*" == *"frontend"* ]]; then
-    printf '%s\\n' image-frontend-rollback
+  if [[ "$*" == *"--format={{.Id}}"* ]]; then
+    printf '%s\\n' sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
   else
     printf '%s\\n' "image-${*: -1}"
   fi
@@ -152,7 +155,7 @@ def run_script(script: Path, config: Path, extra_env=None, *args: str):
             "DOCKER_CONFIG_DIR": str(config),
             "CURRENT_FS_DOCKER_CONFIG_DIR": str(config),
             "AIO_HEALTH_TIMEOUT_SECONDS": "1",
-            "AIO_HEALTH_POLL_SECONDS": "0",
+            "AIO_HEALTH_POLL_SECONDS": "1",
         }
     )
     if extra_env:
@@ -184,6 +187,9 @@ class RolloutContractTest(unittest.TestCase):
         self.assertEqual(contract["deploymentWideCacheRefresh"], "PSAMA_PROCESS_RESTART")
         self.assertEqual(contract["schemaRollback"], "KEEP_FORWARD_SCHEMA")
         self.assertFalse(contract["downMigrationAllowed"])
+        source = json.loads(CONTRACT_SOURCE.read_text())
+        self.assertEqual(source["contractSourceCommit"], EXPECTED_CONTRACT_COMMIT)
+        self.assertEqual(source["contractSha256"], EXPECTED_CONTRACT_SHA256)
 
     def test_update_parses_real_jenkins_xml_and_pins_one_release_checkout(self):
         config = ET.parse(JOBS / "Check For Updates/config.xml").getroot()
@@ -191,8 +197,11 @@ class RolloutContractTest(unittest.TestCase):
         validate_update_script(script)
         shell = config.findtext(".//hudson.tasks.Shell/command") or ""
         self.assertIn('(["PSA", "PSF", "PSM", "AIO"]', shell)
-        self.assertIn(EXPECTED_CONTRACT_COMMIT, shell)
-        self.assertIn(EXPECTED_CONTRACT_SHA256, shell)
+        self.assertNotIn(EXPECTED_CONTRACT_COMMIT, shell)
+        self.assertNotIn(EXPECTED_CONTRACT_SHA256, shell)
+        self.assertIn("AIO_WORKFLOW_COMMIT", shell)
+        self.assertIn('project_job_git_key == "PSA"', shell)
+        self.assertIn("banner-rollout-source.json", shell)
         syntax = subprocess.run(
             ["bash", "-n"], input=shell, text=True, capture_output=True, check=False
         )
@@ -221,6 +230,10 @@ class RolloutContractTest(unittest.TestCase):
     def test_start_executes_backend_before_public_httpd(self):
         source = (ROOT / "start-picsure.sh").read_text()
         validate_start_script(source)
+        self.assertIn("/operations/actuator/health/readiness", source)
+        self.assertIn("/system/status", source)
+        self.assertIn("RUNNING", source)
+        self.assertNotIn("# shellcheck disable=SC1091,SC2086", source)
         with self.assertRaises(AssertionError):
             validate_start_script(source.replace("docker run --name=psama", "docker run --name=omitted", 1))
         reordered = source.replace("docker run --name=psama", "docker run --name=TEMP", 1)
@@ -266,6 +279,17 @@ class RolloutContractTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertFalse(any("run --name=httpd" in command for command in commands))
 
+    def test_zero_health_poll_interval_fails_before_docker_commands(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = required_config(Path(tmp) / "config")
+            result, commands = run_script(
+                ROOT / "start-picsure.sh",
+                config,
+                {"AIO_HEALTH_POLL_SECONDS": "0"},
+            )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(commands, [])
+
     def test_rollback_executes_only_after_ordered_attestations_and_keeps_httpd_down(self):
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -287,6 +311,10 @@ class RolloutContractTest(unittest.TestCase):
                             "query": "synthetic/query:old",
                             "gateway": "synthetic/gateway:old",
                         },
+                        "rollbackImageIds": {
+                            key: "sha256:" + "a" * 64
+                            for key in ("frontend", "psama", "operations", "query", "gateway")
+                        },
                     }
                 )
             )
@@ -298,9 +326,39 @@ class RolloutContractTest(unittest.TestCase):
         )
         self.assertLess(
             index_of(commands, "tag synthetic/gateway:old hms-dbmi/pic-sure-gateway:LATEST"),
-            index_of(commands, "run --name=psama"),
+            index_of(commands, "run --name=pic-sure-operations-service"),
         )
+        self.assertLess(index_of(commands, "run --name=gateway"), index_of(commands, "run --name=psama"))
         self.assertFalse(any("run --name=httpd" in command for command in commands))
+
+    def test_rollback_rejects_an_image_id_that_changed_after_attestation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            config = required_config(tmp_path / "config")
+            state = tmp_path / "state.json"
+            state.write_text(
+                json.dumps(
+                    {
+                        "schemaVersion": 1,
+                        "contractSourceCommit": EXPECTED_CONTRACT_COMMIT,
+                        "contractSha256": EXPECTED_CONTRACT_SHA256,
+                        "completedPhases": EXPECTED_ROLLBACK[:3],
+                        "forwardSchemaRetained": True,
+                        "downMigrationRequested": False,
+                        "rollbackImages": {
+                            key: f"synthetic/{key}:old"
+                            for key in ("frontend", "psama", "operations", "query", "gateway")
+                        },
+                        "rollbackImageIds": {
+                            key: "sha256:" + ("b" if key == "gateway" else "a") * 64
+                            for key in ("frontend", "psama", "operations", "query", "gateway")
+                        },
+                    }
+                )
+            )
+            result, commands = run_script(ROOT / "rollback-picsure.sh", config, None, str(state))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertFalse(any(command.startswith("tag ") for command in commands))
 
     def test_rollback_rejects_omitted_or_reordered_preconditions(self):
         for phases in (EXPECTED_ROLLBACK[:2], list(reversed(EXPECTED_ROLLBACK[:3]))):
@@ -318,6 +376,7 @@ class RolloutContractTest(unittest.TestCase):
                             "forwardSchemaRetained": True,
                             "downMigrationRequested": False,
                             "rollbackImages": {},
+                            "rollbackImageIds": {},
                         }
                     )
                 )
@@ -338,6 +397,12 @@ class RolloutContractTest(unittest.TestCase):
             script = xml_script(JOBS / job / "config.xml")
             self.assertIn("release_control_commit", script)
             self.assertIn("Retrieve Pinned Build Spec", script)
+            self.assertIn("projectName: 'Retrieve Pinned Build Spec'", script)
+        migrations = xml_script(JOBS / "PIC-SURE Database Migrations/config.xml")
+        self.assertIn("migration-release-control-commit.txt", migrations)
+        pipeline = xml_script(JOBS / "PIC-SURE Pipeline/config.xml")
+        self.assertIn("migration_build_number", pipeline)
+        self.assertIn("migration-release-control-commit.txt", pipeline)
         retrieve = ET.parse(JOBS / "Retrieve Pinned Build Spec/config.xml").getroot()
         branch = retrieve.findtext(".//hudson.plugins.git.BranchSpec/name")
         self.assertEqual(branch, "${release_control_commit}")
@@ -348,7 +413,7 @@ class RolloutContractTest(unittest.TestCase):
         application = initial.index("build job: 'PIC-SURE Pipeline'")
         self.assertLess(migration, application)
         self.assertIn("release_control_commit", initial[migration:application + 500])
-        pipeline = xml_script(JOBS / "PIC-SURE Pipeline/config.xml")
+        self.assertIn("migration_build_number", initial[migration:application + 500])
         for image_job in (
             "PIC-SURE Auth Micro-App Build - Jenkinsfile",
             "PIC-SURE Operations Service Build and Deploy",
@@ -364,9 +429,14 @@ class RolloutContractTest(unittest.TestCase):
             ["bash", "-n"], input=command, text=True, capture_output=True, check=False
         )
         self.assertEqual(syntax.returncode, 0, syntax.stderr)
+        self.assertIsNotNone(rollback.find(".//hudson.plugins.ws__cleanup.PreBuildCleanup"))
         mounts = (ROOT / "start-jenkins.sh").read_text()
         self.assertIn("./rollback-picsure.sh:/scripts/rollback-picsure.sh", mounts)
         self.assertIn("banner-rollout-contract.json:/scripts/banner-rollout-contract.json:ro", mounts)
+        self.assertIn("banner-rollout-source.json:/scripts/banner-rollout-source.json:ro", mounts)
+        self.assertIn("AIO_WORKFLOW_COMMIT", mounts)
+        replace_frontend = ET.parse(JOBS / "Replace Frontend/config.xml").getroot()
+        self.assertEqual(replace_frontend.findtext("disabled"), "true")
         jenkins = ET.parse(
             ROOT / "initial-configuration/jenkins/jenkins-docker/config.xml"
         ).getroot()
@@ -377,6 +447,13 @@ class RolloutContractTest(unittest.TestCase):
             for name in view.findall("./jobNames/string")
         ]
         self.assertIn("Rollback PIC-SURE", deployment_jobs)
+
+    def test_documented_rollback_can_reach_gateway_while_httpd_is_stopped(self):
+        readme = (ROOT / "README.md").read_text()
+        self.assertIn("http://gateway:8080", readme)
+        self.assertIn("Jenkins container", readme)
+        initial = xml_script(JOBS / "Initial Configuration Pipeline/config.xml")
+        self.assertNotIn("Initial Config and Build", initial)
 
 
 if __name__ == "__main__":

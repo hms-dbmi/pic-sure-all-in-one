@@ -26,6 +26,7 @@
 set -e
 export CURRENT_FS_DOCKER_CONFIG_DIR=/usr/local/docker-config/
 export AIO_ROLLOUT_CONTRACT_FILE=/scripts/banner-rollout-contract.json
+export AIO_ROLLOUT_SOURCE_FILE=/scripts/banner-rollout-source.json
 export AIO_START_SCRIPT=/scripts/start-picsure.sh
 /scripts/rollback-picsure.sh rollback-state.json
 </command>
@@ -33,5 +34,12 @@ export AIO_START_SCRIPT=/scripts/start-picsure.sh
     </hudson.tasks.Shell>
   </builders>
   <publishers/>
-  <buildWrappers/>
+  <buildWrappers>
+    <hudson.plugins.ws__cleanup.PreBuildCleanup plugin="ws-cleanup@0.38">
+      <deleteDirs>false</deleteDirs>
+      <cleanupParameter></cleanupParameter>
+      <externalDelete></externalDelete>
+      <disableDeferredWipeout>false</disableDeferredWipeout>
+    </hudson.plugins.ws__cleanup.PreBuildCleanup>
+  </buildWrappers>
 </project>

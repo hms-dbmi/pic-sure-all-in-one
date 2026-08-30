@@ -155,6 +155,7 @@
   <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@4255.vd9c37f80fd8a_">
     <script>def retrieveBuildSpecId;
 def pipelineBuildId;
+def migrationBuildNumber;
 pipeline {
     agent any
     stages {
@@ -265,6 +266,7 @@ pipeline {
                     def result = build job: &apos;PIC-SURE Database Migrations&apos;, parameters: [
                         [$class: &apos;StringParameterValue&apos;, name: &apos;release_control_commit&apos;, value: pipelineBuildId]
                     ]
+                    migrationBuildNumber = result.number
                 }
             }
         }
@@ -273,7 +275,8 @@ pipeline {
             steps {
                 script {
                     def result = build job: &apos;PIC-SURE Pipeline&apos;, parameters: [
-                        [$class: &apos;StringParameterValue&apos;, name: &apos;release_control_commit&apos;, value: pipelineBuildId]
+                        [$class: &apos;StringParameterValue&apos;, name: &apos;release_control_commit&apos;, value: pipelineBuildId],
+                        [$class: &apos;StringParameterValue&apos;, name: &apos;migration_build_number&apos;, value: &quot;&quot; + migrationBuildNumber]
                     ]
                 }
             }
@@ -308,7 +311,7 @@ pipeline {
         stage(&apos;Apply Configuration&apos;) {
             steps {
                 script {
-                    // The gateway came up in Initial Config and Build with the token
+                    // The gateway came up in Application Build with the token
                     // placeholder; Post Migration Configs only wrote the real one to
                     // gateway.env. Recreate the stack now rather than leaving it stale
                     // for the whole demo-data load.

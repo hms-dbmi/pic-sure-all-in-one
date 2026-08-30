@@ -246,8 +246,9 @@ sudo ./stop-jenkins.sh
 
 `Check For Updates` resolves one release-control commit, applies the database migrations from that release, and only
 then builds and restarts the application. `Start PIC-SURE` recreates PSAMA, starts Operations, Query, and Gateway, and
-waits for Operations and Gateway health before it starts the public httpd/frontend container. PSAMA recreation is the
-deployment-wide authorization-cache refresh. AIO has no global cache-eviction operation.
+waits for PSAMA health, Operations readiness, Query health, and a `RUNNING` Gateway deep system status before it starts
+the public httpd/frontend container. PSAMA recreation is the deployment-wide authorization-cache refresh. AIO has no
+global cache-eviction operation.
 
 The update is fail closed. A migration or backend-health failure leaves the new frontend unpublished. During startup,
 new banner management routes may remain unavailable until PSAMA has been recreated and the backend is healthy.
@@ -255,8 +256,10 @@ new banner management routes may remain unavailable until PSAMA has been recreat
 Use `Rollback PIC-SURE` only with an operator-reviewed `rollback-state.json`. Before running the job, stop httpd to
 freeze banner management writes, retag the chosen exact frontend rollback image as
 `hms-dbmi/pic-sure-frontend:LATEST`, and disable every Active or Scheduled targeted banner through the final Operations
-management API. The state file attests those steps in this exact order and names exact local images for the backend
-rollback:
+management API. With public httpd stopped, the Jenkins container can still reach the existing Gateway on the internal
+`picsure` Docker network at `http://gateway:8080`; send the normal authenticated management request through that path
+and do not put its token in the state file. The state file attests those steps in this exact order and binds each exact
+local image tag to the image ID inspected during operator review:
 
 ```json
 {
@@ -276,15 +279,23 @@ rollback:
     "operations": "local/pic-sure-operations-service:exact-rollback-tag",
     "query": "local/pic-sure-hpds-query-service:exact-rollback-tag",
     "gateway": "local/pic-sure-gateway:exact-rollback-tag"
+  },
+  "rollbackImageIds": {
+    "frontend": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "psama": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    "operations": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+    "query": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+    "gateway": "sha256:4444444444444444444444444444444444444444444444444444444444444444"
   }
 }
 ```
 
-The rollback job checks the shared contract and attestations, verifies that httpd is stopped and the frontend rollback
-tag is staged, retags the backend images, recreates PSAMA and the backend, and keeps httpd stopped. That outage retains
-the management-write freeze while a backend below the targeted-feed boundary is active. Do not restart the public
-entrypoint until a targeting-capable backend has been restored. Rollback always keeps the forward database schema;
-Flyway down-migrations are prohibited.
+The rollback job checks the shared contract and attestations, verifies every image tag still resolves to its attested
+image ID, confirms that httpd is stopped and the frontend rollback tag is staged, then retags and starts the rolled-back
+Operations, Query, and Gateway services before recreating PSAMA. It keeps httpd stopped, retaining the management-write
+freeze while a backend below the targeted-feed boundary is active. Do not restart the public entrypoint until a
+targeting-capable backend has been restored. Rollback always keeps the forward database schema; Flyway down-migrations
+are prohibited.
 
 - If you would like to connect to a remote database, then run the "Configure Remote MySQL Instance" Jenkins job.
     - You need to provide remote database connection information to "Configure Remote MySQL Instance" Jenkins job

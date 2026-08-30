@@ -633,16 +633,115 @@ class RolloutContractTest(unittest.TestCase):
         self.assertFalse(any("/system/status" in command for command in health_commands))
         self.assertFalse(any("run --name=httpd" in command for command in commands))
 
-    def test_normal_start_rejects_rollback_only_gateway_health_mode(self):
+    def test_normal_start_rejects_inherited_rollback_environment(self):
         with tempfile.TemporaryDirectory() as tmp:
             config = required_config(Path(tmp) / "config")
             result, commands = run_script(
                 ROOT / "start-picsure.sh",
                 config,
-                {"AIO_GATEWAY_HEALTH_MODE": "legacy"},
+                {
+                    "AIO_PUBLISH_FRONTEND": "false",
+                    "AIO_RECREATE_PSAMA_AFTER_BACKEND": "true",
+                    "AIO_GATEWAY_HEALTH_MODE": "legacy",
+                    "AIO_ROLLBACK_STATE_VERIFIED": "true",
+                },
             )
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(commands, [])
+
+    def test_start_rejects_missing_rollback_state_handoff(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            config = required_config(tmp_path / "config")
+            result, commands = run_script(
+                ROOT / "start-picsure.sh",
+                config,
+                None,
+                "--rollback-state",
+                str(tmp_path / "missing.json"),
+            )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(commands, [])
+
+    def test_start_rejects_tampered_rollback_state_handoff(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            config = required_config(tmp_path / "config")
+            state = tmp_path / "state.json"
+            tampered = rollback_state()
+            tampered["completedPhases"] = list(reversed(EXPECTED_ROLLBACK[:3]))
+            state.write_text(json.dumps(tampered))
+            result, commands = run_script(
+                ROOT / "start-picsure.sh",
+                config,
+                None,
+                "--rollback-state",
+                str(state),
+            )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(commands, [])
+
+    def test_start_rejects_stale_rollback_contract_state(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            config = required_config(tmp_path / "config")
+            state = tmp_path / "state.json"
+            stale = rollback_state()
+            stale["contractSourceCommit"] = "0" * 40
+            state.write_text(json.dumps(stale))
+            result, commands = run_script(
+                ROOT / "start-picsure.sh",
+                config,
+                None,
+                "--rollback-state",
+                str(state),
+            )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(commands, [])
+
+    def test_start_accepts_valid_explicit_rollback_state_handoff(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            config = required_config(tmp_path / "config")
+            state = tmp_path / "state.json"
+            state.write_text(json.dumps(rollback_state()))
+            result, commands = run_script(
+                ROOT / "start-picsure.sh",
+                config,
+                None,
+                "--rollback-state",
+                str(state),
+            )
+            health_commands = (tmp_path / "wget.log").read_text().splitlines()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(
+            health_commands[-1],
+            "-q --spider http://127.0.0.1:8080/actuator/health/liveness",
+        )
+        self.assertFalse(
+            any("/operations/banners/active/v2" in command for command in health_commands)
+        )
+        self.assertLess(index_of(commands, "run --name=gateway"), index_of(commands, "run --name=psama"))
+        self.assertFalse(any("run --name=httpd" in command for command in commands))
+
+    def test_start_job_forces_forward_v2_and_frontend(self):
+        start = ET.parse(JOBS / "Start PIC-SURE/config.xml").getroot()
+        command = start.findtext(".//hudson.tasks.Shell/command") or ""
+        self.assertIn("./start-picsure.sh --forward", command)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            config = required_config(tmp_path / "config")
+            result, commands = run_script(
+                ROOT / "start-picsure.sh", config, None, "--forward"
+            )
+            health_commands = (tmp_path / "wget.log").read_text().splitlines()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(
+            health_commands[-1],
+            "-q --spider http://127.0.0.1:8080/operations/banners/active/v2",
+        )
+        self.assertTrue(any("run --name=httpd" in command for command in commands))
 
     def test_rollback_rejects_an_image_id_that_changed_after_attestation(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -90,7 +90,7 @@ docker tag "$gateway_image" hms-dbmi/pic-sure-gateway:LATEST
 # Keep httpd down while a backend below the targeting-capable feed boundary is
 # active. Recreate PSAMA only after the rolled-back backend is running, then
 # health-gate the full request path.
-AIO_PUBLISH_FRONTEND=false AIO_RECREATE_PSAMA_AFTER_BACKEND=true AIO_GATEWAY_HEALTH_MODE=legacy AIO_ROLLBACK_STATE_VERIFIED=true "$START_SCRIPT"
+"$START_SCRIPT" --rollback-state "$STATE_FILE"
 
 if docker container inspect httpd >/dev/null 2>&1; then
   httpd_running=$(docker inspect --format='{{.State.Running}}' httpd)

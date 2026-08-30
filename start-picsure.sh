@@ -7,40 +7,134 @@
 # - Challenge your own understanding of where files are located in docker and on the host file system and
 # how that does or doesn't change the commands you run when inside Jenkins
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DOCKER_CONFIG_DIR="${DOCKER_CONFIG_DIR:-/usr/local/docker-config}"
 # Use this for file system checks. Use DOCKER_CONFIG_DIR for docker commands.
 # Except for --env_file commands, which refer to the current file system, not the root fs
 CURRENT_FS_DOCKER_CONFIG_DIR="${CURRENT_FS_DOCKER_CONFIG_DIR:-$DOCKER_CONFIG_DIR}"
 AIO_HEALTH_TIMEOUT_SECONDS="${AIO_HEALTH_TIMEOUT_SECONDS:-180}"
 AIO_HEALTH_POLL_SECONDS="${AIO_HEALTH_POLL_SECONDS:-2}"
-AIO_PUBLISH_FRONTEND="${AIO_PUBLISH_FRONTEND:-true}"
-AIO_RECREATE_PSAMA_AFTER_BACKEND="${AIO_RECREATE_PSAMA_AFTER_BACKEND:-false}"
-AIO_GATEWAY_HEALTH_MODE="${AIO_GATEWAY_HEALTH_MODE:-banner-v2}"
-AIO_ROLLBACK_STATE_VERIFIED="${AIO_ROLLBACK_STATE_VERIFIED:-false}"
+
+fail() {
+  echo "ERROR: $*" >&2
+  exit 2
+}
+
+default_rollout_file() {
+  local filename=$1
+  if [[ -f "$SCRIPT_DIR/$filename" ]]; then
+    printf '%s/%s\n' "$SCRIPT_DIR" "$filename"
+  else
+    printf '%s/initial-configuration/jenkins/jenkins-docker/%s\n' "$SCRIPT_DIR" "$filename"
+  fi
+}
+
+validate_rollback_state() {
+  local state_file=$1
+  local contract_file
+  local source_file
+  local expected_contract_commit
+  local expected_contract_sha
+  local actual_contract_sha
+  local phase0
+  local phase1
+  local phase2
+  local key
+  local image
+  local attested_id
+  local actual_id
+  local active_id
+  local active_image
+
+  [[ -f "$state_file" ]] || fail "rollback state file not found: $state_file"
+  contract_file="${AIO_ROLLOUT_CONTRACT_FILE:-$(default_rollout_file banner-rollout-contract.json)}"
+  source_file="${AIO_ROLLOUT_SOURCE_FILE:-$(default_rollout_file banner-rollout-source.json)}"
+  [[ -f "$contract_file" ]] || fail "rollout contract not found: $contract_file"
+  [[ -f "$source_file" ]] || fail "rollout contract source metadata not found: $source_file"
+  [[ -f "$SCRIPT_DIR/aio-sha256.sh" ]] || fail "checksum helper not found: $SCRIPT_DIR/aio-sha256.sh"
+  command -v jq >/dev/null 2>&1 || fail "jq is required"
+  # shellcheck source=aio-sha256.sh
+  . "$SCRIPT_DIR/aio-sha256.sh"
+
+  expected_contract_commit=$(jq -er '.contractSourceCommit | select(type == "string" and test("^[0-9a-f]{40}$"))' "$source_file") || fail "rollout source metadata is invalid: $source_file"
+  expected_contract_sha=$(jq -er '.contractSha256 | select(type == "string" and test("^[0-9a-f]{64}$"))' "$source_file") || fail "rollout source metadata is invalid: $source_file"
+  actual_contract_sha=$(sha256_file "$contract_file") || exit $?
+  [[ "$actual_contract_sha" == "$expected_contract_sha" ]] || fail "local rollout contract checksum does not match backend $expected_contract_commit"
+  phase0=$(jq -er '.rollbackPhases[0]' "$contract_file") || fail "rollout contract is missing rollback phase 0"
+  phase1=$(jq -er '.rollbackPhases[1]' "$contract_file") || fail "rollout contract is missing rollback phase 1"
+  phase2=$(jq -er '.rollbackPhases[2]' "$contract_file") || fail "rollout contract is missing rollback phase 2"
+
+  jq -e \
+    --arg commit "$expected_contract_commit" \
+    --arg checksum "$expected_contract_sha" \
+    --arg phase0 "$phase0" \
+    --arg phase1 "$phase1" \
+    --arg phase2 "$phase2" '
+      .schemaVersion == 1 and
+      .contractSourceCommit == $commit and
+      .contractSha256 == $checksum and
+      .completedPhases == [$phase0, $phase1, $phase2] and
+      .forwardSchemaRetained == true and
+      .downMigrationRequested == false
+    ' "$state_file" >/dev/null || fail "rollback state does not match the current fail-closed contract"
+
+  if docker container inspect httpd >/dev/null 2>&1; then
+    [[ "$(docker inspect --format='{{.State.Running}}' httpd)" != "true" ]] || fail "httpd is running; banner management writes are not fail closed"
+  fi
+
+  for key in frontend psama operations query gateway; do
+    image=$(jq -er ".rollbackImages.${key}" "$state_file") || fail "rollbackImages.$key is missing"
+    [[ "$image" == *:* && "$image" != *":LATEST" && "$image" != *":latest" ]] || fail "rollbackImages.$key must name an exact, non-LATEST local image tag"
+    attested_id=$(jq -er ".rollbackImageIds.${key}" "$state_file") || fail "rollbackImageIds.$key is missing"
+    [[ "$attested_id" =~ ^sha256:[0-9a-f]{64}$ ]] || fail "rollbackImageIds.$key must be a sha256 image ID"
+    actual_id=$(docker image inspect --format='{{.Id}}' "$image") || fail "rollback image is unavailable: $image"
+    [[ "$actual_id" == "$attested_id" ]] || fail "rollback image $image changed after operator attestation"
+    case "$key" in
+      frontend) active_image="hms-dbmi/pic-sure-frontend:LATEST" ;;
+      psama) active_image="hms-dbmi/psama:LATEST" ;;
+      operations) active_image="hms-dbmi/pic-sure-operations-service:LATEST" ;;
+      query) active_image="hms-dbmi/pic-sure-hpds-query-service:LATEST" ;;
+      gateway) active_image="hms-dbmi/pic-sure-gateway:LATEST" ;;
+    esac
+    active_id=$(docker image inspect --format='{{.Id}}' "$active_image") || fail "rollback target image is unavailable: $active_image"
+    [[ "$active_id" == "$attested_id" ]] || fail "$active_image is not the attested rollback image"
+  done
+}
+
+START_MODE=forward
+ROLLBACK_STATE_FILE=""
+case "$#:$1" in
+  0:)
+    ;;
+  1:--forward)
+    ;;
+  2:--rollback-state)
+    START_MODE=rollback
+    ROLLBACK_STATE_FILE=$2
+    ;;
+  *)
+    fail "usage: $0 [--forward | --rollback-state <rollback-state.json>]"
+    ;;
+esac
 
 for value_name in AIO_HEALTH_TIMEOUT_SECONDS AIO_HEALTH_POLL_SECONDS; do
   [[ "${!value_name}" =~ ^[1-9][0-9]*$ ]] || { echo "ERROR: $value_name must be a positive integer." >&2; exit 2; }
 done
 for value_name in AIO_PUBLISH_FRONTEND AIO_RECREATE_PSAMA_AFTER_BACKEND AIO_ROLLBACK_STATE_VERIFIED; do
-  [[ "${!value_name}" == "true" || "${!value_name}" == "false" ]] || { echo "ERROR: $value_name must be true or false." >&2; exit 2; }
+  [[ -z "${!value_name+x}" ]] || fail "$value_name is caller-controlled and no longer supported"
 done
-case "$AIO_GATEWAY_HEALTH_MODE" in
-  banner-v2)
-    [[ "$AIO_ROLLBACK_STATE_VERIFIED" == "false" ]] || { echo "ERROR: verified rollback must use legacy Gateway health mode." >&2; exit 2; }
-    GATEWAY_HEALTH_COMMAND='wget -q --spider http://127.0.0.1:8080/operations/banners/active/v2 || exit 1'
-    ;;
-  legacy)
-    if [[ "$AIO_ROLLBACK_STATE_VERIFIED" != "true" || "$AIO_PUBLISH_FRONTEND" != "false" || "$AIO_RECREATE_PSAMA_AFTER_BACKEND" != "true" ]]; then
-      echo "ERROR: legacy Gateway health mode is restricted to a verified fail-closed rollback." >&2
-      exit 2
-    fi
-    GATEWAY_HEALTH_COMMAND='wget -q --spider http://127.0.0.1:8080/actuator/health/liveness || exit 1'
-    ;;
-  *)
-    echo "ERROR: AIO_GATEWAY_HEALTH_MODE must be banner-v2 or legacy." >&2
-    exit 2
-    ;;
-esac
+[[ -z "${AIO_GATEWAY_HEALTH_MODE+x}" ]] || fail "AIO_GATEWAY_HEALTH_MODE is caller-controlled and no longer supported"
+
+if [[ "$START_MODE" == "rollback" ]]; then
+  validate_rollback_state "$ROLLBACK_STATE_FILE"
+  AIO_PUBLISH_FRONTEND=false
+  AIO_RECREATE_PSAMA_AFTER_BACKEND=true
+  GATEWAY_HEALTH_COMMAND='wget -q --spider http://127.0.0.1:8080/actuator/health/liveness || exit 1'
+else
+  AIO_PUBLISH_FRONTEND=true
+  AIO_RECREATE_PSAMA_AFTER_BACKEND=false
+  GATEWAY_HEALTH_COMMAND='wget -q --spider http://127.0.0.1:8080/operations/banners/active/v2 || exit 1'
+fi
 
 stop_and_remove_container() {
   local container_name=$1

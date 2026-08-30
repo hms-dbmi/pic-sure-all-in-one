@@ -295,9 +295,11 @@ The rollback job checks the shared contract and attestations, verifies every ima
 image ID, confirms that httpd is stopped and the frontend rollback tag is staged, then retags and starts the rolled-back
 Operations, Query, and Gateway services before recreating PSAMA. It keeps httpd stopped, retaining the management-write
 freeze while a backend below the targeted-feed boundary is active. Do not restart the public entrypoint until a
-targeting-capable backend has been restored. After the rollback script verifies the operator state, it uses Gateway
-`/actuator/health/liveness`; normal forward startup rejects that rollback-only mode and still requires the v2 banner
-feed. Rollback always keeps the forward database schema; Flyway down-migrations are prohibited.
+targeting-capable backend has been restored. The rollback script passes the reviewed state file explicitly to the start
+script. The start script independently checks its current contract, ordered phases, schema flags, image IDs, retagged
+images, and stopped httpd before it enables Gateway `/actuator/health/liveness`. Normal startup explicitly selects
+forward mode, rejects inherited rollback controls, requires the v2 banner feed, and publishes the frontend. Rollback
+always keeps the forward database schema; Flyway down-migrations are prohibited.
 
 - If you would like to connect to a remote database, then run the "Configure Remote MySQL Instance" Jenkins job.
     - You need to provide remote database connection information to "Configure Remote MySQL Instance" Jenkins job

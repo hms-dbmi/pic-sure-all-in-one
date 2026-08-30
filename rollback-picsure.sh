@@ -41,13 +41,28 @@ require_exact_image() {
 require_httpd_frozen() {
   local running_error=$1
   local inspection
-  if inspection=$(docker container inspect --format='{{.State.Running}} {{.HostConfig.RestartPolicy.Name}}' httpd 2>&1); then
+  local inspection_error
+  local inspection_error_file
+  local inspection_status
+  inspection_error_file=$(mktemp "${TMPDIR:-/tmp}/aio-httpd-inspect.XXXXXX")
+  if inspection=$(docker container inspect --format='{{.State.Running}} {{.HostConfig.RestartPolicy.Name}}' httpd 2>"$inspection_error_file"); then
+    inspection_status=0
+  else
+    inspection_status=$?
+  fi
+  inspection_error=$(<"$inspection_error_file")
+  rm -f "$inspection_error_file"
+  if [[ "$inspection_status" -eq 0 ]]; then
+    [[ -z "$inspection_error" ]] || printf '%s\n' "$inspection_error" >&2
     case "$inspection" in
       "false no")
         return
         ;;
       "true "*)
         fail "$running_error"
+        ;;
+      "false"|"false ")
+        fail "httpd restart policy is empty; banner management writes are not restart-proof fail closed"
         ;;
       "false "*)
         fail "httpd restart policy is ${inspection#false }; banner management writes are not restart-proof fail closed"
@@ -57,12 +72,15 @@ require_httpd_frozen() {
         ;;
     esac
   fi
-  case "$inspection" in
+  case "$inspection_error" in
     "Error response from daemon: No such container: httpd"|"Error: No such container: httpd")
       return
       ;;
+    "")
+      fail "could not inspect httpd: Docker exited $inspection_status without a diagnostic"
+      ;;
     *)
-      fail "could not inspect httpd: $inspection"
+      fail "could not inspect httpd: $inspection_error"
       ;;
   esac
 }

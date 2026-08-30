@@ -27,12 +27,16 @@ for workflow_variable in AIO_WORKFLOW_SHA256_SCRIPT AIO_WORKFLOW_MODE AIO_WORKFL
   [[ -z "${!workflow_variable+x}" ]] || fail "$workflow_variable is caller-controlled and must be unset"
 done
 
-if [[ "$SCRIPT_DIR" == */scripts && -x "$SCRIPT_DIR/../aio-workflow/workflow-sha256.sh" ]]; then
+if [[ "$SCRIPT_DIR" == */scripts ]]; then
+  [[ -d "$SCRIPT_DIR/../aio-workflow" ]] || fail "installed workflow root is unavailable: $SCRIPT_DIR/../aio-workflow"
   WORKFLOW_ROOT="$(cd "$SCRIPT_DIR/../aio-workflow" && pwd)"
   WORKFLOW_SHA256_SCRIPT="$WORKFLOW_ROOT/workflow-sha256.sh"
   WORKFLOW_MODE=installed
   WORKFLOW_MANIFEST="$WORKFLOW_ROOT/aio-workflow-files.txt"
   WORKFLOW_JENKINS_HOME="$SCRIPT_DIR/../var/jenkins_home"
+  [[ -x "$WORKFLOW_SHA256_SCRIPT" ]] || fail "installed workflow checksum script not found or not executable: $WORKFLOW_SHA256_SCRIPT"
+  [[ -f "$WORKFLOW_MANIFEST" ]] || fail "installed workflow manifest not found: $WORKFLOW_MANIFEST"
+  [[ -d "$WORKFLOW_JENKINS_HOME/jobs" ]] || fail "installed Jenkins jobs are unavailable: $WORKFLOW_JENKINS_HOME/jobs"
 elif [[ -x "$SCRIPT_DIR/workflow-sha256.sh" ]]; then
   WORKFLOW_ROOT=$SCRIPT_DIR
   WORKFLOW_SHA256_SCRIPT="$WORKFLOW_ROOT/workflow-sha256.sh"

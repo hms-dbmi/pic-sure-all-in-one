@@ -49,11 +49,31 @@ def xml_script(path: Path) -> str:
     return "\n".join(scripts)
 
 
-BUILD_JOB_PATTERN = re.compile(
-    r"""\bbuild\s+job\s*:\s*(['"])([^'"]+)\1"""
+BUILD_JOB_PATTERNS = (
+    re.compile(
+        r"""\bbuild(?:\s+job\s*:|\s*\(\s*job\s*:)\s*
+        (?P<quote>['"])(?P<job>[^'"$\\\r\n]+)(?P=quote)
+        (?=\s*(?:[,);}\r\n]|$))""",
+        re.VERBOSE,
+    ),
+    re.compile(
+        r"""\bbuild(?:\s+|\s*\(\s*)
+        (?P<quote>['"])(?P<job>[^'"$\\\r\n]+)(?P=quote)
+        (?=\s*(?:[,);}\r\n]|$))""",
+        re.VERBOSE,
+    ),
 )
 SCHEDULE_JOB_PATTERN = re.compile(
-    r"""\bgetItem(?:ByFullName)?\(\s*(['"])([^'"]+)\1\s*\)\s*\.scheduleBuild2\b"""
+    r"""\bgetItem(?:ByFullName)?\(\s*(?P<quote>['"])
+    (?P<job>[^'"$\\\r\n]+)(?P=quote)\s*\)\s*\.scheduleBuild2\b""",
+    re.VERBOSE,
+)
+UNRESOLVED_TRIGGER_PATTERN = re.compile(
+    r"""\bbuild(?:\s+job\s*:|\s*\(|\s+['"]|
+    \s+[A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*)*
+    (?=\s*(?:[,);}\r\n]|$)))|
+    \bscheduleBuild2\b""",
+    re.VERBOSE,
 )
 
 
@@ -72,7 +92,7 @@ def scheduled_jobs(script: str) -> list[str]:
     matches = list(SCHEDULE_JOB_PATTERN.finditer(script))
     if re.search(r"\bscheduleBuild2\b", without_matches(script, matches)):
         raise AssertionError("unresolved Jenkins downstream trigger: scheduleBuild2")
-    return [match.group(2) for match in matches]
+    return [match.group("job") for match in matches]
 
 
 def validate_update_script(script: str) -> None:
@@ -316,6 +336,9 @@ elif [[ "$*" == *"inspect --format={{.State.Health.Status}}"* ]]; then
   fi
 elif [[ "$1 ${2:-}" == "container inspect" ]]; then
   name="${*: -1}"
+  if [[ "$name" == "httpd" && -n "${MOCK_HTTPD_INSPECT_STDOUT:-}" ]]; then
+    printf '%s\\n' "$MOCK_HTTPD_INSPECT_STDOUT"
+  fi
   if [[ "$name" == "httpd" && -n "${MOCK_HTTPD_TERMINAL_INSPECT_ERROR:-}" && -f "$MOCK_DOCKER_STATE/gateway-health-checked" ]]; then
     printf '%s\\n' "$MOCK_HTTPD_TERMINAL_INSPECT_ERROR" >&2
     exit 42
@@ -325,8 +348,15 @@ elif [[ "$1 ${2:-}" == "container inspect" ]]; then
     exit 41
   fi
   if [[ "$name" == "httpd" && "${MOCK_HTTPD_PRESENT:-false}" == "true" ]]; then
+    if [[ -n "${MOCK_HTTPD_INSPECT_STDERR:-}" ]]; then
+      printf '%s\\n' "$MOCK_HTTPD_INSPECT_STDERR" >&2
+    fi
     if [[ "$*" == *"State.Running"*"RestartPolicy.Name"* ]]; then
-      printf '%s %s\\n' "${MOCK_HTTPD_RUNNING:-true}" "${MOCK_HTTPD_RESTART_POLICY:-no}"
+      restart_policy="${MOCK_HTTPD_RESTART_POLICY:-no}"
+      if [[ "${MOCK_HTTPD_EMPTY_RESTART_POLICY:-false}" == "true" ]]; then
+        restart_policy=""
+      fi
+      printf '%s %s\\n' "${MOCK_HTTPD_RUNNING:-true}" "$restart_policy"
     fi
     exit 0
   fi
@@ -456,14 +486,22 @@ def split_job_names(value: str) -> set[str]:
 def jenkins_job_references(config: Path) -> set[str]:
     root = ET.parse(config).getroot()
     script = xml_script(config)
-    build_matches = list(BUILD_JOB_PATTERN.finditer(script))
+    build_matches = sorted(
+        (
+            match
+            for pattern in BUILD_JOB_PATTERNS
+            for match in pattern.finditer(script)
+        ),
+        key=lambda match: match.start(),
+    )
     schedule_matches = list(SCHEDULE_JOB_PATTERN.finditer(script))
-    unresolved = without_matches(script, build_matches + schedule_matches)
-    if re.search(r"\bbuild\s+job\s*:|\bscheduleBuild2\b", unresolved):
+    matches = sorted(build_matches + schedule_matches, key=lambda match: match.start())
+    unresolved = without_matches(script, matches)
+    if UNRESOLVED_TRIGGER_PATTERN.search(unresolved):
         raise AssertionError(
             f"unresolved Jenkins downstream trigger in {config}"
         )
-    children = {match.group(2) for match in build_matches + schedule_matches}
+    children = {match.group("job") for match in matches}
     recognized = set()
     for node in root.findall(".//hudson.tasks.BuildTrigger/childProjects"):
         recognized.add(id(node))
@@ -483,36 +521,270 @@ def jenkins_job_references(config: Path) -> set[str]:
     return children
 
 
+DECLARATIVE_TRACKER_CATEGORIES = {
+    "jobProperties",
+    "triggers",
+    "parameters",
+    "options",
+}
+DECLARATIVE_PROPERTY_OPTIONS = {
+    "disableConcurrentBuilds": (
+        "org.jenkinsci.plugins.workflow.job.properties."
+        "DisableConcurrentBuildsJobProperty"
+    ),
+    "buildDiscarder": "jenkins.model.BuildDiscarderProperty",
+}
+DECLARATIVE_TRIGGER_CLASSES = {
+    "cron": "hudson.triggers.TimerTrigger",
+    "pollSCM": "hudson.triggers.SCMTrigger",
+    "upstream": "jenkins.triggers.ReverseBuildTrigger",
+}
+DECLARATIVE_STANDALONE_OPTIONS = {
+    "checkoutToSubdirectory",
+    "disableResume",
+    "newContainerPerStage",
+    "overrideIndexTriggers",
+    "parallelsAlwaysFailFast",
+    "preserveStashes",
+    "quietPeriod",
+    "retry",
+    "skipDefaultCheckout",
+    "skipStagesAfterUnstable",
+    "timeout",
+    "timestamps",
+}
+
+
+def groovy_block(script: str, name: str) -> str:
+    match = re.search(rf"\b{re.escape(name)}\s*\{{", script)
+    if match is None:
+        return ""
+    start = script.index("{", match.start()) + 1
+    depth = 1
+    quote = None
+    escaped = False
+    for index in range(start, len(script)):
+        character = script[index]
+        if quote is not None:
+            if escaped:
+                escaped = False
+            elif character == "\\":
+                escaped = True
+            elif character == quote:
+                quote = None
+            continue
+        if character in {"'", '"'}:
+            quote = character
+        elif character == "{":
+            depth += 1
+        elif character == "}":
+            depth -= 1
+            if depth == 0:
+                return script[start:index]
+    raise AssertionError(f"unterminated declarative {name} block")
+
+
+def top_level_calls(block: str) -> list[str]:
+    calls = []
+    depths = {"(": 0, "[": 0, "{": 0}
+    closing = {")": "(", "]": "[", "}": "{"}
+    quote = None
+    escaped = False
+    index = 0
+    while index < len(block):
+        character = block[index]
+        if quote is not None:
+            if escaped:
+                escaped = False
+            elif character == "\\":
+                escaped = True
+            elif character == quote:
+                quote = None
+            index += 1
+            continue
+        if character in {"'", '"'}:
+            quote = character
+            index += 1
+            continue
+        if character in depths:
+            depths[character] += 1
+            index += 1
+            continue
+        if character in closing:
+            depths[closing[character]] -= 1
+            index += 1
+            continue
+        if all(depth == 0 for depth in depths.values()) and (
+            character.isalpha() or character == "_"
+        ):
+            end = index + 1
+            while end < len(block) and (
+                block[end].isalnum() or block[end] == "_"
+            ):
+                end += 1
+            cursor = end
+            while cursor < len(block) and block[cursor].isspace():
+                cursor += 1
+            if cursor < len(block) and block[cursor] == "(":
+                calls.append(block[index:end])
+            index = end
+            continue
+        index += 1
+    return calls
+
+
+def tracker_values(tracker: ET.Element, category: str) -> set[str]:
+    nodes = tracker.findall(f"./{category}/string")
+    values = [node.text or "" for node in nodes]
+    if len(values) != len(set(values)) or "" in values:
+        raise AssertionError(f"invalid declarative tracker values in {category}")
+    return set(values)
+
+
 def validate_declarative_convergence(config: Path) -> None:
     root = ET.parse(config).getroot()
     script = xml_script(config)
     if "pipeline {" not in script:
         return
-    property_class = (
-        "org.jenkinsci.plugins.workflow.job.properties."
-        "DisableConcurrentBuildsJobProperty"
-    )
     tracker = root.find(
         ".//org.jenkinsci.plugins.pipeline.modeldefinition.actions."
         "DeclarativeJobPropertyTrackerAction"
     )
     if tracker is None:
         raise AssertionError(f"declarative property tracker is missing: {config}")
-    tracked = {
-        node.text or "" for node in tracker.findall("./jobProperties/string")
-    }
-    has_directive = "disableConcurrentBuilds()" in script
-    has_tracker = property_class in tracked
-    property_node = root.find(f"./properties/{property_class}")
-    has_property = property_node is not None
-    if len({has_directive, has_tracker, has_property}) != 1:
+    categories = {child.tag for child in tracker}
+    unknown_categories = categories - DECLARATIVE_TRACKER_CATEGORIES
+    missing_categories = DECLARATIVE_TRACKER_CATEGORIES - categories
+    if unknown_categories or missing_categories:
         raise AssertionError(
-            f"disableConcurrentBuilds is not converged in {config}: "
-            f"directive={has_directive}, tracker={has_tracker}, property={has_property}"
+            f"unknown declarative tracker category in {config}: "
+            f"unknown={sorted(unknown_categories)}, missing={sorted(missing_categories)}"
         )
-    if has_property and property_node.findtext("abortPrevious") != "false":
+
+    options = set(top_level_calls(groovy_block(script, "options")))
+    unknown_options = options - (
+        DECLARATIVE_PROPERTY_OPTIONS.keys() | DECLARATIVE_STANDALONE_OPTIONS
+    )
+    if unknown_options:
         raise AssertionError(
-            f"disableConcurrentBuilds abortPrevious is not false in {config}"
+            f"unknown declarative option in {config}: {sorted(unknown_options)}"
+        )
+    expected_properties = {
+        property_class
+        for option, property_class in DECLARATIVE_PROPERTY_OPTIONS.items()
+        if option in options
+    }
+    tracked_properties = tracker_values(tracker, "jobProperties")
+    unknown_properties = tracked_properties - set(
+        DECLARATIVE_PROPERTY_OPTIONS.values()
+    )
+    persisted_properties = {
+        property_class
+        for property_class in DECLARATIVE_PROPERTY_OPTIONS.values()
+        if root.find(f"./properties/{property_class}") is not None
+    }
+    if unknown_properties:
+        raise AssertionError(
+            f"unknown declarative job property in {config}: "
+            f"{sorted(unknown_properties)}"
+        )
+    if not expected_properties == tracked_properties == persisted_properties:
+        raise AssertionError(
+            f"declarative job properties are not converged in {config}: "
+            f"directives={sorted(expected_properties)}, "
+            f"tracker={sorted(tracked_properties)}, "
+            f"persisted={sorted(persisted_properties)}"
+        )
+
+    disable_class = DECLARATIVE_PROPERTY_OPTIONS["disableConcurrentBuilds"]
+    disable_node = root.find(f"./properties/{disable_class}")
+    if disable_node is not None:
+        if disable_node.findtext("abortPrevious") != "false":
+            raise AssertionError(
+                f"disableConcurrentBuilds abortPrevious is not false in {config}"
+            )
+        if disable_node.get("plugin") != root.get("plugin"):
+            raise AssertionError(
+                f"disableConcurrentBuilds plugin identity is not converged in {config}"
+            )
+    discarder_node = root.find(
+        f"./properties/{DECLARATIVE_PROPERTY_OPTIONS['buildDiscarder']}"
+    )
+    if discarder_node is not None and discarder_node.find("./strategy") is None:
+        raise AssertionError(f"build discarder is not converged in {config}")
+
+    parameter_block = groovy_block(script, "parameters")
+    parameter_calls = top_level_calls(parameter_block)
+    parameter_names = {
+        match.group("name")
+        for match in re.finditer(
+            r"""\b[A-Za-z_]\w*\s*\(\s*name\s*:\s*
+            (?P<quote>['"])(?P<name>[^'"]+)(?P=quote)""",
+            parameter_block,
+            re.VERBOSE,
+        )
+    }
+    if len(parameter_names) != len(parameter_calls):
+        raise AssertionError(
+            f"declarative parameter names are unresolved in {config}"
+        )
+    tracked_parameters = tracker_values(tracker, "parameters")
+    persisted_parameters = {
+        node.text or ""
+        for node in root.findall(
+            "./properties/hudson.model.ParametersDefinitionProperty/"
+            "parameterDefinitions/*/name"
+        )
+    }
+    if (
+        parameter_names != tracked_parameters
+        or not parameter_names <= persisted_parameters
+    ):
+        raise AssertionError(
+            f"declarative parameters are not converged in {config}: "
+            f"directives={sorted(parameter_names)}, "
+            f"tracker={sorted(tracked_parameters)}, "
+            f"persisted={sorted(persisted_parameters)}"
+        )
+
+    trigger_calls = set(top_level_calls(groovy_block(script, "triggers")))
+    unknown_triggers = trigger_calls - DECLARATIVE_TRIGGER_CLASSES.keys()
+    if unknown_triggers:
+        raise AssertionError(
+            f"unknown declarative trigger in {config}: {sorted(unknown_triggers)}"
+        )
+    expected_triggers = {
+        DECLARATIVE_TRIGGER_CLASSES[trigger] for trigger in trigger_calls
+    }
+    tracked_triggers = tracker_values(tracker, "triggers")
+    persisted_triggers = {
+        node.tag
+        for node in root.findall(
+            "./properties/org.jenkinsci.plugins.workflow.job.properties."
+            "PipelineTriggersJobProperty/triggers/*"
+        )
+    }
+    if not expected_triggers == tracked_triggers == persisted_triggers:
+        raise AssertionError(
+            f"declarative triggers are not converged in {config}: "
+            f"directives={sorted(expected_triggers)}, "
+            f"tracker={sorted(tracked_triggers)}, "
+            f"persisted={sorted(persisted_triggers)}"
+        )
+
+    expected_standalone_options = options - DECLARATIVE_PROPERTY_OPTIONS.keys()
+    tracked_options = tracker_values(tracker, "options")
+    unknown_tracked_options = tracked_options - DECLARATIVE_STANDALONE_OPTIONS
+    if unknown_tracked_options:
+        raise AssertionError(
+            f"unknown tracked declarative option in {config}: "
+            f"{sorted(unknown_tracked_options)}"
+        )
+    if expected_standalone_options != tracked_options:
+        raise AssertionError(
+            f"declarative options are not converged in {config}: "
+            f"directives={sorted(expected_standalone_options)}, "
+            f"tracker={sorted(tracked_options)}"
         )
 
 
@@ -762,7 +1034,10 @@ class RolloutContractTest(unittest.TestCase):
             result, commands = run_script(
                 ROOT / "rollback-picsure.sh",
                 config,
-                {"MOCK_HTTPD_INSPECT_ERROR": "synthetic Docker API failure"},
+                {
+                    "MOCK_HTTPD_INSPECT_ERROR": "synthetic Docker API failure",
+                    "MOCK_HTTPD_INSPECT_STDOUT": "false no",
+                },
                 str(state),
             )
         self.assertNotEqual(result.returncode, 0)
@@ -825,6 +1100,42 @@ class RolloutContractTest(unittest.TestCase):
                 for command in httpd_inspections
             )
         )
+
+    def test_rollback_classifies_inspect_stdout_separately_from_stderr(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = required_config(Path(tmp) / "config")
+            state = Path(tmp) / "rollback-state.json"
+            state.write_text(json.dumps(rollback_state()))
+            result, _ = run_script(
+                ROOT / "rollback-picsure.sh",
+                config,
+                {
+                    "MOCK_HTTPD_PRESENT": "true",
+                    "MOCK_HTTPD_RUNNING": "false",
+                    "MOCK_HTTPD_RESTART_POLICY": "no",
+                    "MOCK_HTTPD_INSPECT_STDERR": "benign Docker diagnostic",
+                },
+                str(state),
+            )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_rollback_reports_empty_restart_policy_explicitly(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = required_config(Path(tmp) / "config")
+            state = Path(tmp) / "rollback-state.json"
+            state.write_text(json.dumps(rollback_state()))
+            result, _ = run_script(
+                ROOT / "rollback-picsure.sh",
+                config,
+                {
+                    "MOCK_HTTPD_PRESENT": "true",
+                    "MOCK_HTTPD_RUNNING": "false",
+                    "MOCK_HTTPD_EMPTY_RESTART_POLICY": "true",
+                },
+                str(state),
+            )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("httpd restart policy is empty", result.stderr)
 
     def test_rollback_mode_start_independently_requires_restart_proof(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1182,6 +1493,63 @@ class RolloutContractTest(unittest.TestCase):
         self.assertNotEqual(drifted.returncode, 0)
         self.assertIn("workflow content", drifted.stderr)
 
+    def test_installed_validator_never_falls_back_to_source_helper(self):
+        digest = workflow_digest()
+        aio_commit = "a" * 40
+        spec = synthetic_build_spec(aio_commit, digest)
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            validator = create_installed_validator_bundle(tmp_path)
+            (tmp_path / "aio-workflow/workflow-sha256.sh").unlink()
+            fake_source_helper = tmp_path / "scripts/workflow-sha256.sh"
+            fake_source_helper.write_text(
+                f"#!/usr/bin/env bash\nprintf '%s\\n' {digest}\n"
+            )
+            fake_source_helper.chmod(0o755)
+            spec_path = tmp_path / "build-spec.json"
+            spec_path.write_text(json.dumps(spec))
+            result = subprocess.run(
+                ["bash", str(validator), str(spec_path)],
+                cwd=tmp_path,
+                env={**os.environ, "AIO_WORKFLOW_COMMIT": aio_commit},
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("installed workflow checksum script", result.stderr)
+
+    def test_installed_validator_requires_every_trusted_input(self):
+        digest = workflow_digest()
+        aio_commit = "a" * 40
+        spec = synthetic_build_spec(aio_commit, digest)
+        for missing, diagnostic in (
+            (
+                "aio-workflow/aio-workflow-files.txt",
+                "installed workflow manifest",
+            ),
+            (
+                "var/jenkins_home/jobs/PIC-SURE Pipeline/config.xml",
+                "could not fingerprint",
+            ),
+        ):
+            with self.subTest(missing=missing), tempfile.TemporaryDirectory() as tmp:
+                tmp_path = Path(tmp)
+                validator = create_installed_validator_bundle(tmp_path)
+                (tmp_path / missing).unlink()
+                spec_path = tmp_path / "build-spec.json"
+                spec_path.write_text(json.dumps(spec))
+                result = subprocess.run(
+                    ["bash", str(validator), str(spec_path)],
+                    cwd=tmp_path,
+                    env={**os.environ, "AIO_WORKFLOW_COMMIT": aio_commit},
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(diagnostic, result.stderr)
+
     def test_validator_defaults_work_at_repo_root_and_direct_validator_mount(self):
         digest = workflow_digest()
         aio_commit = "a" * 40
@@ -1346,6 +1714,80 @@ printf '%064d  %s\\n' 0 "$1"
             with self.subTest(config=config):
                 validate_declarative_convergence(config)
 
+    def test_declarative_convergence_covers_every_tracker_category(self):
+        converged = """<flow-definition plugin="workflow-job@synthetic">
+  <actions>
+    <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction>
+      <jobProperties><string>jenkins.model.BuildDiscarderProperty</string></jobProperties>
+      <triggers><string>hudson.triggers.TimerTrigger</string></triggers>
+      <parameters><string>release</string></parameters>
+      <options><string>skipDefaultCheckout</string></options>
+    </org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction>
+  </actions>
+  <properties>
+    <jenkins.model.BuildDiscarderProperty><strategy/></jenkins.model.BuildDiscarderProperty>
+    <org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
+      <triggers><hudson.triggers.TimerTrigger><spec>@daily</spec></hudson.triggers.TimerTrigger></triggers>
+    </org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
+    <hudson.model.ParametersDefinitionProperty><parameterDefinitions>
+      <hudson.model.StringParameterDefinition><name>release</name></hudson.model.StringParameterDefinition>
+    </parameterDefinitions></hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <definition><script><![CDATA[pipeline {
+    agent any
+    parameters { string(name: 'release') }
+    options { buildDiscarder(logRotator(numToKeepStr: '10')); skipDefaultCheckout() }
+    triggers { cron('@daily') }
+    stages { stage('synthetic') { steps { echo 'synthetic' } } }
+  }]]></script></definition>
+</flow-definition>"""
+        tracked = {
+            "parameter": "<parameters><string>release</string></parameters>",
+            "trigger": "<triggers><string>hudson.triggers.TimerTrigger</string></triggers>",
+            "option": "<options><string>skipDefaultCheckout</string></options>",
+            "build discarder": (
+                "<jobProperties><string>jenkins.model.BuildDiscarderProperty</string>"
+                "</jobProperties>"
+            ),
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / "config.xml"
+            config.write_text(converged)
+            validate_declarative_convergence(config)
+            for category, value in tracked.items():
+                with self.subTest(category=category):
+                    config.write_text(
+                        converged.replace(
+                            value, f"<{ET.fromstring(value).tag}/>"
+                        )
+                    )
+                    with self.assertRaisesRegex(AssertionError, "not converged"):
+                        validate_declarative_convergence(config)
+
+    def test_declarative_convergence_rejects_unknown_tracker_category(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / "config.xml"
+            config.write_text(
+                """<flow-definition><actions>
+<org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction>
+<jobProperties/><triggers/><parameters/><options/><mystery><string>unknown</string></mystery>
+</org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction>
+</actions><definition><script>pipeline { agent any; stages {} }</script></definition></flow-definition>"""
+            )
+            with self.assertRaisesRegex(
+                AssertionError, "unknown declarative tracker category"
+            ):
+                validate_declarative_convergence(config)
+
+    def test_disable_concurrent_property_has_canonical_plugin_identity(self):
+        root = ET.parse(JOBS / "PIC-SURE Pipeline/config.xml").getroot()
+        property_node = root.find(
+            "./properties/org.jenkinsci.plugins.workflow.job.properties."
+            "DisableConcurrentBuildsJobProperty"
+        )
+        self.assertIsNotNone(property_node)
+        self.assertEqual(property_node.get("plugin"), root.get("plugin"))
+
     def test_transitive_scanner_fails_closed_on_unknown_trigger_form(self):
         with tempfile.TemporaryDirectory() as tmp:
             config = Path(tmp) / "config.xml"
@@ -1365,18 +1807,55 @@ printf '%064d  %s\\n' 0 "$1"
             config.write_text(
                 "<flow-definition><definition><script><![CDATA["
                 'build job: "Double Quoted Build"\n'
-                "Jenkins.instance.getItem('Literal Scheduled Job').scheduleBuild2(0)"
+                "build(job: 'Parenthesized Named Build', wait: true)\n"
+                "build 'Single Quoted Positional Build'\n"
+                'build "Double Quoted Positional Build"\n'
+                "build('Parenthesized Positional Build')\n"
+                "Jenkins.instance.getItem('Literal Scheduled Job').scheduleBuild2(0)\n"
+                'Jenkins.instance.getItemByFullName("Full Name Scheduled Job").scheduleBuild2(0)'
                 "]]></script></definition></flow-definition>"
             )
             self.assertEqual(
                 jenkins_job_references(config),
-                {"Double Quoted Build", "Literal Scheduled Job"},
+                {
+                    "Double Quoted Build",
+                    "Parenthesized Named Build",
+                    "Single Quoted Positional Build",
+                    "Double Quoted Positional Build",
+                    "Parenthesized Positional Build",
+                    "Literal Scheduled Job",
+                    "Full Name Scheduled Job",
+                },
+            )
+
+    def test_trigger_scanner_discovers_supported_xml_forms(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / "config.xml"
+            config.write_text(
+                """<project><publishers>
+<hudson.tasks.BuildTrigger><childProjects>Freestyle One, Freestyle Two</childProjects></hudson.tasks.BuildTrigger>
+<hudson.plugins.parameterizedtrigger.BuildTrigger><configs>
+<hudson.plugins.parameterizedtrigger.BuildTriggerConfig><projects>Parameterized Job</projects></hudson.plugins.parameterizedtrigger.BuildTriggerConfig>
+</configs></hudson.plugins.parameterizedtrigger.BuildTrigger>
+</publishers></project>"""
+            )
+            self.assertEqual(
+                jenkins_job_references(config),
+                {"Freestyle One", "Freestyle Two", "Parameterized Job"},
             )
 
     def test_trigger_scanner_rejects_dynamic_groovy_forms(self):
         for groovy in (
             "build job: targetJob",
+            "build(job: targetJob)",
+            "build targetJob",
+            "build params.targetJob",
+            "build job: 'Known Job' + suffix",
+            "build(job: 'Known Job' + suffix)",
+            'build "Known " + suffix',
+            'build(job: "Known ${suffix}")',
             "Jenkins.instance.getItemByFullName(targetJob).scheduleBuild2(0)",
+            "Jenkins.instance.getItem('Known Job' + suffix).scheduleBuild2(0)",
             "resolvedJob.scheduleBuild2(0)",
         ):
             with self.subTest(groovy=groovy), tempfile.TemporaryDirectory() as tmp:

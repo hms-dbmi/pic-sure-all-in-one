@@ -180,32 +180,134 @@ def map_has_job_key(tokens: list[GroovyToken], start: int, end: int) -> bool:
     return False
 
 
+METHOD_MODIFIERS = {
+    "abstract",
+    "final",
+    "private",
+    "protected",
+    "public",
+    "static",
+    "synchronized",
+}
+GROOVY_IDENTIFIER = r"[A-Za-z_$][A-Za-z0-9_$]*"
+GROOVY_QUALIFIED_TYPE = rf"{GROOVY_IDENTIFIER}(?:\s*\.\s*{GROOVY_IDENTIFIER})*"
+GROOVY_TYPE_TEXT = (
+    rf"{GROOVY_QUALIFIED_TYPE}"
+    rf"(?:\s*<\s*{GROOVY_QUALIFIED_TYPE}"
+    rf"(?:\s*,\s*{GROOVY_QUALIFIED_TYPE})*\s*>)?"
+    rf"(?:\s*\[\s*\])*"
+)
+GROOVY_TYPE = re.compile(rf"{GROOVY_TYPE_TEXT}$")
+GROOVY_PARAMETER_TEXT = (
+    rf"(?:final\s+)?{GROOVY_TYPE_TEXT}"
+    rf"(?:\s*\.\s*\.\s*\.)?\s+{GROOVY_IDENTIFIER}"
+    rf"(?:\s*=\s*[^,]+)?"
+)
+GROOVY_TYPED_PARAMETERS = re.compile(
+    rf"(?:{GROOVY_PARAMETER_TEXT}(?:\s*,\s*{GROOVY_PARAMETER_TEXT})*)?$"
+)
+GROOVY_UNTYPED_PARAMETERS = re.compile(
+    rf"(?:{GROOVY_IDENTIFIER}(?:\s*,\s*{GROOVY_IDENTIFIER})*)?$"
+)
+DECLARATION_BOUNDARIES = set("{};()=:?+-*/%&|!,")
+
+
+def type_tokens_are_declarative(tokens: list[GroovyToken]) -> bool:
+    tokens = [token for token in tokens if token.kind != "newline"]
+    while (
+        tokens
+        and tokens[0].kind == "identifier"
+        and tokens[0].value in METHOD_MODIFIERS
+    ):
+        tokens = tokens[1:]
+    return bool(tokens) and GROOVY_TYPE.fullmatch(
+        " ".join(token.value for token in tokens)
+    ) is not None
+
+
+def method_return_tokens(
+    tokens: list[GroovyToken], build_index: int
+) -> list[GroovyToken]:
+    angle_depth = 0
+    array_depth = 0
+    index = build_index - 1
+    while index >= 0:
+        token = tokens[index]
+        if token.kind == "newline" and angle_depth == 0 and array_depth == 0:
+            break
+        if token.kind == "symbol":
+            if token.value == ">":
+                angle_depth += 1
+            elif token.value == "<":
+                if angle_depth == 0:
+                    break
+                angle_depth -= 1
+            elif token.value == "]":
+                array_depth += 1
+            elif token.value == "[":
+                if array_depth == 0:
+                    break
+                array_depth -= 1
+            elif (
+                angle_depth == 0
+                and array_depth == 0
+                and token.value in DECLARATION_BOUNDARIES
+            ):
+                break
+        index -= 1
+    return tokens[index + 1 : build_index]
+
+
+def parameters_are_declarative(
+    tokens: list[GroovyToken], allow_untyped: bool
+) -> bool:
+    text = " ".join(
+        token.value for token in tokens if token.kind != "newline"
+    )
+    if GROOVY_TYPED_PARAMETERS.fullmatch(text):
+        return True
+    return allow_untyped and GROOVY_UNTYPED_PARAMETERS.fullmatch(text) is not None
+
+
+def is_build_declaration(
+    tokens: list[GroovyToken], build_index: int, opening: int, closing: int
+) -> bool:
+    body = next_token(tokens, closing + 1)
+    if (
+        body >= len(tokens)
+        or tokens[body].kind != "symbol"
+        or tokens[body].value != "{"
+    ):
+        return False
+    return_type = method_return_tokens(tokens, build_index)
+    if not type_tokens_are_declarative(return_type):
+        return False
+    stripped_return_type = [
+        token
+        for token in return_type
+        if token.kind != "newline"
+        and not (
+            token.kind == "identifier" and token.value in METHOD_MODIFIERS
+        )
+    ]
+    allow_untyped = (
+        len(stripped_return_type) == 1
+        and stripped_return_type[0].kind == "identifier"
+        and stripped_return_type[0].value == "def"
+    )
+    return parameters_are_declarative(
+        tokens[opening + 1 : closing], allow_untyped
+    )
+
+
 def is_build_call(tokens: list[GroovyToken], index: int) -> bool:
     target = index + 1
     if target >= len(tokens) or tokens[target].kind == "newline":
         return False
     previous = previous_token(tokens, index)
     if previous >= 0 and (
-        (
-            tokens[previous].kind == "symbol"
-            and tokens[previous].value in {".", "&"}
-        )
-        or (
-            tokens[previous].kind == "identifier"
-            and tokens[previous].value
-            in {
-                "def",
-                "void",
-                "boolean",
-                "byte",
-                "char",
-                "double",
-                "float",
-                "int",
-                "long",
-                "short",
-            }
-        )
+        tokens[previous].kind == "symbol"
+        and tokens[previous].value in {".", "&"}
     ):
         return False
 
@@ -218,15 +320,7 @@ def is_build_call(tokens: list[GroovyToken], index: int) -> bool:
         return False
     if token.value == "(":
         closing = matching_token(tokens, target, "(", ")")
-        after = next_token(tokens, closing + 1)
-        if (
-            previous >= 0
-            and tokens[previous].kind == "identifier"
-            and tokens[previous].value not in {"return", "throw"}
-            and after < len(tokens)
-            and tokens[after].kind == "symbol"
-            and tokens[after].value == "{"
-        ):
+        if is_build_declaration(tokens, index, target, closing):
             return False
         return True
     if token.value == "[":
@@ -2650,6 +2744,9 @@ printf '%064d  %s\\n' 0 "$1"
             "wrap(build(resolveTarget()))",
             "def values = [build(job: targetJob)]",
             "def result = ready ? build([job: targetJob]) : null",
+            "List<String> build(targetJob) { return null }",
+            "java.util.List<String> build(resolveTarget()) { return null }",
+            "String[] build(params.targetJob) { return null }",
             "Jenkins.instance.getItemByFullName(targetJob).scheduleBuild2(0)",
             "Jenkins.instance.getItem('Known Job' + suffix).scheduleBuild2(0)",
             "resolvedJob.scheduleBuild2(0)",
@@ -2665,6 +2762,24 @@ printf '%064d  %s\\n' 0 "$1"
                     AssertionError, "unresolved Jenkins downstream trigger"
                 ):
                     jenkins_job_references(config)
+
+    def test_trigger_scanner_ignores_generic_and_array_method_declarations(self):
+        declarations = {
+            "generic": "List<String> build(String name) { return [] }",
+            "qualified generic": (
+                "java.util.List<String> build(String name) { return [] }"
+            ),
+            "array": "String[] build(String name) { return [] }",
+        }
+        for declaration, groovy in declarations.items():
+            with self.subTest(declaration=declaration), tempfile.TemporaryDirectory() as tmp:
+                config = Path(tmp) / "config.xml"
+                config.write_text(
+                    "<flow-definition><definition><script><![CDATA["
+                    f"{groovy}"
+                    "]]></script></definition></flow-definition>"
+                )
+                self.assertEqual(jenkins_job_references(config), set())
 
     def test_trigger_scanner_resolves_literal_calls_in_expression_contexts(self):
         contexts = {

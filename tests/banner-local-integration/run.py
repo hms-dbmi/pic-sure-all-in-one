@@ -20,10 +20,10 @@ import urllib.request
 BACKEND_COMMIT = "0178bbd2d1753e07dcead77a6d0e8ca37bf76dd8"
 FRONTEND_COMMIT = "7b69aa960ff98f97c1a2d026b7137b0e3dcdf603"
 MIGRATIONS_COMMIT = "05b1a77512dc0921570f0d442853fdcee75b8131"
-RELEASE_CONTROL_COMMIT = "53802f3efbd030042fab442f9c5a3a29770528ca"
+RELEASE_CONTROL_COMMIT = "bfb07196be55f7f121dc250f7aa51d826642ff86"
 BDC_MIGRATION_COMMIT = "5d2ba9f59f161ace5e807c82a0580518a9d44d16"
-AIO_PROOF_BASE = "8830fbf9dffe69b273a51d35410413115878841f"
-AIO_RELEASE_COMMIT = "b453a5b59cf1f3c90ebfd6a4eb3d80108ee44b6a"
+AIO_PROOF_BASE = "715857456594814957d9abc26ad14efbccb65e11"
+AIO_RELEASE_COMMIT = "715857456594814957d9abc26ad14efbccb65e11"
 ROLLOUT_SHA256 = "f8cb265d735b757872391e04fdcd5b999b785eaa427ca13f8f2eefd493715359"
 MYSQL_IMAGE = "mysql:8.0.43@sha256:ccf4fed7ff4b886aeb3573a1f5d5b509525ecff55a2d1e2653c27a5abdded309"
 FLYWAY_IMAGE = "flyway/flyway:11.7.2@sha256:8ace7d9825bb3ad1d6e14ee27b3a830b638ac841ba424b99b2d92aa65a99d484"
@@ -508,8 +508,14 @@ class Harness:
         self.observed["checks"]["binarySchemaOwner"] = "PASS"
         self.observed["checks"]["feedRollbackOwner"] = "PASS"
 
+        release_workflow_root = self.temp_root / "reviewed-release-workflow"
+        local_checkout(self.aio_root, release_workflow_root, AIO_RELEASE_COMMIT)
         for optimized in (False, True):
-            owner_env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
+            owner_env = {
+                **os.environ,
+                "PYTHONDONTWRITEBYTECODE": "1",
+                "AIO_PIN_VALIDATION_ROOT": str(release_workflow_root),
+            }
             if optimized:
                 owner_env["PYTHONOPTIMIZE"] = "1"
             command(

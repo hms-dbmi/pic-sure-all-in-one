@@ -28,7 +28,10 @@ tests/banner-local-integration/test.sh all
 ```
 
 The current inputs must be clean and at the commits recorded in
-`expected-result.json`; the BDC root is pinned by the binary/feed owner contract,
+`expected-result.json`. The observed `deploymentConfig` is the executing proof
+HEAD, while `releaseWorkflowCommit` remains the separately reviewed executable
+workflow at `715857456594814957d9abc26ad14efbccb65e11`. The BDC root is pinned by
+the binary/feed owner contract,
 and the clean legacy PSAMA root must contain the exact annotated `v4.2.2` tag.
 Use `test.sh contract` for the normal and optimized checked-in contract tests
 without starting Docker. `nested-owner-diagnostics.py` drives a failing Ticket

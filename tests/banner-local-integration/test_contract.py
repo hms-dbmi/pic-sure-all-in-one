@@ -69,7 +69,7 @@ class BannerLocalIntegrationContractTest(unittest.TestCase):
         )
         self.assertEqual(
             {
-                "releaseControl": "53802f3efbd030042fab442f9c5a3a29770528ca",
+                "releaseControl": "bfb07196be55f7f121dc250f7aa51d826642ff86",
                 "backend": "0178bbd2d1753e07dcead77a6d0e8ca37bf76dd8",
                 "frontend": "7b69aa960ff98f97c1a2d026b7137b0e3dcdf603",
                 "migrationSource": "05b1a77512dc0921570f0d442853fdcee75b8131",
@@ -79,10 +79,34 @@ class BannerLocalIntegrationContractTest(unittest.TestCase):
         self.assertNotIn("deploymentConfig", expected["sourceCommits"])
         self.assertNotIn("runtimeArtifacts", expected["observations"])
         self.assertEqual(
-            "8830fbf9dffe69b273a51d35410413115878841f",
+            "715857456594814957d9abc26ad14efbccb65e11",
             expected["deploymentExtensions"]["AIO"]["proofBase"],
         )
         self.assertTrue(all("@sha256:" in image for image in expected["images"].values()))
+
+    def test_proof_head_is_separate_from_the_reviewed_release_workflow(self):
+        module = self.load_runner()
+        expected = json.loads((TEST_DIR / "expected-result.json").read_text(encoding="utf-8"))
+        workflow = (ROOT / ".github/workflows/banner-local-integration.yml").read_text(
+            encoding="utf-8"
+        )
+        reviewed_workflow = "715857456594814957d9abc26ad14efbccb65e11"
+        release_control = "bfb07196be55f7f121dc250f7aa51d826642ff86"
+
+        self.assertEqual(release_control, module.RELEASE_CONTROL_COMMIT)
+        self.assertEqual(release_control, expected["sourceCommits"]["releaseControl"])
+        self.assertEqual(reviewed_workflow, module.AIO_PROOF_BASE)
+        self.assertEqual(reviewed_workflow, module.AIO_RELEASE_COMMIT)
+        self.assertEqual(
+            reviewed_workflow,
+            expected["deploymentExtensions"]["AIO"]["releaseWorkflowCommit"],
+        )
+        self.assertNotIn("deploymentConfig", expected["sourceCommits"])
+        self.assertIn(f"ref: {release_control}", workflow)
+        self.assertEqual(
+            "flyway/flyway:11.7.2@sha256:8ace7d9825bb3ad1d6e14ee27b3a830b638ac841ba424b99b2d92aa65a99d484",
+            expected["images"]["flyway"],
+        )
 
     def test_harness_uses_real_services_and_composes_exact_proof_owners(self):
         source = (TEST_DIR / "run.py").read_text(encoding="utf-8")
@@ -115,6 +139,11 @@ class BannerLocalIntegrationContractTest(unittest.TestCase):
             r"test_build_spec\.py",
         ):
             self.assertRegex(source, re.compile(pattern, flags=re.DOTALL))
+
+        compose = inspect.getsource(self.load_runner().Harness.compose_owner_contracts)
+        self.assertIn("AIO_PIN_VALIDATION_ROOT", compose)
+        self.assertIn("AIO_RELEASE_COMMIT", compose)
+        self.assertIn("local_checkout(self.aio_root", compose)
 
     def test_expected_only_row_is_rejected_and_executing_head_is_required(self):
         expected = json.loads((TEST_DIR / "expected-result.json").read_text(encoding="utf-8"))
@@ -272,7 +301,7 @@ class BannerLocalIntegrationContractTest(unittest.TestCase):
             "0178bbd2d1753e07dcead77a6d0e8ca37bf76dd8",
             "7b69aa960ff98f97c1a2d026b7137b0e3dcdf603",
             "05b1a77512dc0921570f0d442853fdcee75b8131",
-            "53802f3efbd030042fab442f9c5a3a29770528ca",
+            "bfb07196be55f7f121dc250f7aa51d826642ff86",
             "5d2ba9f59f161ace5e807c82a0580518a9d44d16",
             "ca8ac3641ba122a93cda8a5d7cad7f23f7a46bb6",
         ):

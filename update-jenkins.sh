@@ -1,5 +1,8 @@
 #!/bin/bash
 # shellcheck disable=SC2154
+set -o errexit
+set -o pipefail
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR" || exit 2
 
@@ -68,15 +71,40 @@ restore_jenkins_env_value() {
   sed_inplace "/<string>$key<\\/string>/{n;s|<string>.*</string>|<string>$escaped_value</string>|;}" "$target_config"
 }
 
-./stop-jenkins.sh
+PIN_BRANCH=picsure-aio-release-pin
+UPDATE_BRANCH_CONFIG=picsure.updateBranch
 if [[ -n "$AIO_REF" ]]; then
+  current_branch=$(git -c safe.directory="$SCRIPT_DIR" -C "$SCRIPT_DIR" symbolic-ref --short HEAD) || {
+    echo "Cannot install an exact AIO ref from an unmanaged detached checkout." >&2
+    exit 2
+  }
+  if [[ "$current_branch" != "$PIN_BRANCH" ]]; then
+    git -c safe.directory="$SCRIPT_DIR" -C "$SCRIPT_DIR" config "$UPDATE_BRANCH_CONFIG" "$current_branch"
+  elif ! git -c safe.directory="$SCRIPT_DIR" -C "$SCRIPT_DIR" config --get "$UPDATE_BRANCH_CONFIG" >/dev/null; then
+    echo "The saved AIO update branch is unavailable." >&2
+    exit 2
+  fi
   if ! git -c safe.directory="$SCRIPT_DIR" -C "$SCRIPT_DIR" cat-file -e "$AIO_REF^{commit}"; then
     git -c safe.directory="$SCRIPT_DIR" -C "$SCRIPT_DIR" fetch origin "$AIO_REF"
   fi
-  git -c safe.directory="$SCRIPT_DIR" -C "$SCRIPT_DIR" checkout --detach "$AIO_REF"
+  git -c safe.directory="$SCRIPT_DIR" -C "$SCRIPT_DIR" checkout -B "$PIN_BRANCH" "$AIO_REF"
+  installed_ref=$(git -c safe.directory="$SCRIPT_DIR" -C "$SCRIPT_DIR" rev-parse HEAD)
+  [[ "$installed_ref" == "$AIO_REF" ]] || { echo "Exact AIO ref checkout resolved to $installed_ref, expected $AIO_REF." >&2; exit 2; }
 else
-  git -c safe.directory="$SCRIPT_DIR" -C "$SCRIPT_DIR" pull
+  current_branch=$(git -c safe.directory="$SCRIPT_DIR" -C "$SCRIPT_DIR" symbolic-ref --short HEAD) || {
+    echo "Cannot update an unmanaged detached checkout. Run this script with --aio-ref or check out the configured branch." >&2
+    exit 2
+  }
+  if [[ "$current_branch" == "$PIN_BRANCH" ]]; then
+    update_branch=$(git -c safe.directory="$SCRIPT_DIR" -C "$SCRIPT_DIR" config --get "$UPDATE_BRANCH_CONFIG") || {
+      echo "The saved AIO update branch is unavailable." >&2
+      exit 2
+    }
+    git -c safe.directory="$SCRIPT_DIR" -C "$SCRIPT_DIR" checkout "$update_branch"
+  fi
+  git -c safe.directory="$SCRIPT_DIR" -C "$SCRIPT_DIR" pull --ff-only
 fi
+./stop-jenkins.sh
 
 echo "Sometimes we have to update not just the Jenkins jobs, but also the docker image itself."
 echo "If you want to update that image. Rerun this command with the --rebuild flag added."

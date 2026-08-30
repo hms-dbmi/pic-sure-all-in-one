@@ -16,15 +16,11 @@ AIO_HEALTH_POLL_SECONDS="${AIO_HEALTH_POLL_SECONDS:-2}"
 AIO_PUBLISH_FRONTEND="${AIO_PUBLISH_FRONTEND:-true}"
 AIO_RECREATE_PSAMA_AFTER_BACKEND="${AIO_RECREATE_PSAMA_AFTER_BACKEND:-false}"
 
-for value_name in AIO_HEALTH_TIMEOUT_SECONDS AIO_HEALTH_POLL_SECONDS AIO_PUBLISH_FRONTEND AIO_RECREATE_PSAMA_AFTER_BACKEND; do
-  case "$value_name" in
-    *_SECONDS)
-      [[ "${!value_name}" =~ ^[1-9][0-9]*$ ]] || { echo "ERROR: $value_name must be a positive integer." >&2; exit 2; }
-      ;;
-    *)
-      [[ "${!value_name}" == "true" || "${!value_name}" == "false" ]] || { echo "ERROR: $value_name must be true or false." >&2; exit 2; }
-      ;;
-  esac
+for value_name in AIO_HEALTH_TIMEOUT_SECONDS AIO_HEALTH_POLL_SECONDS; do
+  [[ "${!value_name}" =~ ^[1-9][0-9]*$ ]] || { echo "ERROR: $value_name must be a positive integer." >&2; exit 2; }
+done
+for value_name in AIO_PUBLISH_FRONTEND AIO_RECREATE_PSAMA_AFTER_BACKEND; do
+  [[ "${!value_name}" == "true" || "${!value_name}" == "false" ]] || { echo "ERROR: $value_name must be true or false." >&2; exit 2; }
 done
 
 stop_and_remove_container() {

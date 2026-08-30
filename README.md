@@ -379,6 +379,9 @@ release tuple. A normal `update-jenkins.sh` run follows the configured Git branc
 release tuple, the check stops before migrations and prints the required commit. Install that exact revision with
 `sudo ./update-jenkins.sh --aio-ref <40-character-AIO-commit>`, then rerun `Check For Updates`. A non-Git package must
 contain the same reviewed workflow files; reinstall the package for the required AIO commit if its fingerprint differs.
+An exact-ref update records the current update branch and checks out the commit on the managed
+`picsure-aio-release-pin` branch. The next normal update restores the recorded branch and performs a fast-forward-only
+pull. Git failures stop the script before Jenkins is stopped or any jobs are replaced.
 
 A backup of your jenkins home can be found here: `"$DOCKER_CONFIG_DIR"/jenkins_home_bak/`
 

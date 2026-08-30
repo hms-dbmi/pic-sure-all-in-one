@@ -7,22 +7,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DOCKER_CONFIG_DIR="${DOCKER_CONFIG_DIR:-/usr/local/docker-config}"
 MODE="${AIO_WORKFLOW_MODE:-installed}"
 MANIFEST="$SCRIPT_DIR/initial-configuration/jenkins/jenkins-docker/aio-workflow-files.txt"
-
-sha256_file() {
-  if command -v sha256sum >/dev/null 2>&1; then
-    sha256sum "$1" | awk '{print $1}'
-  else
-    shasum -a 256 "$1" | awk '{print $1}'
-  fi
-}
-
-sha256_stream() {
-  if command -v sha256sum >/dev/null 2>&1; then
-    sha256sum | awk '{print $1}'
-  else
-    shasum -a 256 | awk '{print $1}'
-  fi
-}
+[[ "$MODE" == "source" || "$MODE" == "installed" ]] || { echo "ERROR: invalid AIO workflow mode: $MODE" >&2; exit 2; }
+[[ -f "$SCRIPT_DIR/aio-sha256.sh" ]] || { echo "ERROR: checksum helper is missing: $SCRIPT_DIR/aio-sha256.sh" >&2; exit 2; }
+# shellcheck source=aio-sha256.sh
+. "$SCRIPT_DIR/aio-sha256.sh"
 
 resolve_path() {
   local entry=$1
@@ -35,10 +23,8 @@ resolve_path() {
     jenkins-home:*)
       if [[ "$MODE" == "source" ]]; then
         printf '%s/initial-configuration/jenkins/jenkins-docker/%s\n' "$SCRIPT_DIR" "$location"
-      elif [[ "$MODE" == "installed" ]]; then
-        printf '%s/jenkins_home/%s\n' "$DOCKER_CONFIG_DIR" "$location"
       else
-        return 2
+        printf '%s/jenkins_home/%s\n' "$DOCKER_CONFIG_DIR" "$location"
       fi
       ;;
     *)
@@ -48,6 +34,8 @@ resolve_path() {
 }
 
 [[ -f "$MANIFEST" ]] || { echo "ERROR: AIO workflow manifest is missing: $MANIFEST" >&2; exit 2; }
+material_file=$(mktemp)
+trap 'rm -f "$material_file"' EXIT
 {
   printf '%s  %s\n' "$(sha256_file "$MANIFEST")" "aio-workflow-files.txt"
   while IFS= read -r entry; do
@@ -56,4 +44,5 @@ resolve_path() {
     [[ -f "$path" ]] || { echo "ERROR: installed AIO workflow file is missing: $path" >&2; exit 2; }
     printf '%s  %s\n' "$(sha256_file "$path")" "$entry"
   done < "$MANIFEST"
-} | sha256_stream
+} > "$material_file"
+sha256_file "$material_file"

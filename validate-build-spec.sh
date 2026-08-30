@@ -5,29 +5,34 @@ set -o pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BUILD_SPEC=${1:-}
-CONTRACT_FILE="${AIO_ROLLOUT_CONTRACT_FILE:-$SCRIPT_DIR/initial-configuration/jenkins/jenkins-docker/banner-rollout-contract.json}"
-SOURCE_FILE="${AIO_ROLLOUT_SOURCE_FILE:-$SCRIPT_DIR/initial-configuration/jenkins/jenkins-docker/banner-rollout-source.json}"
+
+default_rollout_file() {
+  local filename=$1
+  if [[ -f "$SCRIPT_DIR/$filename" ]]; then
+    printf '%s/%s\n' "$SCRIPT_DIR" "$filename"
+  else
+    printf '%s/initial-configuration/jenkins/jenkins-docker/%s\n' "$SCRIPT_DIR" "$filename"
+  fi
+}
+
+CONTRACT_FILE="${AIO_ROLLOUT_CONTRACT_FILE:-$(default_rollout_file banner-rollout-contract.json)}"
+SOURCE_FILE="${AIO_ROLLOUT_SOURCE_FILE:-$(default_rollout_file banner-rollout-source.json)}"
 
 fail() {
   echo "ERROR: $*" >&2
   exit 2
 }
 
-sha256_file() {
-  if command -v sha256sum >/dev/null 2>&1; then
-    sha256sum "$1" | awk '{print $1}'
-  else
-    shasum -a 256 "$1" | awk '{print $1}'
-  fi
-}
-
 [[ $# -eq 1 && -f "$BUILD_SPEC" ]] || fail "usage: $0 <build-spec.json>"
 [[ -f "$CONTRACT_FILE" ]] || fail "rollout contract not found: $CONTRACT_FILE"
 [[ -f "$SOURCE_FILE" ]] || fail "rollout source metadata not found: $SOURCE_FILE"
+[[ -f "$SCRIPT_DIR/aio-sha256.sh" ]] || fail "checksum helper not found: $SCRIPT_DIR/aio-sha256.sh"
+# shellcheck source=aio-sha256.sh
+. "$SCRIPT_DIR/aio-sha256.sh"
 command -v jq >/dev/null 2>&1 || fail "jq is required"
 
-contract_commit=$(jq -er '.contractSourceCommit' "$SOURCE_FILE")
-contract_sha=$(jq -er '.contractSha256' "$SOURCE_FILE")
+contract_commit=$(jq -er '.contractSourceCommit | select(type == "string" and test("^[0-9a-f]{40}$"))' "$SOURCE_FILE") || fail "rollout source metadata is invalid: $SOURCE_FILE"
+contract_sha=$(jq -er '.contractSha256 | select(type == "string" and test("^[0-9a-f]{64}$"))' "$SOURCE_FILE") || fail "rollout source metadata is invalid: $SOURCE_FILE"
 [[ "$(sha256_file "$CONTRACT_FILE")" == "$contract_sha" ]] || fail "rollout contract checksum does not match $contract_commit"
 
 jq -e --arg commit "$contract_commit" --arg checksum "$contract_sha" '

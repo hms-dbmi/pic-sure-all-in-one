@@ -17,14 +17,6 @@ fail() {
   exit 2
 }
 
-sha256_file() {
-  if command -v sha256sum >/dev/null 2>&1; then
-    sha256sum "$1" | awk '{print $1}'
-  else
-    shasum -a 256 "$1" | awk '{print $1}'
-  fi
-}
-
 json_value() {
   jq -er "$1" "$STATE_FILE"
 }
@@ -51,6 +43,9 @@ STATE_FILE=$1
 [[ -f "$STATE_FILE" ]] || fail "rollback state file not found: $STATE_FILE"
 [[ -f "$CONTRACT_FILE" ]] || fail "rollout contract not found: $CONTRACT_FILE"
 [[ -f "$SOURCE_FILE" ]] || fail "rollout contract source metadata not found: $SOURCE_FILE"
+[[ -f "$SCRIPT_DIR/aio-sha256.sh" ]] || fail "checksum helper not found: $SCRIPT_DIR/aio-sha256.sh"
+# shellcheck source=aio-sha256.sh
+. "$SCRIPT_DIR/aio-sha256.sh"
 command -v jq >/dev/null 2>&1 || fail "jq is required"
 
 EXPECTED_CONTRACT_COMMIT=$(jq -er '.contractSourceCommit' "$SOURCE_FILE")

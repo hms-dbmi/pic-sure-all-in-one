@@ -32,6 +32,7 @@ docker run -d \
   -v "$DOCKER_CONFIG_DIR":/usr/local/docker-config \
   -v "$SCRIPT_DIR/start-picsure.sh:/scripts/start-picsure.sh" \
   -v "$SCRIPT_DIR/rollback-picsure.sh:/scripts/rollback-picsure.sh" \
+  -v "$SCRIPT_DIR/aio-sha256.sh:/scripts/aio-sha256.sh:ro" \
   -v "$SCRIPT_DIR/validate-build-spec.sh:/scripts/validate-build-spec.sh:ro" \
   -v "$SCRIPT_DIR/initial-configuration/jenkins/jenkins-docker/banner-rollout-contract.json:/scripts/banner-rollout-contract.json:ro" \
   -v "$SCRIPT_DIR/initial-configuration/jenkins/jenkins-docker/banner-rollout-source.json:/scripts/banner-rollout-source.json:ro" \

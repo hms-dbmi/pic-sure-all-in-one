@@ -3,14 +3,25 @@ repo:update-jenkins.sh
 repo:start-picsure.sh
 repo:stop-picsure.sh
 repo:rollback-picsure.sh
+repo:aio-sha256.sh
 repo:validate-build-spec.sh
 repo:workflow-sha256.sh
 repo:initial-configuration/jenkins/jenkins-docker/banner-rollout-contract.json
 repo:initial-configuration/jenkins/jenkins-docker/banner-rollout-source.json
 jenkins-home:jobs/Check For Updates/config.xml
 jenkins-home:jobs/Initial Configuration Pipeline/config.xml
+jenkins-home:jobs/PIC-SURE Auth Micro-App Build - Jenkinsfile/config.xml
 jenkins-home:jobs/PIC-SURE Database Migrations/config.xml
+jenkins-home:jobs/PIC-SURE Dictionary API Build and Deploy/config.xml
+jenkins-home:jobs/PIC-SURE Frontend Build/config.xml
+jenkins-home:jobs/PIC-SURE Gateway Build and Deploy/config.xml
+jenkins-home:jobs/PIC-SURE HPDS Query Service Build and Deploy/config.xml
+jenkins-home:jobs/PIC-SURE Logging Build and Deploy/config.xml
+jenkins-home:jobs/PIC-SURE Maven Build/config.xml
+jenkins-home:jobs/PIC-SURE Operations Service Build and Deploy/config.xml
 jenkins-home:jobs/PIC-SURE Pipeline/config.xml
+jenkins-home:jobs/PIC-SURE Visualization Build and Deploy/config.xml
+jenkins-home:jobs/PIC-SURE-HPDS Build/config.xml
 jenkins-home:jobs/Replace Frontend/config.xml
 jenkins-home:jobs/Retrieve Pinned Build Spec/config.xml
 jenkins-home:jobs/Rollback PIC-SURE/config.xml

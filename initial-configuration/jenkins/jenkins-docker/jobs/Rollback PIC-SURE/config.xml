@@ -28,7 +28,6 @@ export CURRENT_FS_DOCKER_CONFIG_DIR=/usr/local/docker-config/
 export AIO_ROLLOUT_CONTRACT_FILE=/scripts/banner-rollout-contract.json
 export AIO_ROLLOUT_SOURCE_FILE=/scripts/banner-rollout-source.json
 export AIO_START_SCRIPT=/scripts/start-picsure.sh
-curl --fail --silent --show-error --output /dev/null http://gateway:8080/operations/banners/active/v2
 /scripts/rollback-picsure.sh rollback-state.json
 </command>
       <configuredLocalRules/>

@@ -17,6 +17,7 @@ CONTRACT = ROOT / "initial-configuration/jenkins/jenkins-docker/banner-rollout-c
 CONTRACT_SOURCE = ROOT / "initial-configuration/jenkins/jenkins-docker/banner-rollout-source.json"
 WORKFLOW_MANIFEST = ROOT / "initial-configuration/jenkins/jenkins-docker/aio-workflow-files.txt"
 VALIDATOR = ROOT / "validate-build-spec.sh"
+CHECKSUM_HELPER = ROOT / "aio-sha256.sh"
 EXPECTED_CONTRACT_COMMIT = "0178bbd2d1753e07dcead77a6d0e8ca37bf76dd8"
 EXPECTED_CONTRACT_SHA256 = "f8cb265d735b757872391e04fdcd5b999b785eaa427ca13f8f2eefd493715359"
 EXPECTED_FORWARD = [
@@ -118,6 +119,19 @@ def validate_migration_verifier(script: str) -> None:
         raise AssertionError(f"migration success verifier is missing: {missing}")
 
 
+def validate_pipeline_migration_order(script: str) -> None:
+    stage_start = script.index("stage('Verify Migrations')")
+    stage_end = script.index("stage('Maven Build')", stage_start)
+    stage = script[stage_start:stage_end]
+    positions = [
+        stage.index("Verify PIC-SURE Database Migration"),
+        stage.index("copyArtifacts filter: 'migration-release-control-commit.txt'"),
+        stage.index("migratedCommit != params.release_control_commit"),
+    ]
+    if positions != sorted(positions):
+        raise AssertionError("migration success must be verified before its commit marker is consumed")
+
+
 def workflow_digest(root: Path = ROOT) -> str:
     manifest = root / WORKFLOW_MANIFEST.relative_to(ROOT)
     material = [f"{hashlib.sha256(manifest.read_bytes()).hexdigest()}  aio-workflow-files.txt\n"]
@@ -177,6 +191,16 @@ def run_validator(spec: dict, workflow_sha: str, aio_commit: str):
             capture_output=True,
             check=False,
         )
+
+
+def copy_validator_bundle(directory: Path) -> Path:
+    validator = directory / "validate-build-spec.sh"
+    shutil.copy2(VALIDATOR, validator)
+    shutil.copy2(CONTRACT, directory / "banner-rollout-contract.json")
+    shutil.copy2(CONTRACT_SOURCE, directory / "banner-rollout-source.json")
+    if CHECKSUM_HELPER.exists():
+        shutil.copy2(CHECKSUM_HELPER, directory / CHECKSUM_HELPER.name)
+    return validator
 
 
 def fake_bin(directory: Path) -> Path:
@@ -243,9 +267,6 @@ set -u
 printf '%s\\n' "$*" >> "$MOCK_WGET_LOG"
 if [[ -n "${MOCK_FAILED_HEALTH_PATH:-}" && "$*" == *"$MOCK_FAILED_HEALTH_PATH"* ]]; then
   exit 1
-fi
-if [[ "$*" == *"/system/status"* ]]; then
-  printf '%s\\n' RUNNING
 fi
 """
     )
@@ -393,7 +414,8 @@ class RolloutContractTest(unittest.TestCase):
         self.assertIn("/operations/banners/active/v2", source)
         self.assertNotIn("/system/status", source)
         self.assertNotIn("# shellcheck disable=SC1091,SC2086", source)
-        self.assertEqual(source.count("for value_name in"), 1)
+        self.assertEqual(source.count("for value_name in"), 2)
+        self.assertNotIn('case "$value_name"', source)
         with self.assertRaises(AssertionError):
             validate_start_script(source.replace("docker run --name=psama", "docker run --name=omitted", 1))
         reordered = source.replace("docker run --name=psama", "docker run --name=TEMP", 1)
@@ -459,6 +481,17 @@ class RolloutContractTest(unittest.TestCase):
                 ROOT / "start-picsure.sh",
                 config,
                 {"AIO_HEALTH_POLL_SECONDS": "0"},
+            )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(commands, [])
+
+    def test_invalid_frontend_publish_flag_fails_before_docker_commands(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = required_config(Path(tmp) / "config")
+            result, commands = run_script(
+                ROOT / "start-picsure.sh",
+                config,
+                {"AIO_PUBLISH_FRONTEND": "yes"},
             )
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(commands, [])
@@ -588,6 +621,212 @@ class RolloutContractTest(unittest.TestCase):
         unavailable = run_validator(spec, digest, "UNAVAILABLE")
         self.assertEqual(unavailable.returncode, 0, unavailable.stdout + unavailable.stderr)
 
+    def test_validator_defaults_work_at_repo_root_and_direct_scripts_mount(self):
+        digest = workflow_digest()
+        aio_commit = "a" * 40
+        spec = synthetic_build_spec(aio_commit, digest)
+        root_result = run_validator(spec, digest, aio_commit)
+        self.assertEqual(root_result.returncode, 0, root_result.stdout + root_result.stderr)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            scripts = Path(tmp) / "scripts"
+            scripts.mkdir()
+            validator = copy_validator_bundle(scripts)
+            spec_path = Path(tmp) / "build-spec.json"
+            spec_path.write_text(json.dumps(spec))
+            env = os.environ.copy()
+            env.update(
+                {
+                    "AIO_WORKFLOW_SHA256": digest,
+                    "AIO_WORKFLOW_COMMIT": aio_commit,
+                }
+            )
+            mounted_result = subprocess.run(
+                ["bash", str(validator), str(spec_path)],
+                cwd=tmp,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+        self.assertEqual(
+            mounted_result.returncode,
+            0,
+            mounted_result.stdout + mounted_result.stderr,
+        )
+
+    def test_validator_reports_malformed_rollout_source(self):
+        digest = workflow_digest()
+        aio_commit = "a" * 40
+        spec = synthetic_build_spec(aio_commit, digest)
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            source = tmp_path / "banner-rollout-source.json"
+            source.write_text("{not-json")
+            spec_path = tmp_path / "build-spec.json"
+            spec_path.write_text(json.dumps(spec))
+            env = os.environ.copy()
+            env.update(
+                {
+                    "AIO_ROLLOUT_CONTRACT_FILE": str(CONTRACT),
+                    "AIO_ROLLOUT_SOURCE_FILE": str(source),
+                    "AIO_WORKFLOW_SHA256": digest,
+                    "AIO_WORKFLOW_COMMIT": aio_commit,
+                }
+            )
+            result = subprocess.run(
+                ["bash", str(VALIDATOR), str(spec_path)],
+                cwd=tmp,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("rollout source metadata", result.stderr)
+
+    def test_workflow_checksum_rejects_bad_mode_without_printing_a_digest(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            shutil.copy2(ROOT / "workflow-sha256.sh", root / "workflow-sha256.sh")
+            if CHECKSUM_HELPER.exists():
+                shutil.copy2(CHECKSUM_HELPER, root / CHECKSUM_HELPER.name)
+            manifest = root / "initial-configuration/jenkins/jenkins-docker/aio-workflow-files.txt"
+            manifest.parent.mkdir(parents=True)
+            manifest.write_text("repo:present.txt\n")
+            (root / "present.txt").write_text("present\n")
+            invalid_mode = subprocess.run(
+                ["bash", str(root / "workflow-sha256.sh")],
+                cwd=root,
+                env={**os.environ, "AIO_WORKFLOW_MODE": "typo"},
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            manifest.write_text("repo:missing.txt\n")
+            missing_file = subprocess.run(
+                ["bash", str(root / "workflow-sha256.sh")],
+                cwd=root,
+                env={**os.environ, "AIO_WORKFLOW_MODE": "source"},
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+        self.assertEqual(invalid_mode.returncode, 2)
+        self.assertIn("workflow mode", invalid_mode.stderr)
+        self.assertEqual(invalid_mode.stdout, "")
+        self.assertEqual(missing_file.returncode, 2)
+        self.assertEqual(missing_file.stdout, "")
+
+    def test_pipeline_child_jobs_are_bound_by_the_workflow_manifest(self):
+        pipeline = xml_script(JOBS / "PIC-SURE Pipeline/config.xml")
+        children = set(re.findall(r"build job: '([^']+)'", pipeline))
+        bound_jobs = {
+            entry.removeprefix("jenkins-home:jobs/").removesuffix("/config.xml")
+            for entry in WORKFLOW_MANIFEST.read_text().splitlines()
+            if entry.startswith("jenkins-home:jobs/")
+        }
+        self.assertEqual(children - bound_jobs, set())
+
+    def test_exact_ref_update_is_checked_and_normal_update_restores_branch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            shutil.copy2(ROOT / "update-jenkins.sh", root / "update-jenkins.sh")
+            (root / "stop-jenkins.sh").write_text(
+                "#!/usr/bin/env bash\nprintf 'stop\\n' >> \"$MOCK_JENKINS_LOG\"\n"
+            )
+            (root / "start-jenkins.sh").write_text(
+                "#!/usr/bin/env bash\nprintf 'start\\n' >> \"$MOCK_JENKINS_LOG\"\n"
+            )
+            (root / "stop-jenkins.sh").chmod(0o755)
+            (root / "start-jenkins.sh").chmod(0o755)
+            (root / "initial-configuration/jenkins/jenkins-docker/jobs").mkdir(parents=True)
+            (root / "initial-configuration/jenkins/jenkins-docker/jobs/job.xml").write_text("<job/>\n")
+            config = root / "config/jenkins_home/jobs"
+            config.mkdir(parents=True)
+            (config / "old.xml").write_text("<old/>\n")
+            bin_dir = root / "bin"
+            bin_dir.mkdir()
+            git = bin_dir / "git"
+            git.write_text(
+                """#!/usr/bin/env bash
+set -u
+printf '%s\\n' "$*" >> "$MOCK_GIT_LOG"
+state=$(cat "$MOCK_GIT_STATE")
+case "$*" in
+  *"cat-file -e "*) exit 0 ;;
+  *"symbolic-ref --short HEAD"*)
+    [[ "$state" == "pin" ]] && printf '%s\\n' picsure-aio-release-pin || printf '%s\\n' main
+    ;;
+  *"config --get picsure.updateBranch"*) printf '%s\\n' main ;;
+  *"config picsure.updateBranch "*) exit 0 ;;
+  *"checkout -B picsure-aio-release-pin "*)
+    [[ "${MOCK_CHECKOUT_FAIL:-false}" != "true" ]] || exit 1
+    printf '%s\\n' pin > "$MOCK_GIT_STATE"
+    ;;
+  *"checkout --detach "*)
+    [[ "${MOCK_CHECKOUT_FAIL:-false}" != "true" ]] || exit 1
+    printf '%s\\n' detached > "$MOCK_GIT_STATE"
+    ;;
+  *"checkout main"*) printf '%s\\n' main > "$MOCK_GIT_STATE" ;;
+  *"rev-parse HEAD"*) printf '%s\\n' "$MOCK_AIO_REF" ;;
+  *"pull --ff-only"*) [[ "$state" == "main" ]] ;;
+  *" pull") [[ "$state" == "main" ]] ;;
+  *) exit 1 ;;
+esac
+"""
+            )
+            git.chmod(0o755)
+            state = root / "git-state"
+            state.write_text("main\n")
+            aio_ref = "a" * 40
+            env = os.environ.copy()
+            env.update(
+                {
+                    "PATH": f"{bin_dir}:{env['PATH']}",
+                    "DOCKER_CONFIG_DIR": str(root / "config"),
+                    "MOCK_GIT_LOG": str(root / "git.log"),
+                    "MOCK_GIT_STATE": str(state),
+                    "MOCK_AIO_REF": aio_ref,
+                    "MOCK_JENKINS_LOG": str(root / "jenkins.log"),
+                }
+            )
+            pinned = subprocess.run(
+                ["bash", str(root / "update-jenkins.sh"), "--jobs-only", "--aio-ref", aio_ref],
+                cwd=root,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            normal = subprocess.run(
+                ["bash", str(root / "update-jenkins.sh"), "--jobs-only"],
+                cwd=root,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            git_commands = (root / "git.log").read_text()
+            final_state = state.read_text().strip()
+            (root / "jenkins.log").write_text("")
+            failed_checkout = subprocess.run(
+                ["bash", str(root / "update-jenkins.sh"), "--jobs-only", "--aio-ref", aio_ref],
+                cwd=root,
+                env={**env, "MOCK_CHECKOUT_FAIL": "true"},
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            jenkins_commands_after_failure = (root / "jenkins.log").read_text()
+        self.assertEqual(pinned.returncode, 0, pinned.stdout + pinned.stderr)
+        self.assertEqual(normal.returncode, 0, normal.stdout + normal.stderr)
+        self.assertIn("checkout -B picsure-aio-release-pin", git_commands)
+        self.assertIn("pull --ff-only", git_commands)
+        self.assertEqual(final_state, "main")
+        self.assertNotEqual(failed_checkout.returncode, 0)
+        self.assertEqual(jenkins_commands_after_failure, "")
+
     def test_start_jenkins_binds_content_in_safe_git_and_non_git_installs(self):
         for git_mode, expected_commit in (
             ("safe", "a" * 40),
@@ -649,6 +888,18 @@ class RolloutContractTest(unittest.TestCase):
         self.assertIn("migration_build_number", pipeline)
         self.assertIn("migration-release-control-commit.txt", pipeline)
         self.assertIn("Verify PIC-SURE Database Migration", pipeline)
+        validate_pipeline_migration_order(pipeline)
+        reordered_verification = pipeline.replace(
+            "build job: 'Verify PIC-SURE Database Migration'",
+            "build job: 'TEMP Verification'",
+            1,
+        ).replace(
+            "if (migratedCommit != params.release_control_commit)",
+            "build job: 'Verify PIC-SURE Database Migration'\n                    if (migratedCommit != params.release_control_commit)",
+            1,
+        )
+        with self.assertRaises(AssertionError):
+            validate_pipeline_migration_order(reordered_verification)
         ET.parse(JOBS / "Verify PIC-SURE Database Migration/config.xml")
         verifier_script = xml_script(JOBS / "Verify PIC-SURE Database Migration/config.xml")
         validate_migration_verifier(verifier_script)
@@ -684,10 +935,15 @@ class RolloutContractTest(unittest.TestCase):
         self.assertEqual(syntax.returncode, 0, syntax.stderr)
         self.assertIsNotNone(rollback.find(".//hudson.plugins.ws__cleanup.PreBuildCleanup"))
         mounts = (ROOT / "start-jenkins.sh").read_text()
+        self.assertIn("aio-sha256.sh:/scripts/aio-sha256.sh:ro", mounts)
         self.assertIn("validate-build-spec.sh:/scripts/validate-build-spec.sh", mounts)
         self.assertIn("banner-rollout-contract.json:/scripts/banner-rollout-contract.json:ro", mounts)
         self.assertIn("banner-rollout-source.json:/scripts/banner-rollout-source.json:ro", mounts)
         self.assertIn("AIO_WORKFLOW_SHA256", mounts)
+        for script in (VALIDATOR, ROOT / "workflow-sha256.sh", ROOT / "rollback-picsure.sh"):
+            source = script.read_text()
+            self.assertIn("aio-sha256.sh", source)
+            self.assertNotIn("sha256_file()", source)
         replace_frontend = ET.parse(JOBS / "Replace Frontend/config.xml").getroot()
         self.assertEqual(replace_frontend.findtext("disabled"), "true")
         jenkins = ET.parse(
@@ -706,7 +962,7 @@ class RolloutContractTest(unittest.TestCase):
         self.assertIn("http://gateway:8080", readme)
         self.assertIn("Jenkins container", readme)
         self.assertIn("shared `picsure` Docker network", readme)
-        self.assertNotIn("internal\n`picsure` Docker network", readme)
+        self.assertNotRegex(readme, r"internal\s+`picsure` Docker network")
         self.assertIn("--aio-ref", readme)
         update = (ROOT / "update-jenkins.sh").read_text()
         self.assertIn("--aio-ref", update)
@@ -738,20 +994,29 @@ class RolloutContractTest(unittest.TestCase):
                     "MOCK_GIT_LOG": str(tmp_path / "git.log"),
                 }
             )
-            reachability_only = command.replace(
-                "/scripts/rollback-picsure.sh rollback-state.json", "true"
+            rollback_stub = tmp_path / "rollback-picsure.sh"
+            rollback_stub.write_text(
+                "#!/usr/bin/env bash\ntouch \"$MOCK_ROLLBACK_CALLED\"\n"
             )
+            rollback_stub.chmod(0o755)
+            executable_command = command.replace(
+                "/scripts/rollback-picsure.sh rollback-state.json",
+                f"{rollback_stub} rollback-state.json",
+            )
+            env["MOCK_FAILED_HEALTH_PATH"] = "/operations/banners/active/v2"
+            env["MOCK_ROLLBACK_CALLED"] = str(tmp_path / "rollback-called")
             result = subprocess.run(
-                ["bash", "-c", reachability_only],
+                ["bash", "-c", executable_command],
                 cwd=tmp_path,
                 env=env,
                 text=True,
                 capture_output=True,
                 check=False,
             )
-            curl_commands = (tmp_path / "curl.log").read_text()
+            rollback_called = (tmp_path / "rollback-called").exists()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn("http://gateway:8080/operations/banners/active/v2", curl_commands)
+        self.assertTrue(rollback_called)
+        self.assertNotIn("/operations/banners/active/v2", command)
         initial = xml_script(JOBS / "Initial Configuration Pipeline/config.xml")
         self.assertNotIn("Initial Config and Build", initial)
 

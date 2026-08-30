@@ -1,4 +1,32 @@
 #!/bin/bash
+# shellcheck disable=SC2154
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR" || exit 2
+
+REBUILD=false
+JOBS_ONLY=false
+AIO_REF=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --rebuild)
+      REBUILD=true
+      ;;
+    --jobs-only)
+      JOBS_ONLY=true
+      ;;
+    --aio-ref)
+      shift
+      AIO_REF=${1:-}
+      [[ "$AIO_REF" =~ ^[0-9a-f]{40}$ ]] || { echo "--aio-ref requires an exact 40-character commit" >&2; exit 2; }
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      exit 2
+      ;;
+  esac
+  shift
+done
+
 sed_inplace() {
   if sed --version 2>/dev/null | grep -q "GNU sed"; then
     sed -i "$@"
@@ -41,26 +69,34 @@ restore_jenkins_env_value() {
 }
 
 ./stop-jenkins.sh
-git pull
+if [[ -n "$AIO_REF" ]]; then
+  if ! git -c safe.directory="$SCRIPT_DIR" -C "$SCRIPT_DIR" cat-file -e "$AIO_REF^{commit}"; then
+    git -c safe.directory="$SCRIPT_DIR" -C "$SCRIPT_DIR" fetch origin "$AIO_REF"
+  fi
+  git -c safe.directory="$SCRIPT_DIR" -C "$SCRIPT_DIR" checkout --detach "$AIO_REF"
+else
+  git -c safe.directory="$SCRIPT_DIR" -C "$SCRIPT_DIR" pull
+fi
 
 echo "Sometimes we have to update not just the Jenkins jobs, but also the docker image itself."
 echo "If you want to update that image. Rerun this command with the --rebuild flag added."
 
 DOCKER_CONFIG_DIR="${DOCKER_CONFIG_DIR:-/usr/local/docker-config}"
 
-if [ "$1" = "--rebuild" ]; then
+if $REBUILD; then
   #  Rebuild the docker image. This matches the initial dep script. The proxy args are generally empty, but you might
   # run into bugs if you have an http proxy, but don't set it somewhere clever like your bash profile
-  cd initial-configuration
+  cd initial-configuration || exit 2
   echo "Rebuilding the Jenkins container:"
-  docker build --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_proxy --build-arg no_proxy="$no_proxy" \
-    --build-arg HTTP_PROXY=$http_proxy --build-arg HTTPS_PROXY=$http_proxy --build-arg NO_PROXY="$no_proxy" \
-    -t pic-sure-jenkins:`git log -n 1 | grep commit | cut -d ' ' -f 2 | cut -c 1-7` jenkins/jenkins-docker
-  docker tag pic-sure-jenkins:`git log -n 1 | grep commit | cut -d ' ' -f 2 | cut -c 1-7` pic-sure-jenkins:LATEST
+  jenkins_tag=$(git -c safe.directory="$SCRIPT_DIR" -C "$SCRIPT_DIR" rev-parse --short=7 HEAD)
+  docker build --build-arg http_proxy="$http_proxy" --build-arg https_proxy="$http_proxy" --build-arg no_proxy="$no_proxy" \
+    --build-arg HTTP_PROXY="$http_proxy" --build-arg HTTPS_PROXY="$http_proxy" --build-arg NO_PROXY="$no_proxy" \
+    -t "pic-sure-jenkins:$jenkins_tag" jenkins/jenkins-docker
+  docker tag "pic-sure-jenkins:$jenkins_tag" pic-sure-jenkins:LATEST
   cd ../
 fi
 
-if [ "$1" = "--jobs-only" ] || [ "$2" = "--jobs-only" ]; then
+if $JOBS_ONLY; then
   echo "Updating jobs only (preserving Jenkins state)"
   rm -rf "$DOCKER_CONFIG_DIR"/jenkins_home/jobs
   cp -r initial-configuration/jenkins/jenkins-docker/jobs "$DOCKER_CONFIG_DIR"/jenkins_home/jobs

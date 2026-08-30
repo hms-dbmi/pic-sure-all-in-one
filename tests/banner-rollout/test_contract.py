@@ -4,6 +4,7 @@ import json
 import os
 from pathlib import Path
 import re
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -14,6 +15,8 @@ ROOT = Path(__file__).resolve().parents[2]
 JOBS = ROOT / "initial-configuration/jenkins/jenkins-docker/jobs"
 CONTRACT = ROOT / "initial-configuration/jenkins/jenkins-docker/banner-rollout-contract.json"
 CONTRACT_SOURCE = ROOT / "initial-configuration/jenkins/jenkins-docker/banner-rollout-source.json"
+WORKFLOW_MANIFEST = ROOT / "initial-configuration/jenkins/jenkins-docker/aio-workflow-files.txt"
+VALIDATOR = ROOT / "validate-build-spec.sh"
 EXPECTED_CONTRACT_COMMIT = "0178bbd2d1753e07dcead77a6d0e8ca37bf76dd8"
 EXPECTED_CONTRACT_SHA256 = "f8cb265d735b757872391e04fdcd5b999b785eaa427ca13f8f2eefd493715359"
 EXPECTED_FORWARD = [
@@ -80,8 +83,17 @@ def validate_start_script(script: str) -> None:
         raise AssertionError(f"start path omits a mandatory service: {error}") from error
     if positions != sorted(positions):
         raise AssertionError(f"mandatory service order is wrong: {containers}")
+    psama_calls = [
+        match.start()
+        for match in re.finditer(r"(?m)^\s*start_psama \|\| exit 2$", script)
+    ]
+    if len(psama_calls) != 2:
+        raise AssertionError("start path must have forward and deferred PSAMA call sites")
+    operations_position = script.index("docker run --name=pic-sure-operations-service")
     gateway_position = script.index("docker run --name=gateway")
     httpd_position = script.index("docker run --name=httpd")
+    if not psama_calls[0] < operations_position < gateway_position < psama_calls[1]:
+        raise AssertionError("PSAMA call sites do not implement forward and rollback order")
     for health_gate in (
         "wait_for_container_health psama",
         "wait_for_container_health pic-sure-operations-service",
@@ -93,6 +105,80 @@ def validate_start_script(script: str) -> None:
             raise AssertionError(f"{health_gate} must run before httpd")
 
 
+def validate_migration_verifier(script: str) -> None:
+    required = (
+        'getItemByFullName("PIC-SURE Database Migrations")',
+        "getBuildByNumber",
+        "migrationRun == null",
+        "migrationRun.result != Result.SUCCESS",
+        "throw new Exception",
+    )
+    missing = [fragment for fragment in required if fragment not in script]
+    if missing:
+        raise AssertionError(f"migration success verifier is missing: {missing}")
+
+
+def workflow_digest(root: Path = ROOT) -> str:
+    manifest = root / WORKFLOW_MANIFEST.relative_to(ROOT)
+    material = [f"{hashlib.sha256(manifest.read_bytes()).hexdigest()}  aio-workflow-files.txt\n"]
+    for entry in manifest.read_text().splitlines():
+        if not entry or entry.startswith("#"):
+            continue
+        source, relative = entry.split(":", 1)
+        if source == "repo":
+            path = root / relative
+        elif source == "jenkins-home":
+            path = root / "initial-configuration/jenkins/jenkins-docker" / relative
+        else:
+            raise AssertionError(f"unknown workflow manifest source: {source}")
+        material.append(f"{hashlib.sha256(path.read_bytes()).hexdigest()}  {entry}\n")
+    return hashlib.sha256("".join(material).encode()).hexdigest()
+
+
+def synthetic_build_spec(aio_sha: str, workflow_sha: str, psa_sha=EXPECTED_CONTRACT_COMMIT):
+    return {
+        "application": [
+            {"project_job_git_key": "PSA", "git_hash": psa_sha},
+            {"project_job_git_key": "PSF", "git_hash": "b" * 40},
+            {"project_job_git_key": "PSM", "git_hash": "c" * 40},
+            {"project_job_git_key": "AIO", "git_hash": aio_sha},
+        ],
+        "bannerRollout": {
+            "contractSourceCommit": EXPECTED_CONTRACT_COMMIT,
+            "contractSha256": EXPECTED_CONTRACT_SHA256,
+            "releaseControlCommitSource": "pipeline_git_commit.txt",
+            "aioWorkflowSha256": workflow_sha,
+            "forwardPhases": EXPECTED_FORWARD,
+            "rollbackPhases": EXPECTED_ROLLBACK,
+            "schemaRollback": "KEEP_FORWARD_SCHEMA",
+            "downMigrationAllowed": False,
+        },
+    }
+
+
+def run_validator(spec: dict, workflow_sha: str, aio_commit: str):
+    with tempfile.TemporaryDirectory() as tmp:
+        spec_path = Path(tmp) / "build-spec.json"
+        spec_path.write_text(json.dumps(spec))
+        env = os.environ.copy()
+        env.update(
+            {
+                "AIO_ROLLOUT_CONTRACT_FILE": str(CONTRACT),
+                "AIO_ROLLOUT_SOURCE_FILE": str(CONTRACT_SOURCE),
+                "AIO_WORKFLOW_SHA256": workflow_sha,
+                "AIO_WORKFLOW_COMMIT": aio_commit,
+            }
+        )
+        return subprocess.run(
+            ["bash", str(VALIDATOR), str(spec_path)],
+            cwd=ROOT,
+            env=env,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+
+
 def fake_bin(directory: Path) -> Path:
     bin_dir = directory / "bin"
     bin_dir.mkdir()
@@ -101,12 +187,40 @@ def fake_bin(directory: Path) -> Path:
         """#!/usr/bin/env bash
 set -u
 printf '%s\\n' "$*" >> "$MOCK_DOCKER_LOG"
-if [[ "$*" == *"inspect --format={{.State.Running}}"* ]]; then
+if [[ "${1:-}" == "run" ]]; then
+  name=""
+  health=""
+  previous=""
+  for argument in "$@"; do
+    case "$argument" in
+      --name=*) name="${argument#--name=}" ;;
+      --health-cmd=*) health="${argument#--health-cmd=}" ;;
+      *)
+        if [[ "$previous" == "--name" ]]; then
+          name="$argument"
+        elif [[ "$previous" == "--health-cmd" ]]; then
+          health="$argument"
+        fi
+        ;;
+    esac
+    previous="$argument"
+  done
+  if [[ -n "$name" && -n "$health" ]]; then
+    printf '%s\\n' "$health" > "$MOCK_DOCKER_STATE/$name.health"
+  fi
+elif [[ "$*" == *"inspect --format={{.State.Running}}"* ]]; then
   printf '%s\\n' true
 elif [[ "$*" == *"inspect --format={{.State.Health.Status}}"* ]]; then
   name="${*: -1}"
   if [[ "${MOCK_UNHEALTHY_CONTAINER:-}" == "$name" ]]; then
     printf '%s\\n' unhealthy
+  elif [[ -f "$MOCK_DOCKER_STATE/$name.health" ]]; then
+    IFS= read -r health < "$MOCK_DOCKER_STATE/$name.health"
+    if bash -c "$health"; then
+      printf '%s\\n' healthy
+    else
+      printf '%s\\n' unhealthy
+    fi
   else
     printf '%s\\n' healthy
   fi
@@ -122,6 +236,49 @@ fi
 """
     )
     docker.chmod(0o755)
+    wget = bin_dir / "wget"
+    wget.write_text(
+        """#!/usr/bin/env bash
+set -u
+printf '%s\\n' "$*" >> "$MOCK_WGET_LOG"
+if [[ -n "${MOCK_FAILED_HEALTH_PATH:-}" && "$*" == *"$MOCK_FAILED_HEALTH_PATH"* ]]; then
+  exit 1
+fi
+if [[ "$*" == *"/system/status"* ]]; then
+  printf '%s\\n' RUNNING
+fi
+"""
+    )
+    wget.chmod(0o755)
+    curl = bin_dir / "curl"
+    curl.write_text(
+        """#!/usr/bin/env bash
+set -u
+printf '%s\\n' "$*" >> "$MOCK_CURL_LOG"
+if [[ -n "${MOCK_FAILED_HEALTH_PATH:-}" && "$*" == *"$MOCK_FAILED_HEALTH_PATH"* ]]; then
+  exit 1
+fi
+"""
+    )
+    curl.chmod(0o755)
+    git = bin_dir / "git"
+    git.write_text(
+        """#!/usr/bin/env bash
+set -u
+printf '%s\\n' "$*" >> "$MOCK_GIT_LOG"
+if [[ "${MOCK_GIT_MODE:-unavailable}" != "safe" || "$*" != *"-c safe.directory="* ]]; then
+  exit 1
+fi
+if [[ "$*" == *"rev-parse --is-inside-work-tree"* ]]; then
+  printf '%s\\n' true
+elif [[ "$*" == *"rev-parse HEAD"* ]]; then
+  printf '%s\\n' "${MOCK_GIT_COMMIT:-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}"
+else
+  exit 1
+fi
+"""
+    )
+    git.chmod(0o755)
     sleep = bin_dir / "sleep"
     sleep.write_text("#!/usr/bin/env bash\nexit 0\n")
     sleep.chmod(0o755)
@@ -147,11 +304,17 @@ def required_config(directory: Path) -> Path:
 def run_script(script: Path, config: Path, extra_env=None, *args: str):
     work = config.parent
     log = work / "docker.log"
+    state = work / "docker-state"
+    state.mkdir()
     env = os.environ.copy()
     env.update(
         {
             "PATH": f"{fake_bin(work)}:{env['PATH']}",
             "MOCK_DOCKER_LOG": str(log),
+            "MOCK_DOCKER_STATE": str(state),
+            "MOCK_WGET_LOG": str(work / "wget.log"),
+            "MOCK_CURL_LOG": str(work / "curl.log"),
+            "MOCK_GIT_LOG": str(work / "git.log"),
             "DOCKER_CONFIG_DIR": str(config),
             "CURRENT_FS_DOCKER_CONFIG_DIR": str(config),
             "AIO_HEALTH_TIMEOUT_SECONDS": "1",
@@ -196,12 +359,7 @@ class RolloutContractTest(unittest.TestCase):
         script = xml_script(JOBS / "Check For Updates/config.xml")
         validate_update_script(script)
         shell = config.findtext(".//hudson.tasks.Shell/command") or ""
-        self.assertIn('(["PSA", "PSF", "PSM", "AIO"]', shell)
-        self.assertNotIn(EXPECTED_CONTRACT_COMMIT, shell)
-        self.assertNotIn(EXPECTED_CONTRACT_SHA256, shell)
-        self.assertIn("AIO_WORKFLOW_COMMIT", shell)
-        self.assertIn('project_job_git_key == "PSA"', shell)
-        self.assertIn("banner-rollout-source.json", shell)
+        self.assertIn("/scripts/validate-build-spec.sh build-spec.json", shell)
         syntax = subprocess.run(
             ["bash", "-n"], input=shell, text=True, capture_output=True, check=False
         )
@@ -231,9 +389,11 @@ class RolloutContractTest(unittest.TestCase):
         source = (ROOT / "start-picsure.sh").read_text()
         validate_start_script(source)
         self.assertIn("/operations/actuator/health/readiness", source)
-        self.assertIn("/system/status", source)
-        self.assertIn("RUNNING", source)
+        self.assertIn("/actuator/health/liveness", source)
+        self.assertIn("/operations/banners/active/v2", source)
+        self.assertNotIn("/system/status", source)
         self.assertNotIn("# shellcheck disable=SC1091,SC2086", source)
+        self.assertEqual(source.count("for value_name in"), 1)
         with self.assertRaises(AssertionError):
             validate_start_script(source.replace("docker run --name=psama", "docker run --name=omitted", 1))
         reordered = source.replace("docker run --name=psama", "docker run --name=TEMP", 1)
@@ -241,10 +401,14 @@ class RolloutContractTest(unittest.TestCase):
         reordered = reordered.replace("docker run --name=TEMP", "docker run --name=gateway", 1)
         with self.assertRaises(AssertionError):
             validate_start_script(reordered)
+        missing_deferred_call = source.rsplit("start_psama || exit 2", 1)
+        with self.assertRaises(AssertionError):
+            validate_start_script(": # omitted deferred PSAMA call".join(missing_deferred_call))
 
         with tempfile.TemporaryDirectory() as tmp:
             config = required_config(Path(tmp) / "config")
             result, commands = run_script(ROOT / "start-picsure.sh", config)
+            health_commands = (Path(tmp) / "wget.log").read_text().splitlines()
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         ordered = [
             "run --name=psama",
@@ -259,6 +423,15 @@ class RolloutContractTest(unittest.TestCase):
         ]
         positions = [index_of(commands, fragment) for fragment in ordered]
         self.assertEqual(positions, sorted(positions))
+        self.assertEqual(
+            health_commands,
+            [
+                "-q --spider http://127.0.0.1:8090/auth/actuator/health",
+                "-q --spider http://127.0.0.1:8080/operations/actuator/health/readiness",
+                "-q --spider http://127.0.0.1:8080/actuator/health/liveness",
+                "-q --spider http://127.0.0.1:8080/operations/banners/active/v2",
+            ],
+        )
 
     def test_start_fails_before_docker_when_required_backend_config_is_absent(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -274,7 +447,7 @@ class RolloutContractTest(unittest.TestCase):
             result, commands = run_script(
                 ROOT / "start-picsure.sh",
                 config,
-                {"MOCK_UNHEALTHY_CONTAINER": "gateway"},
+                {"MOCK_FAILED_HEALTH_PATH": "/operations/banners/active/v2"},
             )
         self.assertNotEqual(result.returncode, 0)
         self.assertFalse(any("run --name=httpd" in command for command in commands))
@@ -392,17 +565,97 @@ class RolloutContractTest(unittest.TestCase):
         self.assertRegex(compose, r"(?m)^\s+- picsure$")
         self.assertRegex(compose, r"(?ms)^networks:\n\s+picsure:\n\s+external: true$")
 
+    def test_shared_validator_executes_tuple_and_workflow_content_predicates(self):
+        digest = workflow_digest()
+        aio_commit = "a" * 40
+        spec = synthetic_build_spec(aio_commit, digest)
+        result = run_validator(spec, digest, aio_commit)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+        dirty = run_validator(spec, "d" * 64, aio_commit)
+        self.assertNotEqual(dirty.returncode, 0)
+        self.assertIn("workflow content", dirty.stderr)
+
+        wrong_commit = run_validator(spec, digest, "e" * 40)
+        self.assertNotEqual(wrong_commit.returncode, 0)
+        self.assertIn(f"--aio-ref {aio_commit}", wrong_commit.stderr)
+
+        wrong_psa = synthetic_build_spec(aio_commit, digest, psa_sha="f" * 40)
+        mismatch = run_validator(wrong_psa, digest, aio_commit)
+        self.assertNotEqual(mismatch.returncode, 0)
+        self.assertIn("PSA", mismatch.stderr)
+
+        unavailable = run_validator(spec, digest, "UNAVAILABLE")
+        self.assertEqual(unavailable.returncode, 0, unavailable.stdout + unavailable.stderr)
+
+    def test_start_jenkins_binds_content_in_safe_git_and_non_git_installs(self):
+        for git_mode, expected_commit in (
+            ("safe", "a" * 40),
+            ("unavailable", "UNAVAILABLE"),
+        ):
+            with self.subTest(git_mode=git_mode), tempfile.TemporaryDirectory() as tmp:
+                tmp_path = Path(tmp)
+                bin_dir = fake_bin(tmp_path)
+                env = os.environ.copy()
+                env.update(
+                    {
+                        "PATH": f"{bin_dir}:{env['PATH']}",
+                        "MOCK_DOCKER_LOG": str(tmp_path / "docker.log"),
+                        "MOCK_DOCKER_STATE": str(tmp_path / "docker-state"),
+                        "MOCK_WGET_LOG": str(tmp_path / "wget.log"),
+                        "MOCK_CURL_LOG": str(tmp_path / "curl.log"),
+                        "MOCK_GIT_LOG": str(tmp_path / "git.log"),
+                        "MOCK_GIT_MODE": git_mode,
+                        "MOCK_GIT_COMMIT": "a" * 40,
+                        "DOCKER_CONFIG_DIR": str(tmp_path / "config"),
+                    }
+                )
+                (tmp_path / "docker-state").mkdir()
+                for entry in WORKFLOW_MANIFEST.read_text().splitlines():
+                    if not entry.startswith("jenkins-home:"):
+                        continue
+                    relative = Path(entry.split(":", 1)[1])
+                    source = ROOT / "initial-configuration/jenkins/jenkins-docker" / relative
+                    target = tmp_path / "config/jenkins_home" / relative
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copy2(source, target)
+                result = subprocess.run(
+                    ["bash", str(ROOT / "start-jenkins.sh")],
+                    cwd=tmp_path,
+                    env=env,
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                docker_command = (tmp_path / "docker.log").read_text()
+                git_commands = (tmp_path / "git.log").read_text()
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertIn(f"AIO_WORKFLOW_COMMIT={expected_commit}", docker_command)
+            self.assertIn(f"AIO_WORKFLOW_SHA256={workflow_digest()}", docker_command)
+            self.assertIn("--network picsure", docker_command)
+            if git_mode == "safe":
+                self.assertIn("-c safe.directory=", git_commands)
+
     def test_jenkins_jobs_preserve_release_pin_and_call_real_rollback_script(self):
         for job in ("PIC-SURE Database Migrations", "PIC-SURE Pipeline"):
             script = xml_script(JOBS / job / "config.xml")
             self.assertIn("release_control_commit", script)
             self.assertIn("Retrieve Pinned Build Spec", script)
             self.assertIn("projectName: 'Retrieve Pinned Build Spec'", script)
+            self.assertIn("/scripts/validate-build-spec.sh build-spec.json", script)
         migrations = xml_script(JOBS / "PIC-SURE Database Migrations/config.xml")
         self.assertIn("migration-release-control-commit.txt", migrations)
         pipeline = xml_script(JOBS / "PIC-SURE Pipeline/config.xml")
         self.assertIn("migration_build_number", pipeline)
         self.assertIn("migration-release-control-commit.txt", pipeline)
+        self.assertIn("Verify PIC-SURE Database Migration", pipeline)
+        ET.parse(JOBS / "Verify PIC-SURE Database Migration/config.xml")
+        verifier_script = xml_script(JOBS / "Verify PIC-SURE Database Migration/config.xml")
+        validate_migration_verifier(verifier_script)
+        with self.assertRaises(AssertionError):
+            validate_migration_verifier(
+                verifier_script.replace("migrationRun.result != Result.SUCCESS", "false")
+            )
         retrieve = ET.parse(JOBS / "Retrieve Pinned Build Spec/config.xml").getroot()
         branch = retrieve.findtext(".//hudson.plugins.git.BranchSpec/name")
         self.assertEqual(branch, "${release_control_commit}")
@@ -431,10 +684,10 @@ class RolloutContractTest(unittest.TestCase):
         self.assertEqual(syntax.returncode, 0, syntax.stderr)
         self.assertIsNotNone(rollback.find(".//hudson.plugins.ws__cleanup.PreBuildCleanup"))
         mounts = (ROOT / "start-jenkins.sh").read_text()
-        self.assertIn("./rollback-picsure.sh:/scripts/rollback-picsure.sh", mounts)
+        self.assertIn("validate-build-spec.sh:/scripts/validate-build-spec.sh", mounts)
         self.assertIn("banner-rollout-contract.json:/scripts/banner-rollout-contract.json:ro", mounts)
         self.assertIn("banner-rollout-source.json:/scripts/banner-rollout-source.json:ro", mounts)
-        self.assertIn("AIO_WORKFLOW_COMMIT", mounts)
+        self.assertIn("AIO_WORKFLOW_SHA256", mounts)
         replace_frontend = ET.parse(JOBS / "Replace Frontend/config.xml").getroot()
         self.assertEqual(replace_frontend.findtext("disabled"), "true")
         jenkins = ET.parse(
@@ -452,6 +705,53 @@ class RolloutContractTest(unittest.TestCase):
         readme = (ROOT / "README.md").read_text()
         self.assertIn("http://gateway:8080", readme)
         self.assertIn("Jenkins container", readme)
+        self.assertIn("shared `picsure` Docker network", readme)
+        self.assertNotIn("internal\n`picsure` Docker network", readme)
+        self.assertIn("--aio-ref", readme)
+        update = (ROOT / "update-jenkins.sh").read_text()
+        self.assertIn("--aio-ref", update)
+        self.assertEqual(subprocess.run(["bash", "-n", str(ROOT / "update-jenkins.sh")]).returncode, 0)
+        invalid_ref = subprocess.run(
+            ["bash", str(ROOT / "update-jenkins.sh"), "--aio-ref", "moving-branch"],
+            cwd=ROOT,
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertNotEqual(invalid_ref.returncode, 0)
+        self.assertIn("exact 40-character commit", invalid_ref.stderr)
+
+        rollback = ET.parse(JOBS / "Rollback PIC-SURE/config.xml").getroot()
+        command = rollback.findtext(".//hudson.tasks.Shell/command") or ""
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            bin_dir = fake_bin(tmp_path)
+            (tmp_path / "docker-state").mkdir()
+            env = os.environ.copy()
+            env.update(
+                {
+                    "PATH": f"{bin_dir}:{env['PATH']}",
+                    "MOCK_DOCKER_LOG": str(tmp_path / "docker.log"),
+                    "MOCK_DOCKER_STATE": str(tmp_path / "docker-state"),
+                    "MOCK_WGET_LOG": str(tmp_path / "wget.log"),
+                    "MOCK_CURL_LOG": str(tmp_path / "curl.log"),
+                    "MOCK_GIT_LOG": str(tmp_path / "git.log"),
+                }
+            )
+            reachability_only = command.replace(
+                "/scripts/rollback-picsure.sh rollback-state.json", "true"
+            )
+            result = subprocess.run(
+                ["bash", "-c", reachability_only],
+                cwd=tmp_path,
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            curl_commands = (tmp_path / "curl.log").read_text()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("http://gateway:8080/operations/banners/active/v2", curl_commands)
         initial = xml_script(JOBS / "Initial Configuration Pipeline/config.xml")
         self.assertNotIn("Initial Config and Build", initial)
 

@@ -32,38 +32,7 @@
     <hudson.tasks.Shell>
       <command>#!/usr/bin/env bash
 set -e
-BUILD_SPEC=build-spec.json
-CONTRACT=/scripts/banner-rollout-contract.json
-SOURCE=/scripts/banner-rollout-source.json
-EXPECTED_CONTRACT_COMMIT=$(jq -er &apos;.contractSourceCommit&apos; "$SOURCE")
-EXPECTED_CONTRACT_SHA256=$(jq -er &apos;.contractSha256&apos; "$SOURCE")
-
-test "$(sha256sum "$CONTRACT" | awk &apos;{print $1}&apos;)" = "$EXPECTED_CONTRACT_SHA256"
-jq -e --arg commit "$EXPECTED_CONTRACT_COMMIT" --arg checksum "$EXPECTED_CONTRACT_SHA256" --arg aio "$AIO_WORKFLOW_COMMIT" &apos;
-  .bannerRollout.contractSourceCommit == $commit and
-  .bannerRollout.contractSha256 == $checksum and
-  .bannerRollout.releaseControlCommitSource == "pipeline_git_commit.txt" and
-  .bannerRollout.forwardPhases == [
-    "APPLY_AUTHORIZATION_AND_PIC_SURE_MIGRATIONS",
-    "RECREATE_PSAMA",
-    "VERIFY_OPERATIONS_AND_GATEWAY_HEALTH",
-    "PUBLISH_FRONTEND_ACTIVE_V2"
-  ] and
-  .bannerRollout.rollbackPhases == [
-    "FREEZE_BANNER_MANAGEMENT_WRITES",
-    "ROLL_BACK_FRONTEND",
-    "DISABLE_ACTIVE_AND_SCHEDULED_TARGETED_BANNERS_BEFORE_LEGACY_ACTIVE_FEED_BACKEND",
-    "ROLL_BACK_OPERATIONS_AND_GATEWAY",
-    "KEEP_BANNER_MANAGEMENT_WRITES_FROZEN_BELOW_TARGETING_CAPABLE_BACKEND",
-    "RECREATE_PSAMA"
-  ] and
-  .bannerRollout.schemaRollback == "KEEP_FORWARD_SCHEMA" and
-  .bannerRollout.downMigrationAllowed == false and
-  (["PSA", "PSF", "PSM", "AIO"] - [.application[].project_job_git_key]) == [] and
-  ([.application[] | select(.project_job_git_key == "PSA" or .project_job_git_key == "PSF" or .project_job_git_key == "PSM" or .project_job_git_key == "AIO") | .git_hash] | all(test("^[0-9a-f]{40}$"))) and
-  ([.application[] | select(.project_job_git_key == "PSA") | .git_hash] == [$commit]) and
-  ([.application[] | select(.project_job_git_key == "AIO") | .git_hash] == [$aio])
-&apos; "$BUILD_SPEC" &gt;/dev/null
+/scripts/validate-build-spec.sh build-spec.json
 </command>
       <configuredLocalRules/>
     </hudson.tasks.Shell>

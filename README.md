@@ -246,9 +246,10 @@ sudo ./stop-jenkins.sh
 
 `Check For Updates` resolves one release-control commit, applies the database migrations from that release, and only
 then builds and restarts the application. `Start PIC-SURE` recreates PSAMA, starts Operations, Query, and Gateway, and
-waits for PSAMA health, Operations readiness, Query health, and a `RUNNING` Gateway deep system status before it starts
-the public httpd/frontend container. PSAMA recreation is the deployment-wide authorization-cache refresh. AIO has no
-global cache-eviction operation.
+waits for PSAMA health, Operations readiness, Query liveness, and the banner feed through Gateway before it starts the
+public httpd/frontend container. The Gateway check calls `/operations/banners/active/v2`, so it proves the
+Gateway-to-Operations-to-database path without requiring optional HPDS, Dictionary, Logging, or Visualization services.
+PSAMA recreation is the deployment-wide authorization-cache refresh. AIO has no global cache-eviction operation.
 
 The update is fail closed. A migration or backend-health failure leaves the new frontend unpublished. During startup,
 new banner management routes may remain unavailable until PSAMA has been recreated and the backend is healthy.
@@ -256,10 +257,10 @@ new banner management routes may remain unavailable until PSAMA has been recreat
 Use `Rollback PIC-SURE` only with an operator-reviewed `rollback-state.json`. Before running the job, stop httpd to
 freeze banner management writes, retag the chosen exact frontend rollback image as
 `hms-dbmi/pic-sure-frontend:LATEST`, and disable every Active or Scheduled targeted banner through the final Operations
-management API. With public httpd stopped, the Jenkins container can still reach the existing Gateway on the internal
-`picsure` Docker network at `http://gateway:8080`; send the normal authenticated management request through that path
-and do not put its token in the state file. The state file attests those steps in this exact order and binds each exact
-local image tag to the image ID inspected during operator review:
+management API. With public httpd stopped, the Jenkins container can still reach the existing Gateway on the
+shared `picsure` Docker network at `http://gateway:8080`. Send the normal authenticated management request through that
+path and do not put its token in the state file. The state file attests those steps in this exact order and binds each
+exact local image tag to the image ID inspected during operator review:
 
 ```json
 {
@@ -372,6 +373,12 @@ does migrate your initial configurations.  (Does not impact PIC-SURE users)
 1. Run `sudo ./update-jenkins.sh`
 1. If jenkins is not running run the start script `sudo ./start-jenkins.sh`
 1. Follow the jenkins set up steps again.
+
+`Check For Updates` compares the installed AIO commit and workflow-file fingerprint with the exact AIO entry in the
+release tuple. A normal `update-jenkins.sh` run follows the configured Git branch. If that branch has moved beyond the
+release tuple, the check stops before migrations and prints the required commit. Install that exact revision with
+`sudo ./update-jenkins.sh --aio-ref <40-character-AIO-commit>`, then rerun `Check For Updates`. A non-Git package must
+contain the same reviewed workflow files; reinstall the package for the required AIO commit if its fingerprint differs.
 
 A backup of your jenkins home can be found here: `"$DOCKER_CONFIG_DIR"/jenkins_home_bak/`
 

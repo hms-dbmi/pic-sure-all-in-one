@@ -16,17 +16,15 @@ AIO_HEALTH_POLL_SECONDS="${AIO_HEALTH_POLL_SECONDS:-2}"
 AIO_PUBLISH_FRONTEND="${AIO_PUBLISH_FRONTEND:-true}"
 AIO_RECREATE_PSAMA_AFTER_BACKEND="${AIO_RECREATE_PSAMA_AFTER_BACKEND:-false}"
 
-for value_name in AIO_HEALTH_TIMEOUT_SECONDS AIO_HEALTH_POLL_SECONDS; do
-  if [[ ! "${!value_name}" =~ ^[1-9][0-9]*$ ]]; then
-    echo "ERROR: $value_name must be a positive integer." >&2
-    exit 2
-  fi
-done
-for value_name in AIO_PUBLISH_FRONTEND AIO_RECREATE_PSAMA_AFTER_BACKEND; do
-  if [[ "${!value_name}" != "true" && "${!value_name}" != "false" ]]; then
-    echo "ERROR: $value_name must be true or false." >&2
-    exit 2
-  fi
+for value_name in AIO_HEALTH_TIMEOUT_SECONDS AIO_HEALTH_POLL_SECONDS AIO_PUBLISH_FRONTEND AIO_RECREATE_PSAMA_AFTER_BACKEND; do
+  case "$value_name" in
+    *_SECONDS)
+      [[ "${!value_name}" =~ ^[1-9][0-9]*$ ]] || { echo "ERROR: $value_name must be a positive integer." >&2; exit 2; }
+      ;;
+    *)
+      [[ "${!value_name}" == "true" || "${!value_name}" == "false" ]] || { echo "ERROR: $value_name must be true or false." >&2; exit 2; }
+      ;;
+  esac
 done
 
 stop_and_remove_container() {
@@ -232,7 +230,7 @@ fi
 if $INCLUDE_QUERY; then
   stop_and_remove_container pic-sure-hpds-query-service || exit 2
   docker run --name=pic-sure-hpds-query-service --restart always --network=picsure \
-    --health-cmd='wget -q --spider http://127.0.0.1:8080/actuator/health || exit 1' \
+    --health-cmd='wget -q --spider http://127.0.0.1:8080/actuator/health/liveness || exit 1' \
     --health-interval=10s --health-timeout=5s --health-start-period=60s --health-retries=6 \
     --env-file "$CURRENT_FS_DOCKER_CONFIG_DIR/query/query.env" \
     -d hms-dbmi/pic-sure-hpds-query-service:LATEST \
@@ -243,7 +241,7 @@ fi
 if $INCLUDE_GATEWAY; then
   stop_and_remove_container gateway || exit 2
   docker run --name=gateway --restart always --network=picsure \
-    --health-cmd='test "$(wget -qO- http://127.0.0.1:8080/system/status)" = RUNNING' \
+    --health-cmd='wget -q --spider http://127.0.0.1:8080/operations/banners/active/v2 || exit 1' \
     --health-interval=10s --health-timeout=5s --health-start-period=60s --health-retries=6 \
     --env-file "$CURRENT_FS_DOCKER_CONFIG_DIR/gateway/gateway.env" \
     -d hms-dbmi/pic-sure-gateway:LATEST \

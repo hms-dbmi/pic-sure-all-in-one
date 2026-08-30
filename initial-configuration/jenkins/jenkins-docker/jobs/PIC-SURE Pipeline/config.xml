@@ -58,6 +58,7 @@ pipeline {
                     copyArtifacts filter: &apos;*&apos;, projectName: &apos;Retrieve Pinned Build Spec&apos;, selector: specific(&quot;&quot;+retrieveBuildSpecId)
                     sh &apos;cat build-spec.json&apos;
                     sh &apos;cat pipeline_git_commit.txt&apos;
+                    sh &apos;/scripts/validate-build-spec.sh build-spec.json&apos;
                     def buildSpec = new JsonSlurper().parse(new File(&apos;/var/jenkins_home/workspace/PIC-SURE Pipeline/build-spec.json&apos;))
                     pipelineBuildId = new File(&apos;/var/jenkins_home/workspace/PIC-SURE Pipeline/pipeline_git_commit.txt&apos;).text.trim()
                     for(def build : buildSpec.application){
@@ -72,6 +73,9 @@ pipeline {
                     if (!(params.migration_build_number ==~ /[1-9][0-9]*/)) {
                         error(&apos;PIC-SURE Pipeline requires a successful migration_build_number; use Check For Updates.&apos;)
                     }
+                    build job: &apos;Verify PIC-SURE Database Migration&apos;, parameters: [
+                        [$class: &apos;StringParameterValue&apos;, name: &apos;migration_build_number&apos;, value: params.migration_build_number]
+                    ]
                     sh &apos;rm -f migration-release-control-commit.txt&apos;
                     copyArtifacts filter: &apos;migration-release-control-commit.txt&apos;,
                         projectName: &apos;PIC-SURE Database Migrations&apos;,

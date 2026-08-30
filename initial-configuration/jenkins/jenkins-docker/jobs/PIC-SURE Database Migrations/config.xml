@@ -46,6 +46,7 @@ node {
             sh &apos;cat pipeline_git_commit.txt&apos;
             sh &apos;pwd&apos;
             sh &apos;ls&apos;
+            sh &apos;/scripts/validate-build-spec.sh build-spec.json&apos;
             def path = pwd()
             def filePath = path + &apos;/build-spec.json&apos;
             echo filePath

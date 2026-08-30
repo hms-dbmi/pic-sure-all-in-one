@@ -44,7 +44,7 @@ require_httpd_frozen() {
   local inspection_error
   local inspection_error_file
   local inspection_status
-  inspection_error_file=$(mktemp "${TMPDIR:-/tmp}/aio-httpd-inspect.XXXXXX")
+  inspection_error_file=$(mktemp "${TMPDIR:-/tmp}/aio-httpd-inspect.XXXXXX") || fail "could not create temporary file for httpd inspection"
   if inspection=$(docker container inspect --format='{{.State.Running}} {{.HostConfig.RestartPolicy.Name}}' httpd 2>"$inspection_error_file"); then
     inspection_status=0
   else

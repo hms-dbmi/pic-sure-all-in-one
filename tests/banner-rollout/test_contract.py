@@ -7,6 +7,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+from typing import NamedTuple
 import unittest
 import xml.etree.ElementTree as ET
 
@@ -49,50 +50,291 @@ def xml_script(path: Path) -> str:
     return "\n".join(scripts)
 
 
-BUILD_JOB_PATTERNS = (
-    re.compile(
-        r"""\bbuild(?:\s+job\s*:|\s*\(\s*job\s*:)\s*
-        (?P<quote>['"])(?P<job>[^'"$\\\r\n]+)(?P=quote)
-        (?=\s*(?:[,);}\r\n]|$))""",
-        re.VERBOSE,
-    ),
-    re.compile(
-        r"""\bbuild(?:\s+|\s*\(\s*)
-        (?P<quote>['"])(?P<job>[^'"$\\\r\n]+)(?P=quote)
-        (?=\s*(?:[,);}\r\n]|$))""",
-        re.VERBOSE,
-    ),
-)
-SCHEDULE_JOB_PATTERN = re.compile(
-    r"""\bgetItem(?:ByFullName)?\(\s*(?P<quote>['"])
-    (?P<job>[^'"$\\\r\n]+)(?P=quote)\s*\)\s*\.scheduleBuild2\b""",
-    re.VERBOSE,
-)
-UNRESOLVED_TRIGGER_PATTERN = re.compile(
-    r"""\bbuild(?:\s+job\s*:|\s*\(|\s+['"]|
-    \s+[A-Za-z_$][A-Za-z0-9_$]*(?:\.[A-Za-z_$][A-Za-z0-9_$]*)*
-    (?=\s*(?:[,);}\r\n]|$)))|
-    \bscheduleBuild2\b""",
-    re.VERBOSE,
-)
+class GroovyToken(NamedTuple):
+    kind: str
+    value: str
+    literal: bool = True
 
 
-def without_matches(script: str, matches: list[re.Match]) -> str:
-    result = script
-    for match in reversed(matches):
-        result = (
-            result[: match.start()]
-            + " " * (match.end() - match.start())
-            + result[match.end() :]
-        )
-    return result
+def groovy_tokens(script: str) -> list[GroovyToken]:
+    tokens = []
+    index = 0
+    while index < len(script):
+        character = script[index]
+        if character in " \t\r":
+            index += 1
+            continue
+        if character == "\n":
+            tokens.append(GroovyToken("newline", "\n"))
+            index += 1
+            continue
+        if script.startswith("//", index):
+            end = script.find("\n", index + 2)
+            index = len(script) if end < 0 else end
+            continue
+        if script.startswith("/*", index):
+            end = script.find("*/", index + 2)
+            if end < 0:
+                raise AssertionError("unterminated Groovy block comment")
+            tokens.extend(
+                GroovyToken("newline", "\n")
+                for _ in range(script.count("\n", index, end + 2))
+            )
+            index = end + 2
+            continue
+        if character in {"'", '"'}:
+            quote = character
+            triple = script.startswith(quote * 3, index)
+            delimiter = quote * (3 if triple else 1)
+            cursor = index + len(delimiter)
+            value = []
+            escaped = False
+            while cursor < len(script):
+                if not escaped and script.startswith(delimiter, cursor):
+                    break
+                current = script[cursor]
+                value.append(current)
+                if escaped:
+                    escaped = False
+                elif current == "\\":
+                    escaped = True
+                cursor += 1
+            if cursor >= len(script):
+                raise AssertionError("unterminated Groovy string")
+            text = "".join(value)
+            tokens.append(
+                GroovyToken(
+                    "string",
+                    text,
+                    not triple and "\\" not in text and "$" not in text,
+                )
+            )
+            index = cursor + len(delimiter)
+            continue
+        if character.isalpha() or character in {"_", "$"}:
+            cursor = index + 1
+            while cursor < len(script) and (
+                script[cursor].isalnum() or script[cursor] in {"_", "$"}
+            ):
+                cursor += 1
+            tokens.append(GroovyToken("identifier", script[index:cursor]))
+            index = cursor
+            continue
+        if character.isdigit():
+            cursor = index + 1
+            while cursor < len(script) and script[cursor].isdigit():
+                cursor += 1
+            tokens.append(GroovyToken("number", script[index:cursor]))
+            index = cursor
+            continue
+        tokens.append(GroovyToken("symbol", character))
+        index += 1
+    return tokens
+
+
+def next_token(tokens: list[GroovyToken], index: int) -> int:
+    while index < len(tokens) and tokens[index].kind == "newline":
+        index += 1
+    return index
+
+
+def matching_token(
+    tokens: list[GroovyToken], start: int, opening: str, closing: str
+) -> int:
+    depth = 0
+    for index in range(start, len(tokens)):
+        if tokens[index].kind != "symbol":
+            continue
+        if tokens[index].value == opening:
+            depth += 1
+        elif tokens[index].value == closing:
+            depth -= 1
+            if depth == 0:
+                return index
+    raise AssertionError(f"unterminated Groovy {opening}{closing} group")
+
+
+def statement_position(tokens: list[GroovyToken], index: int) -> bool:
+    if index == 0:
+        return True
+    previous = tokens[index - 1]
+    if previous.kind == "newline":
+        return True
+    if previous.kind == "identifier" and previous.value == "return":
+        return True
+    return previous.kind == "symbol" and previous.value in {"{", "}", ";", "="}
+
+
+def literal_job(token: GroovyToken) -> str:
+    if token.kind != "string" or not token.literal or not token.value:
+        raise AssertionError("unresolved Jenkins downstream trigger target")
+    return token.value
+
+
+def map_literal_job(tokens: list[GroovyToken], start: int, end: int) -> str:
+    job = None
+    index = start + 1
+    depth = 0
+    while index < end:
+        token = tokens[index]
+        if token.kind == "symbol" and token.value in {"(", "[", "{"}:
+            depth += 1
+        elif token.kind == "symbol" and token.value in {")", "]", "}"}:
+            depth -= 1
+        elif (
+            depth == 0
+            and token.kind == "identifier"
+            and token.value == "job"
+        ):
+            colon = next_token(tokens, index + 1)
+            target = next_token(tokens, colon + 1)
+            if (
+                colon >= end
+                or tokens[colon].kind != "symbol"
+                or tokens[colon].value != ":"
+                or target >= end
+            ):
+                raise AssertionError("unresolved Jenkins downstream trigger target")
+            after = next_token(tokens, target + 1)
+            if after < end and not (
+                tokens[after].kind == "symbol" and tokens[after].value == ","
+            ):
+                raise AssertionError("unresolved Jenkins downstream trigger target")
+            if job is not None:
+                raise AssertionError("duplicate Jenkins downstream job target")
+            job = literal_job(tokens[target])
+        index += 1
+    if job is None:
+        raise AssertionError("unresolved Jenkins downstream trigger target")
+    return job
+
+
+def build_jobs(tokens: list[GroovyToken]) -> list[str]:
+    jobs = []
+    for index, token in enumerate(tokens):
+        if (
+            token.kind != "identifier"
+            or token.value != "build"
+            or not statement_position(tokens, index)
+        ):
+            continue
+        target = index + 1
+        if target >= len(tokens):
+            continue
+        target_token = tokens[target]
+        if target_token.kind == "newline":
+            continue
+        if target_token.kind == "symbol" and target_token.value in {".", ":", "="}:
+            continue
+        parenthesized = target_token.kind == "symbol" and target_token.value == "("
+        if parenthesized:
+            close = matching_token(tokens, target, "(", ")")
+            target = next_token(tokens, target + 1)
+            if target >= close:
+                raise AssertionError("unresolved Jenkins downstream trigger target")
+            target_token = tokens[target]
+            if target_token.kind == "symbol" and target_token.value == "[":
+                map_end = matching_token(tokens, target, "[", "]")
+                if map_end >= close:
+                    raise AssertionError("unresolved Jenkins downstream trigger target")
+                after = next_token(tokens, map_end + 1)
+                if after < close:
+                    raise AssertionError("unresolved Jenkins downstream trigger target")
+                jobs.append(map_literal_job(tokens, target, map_end))
+                continue
+        elif target_token.kind == "symbol" and target_token.value == "[":
+            map_end = matching_token(tokens, target, "[", "]")
+            after = map_end + 1
+            if after < len(tokens) and tokens[after].kind != "newline" and not (
+                tokens[after].kind == "symbol"
+                and tokens[after].value in {";", "}"}
+            ):
+                raise AssertionError("unresolved Jenkins downstream trigger target")
+            jobs.append(map_literal_job(tokens, target, map_end))
+            continue
+
+        if target_token.kind == "identifier" and target_token.value == "job":
+            colon = next_token(tokens, target + 1)
+            if (
+                colon >= len(tokens)
+                or tokens[colon].kind != "symbol"
+                or tokens[colon].value != ":"
+            ):
+                raise AssertionError("unresolved Jenkins downstream trigger target")
+            target = next_token(tokens, colon + 1)
+            if target >= len(tokens):
+                raise AssertionError("unresolved Jenkins downstream trigger target")
+            target_token = tokens[target]
+        job = literal_job(target_token)
+        after = target + 1
+        if parenthesized:
+            after = next_token(tokens, after)
+            if after < close and not (
+                tokens[after].kind == "symbol" and tokens[after].value == ","
+            ):
+                raise AssertionError("unresolved Jenkins downstream trigger target")
+        else:
+            if after < len(tokens) and tokens[after].kind != "newline":
+                if not (
+                    tokens[after].kind == "symbol"
+                    and tokens[after].value in {",", ";", "}"}
+                ):
+                    raise AssertionError(
+                        "unresolved Jenkins downstream trigger target"
+                    )
+        jobs.append(job)
+    return jobs
+
+
+def scheduled_jobs_from_tokens(tokens: list[GroovyToken]) -> list[str]:
+    jobs = []
+    recognized = set()
+    for index, token in enumerate(tokens):
+        if token.kind != "identifier" or token.value not in {
+            "getItem",
+            "getItemByFullName",
+        }:
+            continue
+        opening = next_token(tokens, index + 1)
+        if (
+            opening >= len(tokens)
+            or tokens[opening].kind != "symbol"
+            or tokens[opening].value != "("
+        ):
+            continue
+        closing = matching_token(tokens, opening, "(", ")")
+        dot = next_token(tokens, closing + 1)
+        schedule = next_token(tokens, dot + 1)
+        if (
+            dot >= len(tokens)
+            or schedule >= len(tokens)
+            or tokens[dot].kind != "symbol"
+            or tokens[dot].value != "."
+            or tokens[schedule].kind != "identifier"
+            or tokens[schedule].value != "scheduleBuild2"
+        ):
+            continue
+        target = [
+            item
+            for item in tokens[opening + 1 : closing]
+            if item.kind != "newline"
+        ]
+        if len(target) != 1:
+            raise AssertionError("unresolved Jenkins downstream trigger: scheduleBuild2")
+        jobs.append(literal_job(target[0]))
+        recognized.add(schedule)
+    for index, token in enumerate(tokens):
+        if (
+            token.kind == "identifier"
+            and token.value == "scheduleBuild2"
+            and index not in recognized
+        ):
+            raise AssertionError("unresolved Jenkins downstream trigger: scheduleBuild2")
+    return jobs
 
 
 def scheduled_jobs(script: str) -> list[str]:
-    matches = list(SCHEDULE_JOB_PATTERN.finditer(script))
-    if re.search(r"\bscheduleBuild2\b", without_matches(script, matches)):
-        raise AssertionError("unresolved Jenkins downstream trigger: scheduleBuild2")
-    return [match.group("job") for match in matches]
+    return scheduled_jobs_from_tokens(groovy_tokens(script))
 
 
 def validate_update_script(script: str) -> None:
@@ -260,6 +502,22 @@ def create_installed_validator_bundle(directory: Path) -> Path:
     scripts.mkdir()
     validator = scripts / "validate-build-spec.sh"
     shutil.copy2(VALIDATOR, validator)
+    validator_source = validator.read_text()
+    validator.write_text(
+        validator_source.replace(
+            '[[ "$SCRIPT_DIR" == "/scripts" ]]',
+            f'[[ "$SCRIPT_DIR" == "{scripts.resolve()}" ]]',
+        )
+        .replace(
+            "[[ -d /aio-workflow ]]",
+            f"[[ -d {directory / 'aio-workflow'} ]]",
+        )
+        .replace("WORKFLOW_ROOT=/aio-workflow", f"WORKFLOW_ROOT={directory / 'aio-workflow'}")
+        .replace(
+            "WORKFLOW_JENKINS_HOME=/var/jenkins_home",
+            f"WORKFLOW_JENKINS_HOME={directory / 'var/jenkins_home'}",
+        )
+    )
     shutil.copy2(CONTRACT, scripts / "banner-rollout-contract.json")
     shutil.copy2(CONTRACT_SOURCE, scripts / "banner-rollout-source.json")
     if CHECKSUM_HELPER.exists():
@@ -277,6 +535,29 @@ def create_installed_validator_bundle(directory: Path) -> Path:
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, target)
     return validator
+
+
+def create_source_validator_bundle(directory: Path) -> Path:
+    source_root = directory / "scripts"
+    source_root.mkdir()
+    for source in (VALIDATOR, CHECKSUM_HELPER, ROOT / "workflow-sha256.sh"):
+        shutil.copy2(source, source_root / source.name)
+    workflow_directory = (
+        source_root / "initial-configuration/jenkins/jenkins-docker"
+    )
+    workflow_directory.mkdir(parents=True)
+    for source in (CONTRACT, CONTRACT_SOURCE, WORKFLOW_MANIFEST):
+        shutil.copy2(source, workflow_directory / source.name)
+    copy_installed_jenkins_jobs(workflow_directory)
+    for entry in WORKFLOW_MANIFEST.read_text().splitlines():
+        if not entry.startswith("repo:"):
+            continue
+        relative = Path(entry.split(":", 1)[1])
+        source = ROOT / relative
+        target = source_root / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, target)
+    return source_root / VALIDATOR.name
 
 
 def fake_bin(directory: Path) -> Path:
@@ -346,6 +627,9 @@ elif [[ "$1 ${2:-}" == "container inspect" ]]; then
   if [[ "$name" == "httpd" && -n "${MOCK_HTTPD_INSPECT_ERROR:-}" ]]; then
     printf '%s\\n' "$MOCK_HTTPD_INSPECT_ERROR" >&2
     exit 41
+  fi
+  if [[ "$name" == "httpd" && "${MOCK_HTTPD_INSPECT_NO_DIAGNOSTIC:-false}" == "true" ]]; then
+    exit 43
   fi
   if [[ "$name" == "httpd" && "${MOCK_HTTPD_PRESENT:-false}" == "true" ]]; then
     if [[ -n "${MOCK_HTTPD_INSPECT_STDERR:-}" ]]; then
@@ -486,22 +770,8 @@ def split_job_names(value: str) -> set[str]:
 def jenkins_job_references(config: Path) -> set[str]:
     root = ET.parse(config).getroot()
     script = xml_script(config)
-    build_matches = sorted(
-        (
-            match
-            for pattern in BUILD_JOB_PATTERNS
-            for match in pattern.finditer(script)
-        ),
-        key=lambda match: match.start(),
-    )
-    schedule_matches = list(SCHEDULE_JOB_PATTERN.finditer(script))
-    matches = sorted(build_matches + schedule_matches, key=lambda match: match.start())
-    unresolved = without_matches(script, matches)
-    if UNRESOLVED_TRIGGER_PATTERN.search(unresolved):
-        raise AssertionError(
-            f"unresolved Jenkins downstream trigger in {config}"
-        )
-    children = {match.group("job") for match in matches}
+    tokens = groovy_tokens(script)
+    children = set(build_jobs(tokens) + scheduled_jobs_from_tokens(tokens))
     recognized = set()
     for node in root.findall(".//hudson.tasks.BuildTrigger/childProjects"):
         recognized.add(id(node))
@@ -555,82 +825,179 @@ DECLARATIVE_STANDALONE_OPTIONS = {
 }
 
 
-def groovy_block(script: str, name: str) -> str:
-    match = re.search(rf"\b{re.escape(name)}\s*\{{", script)
-    if match is None:
-        return ""
-    start = script.index("{", match.start()) + 1
-    depth = 1
-    quote = None
-    escaped = False
-    for index in range(start, len(script)):
-        character = script[index]
-        if quote is not None:
-            if escaped:
-                escaped = False
-            elif character == "\\":
-                escaped = True
-            elif character == quote:
-                quote = None
-            continue
-        if character in {"'", '"'}:
-            quote = character
-        elif character == "{":
+def child_block(
+    tokens: list[GroovyToken], name: str
+) -> list[GroovyToken] | None:
+    depth = 0
+    for index, token in enumerate(tokens):
+        if token.kind == "symbol" and token.value == "{":
             depth += 1
-        elif character == "}":
+            continue
+        if token.kind == "symbol" and token.value == "}":
             depth -= 1
-            if depth == 0:
-                return script[start:index]
-    raise AssertionError(f"unterminated declarative {name} block")
+            continue
+        if token.kind != "identifier" or token.value != name or depth != 0:
+            continue
+        opening = next_token(tokens, index + 1)
+        if (
+            opening < len(tokens)
+            and tokens[opening].kind == "symbol"
+            and tokens[opening].value == "{"
+        ):
+            closing = matching_token(tokens, opening, "{", "}")
+            return tokens[opening + 1 : closing]
+    return None
 
 
-def top_level_calls(block: str) -> list[str]:
-    calls = []
+def top_level_invocations(
+    tokens: list[GroovyToken],
+) -> list[tuple[str, list[GroovyToken]]]:
+    invocations = []
     depths = {"(": 0, "[": 0, "{": 0}
     closing = {")": "(", "]": "[", "}": "{"}
-    quote = None
-    escaped = False
     index = 0
-    while index < len(block):
-        character = block[index]
-        if quote is not None:
-            if escaped:
-                escaped = False
-            elif character == "\\":
-                escaped = True
-            elif character == quote:
-                quote = None
+    while index < len(tokens):
+        token = tokens[index]
+        if token.kind == "symbol" and token.value in depths:
+            depths[token.value] += 1
             index += 1
             continue
-        if character in {"'", '"'}:
-            quote = character
+        if token.kind == "symbol" and token.value in closing:
+            depths[closing[token.value]] -= 1
             index += 1
             continue
-        if character in depths:
-            depths[character] += 1
-            index += 1
-            continue
-        if character in closing:
-            depths[closing[character]] -= 1
-            index += 1
-            continue
-        if all(depth == 0 for depth in depths.values()) and (
-            character.isalpha() or character == "_"
+        if token.kind == "identifier" and all(
+            depth == 0 for depth in depths.values()
         ):
-            end = index + 1
-            while end < len(block) and (
-                block[end].isalnum() or block[end] == "_"
+            opening = next_token(tokens, index + 1)
+            if (
+                opening < len(tokens)
+                and tokens[opening].kind == "symbol"
+                and tokens[opening].value == "("
             ):
-                end += 1
-            cursor = end
-            while cursor < len(block) and block[cursor].isspace():
-                cursor += 1
-            if cursor < len(block) and block[cursor] == "(":
-                calls.append(block[index:end])
-            index = end
-            continue
+                end = matching_token(tokens, opening, "(", ")")
+                invocations.append((token.value, tokens[opening + 1 : end]))
+                index = end + 1
+                continue
         index += 1
-    return calls
+    return invocations
+
+
+def split_top_level(
+    tokens: list[GroovyToken], separator: str
+) -> list[list[GroovyToken]]:
+    parts = []
+    start = 0
+    depths = {"(": 0, "[": 0, "{": 0}
+    closing = {")": "(", "]": "[", "}": "{"}
+    for index, token in enumerate(tokens):
+        if token.kind == "symbol" and token.value in depths:
+            depths[token.value] += 1
+        elif token.kind == "symbol" and token.value in closing:
+            depths[closing[token.value]] -= 1
+        elif (
+            token.kind == "symbol"
+            and token.value == separator
+            and all(depth == 0 for depth in depths.values())
+        ):
+            parts.append(tokens[start:index])
+            start = index + 1
+    parts.append(tokens[start:])
+    return parts
+
+
+def cleaned_tokens(tokens: list[GroovyToken]) -> list[GroovyToken]:
+    return [token for token in tokens if token.kind != "newline"]
+
+
+def literal_value(tokens: list[GroovyToken]):
+    tokens = cleaned_tokens(tokens)
+    if len(tokens) == 1:
+        token = tokens[0]
+        if token.kind == "string" and token.literal:
+            return token.value
+        if token.kind == "number":
+            return token.value
+        if token.kind == "identifier" and token.value in {"true", "false"}:
+            return token.value == "true"
+        if token.kind == "identifier" and token.value == "null":
+            return None
+    if (
+        len(tokens) >= 2
+        and tokens[0].kind == "symbol"
+        and tokens[0].value == "["
+        and matching_token(tokens, 0, "[", "]") == len(tokens) - 1
+    ):
+        contents = tokens[1:-1]
+        if not cleaned_tokens(contents):
+            return ()
+        return tuple(
+            literal_value(part)
+            for part in split_top_level(contents, ",")
+        )
+    if (
+        len(tokens) >= 3
+        and tokens[0].kind == "identifier"
+        and tokens[1].kind == "symbol"
+        and tokens[1].value == "("
+        and matching_token(tokens, 1, "(", ")") == len(tokens) - 1
+    ):
+        named, positional = call_arguments(tokens[2:-1])
+        return {
+            "call": tokens[0].value,
+            "named": named,
+            "positional": positional,
+        }
+    raise AssertionError("declarative value is not a supported literal")
+
+
+def call_arguments(
+    tokens: list[GroovyToken],
+) -> tuple[dict[str, object], tuple[object, ...]]:
+    named = {}
+    positional = []
+    if not cleaned_tokens(tokens):
+        return named, ()
+    for part in split_top_level(tokens, ","):
+        part = cleaned_tokens(part)
+        colon = None
+        depth = 0
+        for index, token in enumerate(part):
+            if token.kind == "symbol" and token.value in {"(", "[", "{"}:
+                depth += 1
+            elif token.kind == "symbol" and token.value in {")", "]", "}"}:
+                depth -= 1
+            elif (
+                token.kind == "symbol"
+                and token.value == ":"
+                and depth == 0
+            ):
+                colon = index
+                break
+        if colon is None:
+            positional.append(literal_value(part))
+            continue
+        if (
+            colon != 1
+            or part[0].kind != "identifier"
+            or part[0].value in named
+        ):
+            raise AssertionError("declarative named argument is unresolved")
+        named[part[0].value] = literal_value(part[colon + 1 :])
+    return named, tuple(positional)
+
+
+def invocation_map(
+    tokens: list[GroovyToken] | None,
+) -> dict[str, tuple[dict[str, object], tuple[object, ...]]]:
+    if tokens is None:
+        return {}
+    result = {}
+    for name, arguments in top_level_invocations(tokens):
+        if name in result:
+            raise AssertionError(f"duplicate declarative directive: {name}")
+        result[name] = call_arguments(arguments)
+    return result
 
 
 def tracker_values(tracker: ET.Element, category: str) -> set[str]:
@@ -641,10 +1008,206 @@ def tracker_values(tracker: ET.Element, category: str) -> set[str]:
     return set(values)
 
 
+PARAMETER_TYPES = {
+    "booleanParam": "hudson.model.BooleanParameterDefinition",
+    "choice": "hudson.model.ChoiceParameterDefinition",
+    "file": "hudson.model.FileParameterDefinition",
+    "password": "hudson.model.PasswordParameterDefinition",
+    "string": "hudson.model.StringParameterDefinition",
+    "text": "hudson.model.TextParameterDefinition",
+}
+
+
+def normalized_parameter_directives(
+    invocations: list[tuple[str, list[GroovyToken]]],
+    config: Path,
+) -> dict[str, dict[str, object]]:
+    normalized = {}
+    for parameter_type, arguments in invocations:
+        named, positional = call_arguments(arguments)
+        if parameter_type not in PARAMETER_TYPES or positional:
+            raise AssertionError(
+                f"unknown declarative parameter in {config}: {parameter_type}"
+            )
+        name = named.get("name")
+        if not isinstance(name, str) or not name or name in normalized:
+            raise AssertionError(
+                f"declarative parameter name is unresolved in {config}"
+            )
+        description = named.get("description", "")
+        if not isinstance(description, str):
+            raise AssertionError(
+                f"declarative parameter description is unresolved in {config}"
+            )
+        result = {
+            "type": PARAMETER_TYPES[parameter_type],
+            "description": description,
+        }
+        allowed = {"name", "description"}
+        if parameter_type == "choice":
+            choices = named.get("choices")
+            if not isinstance(choices, tuple) or not all(
+                isinstance(choice, str) for choice in choices
+            ):
+                raise AssertionError(
+                    f"declarative parameter choices are unresolved in {config}"
+                )
+            result["choices"] = choices
+            allowed.add("choices")
+        elif parameter_type == "booleanParam":
+            result["defaultValue"] = named.get("defaultValue", False)
+            allowed.add("defaultValue")
+        elif parameter_type in {"string", "text", "password"}:
+            result["defaultValue"] = named.get("defaultValue", "")
+            allowed.add("defaultValue")
+            if parameter_type == "string":
+                result["trim"] = named.get("trim", False)
+                allowed.add("trim")
+        if set(named) - allowed:
+            raise AssertionError(
+                f"unknown declarative parameter value in {config}: "
+                f"{sorted(set(named) - allowed)}"
+            )
+        normalized[name] = result
+    return normalized
+
+
+def normalized_persisted_parameters(root: ET.Element) -> dict[str, dict[str, object]]:
+    normalized = {}
+    definitions = root.findall(
+        "./properties/hudson.model.ParametersDefinitionProperty/"
+        "parameterDefinitions/*"
+    )
+    for definition in definitions:
+        name = definition.findtext("name") or ""
+        if not name or name in normalized:
+            raise AssertionError("persisted parameter name is missing or duplicated")
+        result = {
+            "type": definition.tag,
+            "description": definition.findtext("description") or "",
+        }
+        if definition.tag == PARAMETER_TYPES["choice"]:
+            result["choices"] = tuple(
+                node.text or "" for node in definition.findall("./choices//string")
+            )
+        elif definition.tag == PARAMETER_TYPES["booleanParam"]:
+            result["defaultValue"] = (
+                definition.findtext("defaultValue") or "false"
+            ) == "true"
+        elif definition.tag in {
+            PARAMETER_TYPES["string"],
+            PARAMETER_TYPES["text"],
+            PARAMETER_TYPES["password"],
+        }:
+            result["defaultValue"] = definition.findtext("defaultValue") or ""
+            if definition.tag == PARAMETER_TYPES["string"]:
+                result["trim"] = (
+                    definition.findtext("trim") or "false"
+                ) == "true"
+        normalized[name] = result
+    return normalized
+
+
+def normalized_trigger_directives(
+    invocations: dict[str, tuple[dict[str, object], tuple[object, ...]]],
+    config: Path,
+) -> dict[str, dict[str, object]]:
+    normalized = {}
+    for trigger, (named, positional) in invocations.items():
+        if trigger not in DECLARATIVE_TRIGGER_CLASSES:
+            raise AssertionError(
+                f"unknown declarative trigger in {config}: {trigger}"
+            )
+        if trigger in {"cron", "pollSCM"}:
+            if named or len(positional) != 1 or not isinstance(positional[0], str):
+                raise AssertionError(
+                    f"declarative trigger value is unresolved in {config}"
+                )
+            value = {"spec": positional[0]}
+        else:
+            if positional or not isinstance(named.get("upstreamProjects"), str):
+                raise AssertionError(
+                    f"declarative upstream trigger is unresolved in {config}"
+                )
+            value = {
+                "upstreamProjects": named["upstreamProjects"],
+                "threshold": named.get("threshold", "SUCCESS"),
+            }
+        normalized[DECLARATIVE_TRIGGER_CLASSES[trigger]] = value
+    return normalized
+
+
+def normalized_persisted_triggers(root: ET.Element) -> dict[str, dict[str, object]]:
+    normalized = {}
+    nodes = root.findall(
+        "./properties/org.jenkinsci.plugins.workflow.job.properties."
+        "PipelineTriggersJobProperty/triggers/*"
+    )
+    for node in nodes:
+        if node.tag in {
+            DECLARATIVE_TRIGGER_CLASSES["cron"],
+            DECLARATIVE_TRIGGER_CLASSES["pollSCM"],
+        }:
+            value = {"spec": node.findtext("spec") or ""}
+        elif node.tag == DECLARATIVE_TRIGGER_CLASSES["upstream"]:
+            value = {
+                "upstreamProjects": node.findtext("upstreamProjects") or "",
+                "threshold": node.findtext("threshold/name") or "SUCCESS",
+            }
+        else:
+            value = {"unknown": node.tag}
+        normalized[node.tag] = value
+    return normalized
+
+
+def normalized_log_rotator(value: object, config: Path) -> dict[str, object]:
+    if (
+        not isinstance(value, dict)
+        or value.get("call") != "logRotator"
+        or value.get("positional")
+    ):
+        raise AssertionError(f"build discarder is unresolved in {config}")
+    named = value["named"]
+    allowed = {
+        "daysToKeepStr",
+        "numToKeepStr",
+        "artifactDaysToKeepStr",
+        "artifactNumToKeepStr",
+    }
+    if set(named) - allowed or not all(
+        isinstance(item, str) for item in named.values()
+    ):
+        raise AssertionError(f"build discarder is unresolved in {config}")
+    return {
+        "strategy": "hudson.tasks.LogRotator",
+        "daysToKeep": named.get("daysToKeepStr", "-1"),
+        "numToKeep": named.get("numToKeepStr", "-1"),
+        "artifactDaysToKeep": named.get("artifactDaysToKeepStr", "-1"),
+        "artifactNumToKeep": named.get("artifactNumToKeepStr", "-1"),
+    }
+
+
+def normalized_persisted_log_rotator(
+    property_node: ET.Element, config: Path
+) -> dict[str, object]:
+    strategy = property_node.find("./strategy")
+    if strategy is None:
+        raise AssertionError(f"build discarder is not converged in {config}")
+    strategy_type = strategy.get("class") or strategy.tag
+    return {
+        "strategy": strategy_type,
+        "daysToKeep": strategy.findtext("daysToKeep") or "-1",
+        "numToKeep": strategy.findtext("numToKeep") or "-1",
+        "artifactDaysToKeep": strategy.findtext("artifactDaysToKeep") or "-1",
+        "artifactNumToKeep": strategy.findtext("artifactNumToKeep") or "-1",
+    }
+
+
 def validate_declarative_convergence(config: Path) -> None:
     root = ET.parse(config).getroot()
     script = xml_script(config)
-    if "pipeline {" not in script:
+    pipeline = child_block(groovy_tokens(script), "pipeline")
+    if pipeline is None:
         return
     tracker = root.find(
         ".//org.jenkinsci.plugins.pipeline.modeldefinition.actions."
@@ -655,14 +1218,19 @@ def validate_declarative_convergence(config: Path) -> None:
     categories = {child.tag for child in tracker}
     unknown_categories = categories - DECLARATIVE_TRACKER_CATEGORIES
     missing_categories = DECLARATIVE_TRACKER_CATEGORIES - categories
-    if unknown_categories or missing_categories:
+    if unknown_categories:
         raise AssertionError(
             f"unknown declarative tracker category in {config}: "
-            f"unknown={sorted(unknown_categories)}, missing={sorted(missing_categories)}"
+            f"{sorted(unknown_categories)}"
+        )
+    if missing_categories:
+        raise AssertionError(
+            f"declarative tracker categories are missing in {config}: "
+            f"{sorted(missing_categories)}"
         )
 
-    options = set(top_level_calls(groovy_block(script, "options")))
-    unknown_options = options - (
+    options = invocation_map(child_block(pipeline, "options"))
+    unknown_options = set(options) - (
         DECLARATIVE_PROPERTY_OPTIONS.keys() | DECLARATIVE_STANDALONE_OPTIONS
     )
     if unknown_options:
@@ -698,10 +1266,26 @@ def validate_declarative_convergence(config: Path) -> None:
 
     disable_class = DECLARATIVE_PROPERTY_OPTIONS["disableConcurrentBuilds"]
     disable_node = root.find(f"./properties/{disable_class}")
-    if disable_node is not None:
-        if disable_node.findtext("abortPrevious") != "false":
+    expected_disable = None
+    if "disableConcurrentBuilds" in options:
+        named, positional = options["disableConcurrentBuilds"]
+        if positional or set(named) - {"abortPrevious"}:
             raise AssertionError(
-                f"disableConcurrentBuilds abortPrevious is not false in {config}"
+                f"disableConcurrentBuilds is unresolved in {config}"
+            )
+        expected_disable = named.get("abortPrevious", False)
+        if not isinstance(expected_disable, bool):
+            raise AssertionError(
+                f"disableConcurrentBuilds is unresolved in {config}"
+            )
+    if disable_node is not None:
+        persisted_disable = (
+            disable_node.findtext("abortPrevious") or "false"
+        ) == "true"
+        if persisted_disable != expected_disable:
+            raise AssertionError(
+                f"disableConcurrentBuilds is not converged in {config}: "
+                f"directive={expected_disable}, persisted={persisted_disable}"
             )
         if disable_node.get("plugin") != root.get("plugin"):
             raise AssertionError(
@@ -710,69 +1294,68 @@ def validate_declarative_convergence(config: Path) -> None:
     discarder_node = root.find(
         f"./properties/{DECLARATIVE_PROPERTY_OPTIONS['buildDiscarder']}"
     )
-    if discarder_node is not None and discarder_node.find("./strategy") is None:
-        raise AssertionError(f"build discarder is not converged in {config}")
+    if discarder_node is not None:
+        named, positional = options["buildDiscarder"]
+        if named or len(positional) != 1:
+            raise AssertionError(f"build discarder is unresolved in {config}")
+        expected_discarder = normalized_log_rotator(positional[0], config)
+        persisted_discarder = normalized_persisted_log_rotator(
+            discarder_node, config
+        )
+        if expected_discarder != persisted_discarder:
+            raise AssertionError(
+                f"build discarder is not converged in {config}: "
+                f"directive={expected_discarder}, persisted={persisted_discarder}"
+            )
 
-    parameter_block = groovy_block(script, "parameters")
-    parameter_calls = top_level_calls(parameter_block)
-    parameter_names = {
-        match.group("name")
-        for match in re.finditer(
-            r"""\b[A-Za-z_]\w*\s*\(\s*name\s*:\s*
-            (?P<quote>['"])(?P<name>[^'"]+)(?P=quote)""",
-            parameter_block,
-            re.VERBOSE,
-        )
-    }
-    if len(parameter_names) != len(parameter_calls):
-        raise AssertionError(
-            f"declarative parameter names are unresolved in {config}"
-        )
+    parameter_directives = normalized_parameter_directives(
+        top_level_invocations(child_block(pipeline, "parameters") or []), config
+    )
     tracked_parameters = tracker_values(tracker, "parameters")
-    persisted_parameters = {
-        node.text or ""
-        for node in root.findall(
-            "./properties/hudson.model.ParametersDefinitionProperty/"
-            "parameterDefinitions/*/name"
-        )
-    }
-    if (
-        parameter_names != tracked_parameters
-        or not parameter_names <= persisted_parameters
-    ):
+    persisted_parameters = normalized_persisted_parameters(root)
+    if set(parameter_directives) != tracked_parameters:
         raise AssertionError(
             f"declarative parameters are not converged in {config}: "
-            f"directives={sorted(parameter_names)}, "
-            f"tracker={sorted(tracked_parameters)}, "
-            f"persisted={sorted(persisted_parameters)}"
+            f"directives={sorted(parameter_directives)}, "
+            f"tracker={sorted(tracked_parameters)}"
         )
+    for name, directive in parameter_directives.items():
+        persisted = persisted_parameters.get(name)
+        if directive != persisted:
+            raise AssertionError(
+                f"declarative parameter {name} is not converged in {config}: "
+                f"directive={directive}, persisted={persisted}"
+            )
 
-    trigger_calls = set(top_level_calls(groovy_block(script, "triggers")))
-    unknown_triggers = trigger_calls - DECLARATIVE_TRIGGER_CLASSES.keys()
-    if unknown_triggers:
-        raise AssertionError(
-            f"unknown declarative trigger in {config}: {sorted(unknown_triggers)}"
-        )
-    expected_triggers = {
-        DECLARATIVE_TRIGGER_CLASSES[trigger] for trigger in trigger_calls
-    }
+    expected_triggers = normalized_trigger_directives(
+        invocation_map(child_block(pipeline, "triggers")), config
+    )
     tracked_triggers = tracker_values(tracker, "triggers")
-    persisted_triggers = {
-        node.tag
-        for node in root.findall(
-            "./properties/org.jenkinsci.plugins.workflow.job.properties."
-            "PipelineTriggersJobProperty/triggers/*"
-        )
-    }
-    if not expected_triggers == tracked_triggers == persisted_triggers:
+    persisted_triggers = normalized_persisted_triggers(root)
+    if not set(expected_triggers) == tracked_triggers == set(persisted_triggers):
         raise AssertionError(
             f"declarative triggers are not converged in {config}: "
             f"directives={sorted(expected_triggers)}, "
             f"tracker={sorted(tracked_triggers)}, "
             f"persisted={sorted(persisted_triggers)}"
         )
+    for trigger, directive in expected_triggers.items():
+        if directive != persisted_triggers[trigger]:
+            raise AssertionError(
+                f"declarative trigger {trigger} is not converged in {config}: "
+                f"directive={directive}, persisted={persisted_triggers[trigger]}"
+            )
 
-    expected_standalone_options = options - DECLARATIVE_PROPERTY_OPTIONS.keys()
+    expected_standalone_options = set(options) - DECLARATIVE_PROPERTY_OPTIONS.keys()
+    for option in expected_standalone_options:
+        named, positional = options[option]
+        if option == "skipDefaultCheckout":
+            if named or len(positional) > 1 or (
+                positional and not isinstance(positional[0], bool)
+            ):
+                raise AssertionError(
+                    f"declarative option {option} is unresolved in {config}"
+                )
     tracked_options = tracker_values(tracker, "options")
     unknown_tracked_options = tracked_options - DECLARATIVE_STANDALONE_OPTIONS
     if unknown_tracked_options:
@@ -1045,6 +1628,55 @@ class RolloutContractTest(unittest.TestCase):
         self.assertFalse(any(command.startswith("image inspect") for command in commands))
         self.assertFalse(any(command.startswith("tag ") for command in commands))
         self.assertFalse(any("run --name=" in command for command in commands))
+
+    def test_httpd_inspect_errors_without_diagnostics_fail_closed(self):
+        for script, arguments in (
+            (ROOT / "rollback-picsure.sh", ()),
+            (ROOT / "start-picsure.sh", ("--rollback-state",)),
+        ):
+            with self.subTest(script=script.name), tempfile.TemporaryDirectory() as tmp:
+                tmp_path = Path(tmp)
+                config = required_config(tmp_path / "config")
+                state = tmp_path / "state.json"
+                state.write_text(json.dumps(rollback_state()))
+                if script.name == "rollback-picsure.sh":
+                    script_arguments = (str(state),)
+                else:
+                    script_arguments = (*arguments, str(state))
+                result, commands = run_script(
+                    script,
+                    config,
+                    {"MOCK_HTTPD_INSPECT_NO_DIAGNOSTIC": "true"},
+                    *script_arguments,
+                )
+                self.assertEqual(result.returncode, 2)
+                self.assertIn("without a diagnostic", result.stderr)
+                self.assertFalse(any("run --name=" in command for command in commands))
+
+    def test_httpd_inspection_mktemp_failure_has_explicit_exit_two_diagnostic(self):
+        for script in (ROOT / "rollback-picsure.sh", ROOT / "start-picsure.sh"):
+            with self.subTest(script=script.name), tempfile.TemporaryDirectory() as tmp:
+                tmp_path = Path(tmp)
+                config = required_config(tmp_path / "config")
+                state = tmp_path / "state.json"
+                state.write_text(json.dumps(rollback_state()))
+                arguments = (
+                    (str(state),)
+                    if script.name == "rollback-picsure.sh"
+                    else ("--rollback-state", str(state))
+                )
+                result, commands = run_script(
+                    script,
+                    config,
+                    {"TMPDIR": str(tmp_path / "missing")},
+                    *arguments,
+                )
+                self.assertEqual(result.returncode, 2)
+                self.assertIn(
+                    "could not create temporary file for httpd inspection",
+                    result.stderr,
+                )
+                self.assertFalse(any("run --name=" in command for command in commands))
 
     def test_rollback_rejects_terminal_httpd_inspect_error(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1524,10 +2156,12 @@ class RolloutContractTest(unittest.TestCase):
         aio_commit = "a" * 40
         spec = synthetic_build_spec(aio_commit, digest)
         for missing, diagnostic in (
+            ("aio-workflow", "installed workflow root"),
             (
                 "aio-workflow/aio-workflow-files.txt",
                 "installed workflow manifest",
             ),
+            ("var/jenkins_home/jobs", "installed Jenkins jobs"),
             (
                 "var/jenkins_home/jobs/PIC-SURE Pipeline/config.xml",
                 "could not fingerprint",
@@ -1536,7 +2170,11 @@ class RolloutContractTest(unittest.TestCase):
             with self.subTest(missing=missing), tempfile.TemporaryDirectory() as tmp:
                 tmp_path = Path(tmp)
                 validator = create_installed_validator_bundle(tmp_path)
-                (tmp_path / missing).unlink()
+                missing_path = tmp_path / missing
+                if missing_path.is_dir():
+                    shutil.rmtree(missing_path)
+                else:
+                    missing_path.unlink()
                 spec_path = tmp_path / "build-spec.json"
                 spec_path.write_text(json.dumps(spec))
                 result = subprocess.run(
@@ -1549,6 +2187,46 @@ class RolloutContractTest(unittest.TestCase):
                 )
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(diagnostic, result.stderr)
+
+    def test_source_layout_named_scripts_is_not_misclassified_as_installed(self):
+        digest = workflow_digest()
+        aio_commit = "a" * 40
+        spec = synthetic_build_spec(aio_commit, digest)
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            validator = create_source_validator_bundle(tmp_path)
+            spec_path = tmp_path / "build-spec.json"
+            spec_path.write_text(json.dumps(spec))
+            result = subprocess.run(
+                ["bash", str(validator), str(spec_path)],
+                cwd=tmp_path,
+                env={**os.environ, "AIO_WORKFLOW_COMMIT": aio_commit},
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_source_layout_requires_its_checksum_helper(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            validator = create_source_validator_bundle(tmp_path)
+            (validator.parent / "workflow-sha256.sh").unlink()
+            result = subprocess.run(
+                ["bash", str(validator), str(tmp_path / "missing.json")],
+                cwd=tmp_path,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("trusted workflow checksum script", result.stderr)
+
+    def test_installed_discriminator_is_only_canonical_resolved_scripts_path(self):
+        source = VALIDATOR.read_text()
+        self.assertIn('pwd -P)', source)
+        self.assertIn('[[ "$SCRIPT_DIR" == "/scripts" ]]', source)
+        self.assertNotIn('*/scripts', source)
 
     def test_validator_defaults_work_at_repo_root_and_direct_validator_mount(self):
         digest = workflow_digest()
@@ -1718,36 +2396,42 @@ printf '%064d  %s\\n' 0 "$1"
         converged = """<flow-definition plugin="workflow-job@synthetic">
   <actions>
     <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction>
-      <jobProperties><string>jenkins.model.BuildDiscarderProperty</string></jobProperties>
+      <jobProperties><string>jenkins.model.BuildDiscarderProperty</string><string>org.jenkinsci.plugins.workflow.job.properties.DisableConcurrentBuildsJobProperty</string></jobProperties>
       <triggers><string>hudson.triggers.TimerTrigger</string></triggers>
-      <parameters><string>release</string></parameters>
+      <parameters><string>release</string><string>enabled</string><string>target</string></parameters>
       <options><string>skipDefaultCheckout</string></options>
     </org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction>
   </actions>
   <properties>
-    <jenkins.model.BuildDiscarderProperty><strategy/></jenkins.model.BuildDiscarderProperty>
+    <jenkins.model.BuildDiscarderProperty><strategy class="hudson.tasks.LogRotator"><daysToKeep>-1</daysToKeep><numToKeep>10</numToKeep><artifactDaysToKeep>-1</artifactDaysToKeep><artifactNumToKeep>-1</artifactNumToKeep></strategy></jenkins.model.BuildDiscarderProperty>
+    <org.jenkinsci.plugins.workflow.job.properties.DisableConcurrentBuildsJobProperty plugin="workflow-job@synthetic"><abortPrevious>true</abortPrevious></org.jenkinsci.plugins.workflow.job.properties.DisableConcurrentBuildsJobProperty>
     <org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
       <triggers><hudson.triggers.TimerTrigger><spec>@daily</spec></hudson.triggers.TimerTrigger></triggers>
     </org.jenkinsci.plugins.workflow.job.properties.PipelineTriggersJobProperty>
     <hudson.model.ParametersDefinitionProperty><parameterDefinitions>
-      <hudson.model.StringParameterDefinition><name>release</name></hudson.model.StringParameterDefinition>
+      <hudson.model.StringParameterDefinition><name>release</name><description>Release branch</description><defaultValue>main</defaultValue><trim>true</trim></hudson.model.StringParameterDefinition>
+      <hudson.model.BooleanParameterDefinition><name>enabled</name><description>Enable rollout</description><defaultValue>true</defaultValue></hudson.model.BooleanParameterDefinition>
+      <hudson.model.ChoiceParameterDefinition><name>target</name><description>Target deployment</description><choices><a><string>AIO</string><string>BDC</string></a></choices></hudson.model.ChoiceParameterDefinition>
     </parameterDefinitions></hudson.model.ParametersDefinitionProperty>
   </properties>
   <definition><script><![CDATA[pipeline {
     agent any
-    parameters { string(name: 'release') }
-    options { buildDiscarder(logRotator(numToKeepStr: '10')); skipDefaultCheckout() }
+    parameters {
+      string(name: 'release', defaultValue: 'main', description: 'Release branch', trim: true)
+      booleanParam(name: 'enabled', defaultValue: true, description: 'Enable rollout')
+      choice(name: 'target', choices: ['AIO', 'BDC'], description: 'Target deployment')
+    }
+    options { buildDiscarder(logRotator(numToKeepStr: '10')); disableConcurrentBuilds(abortPrevious: true); skipDefaultCheckout(false) }
     triggers { cron('@daily') }
-    stages { stage('synthetic') { steps { echo 'synthetic' } } }
+    stages { stage('synthetic') { options { timeout(time: params.dynamic) }; steps { echo 'synthetic' } } }
   }]]></script></definition>
 </flow-definition>"""
         tracked = {
-            "parameter": "<parameters><string>release</string></parameters>",
+            "parameter": "<parameters><string>release</string><string>enabled</string><string>target</string></parameters>",
             "trigger": "<triggers><string>hudson.triggers.TimerTrigger</string></triggers>",
             "option": "<options><string>skipDefaultCheckout</string></options>",
             "build discarder": (
-                "<jobProperties><string>jenkins.model.BuildDiscarderProperty</string>"
-                "</jobProperties>"
+                "<jobProperties><string>jenkins.model.BuildDiscarderProperty</string><string>org.jenkinsci.plugins.workflow.job.properties.DisableConcurrentBuildsJobProperty</string></jobProperties>"
             ),
         }
         with tempfile.TemporaryDirectory() as tmp:
@@ -1762,6 +2446,23 @@ printf '%064d  %s\\n' 0 "$1"
                         )
                     )
                     with self.assertRaisesRegex(AssertionError, "not converged"):
+                        validate_declarative_convergence(config)
+
+            value_mutations = {
+                "parameter type": ("string(name: 'release'", "text(name: 'release'"),
+                "parameter default": ("<defaultValue>main</defaultValue>", "<defaultValue>dev</defaultValue>"),
+                "parameter choice": ("<string>BDC</string>", "<string>Other</string>"),
+                "parameter description": ("<description>Release branch</description>", "<description>Persisted drift</description>"),
+                "trigger spec": ("<spec>@daily</spec>", "<spec>@hourly</spec>"),
+                "discarder strategy": ('class="hudson.tasks.LogRotator"', 'class="synthetic.OtherRotator"'),
+                "discarder count": ("<numToKeep>10</numToKeep>", "<numToKeep>9</numToKeep>"),
+                "disable concurrent": ("<abortPrevious>true</abortPrevious>", "<abortPrevious>false</abortPrevious>"),
+                "standalone option": ("skipDefaultCheckout(false)", "skipDefaultCheckout(params.dynamic)"),
+            }
+            for case, (current, mutation) in value_mutations.items():
+                with self.subTest(case=case):
+                    config.write_text(converged.replace(current, mutation, 1))
+                    with self.assertRaises(AssertionError):
                         validate_declarative_convergence(config)
 
     def test_declarative_convergence_rejects_unknown_tracker_category(self):
@@ -1811,6 +2512,9 @@ printf '%064d  %s\\n' 0 "$1"
                 "build 'Single Quoted Positional Build'\n"
                 'build "Double Quoted Positional Build"\n'
                 "build('Parenthesized Positional Build')\n"
+                "build [job: 'Map Literal Build', wait: true]\n"
+                "build([job: 'Parenthesized Map Literal Build', wait: true])\n"
+                "build job: 'Trailing Comment Build' // build targetJob\n"
                 "Jenkins.instance.getItem('Literal Scheduled Job').scheduleBuild2(0)\n"
                 'Jenkins.instance.getItemByFullName("Full Name Scheduled Job").scheduleBuild2(0)'
                 "]]></script></definition></flow-definition>"
@@ -1823,6 +2527,9 @@ printf '%064d  %s\\n' 0 "$1"
                     "Single Quoted Positional Build",
                     "Double Quoted Positional Build",
                     "Parenthesized Positional Build",
+                    "Map Literal Build",
+                    "Parenthesized Map Literal Build",
+                    "Trailing Comment Build",
                     "Literal Scheduled Job",
                     "Full Name Scheduled Job",
                 },
@@ -1854,6 +2561,19 @@ printf '%064d  %s\\n' 0 "$1"
             "build(job: 'Known Job' + suffix)",
             'build "Known " + suffix',
             'build(job: "Known ${suffix}")',
+            "build targetJob + suffix",
+            "build targetJob.toString()",
+            "build resolveTarget()",
+            "build targetJob ?: 'Fallback Job'",
+            "build getJobName()",
+            "build jobs[0]",
+            "build targetJob.trim()",
+            "build map.get('k')",
+            "build this.name + suffix",
+            "build targetJob as String",
+            "build 'Known Job'.toString()",
+            "build [job: targetJob]",
+            "build [job: 'Known Job'] + extra",
             "Jenkins.instance.getItemByFullName(targetJob).scheduleBuild2(0)",
             "Jenkins.instance.getItem('Known Job' + suffix).scheduleBuild2(0)",
             "resolvedJob.scheduleBuild2(0)",
@@ -1869,6 +2589,25 @@ printf '%064d  %s\\n' 0 "$1"
                     AssertionError, "unresolved Jenkins downstream trigger"
                 ):
                     jenkins_job_references(config)
+
+    def test_trigger_scanner_ignores_non_step_build_tokens(self):
+        groovy = """
+// build targetJob
+/* build resolveTarget() */
+def message = "build job: targetJob"
+def build = 'ordinary variable'
+for (build in builds) { echo build }
+def build(String name) { return name }
+b.build 'Receiver Call'
+"""
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / "config.xml"
+            config.write_text(
+                "<flow-definition><definition><script><![CDATA["
+                f"{groovy}"
+                "]]></script></definition></flow-definition>"
+            )
+            self.assertEqual(jenkins_job_references(config), set())
 
     def test_exact_ref_update_handles_absent_jenkins_and_restores_branch(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -2065,6 +2804,14 @@ exit 0
                     if entry.startswith("repo:"):
                         relative = entry.removeprefix("repo:")
                         self.assertIn(f":/aio-workflow/{relative}:ro", docker_command)
+                self.assertIn(
+                    f"{tmp_path / 'config/jenkins_home'}:/var/jenkins_home",
+                    docker_command,
+                )
+                self.assertIn(
+                    f"{ROOT / 'validate-build-spec.sh'}:/scripts/validate-build-spec.sh:ro",
+                    docker_command,
+                )
                 self.assertIn("--network picsure", docker_command)
                 if git_mode == "safe":
                     self.assertIn("-c safe.directory=", git_commands)

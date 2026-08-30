@@ -254,8 +254,15 @@ PSAMA recreation is the deployment-wide authorization-cache refresh. AIO has no 
 The update is fail closed. A migration or backend-health failure leaves the new frontend unpublished. During startup,
 new banner management routes may remain unavailable until PSAMA has been recreated and the backend is healthy.
 
-Use `Rollback PIC-SURE` only with an operator-reviewed `rollback-state.json`. Before running the job, stop httpd to
-freeze banner management writes, retag the chosen exact frontend rollback image as
+Use `Rollback PIC-SURE` only with an operator-reviewed `rollback-state.json`. Before running the job, disable
+httpd's restart policy and then stop it so the banner-management-write freeze survives a Docker daemon or host restart:
+
+```bash
+docker update --restart=no httpd
+docker stop httpd
+```
+
+Retag the chosen exact frontend rollback image as
 `hms-dbmi/pic-sure-frontend:LATEST`, and disable every Active or Scheduled targeted banner through the final Operations
 management API. With public httpd stopped, the Jenkins container can still reach the existing Gateway on the
 shared `picsure` Docker network at `http://gateway:8080`. Send the normal authenticated management request through that
@@ -292,14 +299,15 @@ exact local image tag to the image ID inspected during operator review:
 ```
 
 The rollback job checks the shared contract and attestations, verifies every image tag still resolves to its attested
-image ID, confirms that httpd is stopped and the frontend rollback tag is staged, then retags and starts the rolled-back
-Operations, Query, and Gateway services before recreating PSAMA. It keeps httpd stopped, retaining the management-write
-freeze while a backend below the targeted-feed boundary is active. Do not restart the public entrypoint until a
-targeting-capable backend has been restored. The rollback script passes the reviewed state file explicitly to the start
-script. The start script independently checks its current contract, ordered phases, schema flags, image IDs, retagged
-images, and stopped httpd before it enables Gateway `/actuator/health/liveness`. Normal startup explicitly selects
-forward mode, rejects inherited rollback controls, requires the v2 banner feed, and publishes the frontend. Rollback
-always keeps the forward database schema; Flyway down-migrations are prohibited.
+image ID, confirms that httpd is stopped with restart disabled and the frontend rollback tag is staged, then retags and
+starts the rolled-back Operations, Query, and Gateway services before recreating PSAMA. It keeps httpd stopped,
+retaining the management-write freeze while a backend below the targeted-feed boundary is active. Do not restart the
+public entrypoint until a targeting-capable backend has been restored. The rollback script passes the reviewed state
+file explicitly to the start script. The start script independently checks its current contract, ordered phases, schema
+flags, image IDs, retagged images, and restart-proof stopped httpd before it enables Gateway
+`/actuator/health/liveness`. Normal startup explicitly selects forward mode, rejects inherited rollback controls,
+requires the v2 banner feed, and publishes the frontend. Rollback always keeps the forward database schema; Flyway
+down-migrations are prohibited.
 
 - If you would like to connect to a remote database, then run the "Configure Remote MySQL Instance" Jenkins job.
     - You need to provide remote database connection information to "Configure Remote MySQL Instance" Jenkins job

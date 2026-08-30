@@ -29,6 +29,15 @@ default_rollout_file() {
   fi
 }
 
+require_httpd_frozen() {
+  local restart_policy
+  if docker container inspect httpd >/dev/null 2>&1; then
+    [[ "$(docker inspect --format='{{.State.Running}}' httpd)" != "true" ]] || fail "httpd is running; banner management writes are not fail closed"
+    restart_policy=$(docker inspect --format='{{.HostConfig.RestartPolicy.Name}}' httpd)
+    [[ "$restart_policy" == "no" ]] || fail "httpd restart policy is $restart_policy; banner management writes are not restart-proof fail closed"
+  fi
+}
+
 validate_rollback_state() {
   local state_file=$1
   local contract_file
@@ -78,9 +87,7 @@ validate_rollback_state() {
       .downMigrationRequested == false
     ' "$state_file" >/dev/null || fail "rollback state does not match the current fail-closed contract"
 
-  if docker container inspect httpd >/dev/null 2>&1; then
-    [[ "$(docker inspect --format='{{.State.Running}}' httpd)" != "true" ]] || fail "httpd is running; banner management writes are not fail closed"
-  fi
+  require_httpd_frozen
 
   for key in frontend psama operations query gateway; do
     image=$(jq -er ".rollbackImages.${key}" "$state_file") || fail "rollbackImages.$key is missing"

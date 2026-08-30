@@ -38,6 +38,16 @@ require_exact_image() {
   printf '%s\n' "$image"
 }
 
+require_httpd_frozen() {
+  local running_error=$1
+  local restart_policy
+  if docker container inspect httpd >/dev/null 2>&1; then
+    [[ "$(docker inspect --format='{{.State.Running}}' httpd)" != "true" ]] || fail "$running_error"
+    restart_policy=$(docker inspect --format='{{.HostConfig.RestartPolicy.Name}}' httpd)
+    [[ "$restart_policy" == "no" ]] || fail "httpd restart policy is $restart_policy; banner management writes are not restart-proof fail closed"
+  fi
+}
+
 [[ $# -eq 1 ]] || { usage; exit 2; }
 STATE_FILE=$1
 [[ -f "$STATE_FILE" ]] || fail "rollback state file not found: $STATE_FILE"
@@ -65,12 +75,9 @@ for index in 0 1 2; do
 done
 [[ "$(json_value '.completedPhases | length')" == "3" ]] || fail "rollback state must attest exactly the three pre-backend phases"
 
-# The existing AIO fail-closed freeze is a stopped public entrypoint. The
-# attestation alone is insufficient, so also verify that httpd is not running.
-if docker container inspect httpd >/dev/null 2>&1; then
-  httpd_running=$(docker inspect --format='{{.State.Running}}' httpd)
-  [[ "$httpd_running" != "true" ]] || fail "httpd is running; banner management writes are not fail closed"
-fi
+# The attestation alone is insufficient. A stopped container with its ordinary
+# restart policy could republish the frontend after a daemon or host restart.
+require_httpd_frozen "httpd is running; banner management writes are not fail closed"
 
 frontend_image=$(require_exact_image frontend)
 frontend_latest_id=$(docker image inspect --format='{{.Id}}' hms-dbmi/pic-sure-frontend:LATEST)
@@ -92,9 +99,6 @@ docker tag "$gateway_image" hms-dbmi/pic-sure-gateway:LATEST
 # health-gate the full request path.
 "$START_SCRIPT" --rollback-state "$STATE_FILE"
 
-if docker container inspect httpd >/dev/null 2>&1; then
-  httpd_running=$(docker inspect --format='{{.State.Running}}' httpd)
-  [[ "$httpd_running" != "true" ]] || fail "httpd restarted during fail-closed rollback"
-fi
+require_httpd_frozen "httpd restarted during fail-closed rollback"
 
 echo "Rollback backend started with the forward schema retained; httpd remains stopped."

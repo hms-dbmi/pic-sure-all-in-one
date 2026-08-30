@@ -17,6 +17,7 @@ default_rollout_file() {
 
 CONTRACT_FILE="${AIO_ROLLOUT_CONTRACT_FILE:-$(default_rollout_file banner-rollout-contract.json)}"
 SOURCE_FILE="${AIO_ROLLOUT_SOURCE_FILE:-$(default_rollout_file banner-rollout-source.json)}"
+WORKFLOW_SHA256_SCRIPT="${AIO_WORKFLOW_SHA256_SCRIPT:-$(default_rollout_file workflow-sha256.sh)}"
 
 fail() {
   echo "ERROR: $*" >&2
@@ -26,6 +27,7 @@ fail() {
 [[ $# -eq 1 && -f "$BUILD_SPEC" ]] || fail "usage: $0 <build-spec.json>"
 [[ -f "$CONTRACT_FILE" ]] || fail "rollout contract not found: $CONTRACT_FILE"
 [[ -f "$SOURCE_FILE" ]] || fail "rollout source metadata not found: $SOURCE_FILE"
+[[ -x "$WORKFLOW_SHA256_SCRIPT" ]] || fail "workflow checksum script not found or not executable: $WORKFLOW_SHA256_SCRIPT"
 [[ -f "$SCRIPT_DIR/aio-sha256.sh" ]] || fail "checksum helper not found: $SCRIPT_DIR/aio-sha256.sh"
 # shellcheck source=aio-sha256.sh
 . "$SCRIPT_DIR/aio-sha256.sh"
@@ -65,7 +67,9 @@ psa_commit=$(jq -er '[.application[] | select(.project_job_git_key == "PSA") | .
 
 expected_aio_commit=$(jq -er '[.application[] | select(.project_job_git_key == "AIO") | .git_hash] | if length == 1 then .[0] else error("expected one AIO entry") end' "$BUILD_SPEC")
 expected_workflow_sha=$(jq -er '.bannerRollout.aioWorkflowSha256' "$BUILD_SPEC")
-actual_workflow_sha="${AIO_WORKFLOW_SHA256:-}"
+if ! actual_workflow_sha=$("$WORKFLOW_SHA256_SCRIPT"); then
+  fail "could not fingerprint the active AIO workflow"
+fi
 [[ "$actual_workflow_sha" =~ ^[0-9a-f]{64}$ ]] || fail "installed AIO workflow content fingerprint is unavailable"
 if [[ "$actual_workflow_sha" != "$expected_workflow_sha" ]]; then
   fail "installed AIO workflow content $actual_workflow_sha does not match release tuple $expected_workflow_sha. Git installs: run sudo ./update-jenkins.sh --aio-ref $expected_aio_commit. Non-Git installs: reinstall the AIO artifact for that commit"

@@ -6,7 +6,9 @@ set -o pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DOCKER_CONFIG_DIR="${DOCKER_CONFIG_DIR:-/usr/local/docker-config}"
 MODE="${AIO_WORKFLOW_MODE:-installed}"
-MANIFEST="$SCRIPT_DIR/initial-configuration/jenkins/jenkins-docker/aio-workflow-files.txt"
+REPO_ROOT="${AIO_WORKFLOW_REPO_ROOT:-$SCRIPT_DIR}"
+MANIFEST="${AIO_WORKFLOW_MANIFEST:-$REPO_ROOT/initial-configuration/jenkins/jenkins-docker/aio-workflow-files.txt}"
+JENKINS_HOME="${AIO_WORKFLOW_JENKINS_HOME:-$DOCKER_CONFIG_DIR/jenkins_home}"
 [[ "$MODE" == "source" || "$MODE" == "installed" ]] || { echo "ERROR: invalid AIO workflow mode: $MODE" >&2; exit 2; }
 [[ -f "$SCRIPT_DIR/aio-sha256.sh" ]] || { echo "ERROR: checksum helper is missing: $SCRIPT_DIR/aio-sha256.sh" >&2; exit 2; }
 # shellcheck source=aio-sha256.sh
@@ -18,13 +20,13 @@ resolve_path() {
   [[ "$location" != "$entry" && "$location" != /* && "$location" != *".."* ]] || return 2
   case "$entry" in
     repo:*)
-      printf '%s/%s\n' "$SCRIPT_DIR" "$location"
+      printf '%s/%s\n' "$REPO_ROOT" "$location"
       ;;
     jenkins-home:*)
       if [[ "$MODE" == "source" ]]; then
-        printf '%s/initial-configuration/jenkins/jenkins-docker/%s\n' "$SCRIPT_DIR" "$location"
+        printf '%s/initial-configuration/jenkins/jenkins-docker/%s\n' "$REPO_ROOT" "$location"
       else
-        printf '%s/jenkins_home/%s\n' "$DOCKER_CONFIG_DIR" "$location"
+        printf '%s/%s\n' "$JENKINS_HOME" "$location"
       fi
       ;;
     *)

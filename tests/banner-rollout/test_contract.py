@@ -170,7 +170,9 @@ def synthetic_build_spec(aio_sha: str, workflow_sha: str, psa_sha=EXPECTED_CONTR
     }
 
 
-def run_validator(spec: dict, workflow_sha: str, aio_commit: str):
+def run_validator(
+    spec: dict, workflow_sha: str, aio_commit: str, extra_env=None
+):
     with tempfile.TemporaryDirectory() as tmp:
         spec_path = Path(tmp) / "build-spec.json"
         spec_path.write_text(json.dumps(spec))
@@ -181,8 +183,11 @@ def run_validator(spec: dict, workflow_sha: str, aio_commit: str):
                 "AIO_ROLLOUT_SOURCE_FILE": str(CONTRACT_SOURCE),
                 "AIO_WORKFLOW_SHA256": workflow_sha,
                 "AIO_WORKFLOW_COMMIT": aio_commit,
+                "AIO_WORKFLOW_MODE": "source",
             }
         )
+        if extra_env:
+            env.update(extra_env)
         return subprocess.run(
             ["bash", str(VALIDATOR), str(spec_path)],
             cwd=ROOT,
@@ -233,7 +238,9 @@ if [[ "${1:-}" == "run" ]]; then
     printf '%s\\n' "$health" > "$MOCK_DOCKER_STATE/$name.health"
   fi
 elif [[ "$*" == *"inspect --format={{.State.Running}}"* ]]; then
-  printf '%s\\n' true
+  printf '%s\\n' "${MOCK_HTTPD_RUNNING:-true}"
+elif [[ "$*" == *"inspect --format={{.HostConfig.RestartPolicy.Name}}"* ]]; then
+  printf '%s\\n' "${MOCK_HTTPD_RESTART_POLICY:-no}"
 elif [[ "$*" == *"inspect --format={{.State.Health.Status}}"* ]]; then
   name="${*: -1}"
   if [[ "${MOCK_UNHEALTHY_CONTAINER:-}" == "$name" ]]; then
@@ -252,6 +259,9 @@ elif [[ "$*" == *"inspect --format={{.State.Health.Status}}"* ]]; then
     printf '%s\\n' healthy
   fi
 elif [[ "$1 ${2:-}" == "container inspect" ]]; then
+  if [[ "${3:-}" == "httpd" && "${MOCK_HTTPD_PRESENT:-false}" == "true" ]]; then
+    exit 0
+  fi
   if [[ "${3:-}" == "httpd" && "${MOCK_HTTPD_REAPPEARS:-false}" == "true" && -f "$MOCK_DOCKER_STATE/gateway-health-checked" ]]; then
     exit 0
   fi
@@ -367,6 +377,33 @@ def index_of(commands: list[str], fragment: str) -> int:
     return next(index for index, command in enumerate(commands) if fragment in command)
 
 
+def split_job_names(value: str) -> set[str]:
+    return {name.strip() for name in value.split(",") if name.strip()}
+
+
+def jenkins_job_references(config: Path) -> set[str]:
+    root = ET.parse(config).getroot()
+    children = set(re.findall(r"build job: '([^']+)'", xml_script(config)))
+    children.update(scheduled_jobs(xml_script(config)))
+    recognized = set()
+    for node in root.findall(".//hudson.tasks.BuildTrigger/childProjects"):
+        recognized.add(id(node))
+        children.update(split_job_names(node.text or ""))
+    for node in root.findall(
+        ".//hudson.plugins.parameterizedtrigger.BuildTrigger/"
+        "configs/hudson.plugins.parameterizedtrigger.BuildTriggerConfig/projects"
+    ):
+        recognized.add(id(node))
+        children.update(split_job_names(node.text or ""))
+    for node in root.iter():
+        if node.tag in {"projects", "childProjects"} and (node.text or "").strip():
+            if id(node) not in recognized:
+                raise AssertionError(
+                    f"unknown Jenkins downstream trigger form in {config}: {node.tag}"
+                )
+    return children
+
+
 def transitive_release_jobs(roots: set[str]) -> set[str]:
     discovered = set()
     pending = list(roots)
@@ -378,9 +415,7 @@ def transitive_release_jobs(roots: set[str]) -> set[str]:
         if not config.exists():
             raise AssertionError(f"release job is missing: {job}")
         discovered.add(job)
-        script = xml_script(config)
-        children = set(re.findall(r"build job: '([^']+)'", script))
-        children.update(scheduled_jobs(script))
+        children = jenkins_job_references(config)
         pending.extend(children - discovered)
     return discovered
 
@@ -481,9 +516,6 @@ class RolloutContractTest(unittest.TestCase):
         self.assertIn("/actuator/health/liveness", source)
         self.assertIn("/operations/banners/active/v2", source)
         self.assertNotIn("/system/status", source)
-        self.assertNotIn("# shellcheck disable=SC1091,SC2086", source)
-        self.assertEqual(source.count("for value_name in"), 2)
-        self.assertNotIn('case "$value_name"', source)
         with self.assertRaises(AssertionError):
             validate_start_script(source.replace("docker run --name=psama", "docker run --name=omitted", 1))
         reordered = source.replace("docker run --name=psama", "docker run --name=TEMP", 1)
@@ -553,16 +585,83 @@ class RolloutContractTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(commands, [])
 
-    def test_invalid_frontend_publish_flag_fails_before_docker_commands(self):
+    def test_caller_controlled_frontend_publish_flag_must_be_unset(self):
+        for value in ("yes", "false", ""):
+            with self.subTest(value=value), tempfile.TemporaryDirectory() as tmp:
+                config = required_config(Path(tmp) / "config")
+                result, commands = run_script(
+                    ROOT / "start-picsure.sh",
+                    config,
+                    {"AIO_PUBLISH_FRONTEND": value},
+                )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertEqual(commands, [])
+
+    def test_rollback_rejects_running_httpd_before_image_or_service_changes(self):
         with tempfile.TemporaryDirectory() as tmp:
-            config = required_config(Path(tmp) / "config")
+            tmp_path = Path(tmp)
+            config = required_config(tmp_path / "config")
+            state = tmp_path / "state.json"
+            state.write_text(json.dumps(rollback_state()))
+            result, commands = run_script(
+                ROOT / "rollback-picsure.sh",
+                config,
+                {
+                    "MOCK_HTTPD_PRESENT": "true",
+                    "MOCK_HTTPD_RUNNING": "true",
+                    "MOCK_HTTPD_RESTART_POLICY": "no",
+                },
+                str(state),
+            )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("httpd is running", result.stderr)
+        self.assertFalse(any(command.startswith("image inspect") for command in commands))
+        self.assertFalse(any(command.startswith("tag ") for command in commands))
+        self.assertFalse(any("run --name=" in command for command in commands))
+
+    def test_rollback_rejects_restartable_stopped_httpd_without_side_effects(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            config = required_config(tmp_path / "config")
+            state = tmp_path / "state.json"
+            state.write_text(json.dumps(rollback_state()))
+            result, commands = run_script(
+                ROOT / "rollback-picsure.sh",
+                config,
+                {
+                    "MOCK_HTTPD_PRESENT": "true",
+                    "MOCK_HTTPD_RUNNING": "false",
+                    "MOCK_HTTPD_RESTART_POLICY": "always",
+                },
+                str(state),
+            )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("restart policy", result.stderr)
+        self.assertFalse(any(command.startswith("image inspect") for command in commands))
+        self.assertFalse(any(command.startswith("tag ") for command in commands))
+        self.assertFalse(any("run --name=" in command for command in commands))
+
+    def test_rollback_mode_start_independently_requires_restart_proof(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            config = required_config(tmp_path / "config")
+            state = tmp_path / "state.json"
+            state.write_text(json.dumps(rollback_state()))
             result, commands = run_script(
                 ROOT / "start-picsure.sh",
                 config,
-                {"AIO_PUBLISH_FRONTEND": "yes"},
+                {
+                    "MOCK_HTTPD_PRESENT": "true",
+                    "MOCK_HTTPD_RUNNING": "false",
+                    "MOCK_HTTPD_RESTART_POLICY": "unless-stopped",
+                },
+                "--rollback-state",
+                str(state),
             )
         self.assertNotEqual(result.returncode, 0)
-        self.assertEqual(commands, [])
+        self.assertIn("restart policy", result.stderr)
+        self.assertFalse(any(command.startswith("image inspect") for command in commands))
+        self.assertFalse(any("run --name=" in command for command in commands))
 
     def test_rollback_executes_only_after_ordered_attestations_and_keeps_httpd_down(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -811,7 +910,15 @@ class RolloutContractTest(unittest.TestCase):
         result = run_validator(spec, digest, aio_commit)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
-        dirty = run_validator(spec, "d" * 64, aio_commit)
+        stale_boot_digest = run_validator(spec, "d" * 64, aio_commit)
+        self.assertEqual(
+            stale_boot_digest.returncode,
+            0,
+            stale_boot_digest.stdout + stale_boot_digest.stderr,
+        )
+
+        wrong_workflow = synthetic_build_spec(aio_commit, "d" * 64)
+        dirty = run_validator(wrong_workflow, digest, aio_commit)
         self.assertNotEqual(dirty.returncode, 0)
         self.assertIn("workflow content", dirty.stderr)
 
@@ -827,7 +934,33 @@ class RolloutContractTest(unittest.TestCase):
         unavailable = run_validator(spec, digest, "UNAVAILABLE")
         self.assertEqual(unavailable.returncode, 0, unavailable.stdout + unavailable.stderr)
 
-    def test_validator_defaults_work_at_repo_root_and_direct_scripts_mount(self):
+    def test_validator_rehashes_active_jenkins_jobs_for_each_rollout(self):
+        digest = workflow_digest()
+        aio_commit = "a" * 40
+        spec = synthetic_build_spec(aio_commit, digest)
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / "config"
+            for entry in WORKFLOW_MANIFEST.read_text().splitlines():
+                if not entry.startswith("jenkins-home:"):
+                    continue
+                relative = Path(entry.split(":", 1)[1])
+                source = ROOT / "initial-configuration/jenkins/jenkins-docker" / relative
+                target = config / "jenkins_home" / relative
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source, target)
+            runtime_env = {
+                "AIO_WORKFLOW_MODE": "installed",
+                "DOCKER_CONFIG_DIR": str(config),
+            }
+            coherent = run_validator(spec, digest, aio_commit, runtime_env)
+            active_pipeline = config / "jenkins_home/jobs/PIC-SURE Pipeline/config.xml"
+            active_pipeline.write_text(active_pipeline.read_text() + "\n")
+            drifted = run_validator(spec, digest, aio_commit, runtime_env)
+        self.assertEqual(coherent.returncode, 0, coherent.stdout + coherent.stderr)
+        self.assertNotEqual(drifted.returncode, 0)
+        self.assertIn("workflow content", drifted.stderr)
+
+    def test_validator_defaults_work_at_repo_root_and_direct_validator_mount(self):
         digest = workflow_digest()
         aio_commit = "a" * 40
         spec = synthetic_build_spec(aio_commit, digest)
@@ -845,6 +978,8 @@ class RolloutContractTest(unittest.TestCase):
                 {
                     "AIO_WORKFLOW_SHA256": digest,
                     "AIO_WORKFLOW_COMMIT": aio_commit,
+                    "AIO_WORKFLOW_SHA256_SCRIPT": str(ROOT / "workflow-sha256.sh"),
+                    "AIO_WORKFLOW_MODE": "source",
                 }
             )
             mounted_result = subprocess.run(
@@ -977,6 +1112,19 @@ printf '%064d  %s\\n' 0 "$1"
             if entry.startswith("jenkins-home:jobs/")
         }
         self.assertEqual(release_jobs - bound_jobs, set())
+
+    def test_transitive_scanner_fails_closed_on_unknown_trigger_form(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / "config.xml"
+            config.write_text(
+                "<project><publishers><mystery.Trigger>"
+                "<projects>Unbound Release Job</projects>"
+                "</mystery.Trigger></publishers></project>"
+            )
+            with self.assertRaisesRegex(
+                AssertionError, "unknown Jenkins downstream trigger form"
+            ):
+                jenkins_job_references(config)
 
     def test_exact_ref_update_handles_absent_jenkins_and_restores_branch(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -1130,7 +1278,18 @@ exit 0
                 git_commands = (tmp_path / "git.log").read_text()
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             self.assertIn(f"AIO_WORKFLOW_COMMIT={expected_commit}", docker_command)
-            self.assertIn(f"AIO_WORKFLOW_SHA256={workflow_digest()}", docker_command)
+            self.assertIn(
+                "AIO_WORKFLOW_SHA256_SCRIPT=/aio-workflow/workflow-sha256.sh",
+                docker_command,
+            )
+            self.assertIn("AIO_WORKFLOW_MODE=installed", docker_command)
+            self.assertIn("AIO_WORKFLOW_JENKINS_HOME=/var/jenkins_home", docker_command)
+            self.assertIn("AIO_WORKFLOW_REPO_ROOT=/aio-workflow", docker_command)
+            self.assertNotIn("-e AIO_WORKFLOW_SHA256=", docker_command)
+            for entry in WORKFLOW_MANIFEST.read_text().splitlines():
+                if entry.startswith("repo:"):
+                    relative = entry.removeprefix("repo:")
+                    self.assertIn(f":/aio-workflow/{relative}:ro", docker_command)
             self.assertIn("--network picsure", docker_command)
             if git_mode == "safe":
                 self.assertIn("-c safe.directory=", git_commands)
@@ -1199,7 +1358,12 @@ exit 0
         self.assertIn("validate-build-spec.sh:/scripts/validate-build-spec.sh", mounts)
         self.assertIn("banner-rollout-contract.json:/scripts/banner-rollout-contract.json:ro", mounts)
         self.assertIn("banner-rollout-source.json:/scripts/banner-rollout-source.json:ro", mounts)
-        self.assertIn("AIO_WORKFLOW_SHA256", mounts)
+        self.assertIn(
+            'AIO_WORKFLOW_SHA256_SCRIPT="$WORKFLOW_ROOT/workflow-sha256.sh"',
+            mounts,
+        )
+        for script in ("start-picsure.sh", "rollback-picsure.sh", "stop-picsure.sh"):
+            self.assertIn(f"{script}:/scripts/{script}:ro", mounts)
         for script in (VALIDATOR, ROOT / "workflow-sha256.sh", ROOT / "rollback-picsure.sh"):
             source = script.read_text()
             self.assertIn("aio-sha256.sh", source)

@@ -31,9 +31,9 @@ The current inputs must be clean and at the commits recorded in
 `expected-result.json`; the BDC root is pinned by the binary/feed owner contract,
 and the clean legacy PSAMA root must contain the exact annotated `v4.2.2` tag.
 Use `test.sh contract` for the normal and optimized checked-in contract tests
-without starting Docker. `nested-owner-diagnostics.py` forces failures through
-the real Ticket 17 and Ticket 18 harness failure paths without starting Docker,
-then checks that Ticket 22A retains their matrices, logs, and browser output.
+without starting Docker. `nested-owner-diagnostics.py` drives a failing Ticket
+17 subprocess through Ticket 18's real composition and failure paths without
+starting Docker, then checks that Ticket 22A retains both owners' diagnostics.
 
 Resources are labeled with `org.pic-sure.banner-local-integration=<run-id>`.
 The runner removes its containers, network, locally built images, and temporary

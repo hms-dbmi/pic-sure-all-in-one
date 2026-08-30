@@ -84,8 +84,9 @@ def run_checked(arguments, label):
 def validate_shell_fixture(path):
     run_checked(["bash", "-n", path], f"Bash syntax validation for {path.name}")
     shellcheck = shutil.which("shellcheck")
-    if shellcheck:
-        run_checked([shellcheck, path], f"ShellCheck for {path.name}")
+    if shellcheck is None:
+        raise RuntimeError(f"ShellCheck is required to validate {path.name}")
+    run_checked([shellcheck, path], f"ShellCheck for {path.name}")
 
 
 def run_ticket17_child(backend):

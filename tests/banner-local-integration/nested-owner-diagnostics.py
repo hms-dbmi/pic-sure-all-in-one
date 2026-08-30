@@ -65,11 +65,47 @@ def write_executable(path, source):
     path.chmod(0o755)
 
 
+def run_checked(arguments, label):
+    result = subprocess.run(
+        [str(argument) for argument in arguments],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"{label} failed with status {result.returncode}\n"
+            f"stdout:\n{result.stdout}\n"
+            f"stderr:\n{result.stderr}"
+        )
+    return result
+
+
+def validate_shell_fixture(path):
+    run_checked(["bash", "-n", path], f"Bash syntax validation for {path.name}")
+    shellcheck = shutil.which("shellcheck")
+    if shellcheck:
+        run_checked([shellcheck, path], f"ShellCheck for {path.name}")
+
+
 def run_ticket17_child(backend):
     retention = {
         name: os.environ.get(name)
         for name in ("KEEP_COMPAT_TEMP", "KEEP_COMPAT_TEMP_ON_FAILURE")
     }
+    expectation = os.environ.get("T22A_NESTED_RETENTION_EXPECTATION")
+    if expectation == "absent":
+        if any(value is not None for value in retention.values()):
+            raise RuntimeError(
+                f"Ticket 18 forwarded unexpected Ticket 17 retention: {retention}"
+            )
+        Path(os.environ["T22A_NESTED_RETENTION_MARKER"]).write_text(
+            json.dumps(retention, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        print("synthetic Ticket 17 child observed no retention flags", file=sys.stderr)
+        return
+    if expectation != "true":
+        raise RuntimeError(f"invalid Ticket 17 retention expectation: {expectation}")
     if set(retention.values()) != {"true"}:
         raise RuntimeError(f"Ticket 18 did not propagate Ticket 17 retention: {retention}")
     temp_parent = Path(os.environ["TMPDIR"])
@@ -91,22 +127,26 @@ def create_ticket17_fixture(fixture, backend):
         backend / "tests/operations-binary-compatibility/matrix.tsv",
         fixture / "matrix.tsv",
     )
+    entrypoint = fixture / "test.sh"
     write_executable(
-        fixture / "test.sh",
-        """#!/usr/bin/env bash
+        entrypoint,
+        r"""#!/usr/bin/env bash
 set -euo pipefail
 [[ "${1:-}" == all ]] || { echo "Ticket 17 fixture requires all" >&2; exit 2; }
 exec python3 "${T22A_NESTED_DIAGNOSTICS_SCRIPT:?}" \
   ticket17-child "${T22A_NESTED_BACKEND_ROOT:?}"
 """,
     )
+    cleanup = fixture / "cleanup-resources.sh"
     write_executable(
-        fixture / "cleanup-resources.sh",
-        """#!/usr/bin/env bash
+        cleanup,
+        r"""#!/usr/bin/env bash
 set -euo pipefail
 printf '%s\n' "${1:?run ID is required}" >> "${T22A_NESTED_CLEANUP_MARKER:?}"
 """,
     )
+    validate_shell_fixture(entrypoint)
+    validate_shell_fixture(cleanup)
     return fixture
 
 
@@ -156,6 +196,7 @@ def force_composed_ticket17_failure(module, backend, temp_root, fixture, cleanup
         "T22A_NESTED_BACKEND_ROOT": str(backend),
         "T22A_NESTED_CLEANUP_MARKER": str(cleanup_marker),
         "T22A_NESTED_DIAGNOSTICS_SCRIPT": str(Path(__file__).resolve()),
+        "T22A_NESTED_RETENTION_EXPECTATION": "true",
     }
     keys = set(environment) | {"KEEP_COMPAT_TEMP", "KEEP_COMPAT_TEMP_ON_FAILURE"}
     previous = {key: os.environ.get(key) for key in keys}
@@ -179,6 +220,47 @@ def force_composed_ticket17_failure(module, backend, temp_root, fixture, cleanup
                 os.environ.pop(key, None)
             else:
                 os.environ[key] = value
+
+
+def prove_no_retention_forwarding(module, backend, temp_root, fixture):
+    harness = module.Harness(backend, temp_root, "no-retention", "all")
+    harness.ticket17_dir = fixture
+    harness.operations_source = backend
+    harness.aio_source = backend
+    harness.bdc_source = backend
+    marker = temp_root / "retention-probe.json"
+    environment = {
+        "T22A_NESTED_BACKEND_ROOT": str(backend),
+        "T22A_NESTED_DIAGNOSTICS_SCRIPT": str(Path(__file__).resolve()),
+        "T22A_NESTED_RETENTION_EXPECTATION": "absent",
+        "T22A_NESTED_RETENTION_MARKER": str(marker),
+    }
+    retention_names = {
+        "KEEP_BANNER_FEED_TEMP",
+        "KEEP_BANNER_FEED_TEMP_ON_FAILURE",
+        "KEEP_COMPAT_TEMP",
+        "KEEP_COMPAT_TEMP_ON_FAILURE",
+    }
+    keys = set(environment) | retention_names
+    previous = {key: os.environ.get(key) for key in keys}
+    for key in retention_names:
+        os.environ.pop(key, None)
+    os.environ.update(environment)
+    try:
+        harness.run_ticket17_composition()
+    finally:
+        for key, value in previous.items():
+            if value is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = value
+
+    observed = json.loads(
+        require_file(temp_root, "retention-probe.json").read_text(encoding="utf-8")
+    )
+    expected = {"KEEP_COMPAT_TEMP": None, "KEEP_COMPAT_TEMP_ON_FAILURE": None}
+    if observed != expected:
+        raise RuntimeError(f"Ticket 18 negative retention proof drifted: {observed}")
 
 
 def require_file(root, relative):
@@ -207,6 +289,9 @@ def main():
         feed_root.mkdir(parents=True)
         cleanup_marker = root / "ticket17-cleanup.log"
         fixture = create_ticket17_fixture(root / "ticket17-fixture", backend)
+        prove_no_retention_forwarding(
+            ticket18, backend, root / "no-retention-feed", fixture
+        )
         force_composed_ticket17_failure(
             ticket18, backend, feed_root, fixture, cleanup_marker
         )
@@ -224,7 +309,7 @@ def main():
             "matrixSha256": ticket18.contract.sha256_file(
                 backend / "tests/operations-binary-compatibility/matrix.tsv"
             ),
-            "proofOwnerHead": ticket18.FINAL_BACKEND_COMMIT,
+            "proofOwnerHead": outer.TICKET18_FINAL_BACKEND_COMMIT,
             "status": 23,
             "passed": False,
         }
@@ -247,7 +332,7 @@ def main():
         feed_matrix = require_file(feed_root, "observed-matrix.tsv")
         expected_feed_matrix = backend / "tests/banner-feed-compatibility/matrix.tsv"
         if feed_matrix.read_bytes() != expected_feed_matrix.read_bytes():
-            raise RuntimeError("Ticket 18 partial failure matrix drifted")
+            raise RuntimeError("Ticket 18 complete failure matrix drifted")
         child_matrix = require_file(child_root, "observed-matrix.tsv")
         expected_child_header = (
             backend / "tests/operations-binary-compatibility/matrix.tsv"
@@ -257,7 +342,10 @@ def main():
         operations_log = require_file(child_root, "operations.log").read_text(encoding="utf-8")
         if operations_log != "synthetic Ticket 17 service failure\n":
             raise RuntimeError("Ticket 17 service log drifted before outer preservation")
-        if cleanup_marker.read_text(encoding="utf-8") != "proof\n":
+        cleanup_text = require_file(root, "ticket17-cleanup.log").read_text(
+            encoding="utf-8"
+        )
+        if cleanup_text != "proof\n":
             raise RuntimeError("Ticket 18 did not clean the failed Ticket 17 run exactly once")
 
         owner_artifacts = (
@@ -282,15 +370,11 @@ def main():
             '{"status":"FAIL","phase":"composed-owner"}\n', encoding="utf-8"
         )
         stable = root / "stable-diagnostics"
-        subprocess.run(
+        run_checked(
             [TEST_DIR / "preserve-diagnostics.sh", runtime, stable],
-            check=True,
-            capture_output=True,
-            text=True,
+            "Ticket 22A diagnostics preservation",
         )
         shutil.rmtree(runtime)
-        if runtime.exists():
-            raise RuntimeError("Ticket 22A outer runtime cleanup failed")
         require_file(stable, "failed-result.json")
         for relative, expected in expected_artifacts.items():
             preserved = require_file(stable / "owner-diagnostics", relative)

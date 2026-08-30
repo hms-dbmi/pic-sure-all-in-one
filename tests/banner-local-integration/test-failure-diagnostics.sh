@@ -24,9 +24,11 @@ cleanup() {
 }
 trap cleanup EXIT
 
-mkdir -p "$runtime_root/logs"
+mkdir -p "$runtime_root/logs" "$runtime_root/owner-diagnostics/banner-feed-proof"
 printf '{"status":"FAIL","forced":true}\n' > "$runtime_root/failed-result.json"
 printf 'synthetic forced-failure log\n' > "$runtime_root/logs/operations.log"
+printf 'cell\tresult\nsynthetic\tFAIL\n' \
+  > "$runtime_root/owner-diagnostics/banner-feed-proof/observed-matrix.tsv"
 
 "$test_dir/preserve-diagnostics.sh" "$runtime_root" "$diagnostics_root"
 find "$runtime_root" -depth -delete
@@ -34,7 +36,11 @@ find "$runtime_root" -depth -delete
 [[ ! -e "$runtime_root" ]] || { echo "forced-failure runtime was not cleaned" >&2; exit 1; }
 [[ -f "$diagnostics_root/failed-result.json" ]] || { echo "partial result was not retained" >&2; exit 1; }
 [[ -f "$diagnostics_root/logs/operations.log" ]] || { echo "service log was not retained" >&2; exit 1; }
+[[ -f "$diagnostics_root/owner-diagnostics/banner-feed-proof/observed-matrix.tsv" ]] \
+  || { echo "nested owner matrix was not retained" >&2; exit 1; }
 grep -q '"forced":true' "$diagnostics_root/failed-result.json"
 grep -q 'synthetic forced-failure log' "$diagnostics_root/logs/operations.log"
+grep -q $'synthetic\tFAIL' \
+  "$diagnostics_root/owner-diagnostics/banner-feed-proof/observed-matrix.tsv"
 
 echo "Ticket 22A forced-failure diagnostics and runtime cleanup PASS"

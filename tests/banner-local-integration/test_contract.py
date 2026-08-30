@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import importlib.util
+import inspect
 import json
 import os
 from pathlib import Path
@@ -17,6 +18,13 @@ TEST_DIR = ROOT / "tests" / "banner-local-integration"
 
 
 class BannerLocalIntegrationContractTest(unittest.TestCase):
+    @staticmethod
+    def load_runner():
+        spec = importlib.util.spec_from_file_location("banner_local_run", TEST_DIR / "run.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        return module
+
     def test_checked_in_aio_local_proof_is_complete(self):
         required = (
             TEST_DIR / "README.md",
@@ -28,6 +36,7 @@ class BannerLocalIntegrationContractTest(unittest.TestCase):
             TEST_DIR / "browser-package.json",
             TEST_DIR / "browser-package-lock.json",
             TEST_DIR / "cleanup-resources.sh",
+            TEST_DIR / "nested-owner-diagnostics.py",
             TEST_DIR / "preserve-diagnostics.sh",
             TEST_DIR / "test-failure-diagnostics.sh",
             TEST_DIR / "test-cleanup.sh",
@@ -122,7 +131,120 @@ class BannerLocalIntegrationContractTest(unittest.TestCase):
         self.assertIn("runtime", completed.stderr + completed.stdout)
 
         source = (TEST_DIR / "run.py").read_text(encoding="utf-8")
-        self.assertIn('"deploymentConfig": repository_head(self.aio_root)', source)
+        self.assertIn('"deploymentConfig": aio_head', source)
+
+    def test_executing_aio_root_rejects_tracked_and_untracked_changes(self):
+        module = self.load_runner()
+        verify_source = inspect.getsource(module.Harness.verify_inputs)
+        self.assertIn("require_current_repository(self.aio_root", verify_source)
+
+        for dirty_kind in ("tracked", "untracked"):
+            with self.subTest(dirty_kind=dirty_kind), tempfile.TemporaryDirectory() as directory:
+                repository = Path(directory) / "aio"
+                repository.mkdir()
+                subprocess.run(["git", "init", "--quiet", str(repository)], check=True)
+                subprocess.run(
+                    ["git", "-C", str(repository), "config", "user.email", "proof@example.invalid"],
+                    check=True,
+                )
+                subprocess.run(
+                    ["git", "-C", str(repository), "config", "user.name", "Proof Test"],
+                    check=True,
+                )
+                tracked = repository / "tracked.txt"
+                tracked.write_text("committed\n", encoding="utf-8")
+                subprocess.run(["git", "-C", str(repository), "add", "tracked.txt"], check=True)
+                subprocess.run(
+                    ["git", "-C", str(repository), "commit", "--quiet", "-m", "fixture"],
+                    check=True,
+                )
+                if dirty_kind == "tracked":
+                    tracked.write_text("modified\n", encoding="utf-8")
+                else:
+                    (repository / "untracked.txt").write_text("untracked\n", encoding="utf-8")
+                with self.assertRaisesRegex(module.ProofError, "executing AIO source is dirty"):
+                    module.require_current_repository(repository, "executing AIO")
+
+    def test_nested_owner_failure_artifacts_are_preserved_selectively(self):
+        module = self.load_runner()
+        compose_source = inspect.getsource(module.Harness.compose_owner_contracts)
+        self.assertIn('"KEEP_BANNER_FEED_TEMP_ON_FAILURE": "true"', compose_source)
+        self.assertIn('"KEEP_COMPAT_TEMP_ON_FAILURE": "true"', compose_source)
+
+        with tempfile.TemporaryDirectory() as directory:
+            runtime = Path(directory) / "owner-runtime"
+            destination = Path(directory) / "owner-diagnostics"
+            feed_root = runtime / "banner-feed-proof"
+            binary_root = feed_root / "ticket17-temp" / "operations-binary-proof"
+            browser_root = feed_root / "final-backend-final-frontend"
+            binary_root.mkdir(parents=True)
+            browser_root.mkdir(parents=True)
+            (feed_root / "observed-matrix.tsv").write_text("feed observation\n", encoding="utf-8")
+            (feed_root / "failed-cell.json").write_text('{"failed_phase":"ticket17-composition"}\n')
+            (feed_root / "ticket17.log").write_text("nested owner log\n", encoding="utf-8")
+            (binary_root / "observed-matrix.tsv").write_text("binary observation\n", encoding="utf-8")
+            (binary_root / "failed-cell.json").write_text('{"failed_cell":"final-http-contract"}\n')
+            (binary_root / "operations.log").write_text("operations owner log\n", encoding="utf-8")
+            (browser_root / "browser-result.json").write_text('{"regionPresent":false}\n')
+            (feed_root / "sources" / "backend").mkdir(parents=True)
+            (feed_root / "sources" / "backend" / "source.java").write_text("not diagnostics\n")
+
+            copied = module.copy_owner_diagnostics(runtime, destination)
+
+            self.assertEqual(7, copied)
+            for relative in (
+                "banner-feed-proof/observed-matrix.tsv",
+                "banner-feed-proof/failed-cell.json",
+                "banner-feed-proof/ticket17.log",
+                "banner-feed-proof/ticket17-temp/operations-binary-proof/observed-matrix.tsv",
+                "banner-feed-proof/ticket17-temp/operations-binary-proof/failed-cell.json",
+                "banner-feed-proof/ticket17-temp/operations-binary-proof/operations.log",
+                "banner-feed-proof/final-backend-final-frontend/browser-result.json",
+            ):
+                self.assertTrue((destination / relative).is_file(), relative)
+            self.assertFalse((destination / "banner-feed-proof/sources/backend/source.java").exists())
+
+    def test_ticket18_composition_is_the_only_ticket17_run_and_both_results_are_validated(self):
+        module = self.load_runner()
+        compose_source = inspect.getsource(module.Harness.compose_owner_contracts)
+        self.assertEqual(1, compose_source.count('banner-feed-compatibility/test.sh", "all"'))
+        self.assertNotIn('operations-binary-compatibility/test.sh", "all"', compose_source)
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            feed_matrix = root / "feed-matrix.tsv"
+            binary_matrix = root / "binary-matrix.tsv"
+            feed_matrix.write_text("cell\tresult\nfeed\tPASS\n", encoding="utf-8")
+            binary_matrix.write_text("cell\tresult\nbinary\tPASS\n", encoding="utf-8")
+            feed_root = root / "owner-runtime" / "banner-feed-proof"
+            binary_root = feed_root / "ticket17-temp" / "operations-binary-proof"
+            binary_root.mkdir(parents=True)
+            (feed_root / "observed-matrix.tsv").write_bytes(feed_matrix.read_bytes())
+            (binary_root / "observed-matrix.tsv").write_bytes(binary_matrix.read_bytes())
+            result_path = feed_root / "ticket17-result.json"
+            result_path.write_text(
+                json.dumps(
+                    {
+                        "command": "tests/operations-binary-compatibility/test.sh all",
+                        "matrixSha256": module.sha256_file(binary_matrix),
+                        "proofOwnerHead": module.BACKEND_COMMIT,
+                        "status": 0,
+                        "passed": True,
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            module.validate_composed_owner_results(
+                feed_root, feed_matrix, binary_matrix, module.BACKEND_COMMIT
+            )
+            result = json.loads(result_path.read_text(encoding="utf-8"))
+            result["passed"] = False
+            result_path.write_text(json.dumps(result), encoding="utf-8")
+            with self.assertRaisesRegex(module.ProofError, "Ticket 17 runtime result"):
+                module.validate_composed_owner_results(
+                    feed_root, feed_matrix, binary_matrix, module.BACKEND_COMMIT
+                )
 
     def test_privileged_route_proof_rejects_missing_and_wrong_method(self):
         source = (TEST_DIR / "run.py").read_text(encoding="utf-8")
@@ -162,6 +284,7 @@ class BannerLocalIntegrationContractTest(unittest.TestCase):
             encoding="utf-8"
         )
         self.assertIn("BANNER_LOCAL_DIAGNOSTICS_ROOT", runner)
+        self.assertIn("nested-owner-diagnostics.py", runner)
         self.assertIn("test-failure-diagnostics.sh", runner)
         self.assertIn("actions/upload-artifact@", workflow)
         self.assertIn("if: failure()", workflow)

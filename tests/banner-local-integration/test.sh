@@ -29,6 +29,8 @@ for variable in \
   }
 done
 
+python3 "$test_dir/nested-owner-diagnostics.py" "$BANNER_LOCAL_BACKEND_ROOT"
+
 temp_parent=${TMPDIR:-/tmp}
 temp_root=$(mktemp -d "$temp_parent/banner-local-XXXXXXXX")
 run_id="proof$PPID$$"

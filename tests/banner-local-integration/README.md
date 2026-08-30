@@ -31,11 +31,14 @@ The current inputs must be clean and at the commits recorded in
 `expected-result.json`; the BDC root is pinned by the binary/feed owner contract,
 and the clean legacy PSAMA root must contain the exact annotated `v4.2.2` tag.
 Use `test.sh contract` for the normal and optimized checked-in contract tests
-without starting Docker.
+without starting Docker. `nested-owner-diagnostics.py` forces failures through
+the real Ticket 17 and Ticket 18 harness failure paths without starting Docker,
+then checks that Ticket 22A retains their matrices, logs, and browser output.
 
 Resources are labeled with `org.pic-sure.banner-local-integration=<run-id>`.
 The runner removes its containers, network, locally built images, and temporary
-directory on success and failure. Failure diagnostics are captured before that
+directory on success and failure. Failure diagnostics, including the composed
+owner matrices, service logs, and browser results, are captured before that
 cleanup under `${BANNER_LOCAL_DIAGNOSTICS_ROOT:-/tmp/banner-local-integration-diagnostics}`.
 CI uploads that directory when the job fails.
 
@@ -43,12 +46,13 @@ CI uploads that directory when the job fails.
 
 Ticket 15 remains the migration proof owner. The harness builds its historical
 inputs from exact local Git objects and runs its authoritative `test.sh all`.
-Tickets 17 and 18 remain the binary/schema and feed-rollback proof owners, and
-their authoritative `test.sh all` entrypoints run against the exact current
-inputs. Ticket 19's cache-restart integration and rollout-contract Java tests
-run against the exported backend source. Ticket 20's AIO and release-control
-owner suites run normally and with Python optimization. No owner PASS is
-inferred from a checked-in result or checksum.
+Tickets 17 and 18 remain the binary/schema and feed-rollback proof owners.
+Ticket 18 composes Ticket 17's authoritative `test.sh all` once. The AIO proof
+independently validates both observed matrices and Ticket 17's runtime result
+before recording either owner PASS. Ticket 19's cache-restart integration and
+rollout-contract Java tests run against the exported backend source. Ticket 20's
+AIO and release-control owner suites run normally and with Python optimization.
+No owner PASS is inferred from a checked-in result or checksum.
 
 `contract.json` is the deployment-neutral JSON Schema consumed unchanged by
 AIO, BDC, and AIM-AHEAD. `expected-result.json` is the stable AIO expectation

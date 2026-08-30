@@ -8,7 +8,7 @@ mkdir -p "$diagnostics_root"
 for name in failed-result.json observed-result.json browser-empty.json browser-published.json; do
   [[ -f "$runtime_root/$name" ]] && cp "$runtime_root/$name" "$diagnostics_root/$name"
 done
-for name in logs audit-logs; do
+for name in logs audit-logs owner-diagnostics; do
   [[ -d "$runtime_root/$name" ]] && cp -R "$runtime_root/$name" "$diagnostics_root/$name"
 done
 

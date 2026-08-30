@@ -38,6 +38,16 @@ TICKET15_RELEASE_CONTROL_COMMIT = "78c8a9efde3989afae9f137dac583c739667f59d"
 TICKET15_PSAMA_COMMIT = "ca8ac3641ba122a93cda8a5d7cad7f23f7a46bb6"
 TICKET15_PSA_COMMIT = "88a767c273af776ca1edeb7be4d4365393e376f7"
 TICKET15_MIGRATIONS_COMMIT = "84ad03076ce9f69f27ebb51d0efa5d3d43114ea4"
+TICKET18_FINAL_BACKEND_COMMIT = "9c17b0caecbee1b7f2231ca974b8b8b59ba7f211"
+OWNER_DIAGNOSTIC_FILENAMES = {
+    "browser-config.json",
+    "browser-result.json",
+    "failed-cell.json",
+    "observed-matrix.tsv",
+    "provenance.json",
+    "rollback-order.json",
+    "ticket17-result.json",
+}
 
 
 class ProofError(RuntimeError):
@@ -80,6 +90,61 @@ def require_repository(root, expected, label):
     if status:
         raise ProofError(f"{label} source is dirty:\n{status.rstrip()}")
     return head
+
+
+def require_current_repository(root, label):
+    return require_repository(root, repository_head(root), label)
+
+
+def copy_owner_diagnostics(runtime_root, diagnostics_root):
+    runtime_root = Path(runtime_root)
+    diagnostics_root = Path(diagnostics_root)
+    copied = 0
+    if not runtime_root.is_dir():
+        return copied
+    for source in sorted(runtime_root.rglob("*")):
+        if source.is_symlink() or not source.is_file():
+            continue
+        if source.name not in OWNER_DIAGNOSTIC_FILENAMES and source.suffix != ".log":
+            continue
+        destination = diagnostics_root / source.relative_to(runtime_root)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, destination)
+        copied += 1
+    return copied
+
+
+def validate_composed_owner_results(feed_root, feed_matrix, binary_matrix, binary_owner_head):
+    feed_root = Path(feed_root)
+    feed_observed = feed_root / "observed-matrix.tsv"
+    if not feed_observed.is_file() or feed_observed.read_bytes() != Path(feed_matrix).read_bytes():
+        raise ProofError("Ticket 18 runtime matrix does not match its authoritative matrix")
+
+    result_path = feed_root / "ticket17-result.json"
+    if not result_path.is_file():
+        raise ProofError("Ticket 17 runtime result is missing from Ticket 18 composition")
+    result = json.loads(result_path.read_text(encoding="utf-8"))
+    expected_result = {
+        "command": "tests/operations-binary-compatibility/test.sh all",
+        "matrixSha256": sha256_file(binary_matrix),
+        "proofOwnerHead": binary_owner_head,
+        "status": 0,
+        "passed": True,
+    }
+    if result != expected_result:
+        raise ProofError(f"Ticket 17 runtime result is invalid: {result}")
+
+    binary_roots = sorted(
+        path for path in (feed_root / "ticket17-temp").glob("operations-binary-*")
+        if path.is_dir()
+    )
+    if len(binary_roots) != 1:
+        raise ProofError(
+            f"Ticket 17 runtime evidence is ambiguous: found {len(binary_roots)} owner roots"
+        )
+    binary_observed = binary_roots[0] / "observed-matrix.tsv"
+    if not binary_observed.is_file() or binary_observed.read_bytes() != Path(binary_matrix).read_bytes():
+        raise ProofError("Ticket 17 runtime matrix does not match its authoritative matrix")
 
 
 def local_checkout(source, destination, commit):
@@ -275,8 +340,9 @@ class Harness:
         )
 
     def verify_inputs(self):
+        aio_head = require_current_repository(self.aio_root, "executing AIO")
         ancestry = command(
-            ["git", "-C", self.aio_root, "merge-base", "--is-ancestor", AIO_PROOF_BASE, "HEAD"],
+            ["git", "-C", self.aio_root, "merge-base", "--is-ancestor", AIO_PROOF_BASE, aio_head],
             check=False, timeout=30,
         )
         if ancestry.returncode != 0:
@@ -292,7 +358,7 @@ class Harness:
         ):
             raise ProofError("checked-in result contract and expected AIO row disagree")
         source_commits = {
-            "deploymentConfig": repository_head(self.aio_root),
+            "deploymentConfig": aio_head,
             "backend": require_repository(self.backend, BACKEND_COMMIT, "backend"),
             "frontend": require_repository(self.frontend, FRONTEND_COMMIT, "frontend"),
             "migrationSource": require_repository(self.migrations, MIGRATIONS_COMMIT, "migrations"),
@@ -399,19 +465,47 @@ class Harness:
                 "BANNER_LOCAL_M2_ROOT", str(self.temp_root / "m2")
             ),
         }
-        command(
-            [self.backend / "tests/operations-binary-compatibility/test.sh", "all"],
-            cwd=self.backend,
-            env=compatibility_env,
-            timeout=7200,
+        owner_runtime = self.temp_root / "owner-runtime"
+        owner_runtime.mkdir()
+        compatibility_env.update(
+            {
+                "TMPDIR": str(owner_runtime),
+                "KEEP_BANNER_FEED_TEMP": "true",
+                "KEEP_BANNER_FEED_TEMP_ON_FAILURE": "true",
+                "KEEP_COMPAT_TEMP": "true",
+                "KEEP_COMPAT_TEMP_ON_FAILURE": "true",
+            }
         )
-        self.observed["checks"]["binarySchemaOwner"] = "PASS"
-        command(
+        owner_result = command(
             [self.backend / "tests/banner-feed-compatibility/test.sh", "all"],
             cwd=self.backend,
             env=compatibility_env,
             timeout=7200,
+            capture=True,
+            check=False,
         )
+        owner_output = (owner_result.stdout or "") + (owner_result.stderr or "")
+        (self.logs / "ticket18-owner.log").write_text(owner_output, encoding="utf-8")
+        copy_owner_diagnostics(owner_runtime, self.temp_root / "owner-diagnostics")
+        if owner_result.returncode != 0:
+            raise ProofError(
+                "Ticket 18 authoritative all entrypoint failed with status "
+                f"{owner_result.returncode}; see logs/ticket18-owner.log and owner-diagnostics"
+            )
+        feed_roots = sorted(
+            path for path in owner_runtime.glob("banner-feed-*") if path.is_dir()
+        )
+        if len(feed_roots) != 1:
+            raise ProofError(
+                f"Ticket 18 runtime evidence is ambiguous: found {len(feed_roots)} owner roots"
+            )
+        validate_composed_owner_results(
+            feed_roots[0],
+            self.backend / "tests/banner-feed-compatibility/matrix.tsv",
+            self.backend / "tests/operations-binary-compatibility/matrix.tsv",
+            TICKET18_FINAL_BACKEND_COMMIT,
+        )
+        self.observed["checks"]["binarySchemaOwner"] = "PASS"
         self.observed["checks"]["feedRollbackOwner"] = "PASS"
 
         for optimized in (False, True):
@@ -852,7 +946,7 @@ def finalize(aio_root, result_path):
     contract = json.loads((root / "tests/banner-local-integration/contract.json").read_text())
     expected = json.loads((root / "tests/banner-local-integration/expected-result.json").read_text())
     validate_runtime_result(contract, result)
-    executing_head = repository_head(root)
+    executing_head = require_current_repository(root, "executing AIO")
     if result["sourceCommits"].get("deploymentConfig") != executing_head:
         raise ProofError(
             "runtime deploymentConfig commit does not match the exact executing AIO HEAD"

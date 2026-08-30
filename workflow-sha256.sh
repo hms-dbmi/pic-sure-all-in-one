@@ -37,12 +37,14 @@ resolve_path() {
 material_file=$(mktemp)
 trap 'rm -f "$material_file"' EXIT
 {
-  printf '%s  %s\n' "$(sha256_file "$MANIFEST")" "aio-workflow-files.txt"
+  manifest_sha=$(sha256_file "$MANIFEST") || exit $?
+  printf '%s  %s\n' "$manifest_sha" "aio-workflow-files.txt"
   while IFS= read -r entry; do
     [[ -n "$entry" && "$entry" != \#* ]] || continue
     path=$(resolve_path "$entry") || { echo "ERROR: invalid AIO workflow manifest entry: $entry" >&2; exit 2; }
     [[ -f "$path" ]] || { echo "ERROR: installed AIO workflow file is missing: $path" >&2; exit 2; }
-    printf '%s  %s\n' "$(sha256_file "$path")" "$entry"
+    file_sha=$(sha256_file "$path") || exit $?
+    printf '%s  %s\n' "$file_sha" "$entry"
   done < "$MANIFEST"
 } > "$material_file"
 sha256_file "$material_file"

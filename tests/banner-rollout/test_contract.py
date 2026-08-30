@@ -241,6 +241,9 @@ elif [[ "$*" == *"inspect --format={{.State.Health.Status}}"* ]]; then
   elif [[ -f "$MOCK_DOCKER_STATE/$name.health" ]]; then
     IFS= read -r health < "$MOCK_DOCKER_STATE/$name.health"
     if bash -c "$health"; then
+      if [[ "$name" == "gateway" ]]; then
+        touch "$MOCK_DOCKER_STATE/gateway-health-checked"
+      fi
       printf '%s\\n' healthy
     else
       printf '%s\\n' unhealthy
@@ -249,6 +252,9 @@ elif [[ "$*" == *"inspect --format={{.State.Health.Status}}"* ]]; then
     printf '%s\\n' healthy
   fi
 elif [[ "$1 ${2:-}" == "container inspect" ]]; then
+  if [[ "${3:-}" == "httpd" && "${MOCK_HTTPD_REAPPEARS:-false}" == "true" && -f "$MOCK_DOCKER_STATE/gateway-health-checked" ]]; then
+    exit 0
+  fi
   exit 1
 elif [[ "$1 ${2:-}" == "image inspect" ]]; then
   if [[ "$*" == *"--format={{.Id}}"* ]]; then
@@ -267,6 +273,9 @@ set -u
 printf '%s\\n' "$*" >> "$MOCK_WGET_LOG"
 if [[ -n "${MOCK_FAILED_HEALTH_PATH:-}" && "$*" == *"$MOCK_FAILED_HEALTH_PATH"* ]]; then
   exit 1
+fi
+if [[ "$*" == *"/system/status"* ]]; then
+  printf '%s\\n' RUNNING
 fi
 """
     )
@@ -361,6 +370,68 @@ def index_of(commands: list[str], fragment: str) -> int:
     return next(index for index, command in enumerate(commands) if fragment in command)
 
 
+def transitive_release_jobs(roots: set[str]) -> set[str]:
+    discovered = set()
+    pending = list(roots)
+    while pending:
+        job = pending.pop()
+        if job in discovered:
+            continue
+        config = JOBS / job / "config.xml"
+        if not config.exists():
+            raise AssertionError(f"release job is missing: {job}")
+        discovered.add(job)
+        script = xml_script(config)
+        children = set(re.findall(r"build job: '([^']+)'", script))
+        children.update(scheduled_jobs(script))
+        pending.extend(children - discovered)
+    return discovered
+
+
+def rollback_state() -> dict:
+    return {
+        "schemaVersion": 1,
+        "contractSourceCommit": EXPECTED_CONTRACT_COMMIT,
+        "contractSha256": EXPECTED_CONTRACT_SHA256,
+        "completedPhases": EXPECTED_ROLLBACK[:3],
+        "forwardSchemaRetained": True,
+        "downMigrationRequested": False,
+        "rollbackImages": {
+            key: f"synthetic/{key}:old"
+            for key in ("frontend", "psama", "operations", "query", "gateway")
+        },
+        "rollbackImageIds": {
+            key: "sha256:" + "a" * 64
+            for key in ("frontend", "psama", "operations", "query", "gateway")
+        },
+    }
+
+
+def update_git_mock() -> str:
+    return """#!/usr/bin/env bash
+set -u
+printf '%s\\n' "$*" >> "$MOCK_GIT_LOG"
+state=$(cat "$MOCK_GIT_STATE")
+case "$*" in
+  *"cat-file -e "*) exit 0 ;;
+  *"symbolic-ref --short HEAD"*)
+    [[ "$state" == "pin" ]] && printf '%s\\n' picsure-aio-release-pin || printf '%s\\n' main
+    ;;
+  *"config --get picsure.updateBranch"*) printf '%s\\n' main ;;
+  *"config picsure.updateBranch "*) exit 0 ;;
+  *"checkout -B picsure-aio-release-pin "*)
+    [[ "${MOCK_CHECKOUT_FAIL:-false}" != "true" ]] || exit 1
+    printf '%s\\n' pin > "$MOCK_GIT_STATE"
+    ;;
+  *"checkout main"*) printf '%s\\n' main > "$MOCK_GIT_STATE" ;;
+  *"rev-parse HEAD"*) printf '%s\\n' "$MOCK_AIO_REF" ;;
+  *"pull --ff-only"*) [[ "$state" == "main" ]] ;;
+  *" pull") [[ "$state" == "main" ]] ;;
+  *) exit 1 ;;
+esac
+"""
+
+
 class RolloutContractTest(unittest.TestCase):
     def test_exact_shared_contract_is_checked_in(self):
         raw = CONTRACT.read_bytes()
@@ -412,7 +483,7 @@ class RolloutContractTest(unittest.TestCase):
         self.assertIn("/operations/actuator/health/readiness", source)
         self.assertIn("/actuator/health/liveness", source)
         self.assertIn("/operations/banners/active/v2", source)
-        self.assertNotIn("/system/status", source)
+        self.assertIn("/system/status", source)
         self.assertNotIn("# shellcheck disable=SC1091,SC2086", source)
         self.assertEqual(source.count("for value_name in"), 2)
         self.assertNotIn('case "$value_name"', source)
@@ -535,6 +606,30 @@ class RolloutContractTest(unittest.TestCase):
             index_of(commands, "run --name=pic-sure-operations-service"),
         )
         self.assertLess(index_of(commands, "run --name=gateway"), index_of(commands, "run --name=psama"))
+        self.assertFalse(any("run --name=httpd" in command for command in commands))
+
+    def test_rollback_uses_legacy_gateway_health_and_reaches_final_httpd_check(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            config = required_config(tmp_path / "config")
+            state = tmp_path / "state.json"
+            state.write_text(json.dumps(rollback_state()))
+            result, commands = run_script(
+                ROOT / "rollback-picsure.sh",
+                config,
+                {
+                    "MOCK_FAILED_HEALTH_PATH": "/operations/banners/active/v2",
+                    "MOCK_HTTPD_REAPPEARS": "true",
+                },
+                str(state),
+            )
+            health_commands = (tmp_path / "wget.log").read_text().splitlines()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("httpd restarted during fail-closed rollback", result.stderr)
+        self.assertTrue(any("/system/status" in command for command in health_commands))
+        self.assertFalse(
+            any("/operations/banners/active/v2" in command for command in health_commands)
+        )
         self.assertFalse(any("run --name=httpd" in command for command in commands))
 
     def test_rollback_rejects_an_image_id_that_changed_after_attestation(self):
@@ -718,23 +813,55 @@ class RolloutContractTest(unittest.TestCase):
         self.assertEqual(missing_file.returncode, 2)
         self.assertEqual(missing_file.stdout, "")
 
-    def test_pipeline_child_jobs_are_bound_by_the_workflow_manifest(self):
-        pipeline = xml_script(JOBS / "PIC-SURE Pipeline/config.xml")
-        children = set(re.findall(r"build job: '([^']+)'", pipeline))
+    def test_workflow_checksum_propagates_hash_failure(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            shutil.copy2(ROOT / "workflow-sha256.sh", root / "workflow-sha256.sh")
+            (root / "aio-sha256.sh").write_text(
+                """#!/usr/bin/env bash
+sha256_file() {
+  if [[ "$1" == */present.txt ]]; then
+    echo "synthetic checksum read failure" >&2
+    return 23
+  fi
+  printf '%064d\\n' 0
+}
+"""
+            )
+            manifest = root / "initial-configuration/jenkins/jenkins-docker/aio-workflow-files.txt"
+            manifest.parent.mkdir(parents=True)
+            manifest.write_text("repo:present.txt\n")
+            (root / "present.txt").write_text("present\n")
+            result = subprocess.run(
+                ["bash", str(root / "workflow-sha256.sh")],
+                cwd=root,
+                env={**os.environ, "AIO_WORKFLOW_MODE": "source"},
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+        self.assertEqual(result.returncode, 23)
+        self.assertEqual(result.stdout, "")
+        self.assertIn("synthetic checksum read failure", result.stderr)
+
+    def test_transitive_release_jobs_are_bound_by_the_workflow_manifest(self):
+        release_jobs = transitive_release_jobs(
+            {"Check For Updates", "Initial Configuration Pipeline"}
+        )
+        self.assertIn("Migrate Dictionary Database", release_jobs)
+        self.assertIn("Retrieve Build Spec", release_jobs)
         bound_jobs = {
             entry.removeprefix("jenkins-home:jobs/").removesuffix("/config.xml")
             for entry in WORKFLOW_MANIFEST.read_text().splitlines()
             if entry.startswith("jenkins-home:jobs/")
         }
-        self.assertEqual(children - bound_jobs, set())
+        self.assertEqual(release_jobs - bound_jobs, set())
 
-    def test_exact_ref_update_is_checked_and_normal_update_restores_branch(self):
+    def test_exact_ref_update_handles_absent_jenkins_and_restores_branch(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             shutil.copy2(ROOT / "update-jenkins.sh", root / "update-jenkins.sh")
-            (root / "stop-jenkins.sh").write_text(
-                "#!/usr/bin/env bash\nprintf 'stop\\n' >> \"$MOCK_JENKINS_LOG\"\n"
-            )
+            shutil.copy2(ROOT / "stop-jenkins.sh", root / "stop-jenkins.sh")
             (root / "start-jenkins.sh").write_text(
                 "#!/usr/bin/env bash\nprintf 'start\\n' >> \"$MOCK_JENKINS_LOG\"\n"
             )
@@ -747,35 +874,22 @@ class RolloutContractTest(unittest.TestCase):
             (config / "old.xml").write_text("<old/>\n")
             bin_dir = root / "bin"
             bin_dir.mkdir()
-            git = bin_dir / "git"
-            git.write_text(
+            docker = bin_dir / "docker"
+            docker.write_text(
                 """#!/usr/bin/env bash
-set -u
-printf '%s\\n' "$*" >> "$MOCK_GIT_LOG"
-state=$(cat "$MOCK_GIT_STATE")
-case "$*" in
-  *"cat-file -e "*) exit 0 ;;
-  *"symbolic-ref --short HEAD"*)
-    [[ "$state" == "pin" ]] && printf '%s\\n' picsure-aio-release-pin || printf '%s\\n' main
-    ;;
-  *"config --get picsure.updateBranch"*) printf '%s\\n' main ;;
-  *"config picsure.updateBranch "*) exit 0 ;;
-  *"checkout -B picsure-aio-release-pin "*)
-    [[ "${MOCK_CHECKOUT_FAIL:-false}" != "true" ]] || exit 1
-    printf '%s\\n' pin > "$MOCK_GIT_STATE"
-    ;;
-  *"checkout --detach "*)
-    [[ "${MOCK_CHECKOUT_FAIL:-false}" != "true" ]] || exit 1
-    printf '%s\\n' detached > "$MOCK_GIT_STATE"
-    ;;
-  *"checkout main"*) printf '%s\\n' main > "$MOCK_GIT_STATE" ;;
-  *"rev-parse HEAD"*) printf '%s\\n' "$MOCK_AIO_REF" ;;
-  *"pull --ff-only"*) [[ "$state" == "main" ]] ;;
-  *" pull") [[ "$state" == "main" ]] ;;
-  *) exit 1 ;;
-esac
+printf '%s\\n' "$*" >> "$MOCK_UPDATE_DOCKER_LOG"
+if [[ "${1:-}" == "stop" || "${1:-}" == "rm" ]]; then
+  exit 1
+fi
+if [[ "${1:-} ${2:-}" == "container inspect" ]]; then
+  exit 1
+fi
+exit 0
 """
             )
+            docker.chmod(0o755)
+            git = bin_dir / "git"
+            git.write_text(update_git_mock())
             git.chmod(0o755)
             state = root / "git-state"
             state.write_text("main\n")
@@ -789,6 +903,7 @@ esac
                     "MOCK_GIT_STATE": str(state),
                     "MOCK_AIO_REF": aio_ref,
                     "MOCK_JENKINS_LOG": str(root / "jenkins.log"),
+                    "MOCK_UPDATE_DOCKER_LOG": str(root / "update-docker.log"),
                 }
             )
             pinned = subprocess.run(
@@ -808,6 +923,7 @@ esac
                 check=False,
             )
             git_commands = (root / "git.log").read_text()
+            update_docker_commands = (root / "update-docker.log").read_text()
             final_state = state.read_text().strip()
             (root / "jenkins.log").write_text("")
             failed_checkout = subprocess.run(
@@ -824,8 +940,13 @@ esac
         self.assertIn("checkout -B picsure-aio-release-pin", git_commands)
         self.assertIn("pull --ff-only", git_commands)
         self.assertEqual(final_state, "main")
+        self.assertGreaterEqual(update_docker_commands.count("container inspect jenkins"), 2)
+        self.assertNotIn("stop jenkins", update_docker_commands)
         self.assertNotEqual(failed_checkout.returncode, 0)
         self.assertEqual(jenkins_commands_after_failure, "")
+
+    def test_update_git_mock_has_no_obsolete_detached_checkout(self):
+        self.assertNotIn("checkout " + "--detach", update_git_mock())
 
     def test_start_jenkins_binds_content_in_safe_git_and_non_git_installs(self):
         for git_mode, expected_commit in (

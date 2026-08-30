@@ -15,6 +15,7 @@ AIO_HEALTH_TIMEOUT_SECONDS="${AIO_HEALTH_TIMEOUT_SECONDS:-180}"
 AIO_HEALTH_POLL_SECONDS="${AIO_HEALTH_POLL_SECONDS:-2}"
 AIO_PUBLISH_FRONTEND="${AIO_PUBLISH_FRONTEND:-true}"
 AIO_RECREATE_PSAMA_AFTER_BACKEND="${AIO_RECREATE_PSAMA_AFTER_BACKEND:-false}"
+AIO_GATEWAY_HEALTH_MODE="${AIO_GATEWAY_HEALTH_MODE:-banner-v2}"
 
 for value_name in AIO_HEALTH_TIMEOUT_SECONDS AIO_HEALTH_POLL_SECONDS; do
   [[ "${!value_name}" =~ ^[1-9][0-9]*$ ]] || { echo "ERROR: $value_name must be a positive integer." >&2; exit 2; }
@@ -22,6 +23,20 @@ done
 for value_name in AIO_PUBLISH_FRONTEND AIO_RECREATE_PSAMA_AFTER_BACKEND; do
   [[ "${!value_name}" == "true" || "${!value_name}" == "false" ]] || { echo "ERROR: $value_name must be true or false." >&2; exit 2; }
 done
+case "$AIO_GATEWAY_HEALTH_MODE" in
+  banner-v2)
+    GATEWAY_HEALTH_COMMAND='wget -q --spider http://127.0.0.1:8080/operations/banners/active/v2 || exit 1'
+    ;;
+  legacy)
+    # The command substitution must run inside the Gateway container.
+    # shellcheck disable=SC2016
+    GATEWAY_HEALTH_COMMAND='test "$(wget -qO- http://127.0.0.1:8080/system/status)" = RUNNING'
+    ;;
+  *)
+    echo "ERROR: AIO_GATEWAY_HEALTH_MODE must be banner-v2 or legacy." >&2
+    exit 2
+    ;;
+esac
 
 stop_and_remove_container() {
   local container_name=$1
@@ -237,7 +252,7 @@ fi
 if $INCLUDE_GATEWAY; then
   stop_and_remove_container gateway || exit 2
   docker run --name=gateway --restart always --network=picsure \
-    --health-cmd='wget -q --spider http://127.0.0.1:8080/operations/banners/active/v2 || exit 1' \
+    --health-cmd="$GATEWAY_HEALTH_COMMAND" \
     --health-interval=10s --health-timeout=5s --health-start-period=60s --health-retries=6 \
     --env-file "$CURRENT_FS_DOCKER_CONFIG_DIR/gateway/gateway.env" \
     -d hms-dbmi/pic-sure-gateway:LATEST \

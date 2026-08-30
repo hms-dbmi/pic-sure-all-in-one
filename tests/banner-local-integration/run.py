@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 
 import base64
-import csv
 import hashlib
 import hmac
 import http.client
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
@@ -21,6 +21,7 @@ BACKEND_COMMIT = "0178bbd2d1753e07dcead77a6d0e8ca37bf76dd8"
 FRONTEND_COMMIT = "7b69aa960ff98f97c1a2d026b7137b0e3dcdf603"
 MIGRATIONS_COMMIT = "05b1a77512dc0921570f0d442853fdcee75b8131"
 RELEASE_CONTROL_COMMIT = "53802f3efbd030042fab442f9c5a3a29770528ca"
+BDC_MIGRATION_COMMIT = "5d2ba9f59f161ace5e807c82a0580518a9d44d16"
 AIO_PROOF_BASE = "8830fbf9dffe69b273a51d35410413115878841f"
 AIO_RELEASE_COMMIT = "b453a5b59cf1f3c90ebfd6a4eb3d80108ee44b6a"
 ROLLOUT_SHA256 = "f8cb265d735b757872391e04fdcd5b999b785eaa427ca13f8f2eefd493715359"
@@ -28,10 +29,15 @@ MYSQL_IMAGE = "mysql:8.0.43@sha256:ccf4fed7ff4b886aeb3573a1f5d5b509525ecff55a2d1
 FLYWAY_IMAGE = "flyway/flyway:11.7.2@sha256:8ace7d9825bb3ad1d6e14ee27b3a830b638ac841ba424b99b2d92aa65a99d484"
 BUILD_IMAGE = "maven:3-amazoncorretto-25@sha256:de7a3e517efac1b933af6ceb375974a061ba71c908ea51a18bd937716a8ade93"
 RUNTIME_IMAGE = "amazoncorretto:25@sha256:397edfaaa0fdfc95001d4c4a4ab82174073277a5d630fd9375c94dca25b5991d"
+PLAYWRIGHT_IMAGE = "mcr.microsoft.com/playwright:v1.60.0-noble@sha256:9bd26ad900bb5e0f4dee75839e957a89ae89c2b7ab1e76050e559790e946b948"
 SYNTHETIC_PASSWORD = "t22a-local-password"
 SYNTHETIC_LOGGING_KEY = "t22a-local-logging-key"
 SYNTHETIC_CLIENT_SECRET = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 APPLICATION_UUID = "11111111-1111-1111-1111-111111111111"
+TICKET15_RELEASE_CONTROL_COMMIT = "78c8a9efde3989afae9f137dac583c739667f59d"
+TICKET15_PSAMA_COMMIT = "ca8ac3641ba122a93cda8a5d7cad7f23f7a46bb6"
+TICKET15_PSA_COMMIT = "88a767c273af776ca1edeb7be4d4365393e376f7"
+TICKET15_MIGRATIONS_COMMIT = "84ad03076ce9f69f27ebb51d0efa5d3d43114ea4"
 
 
 class ProofError(RuntimeError):
@@ -59,8 +65,12 @@ def command(arguments, *, cwd=None, env=None, capture=False, timeout=1800, check
     return result
 
 
+def repository_head(root):
+    return command(["git", "-C", root, "rev-parse", "HEAD"], capture=True, timeout=30).stdout.strip()
+
+
 def require_repository(root, expected, label):
-    head = command(["git", "-C", root, "rev-parse", "HEAD"], capture=True, timeout=30).stdout.strip()
+    head = repository_head(root)
     if head != expected:
         raise ProofError(f"{label} commit drift: expected {expected}, got {head}")
     status = command(
@@ -69,6 +79,19 @@ def require_repository(root, expected, label):
     ).stdout
     if status:
         raise ProofError(f"{label} source is dirty:\n{status.rstrip()}")
+    return head
+
+
+def local_checkout(source, destination, commit):
+    command(
+        ["git", "clone", "--quiet", "--local", "--no-hardlinks", "--no-checkout", source, destination],
+        timeout=300,
+    )
+    command(
+        ["git", "-C", destination, "-c", "advice.detachedHead=false", "checkout", "--quiet", "--detach", commit],
+        timeout=60,
+    )
+    require_repository(destination, commit, f"historical owner input {destination.name}")
 
 
 def export_head(repository, destination):
@@ -108,6 +131,106 @@ def jwt(subject, uuid, email, secret=SYNTHETIC_CLIENT_SECRET):
     return (unsigned + b"." + signature).decode()
 
 
+def expected_privileged_statuses(route_name):
+    expected = {
+        "list": {200},
+        "create": {400},
+        "save": {400},
+        "order": {200},
+        "update": {400},
+        "publish": {400},
+        "disable": {409},
+        "archive": {409},
+        "restore": {400},
+    }
+    return expected[route_name]
+
+
+def validate_runtime_result(contract, result):
+    runtime = result.get("observations", {}).get("runtimeArtifacts")
+    if not isinstance(runtime, dict):
+        raise ProofError("runtime observations are required")
+    if set(result) != set(contract["required"]):
+        raise ProofError("runtime result fields do not match the result schema")
+    if result.get("schemaVersion") != contract["properties"]["schemaVersion"]["const"]:
+        raise ProofError("runtime result schema version drift")
+    if result.get("deployment") not in contract["properties"]["deployment"]["enum"]:
+        raise ProofError("runtime result deployment is invalid")
+    statuses = set(contract["properties"]["status"]["enum"])
+    if result.get("status") not in statuses:
+        raise ProofError("runtime result status is invalid")
+
+    commit_pattern = re.compile(contract["$defs"]["commit"]["pattern"])
+    source_commits = result.get("sourceCommits")
+    required_sources = set(contract["properties"]["sourceCommits"]["required"])
+    if not isinstance(source_commits, dict) or not required_sources.issubset(source_commits):
+        raise ProofError("runtime source commits are incomplete")
+    if any(not isinstance(value, str) or not commit_pattern.fullmatch(value) for value in source_commits.values()):
+        raise ProofError("runtime source commit is not an exact Git SHA")
+
+    image_pattern = re.compile(contract["$defs"]["digestImage"]["pattern"])
+    images = result.get("images")
+    if not isinstance(images, dict) or not images or any(
+        not isinstance(value, str) or not image_pattern.fullmatch(value) for value in images.values()
+    ):
+        raise ProofError("runtime image provenance is incomplete or not digest-pinned")
+    sha_pattern = re.compile(contract["$defs"]["sha256"]["pattern"])
+    if not isinstance(result.get("rolloutContractSha256"), str) or not sha_pattern.fullmatch(
+        result["rolloutContractSha256"]
+    ):
+        raise ProofError("runtime rollout contract checksum is invalid")
+
+    for field in ("checks", "limitations"):
+        values = result.get(field)
+        required = set(contract["properties"][field]["required"])
+        if not isinstance(values, dict) or set(values) != required:
+            raise ProofError(f"runtime {field} are incomplete")
+        if any(value not in statuses for value in values.values()):
+            raise ProofError(f"runtime {field} contain an invalid status")
+
+    observations = result.get("observations")
+    required_observations = set(contract["properties"]["observations"]["required"])
+    if not isinstance(observations, dict) or set(observations) != required_observations:
+        raise ProofError("runtime observations are incomplete")
+    for field in (
+        "emptyFeedCount",
+        "emptyBannerRegionCount",
+        "managementRouteCount",
+        "publishedFeedCount",
+        "publishedBannerRegionCount",
+    ):
+        if not isinstance(observations[field], int) or observations[field] < 0:
+            raise ProofError(f"runtime observation {field} is invalid")
+    if not isinstance(observations["auditAction"], str) or not observations["auditAction"]:
+        raise ProofError("runtime audit observation is invalid")
+    if set(runtime) != {
+        "applicationArtifactDigests",
+        "builtImageIds",
+        "publishedBannerUuid",
+    }:
+        raise ProofError("runtime artifact observations are incomplete")
+    artifact_digests = runtime["applicationArtifactDigests"]
+    if not isinstance(artifact_digests, dict) or not artifact_digests or any(
+        not isinstance(value, str) or not sha_pattern.fullmatch(value)
+        for value in artifact_digests.values()
+    ):
+        raise ProofError("runtime application artifact digests are invalid")
+    built_images = runtime["builtImageIds"]
+    if not isinstance(built_images, dict) or not built_images or any(
+        not isinstance(value, str) or not value for value in built_images.values()
+    ):
+        raise ProofError("runtime built image identifiers are invalid")
+    if not re.fullmatch(
+        r"[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}",
+        runtime["publishedBannerUuid"],
+        flags=re.IGNORECASE,
+    ):
+        raise ProofError("runtime published banner UUID is invalid")
+    extensions = result.get("deploymentExtensions")
+    if not isinstance(extensions, dict) or result["deployment"] not in extensions:
+        raise ProofError("runtime deployment extension is missing")
+
+
 class Harness:
     def __init__(self, aio_root, temp_root, run_id):
         self.aio_root = Path(aio_root).resolve()
@@ -122,6 +245,8 @@ class Harness:
         self.frontend = Path(os.environ["BANNER_LOCAL_FRONTEND_ROOT"]).resolve()
         self.migrations = Path(os.environ["BANNER_LOCAL_MIGRATIONS_ROOT"]).resolve()
         self.release_control = Path(os.environ["BANNER_LOCAL_RELEASE_CONTROL_ROOT"]).resolve()
+        self.bdc = Path(os.environ["BANNER_LOCAL_BDC_ROOT"]).resolve()
+        self.legacy_psama = Path(os.environ["BANNER_LOCAL_LEGACY_PSAMA_ROOT"]).resolve()
         self.backend_export = self.temp_root / "source" / "backend"
         self.frontend_export = self.temp_root / "source" / "frontend"
         self.logs = self.temp_root / "logs"
@@ -129,10 +254,20 @@ class Harness:
         self.containers = {}
         self.urls = {}
         self.tokens = {}
-        self.observed = json.loads(json.dumps(self.expected))
-        self.observed["status"] = "FAIL"
-        self.observed["checks"] = {key: "NOT_RUN" for key in self.expected["checks"]}
-        self.observed["checks"]["cleanup"] = "NOT_RUN"
+        check_names = self.contract["properties"]["checks"]["required"]
+        limitation_names = self.contract["properties"]["limitations"]["required"]
+        self.observed = {
+            "schemaVersion": 1,
+            "deployment": "AIO",
+            "status": "FAIL",
+            "sourceCommits": {},
+            "images": {},
+            "rolloutContractSha256": "",
+            "checks": {name: "NOT_RUN" for name in check_names},
+            "observations": {},
+            "limitations": {name: "NOT_RUN" for name in limitation_names},
+            "deploymentExtensions": {"AIO": {}},
+        }
 
     def docker(self, *arguments, capture=False, timeout=300, check=True, stdin=None):
         return command(
@@ -147,16 +282,37 @@ class Harness:
         if ancestry.returncode != 0:
             raise ProofError(f"AIO proof is not descended from required base {AIO_PROOF_BASE}")
         if (
-            self.contract.get("schemaVersion") != self.expected.get("schemaVersion")
-            or self.contract.get("deployment") != self.expected.get("deployment")
-            or set(self.contract.get("requiredChecks", [])) != set(self.expected.get("checks", {}))
-            or set(self.contract.get("requiredLimitations", [])) != set(self.expected.get("limitations", {}))
+            self.contract.get("properties", {}).get("schemaVersion", {}).get("const")
+            != self.expected.get("schemaVersion")
+            or self.expected.get("deployment") not in self.contract["properties"]["deployment"]["enum"]
+            or set(self.contract["properties"]["checks"]["required"])
+            != set(self.expected.get("checks", {}))
+            or set(self.contract["properties"]["limitations"]["required"])
+            != set(self.expected.get("limitations", {}))
         ):
             raise ProofError("checked-in result contract and expected AIO row disagree")
-        require_repository(self.backend, BACKEND_COMMIT, "backend")
-        require_repository(self.frontend, FRONTEND_COMMIT, "frontend")
-        require_repository(self.migrations, MIGRATIONS_COMMIT, "migrations")
-        require_repository(self.release_control, RELEASE_CONTROL_COMMIT, "release control")
+        source_commits = {
+            "deploymentConfig": repository_head(self.aio_root),
+            "backend": require_repository(self.backend, BACKEND_COMMIT, "backend"),
+            "frontend": require_repository(self.frontend, FRONTEND_COMMIT, "frontend"),
+            "migrationSource": require_repository(self.migrations, MIGRATIONS_COMMIT, "migrations"),
+            "releaseControl": require_repository(
+                self.release_control, RELEASE_CONTROL_COMMIT, "release control"
+            ),
+        }
+        require_repository(self.bdc, BDC_MIGRATION_COMMIT, "BDC/AIM migration proof")
+        legacy_status = command(
+            ["git", "-C", self.legacy_psama, "status", "--porcelain", "--untracked-files=all"],
+            capture=True,
+            timeout=30,
+        ).stdout
+        legacy_tag = command(
+            ["git", "-C", self.legacy_psama, "rev-parse", "refs/tags/v4.2.2^{}"],
+            capture=True,
+            timeout=30,
+        ).stdout.strip()
+        if legacy_status or legacy_tag != TICKET15_PSAMA_COMMIT:
+            raise ProofError("legacy PSAMA owner input is dirty or missing exact v4.2.2 commit")
         rollout = self.backend / ".github" / "banner-rollout-contract.json"
         if sha256_file(rollout) != ROLLOUT_SHA256:
             raise ProofError("authoritative rollout contract checksum drift")
@@ -176,7 +332,22 @@ class Harness:
         ).stdout.strip()
         if workflow != spec["bannerRollout"]["aioWorkflowSha256"]:
             raise ProofError(f"AIO workflow checksum drift: {workflow}")
-        self.observed["checks"]["tupleAndRolloutContract"] = "PASS"
+        browser_from = (self.test_dir / "browser.Dockerfile").read_text(encoding="utf-8")
+        if not browser_from.startswith(f"FROM {PLAYWRIGHT_IMAGE}\n"):
+            raise ProofError("browser image provenance drift")
+        self.observed["sourceCommits"] = source_commits
+        self.observed["images"] = {
+            "mysql": MYSQL_IMAGE,
+            "flyway": FLYWAY_IMAGE,
+            "javaBuild": BUILD_IMAGE,
+            "javaRuntime": RUNTIME_IMAGE,
+            "playwright": PLAYWRIGHT_IMAGE,
+        }
+        self.observed["rolloutContractSha256"] = sha256_file(rollout)
+        self.observed["deploymentExtensions"]["AIO"].update(
+            {"proofBase": AIO_PROOF_BASE, "releaseWorkflowCommit": entries["AIO"]}
+        )
+        self.observed["checks"]["releaseTupleAndRolloutContract"] = "PASS"
 
     def compose_owner_contracts(self):
         paths = {
@@ -187,27 +358,79 @@ class Harness:
             "ticket18EntrypointSha256": self.backend / "tests/banner-feed-compatibility/test.sh",
             "ticket18MatrixSha256": self.backend / "tests/banner-feed-compatibility/matrix.tsv",
         }
-        for field, path in paths.items():
-            actual = sha256_file(path)
-            if actual != self.expected["observations"][field]:
-                raise ProofError(f"owner artifact drift for {field}: {actual}")
-        with (self.migrations / "tests/aio-deployment-migration/matrix.tsv").open(newline="", encoding="utf-8") as handle:
-            rows = list(csv.DictReader(handle, delimiter="\t"))
-        if [row["cell"] for row in rows] != ["fresh", "supported-upgrade", "occurrence-only"]:
-            raise ProofError("Ticket 15 owner cells drift")
-        if any(row["result"] != "PASS" or row["feature_sql_checksum_result"] != "MATCH" for row in rows):
-            raise ProofError("Ticket 15 checked-in owner result is not PASS/MATCH")
-        env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
-        for owner in ("operations-binary-compatibility", "banner-feed-compatibility"):
-            directory = self.backend / "tests" / owner
-            command([sys.executable, "-m", "unittest", "discover", "-v", "-s", directory, "-p", "test_*.py"], env=env)
+        artifacts = {field: sha256_file(path) for field, path in paths.items()}
+        expected_artifacts = self.expected["deploymentExtensions"]["AIO"]["ownerArtifacts"]
+        if artifacts != expected_artifacts:
+            raise ProofError(f"owner artifact drift: {artifacts}")
+        self.observed["deploymentExtensions"]["AIO"]["ownerArtifacts"] = artifacts
+
+        historical = self.temp_root / "ticket15-owner-inputs"
+        historical.mkdir()
+        local_checkout(
+            self.release_control, historical / "release-control", TICKET15_RELEASE_CONTROL_COMMIT
+        )
+        local_checkout(self.legacy_psama, historical / "psama", TICKET15_PSAMA_COMMIT)
+        local_checkout(self.backend, historical / "psa", TICKET15_PSA_COMMIT)
+        local_checkout(self.migrations, historical / "migrations", TICKET15_MIGRATIONS_COMMIT)
+        env = {
+            **os.environ,
+            "PYTHONDONTWRITEBYTECODE": "1",
+            "AIO_PROOF_SOURCE_ROOT": str(historical),
+        }
+        command(
+            [self.migrations / "tests/aio-deployment-migration/test.sh", "all"],
+            cwd=self.migrations,
+            env=env,
+            timeout=3600,
+        )
+        self.observed["checks"]["migrationOwner"] = "PASS"
+
+        compatibility_env = {
+            **os.environ,
+            "PYTHONDONTWRITEBYTECODE": "1",
+            "OPERATIONS_COMPAT_SOURCE_ROOT": str(self.backend),
+            "FRONTEND_COMPAT_SOURCE_ROOT": str(self.frontend),
+            "AIO_PROOF_SOURCE_ROOT": str(self.migrations),
+            "BDC_PROOF_SOURCE_ROOT": str(self.bdc),
+            "COMPAT_M2_ROOT": os.environ.get(
+                "BANNER_LOCAL_M2_ROOT", str(self.temp_root / "m2")
+            ),
+            "BANNER_FEED_M2_ROOT": os.environ.get(
+                "BANNER_LOCAL_M2_ROOT", str(self.temp_root / "m2")
+            ),
+        }
+        command(
+            [self.backend / "tests/operations-binary-compatibility/test.sh", "all"],
+            cwd=self.backend,
+            env=compatibility_env,
+            timeout=7200,
+        )
+        self.observed["checks"]["binarySchemaOwner"] = "PASS"
+        command(
+            [self.backend / "tests/banner-feed-compatibility/test.sh", "all"],
+            cwd=self.backend,
+            env=compatibility_env,
+            timeout=7200,
+        )
+        self.observed["checks"]["feedRollbackOwner"] = "PASS"
+
+        for optimized in (False, True):
+            owner_env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
+            if optimized:
+                owner_env["PYTHONOPTIMIZE"] = "1"
             command(
-                [sys.executable, "-m", "unittest", "discover", "-v", "-s", directory, "-p", "test_*.py"],
-                env={**env, "PYTHONOPTIMIZE": "1"},
+                [sys.executable, self.aio_root / "tests/banner-rollout/test_contract.py"],
+                cwd=self.aio_root,
+                env=owner_env,
+                timeout=300,
             )
-        self.observed["checks"]["ticket15MigrationOwner"] = "PASS"
-        self.observed["checks"]["ticket17BinarySchemaOwner"] = "PASS"
-        self.observed["checks"]["ticket18FeedRollbackOwner"] = "PASS"
+            command(
+                [sys.executable, self.release_control / "tests/test_build_spec.py"],
+                cwd=self.release_control,
+                env=owner_env,
+                timeout=300,
+            )
+        self.observed["checks"]["deploymentRolloutOwner"] = "PASS"
 
     def prepare_sources(self):
         export_head(self.backend, self.backend_export)
@@ -251,11 +474,12 @@ class Harness:
             "run", "--rm", "--label", self.label, "--user", f"{os.getuid()}:{os.getgid()}",
             "-e", "HOME=/tmp/t22a-home", "-e", "MAVEN_CONFIG=/m2",
             "-v", f"{self.backend_export}:/source", "-v", f"{m2}:/m2", "-w", "/source", BUILD_IMAGE,
-            "mvn", "-q", "-B", "-Dmaven.repo.local=/m2", "-Dtest=BannerRolloutContractTest",
+            "mvn", "-q", "-B", "-Dmaven.repo.local=/m2",
+            "-Dtest=BannerManagementCacheRefreshIntegrationTest,BannerRolloutContractTest",
             "-Dsurefire.failIfNoSpecifiedTests=false", "-pl",
             "services/pic-sure-auth-microapp/pic-sure-auth-services", "-am", "test", timeout=900,
         )
-        self.observed["checks"]["ticket19CacheRolloutOwner"] = "PASS"
+        self.observed["checks"]["authorizationCacheOwner"] = "PASS"
         self.jars = {
             "operations": self.backend_export / "services/pic-sure-operations-service/target/pic-sure-operations-service-3.0.0.jar",
             "gateway": self.backend_export / "services/pic-sure-gateway/target/pic-sure-gateway-3.0.0.jar",
@@ -265,7 +489,11 @@ class Harness:
         missing = [name for name, path in self.jars.items() if not path.is_file()]
         if missing:
             raise ProofError(f"missing real application jars: {missing}")
-        self.observed["observations"]["jarSha256"] = {name: sha256_file(path) for name, path in self.jars.items()}
+        self.observed["observations"]["runtimeArtifacts"] = {
+            "applicationArtifactDigests": {
+                name: sha256_file(path) for name, path in self.jars.items()
+            }
+        }
         frontend_image = f"banner-local-frontend:{self.run_id.lower()}"
         self.docker(
             "build", "--label", self.label, "--tag", frontend_image,
@@ -279,7 +507,7 @@ class Harness:
             capture=True, timeout=900,
         )
         self.images = {"frontend": frontend_image, "browser": browser_image}
-        self.observed["observations"]["builtImageIds"] = {
+        self.observed["observations"]["runtimeArtifacts"]["builtImageIds"] = {
             name: self.docker("image", "inspect", "--format", "{{.Id}}", image, capture=True).stdout.strip()
             for name, image in self.images.items()
         }
@@ -324,7 +552,7 @@ class Harness:
         ).strip()
         if maxima != "11:12":
             raise ProofError(f"AIO migration maxima drift: {maxima}")
-        self.observed["checks"]["aioAuthorizationAndPicsureMigrations"] = "PASS"
+        self.observed["checks"]["authorizationAndApplicationMigrations"] = "PASS"
 
     def flyway(self, schema, directory, history, baseline):
         options = [
@@ -493,27 +721,9 @@ class Harness:
         empty_browser = self.browser("empty")
         if empty_browser.get("feedCount") != 0 or empty_browser.get("regionCount") != 0:
             raise ProofError(f"empty browser observation drift: {empty_browser}")
-        self.observed["checks"]["emptyChromiumRegion"] = "PASS"
+        self.observed["checks"]["emptyBrowserRegion"] = "PASS"
 
-        fake = "00000000-0000-0000-0000-000000000001"
-        routes = [
-            ("GET", "/banners", None), ("POST", "/banners", {}), ("POST", "/banners/saved", {}),
-            ("PUT", "/banners/order", {"bannerUuids": []}), ("PUT", f"/banners/{fake}", {}),
-            ("POST", f"/banners/{fake}/publish", {}), ("POST", f"/banners/{fake}/disable", None),
-            ("POST", f"/banners/{fake}/archive", None), ("POST", f"/banners/{fake}/restore", {}),
-        ]
         base = self.urls["frontend"] + "/picsure/operations"
-        for method, path, payload in routes:
-            anonymous = self.http(method, base + path, payload)[0]
-            ordinary = self.http(method, base + path, payload, self.tokens["ordinary"])[0]
-            if anonymous != 401 or ordinary != 403:
-                raise ProofError(f"management denial drift for {method} {path}: anonymous={anonymous}, ordinary={ordinary}")
-            for identity in ("admin", "super"):
-                allowed = self.http(method, base + path, payload, self.tokens[identity])[0]
-                if allowed in {0, 401, 403, 502} or allowed >= 500:
-                    raise ProofError(f"{identity} did not reach management route {method} {path}: HTTP {allowed}")
-        self.observed["checks"]["managementAuthorization"] = "PASS"
-
         payload = {
             "htmlContent": "<p>T22A synthetic banner</p>", "title": "T22A synthetic banner",
             "appearance": "PRIMARY", "icon": "INFORMATION", "dismissible": False,
@@ -527,7 +737,50 @@ class Harness:
         banner_uuid = published.get("uuid")
         if not banner_uuid:
             raise ProofError(f"publish omitted UUID: {published}")
-        self.observed["checks"]["publishThroughGateway"] = "PASS"
+        self.observed["checks"]["publishThroughEdge"] = "PASS"
+
+        draft_payload = {**payload, "title": "T22A synthetic route draft"}
+        status, body = self.http("POST", base + "/banners/saved", draft_payload, self.tokens["admin"])
+        if status != 201 or not json.loads(body).get("uuid"):
+            raise ProofError(f"route-proof draft creation failed: HTTP {status} {body}")
+        draft_uuid = json.loads(body)["uuid"]
+
+        routes = [
+            ("list", "GET", "/banners", None),
+            ("create", "POST", "/banners", {}),
+            ("save", "POST", "/banners/saved", {}),
+            ("order", "PUT", "/banners/order", {"bannerUuids": [banner_uuid]}),
+            ("update", "PUT", f"/banners/{banner_uuid}", {}),
+            ("publish", "POST", f"/banners/{draft_uuid}/publish", {}),
+            ("disable", "POST", f"/banners/{draft_uuid}/disable", None),
+            ("archive", "POST", f"/banners/{banner_uuid}/archive", None),
+            ("restore", "POST", f"/banners/{draft_uuid}/restore", {}),
+        ]
+        for route_name, method, path, route_payload in routes:
+            anonymous = self.http(method, base + path, route_payload)[0]
+            ordinary = self.http(
+                method, base + path, route_payload, self.tokens["ordinary"]
+            )[0]
+            if anonymous != 401 or ordinary != 403:
+                raise ProofError(
+                    f"management denial drift for {method} {path}: "
+                    f"anonymous={anonymous}, ordinary={ordinary}"
+                )
+            expected_statuses = expected_privileged_statuses(route_name)
+            for identity in ("admin", "super"):
+                allowed = self.http(
+                    method, base + path, route_payload, self.tokens[identity]
+                )[0]
+                if allowed in {0, 401, 403, 404, 405, 502} or allowed >= 500:
+                    raise ProofError(
+                        f"{identity} did not reach management route {method} {path}: HTTP {allowed}"
+                    )
+                if allowed not in expected_statuses:
+                    raise ProofError(
+                        f"{identity} route result drift for {method} {path}: "
+                        f"expected {sorted(expected_statuses)}, got HTTP {allowed}"
+                    )
+        self.observed["checks"]["managementAuthorization"] = "PASS"
 
         deadline = time.monotonic() + 20
         audit_text = ""
@@ -543,7 +796,7 @@ class Harness:
             raise ProofError("normal logging service did not record the banner.published audit event")
         if "<p>T22A synthetic banner</p>" in audit_text:
             raise ProofError("audit log contains raw banner HTML")
-        self.observed["checks"]["operationsAuditReceipt"] = "PASS"
+        self.observed["checks"]["auditReceipt"] = "PASS"
 
         status, body = self.http("GET", public_url)
         feed = json.loads(body) if status == 200 else None
@@ -553,14 +806,15 @@ class Harness:
         browser = self.browser("published")
         if browser.get("feedCount") != 1 or browser.get("regionCount") != 1:
             raise ProofError(f"published Chromium observation drift: {browser}")
-        self.observed["checks"]["publishedChromiumRender"] = "PASS"
+        self.observed["checks"]["publishedBrowserRender"] = "PASS"
         self.observed["observations"].update(
             {
                 "emptyFeedCount": 0, "emptyBannerRegionCount": 0, "managementRouteCount": len(routes),
                 "publishedFeedCount": 1, "publishedBannerRegionCount": 1,
-                "auditAction": "banner.published", "publishedBannerUuid": banner_uuid,
+                "auditAction": "banner.published",
             }
         )
+        self.observed["observations"]["runtimeArtifacts"]["publishedBannerUuid"] = banner_uuid
 
     def capture_logs(self):
         for service, container in self.containers.items():
@@ -595,16 +849,34 @@ class Harness:
 def finalize(aio_root, result_path):
     root = Path(aio_root)
     result = json.loads(Path(result_path).read_text())
+    contract = json.loads((root / "tests/banner-local-integration/contract.json").read_text())
     expected = json.loads((root / "tests/banner-local-integration/expected-result.json").read_text())
+    validate_runtime_result(contract, result)
+    executing_head = repository_head(root)
+    if result["sourceCommits"].get("deploymentConfig") != executing_head:
+        raise ProofError(
+            "runtime deploymentConfig commit does not match the exact executing AIO HEAD"
+        )
     result["checks"]["cleanup"] = "PASS"
-    for field in ("schemaVersion", "deployment", "sourceCommits", "rolloutContractSha256", "images", "limitations"):
+    for field in (
+        "schemaVersion",
+        "deployment",
+        "status",
+        "rolloutContractSha256",
+        "images",
+        "checks",
+        "limitations",
+        "deploymentExtensions",
+    ):
         if result.get(field) != expected.get(field):
             raise ProofError(f"observed result field drift: {field}")
-    if result.get("status") != "PASS" or result.get("checks") != expected.get("checks"):
-        raise ProofError("observed result did not pass every required check")
+    for field, value in expected["sourceCommits"].items():
+        if result["sourceCommits"].get(field) != value:
+            raise ProofError(f"observed source commit drift for {field}")
     for field, value in expected["observations"].items():
         if result["observations"].get(field) != value:
             raise ProofError(f"observed result drift for {field}")
+    validate_runtime_result(contract, result)
     Path(result_path).write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
     print(Path(result_path).read_text(), end="")
     print("AIO deployment-local banner integration PASS", flush=True)

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -8,6 +9,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+import xml.etree.ElementTree as ET
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -26,6 +28,8 @@ class BannerLocalIntegrationContractTest(unittest.TestCase):
             TEST_DIR / "browser-package.json",
             TEST_DIR / "browser-package-lock.json",
             TEST_DIR / "cleanup-resources.sh",
+            TEST_DIR / "preserve-diagnostics.sh",
+            TEST_DIR / "test-failure-diagnostics.sh",
             TEST_DIR / "test-cleanup.sh",
             TEST_DIR / "test.sh",
             ROOT / ".github" / "workflows" / "banner-local-integration.yml",
@@ -36,11 +40,18 @@ class BannerLocalIntegrationContractTest(unittest.TestCase):
     def test_result_contract_and_expected_row_are_closed_and_complete(self):
         contract = json.loads((TEST_DIR / "contract.json").read_text(encoding="utf-8"))
         expected = json.loads((TEST_DIR / "expected-result.json").read_text(encoding="utf-8"))
-        self.assertEqual(1, contract["schemaVersion"])
-        self.assertEqual("AIO", contract["deployment"])
-        self.assertEqual(["PASS", "FAIL", "NOT_RUN"], contract["statusVocabulary"])
-        self.assertEqual(set(contract["requiredChecks"]), set(expected["checks"]))
-        self.assertEqual(set(contract["requiredLimitations"]), set(expected["limitations"]))
+        self.assertEqual(1, contract["properties"]["schemaVersion"]["const"])
+        self.assertIn("AIO", contract["properties"]["deployment"]["enum"])
+        self.assertEqual(
+            ["PASS", "FAIL", "NOT_RUN"], contract["properties"]["status"]["enum"]
+        )
+        self.assertEqual(
+            set(contract["properties"]["checks"]["required"]), set(expected["checks"])
+        )
+        self.assertEqual(
+            set(contract["properties"]["limitations"]["required"]),
+            set(expected["limitations"]),
+        )
         self.assertTrue(all(value == "PASS" for value in expected["checks"].values()))
         self.assertTrue(all(value == "NOT_RUN" for value in expected["limitations"].values()))
         self.assertEqual(
@@ -49,14 +60,18 @@ class BannerLocalIntegrationContractTest(unittest.TestCase):
         )
         self.assertEqual(
             {
-                "aioReleaseWorkflow": "b453a5b59cf1f3c90ebfd6a4eb3d80108ee44b6a",
-                "aioProofBase": "8830fbf9dffe69b273a51d35410413115878841f",
                 "releaseControl": "53802f3efbd030042fab442f9c5a3a29770528ca",
                 "backend": "0178bbd2d1753e07dcead77a6d0e8ca37bf76dd8",
                 "frontend": "7b69aa960ff98f97c1a2d026b7137b0e3dcdf603",
-                "migrations": "05b1a77512dc0921570f0d442853fdcee75b8131",
+                "migrationSource": "05b1a77512dc0921570f0d442853fdcee75b8131",
             },
             expected["sourceCommits"],
+        )
+        self.assertNotIn("deploymentConfig", expected["sourceCommits"])
+        self.assertNotIn("runtimeArtifacts", expected["observations"])
+        self.assertEqual(
+            "8830fbf9dffe69b273a51d35410413115878841f",
+            expected["deploymentExtensions"]["AIO"]["proofBase"],
         )
         self.assertTrue(all("@sha256:" in image for image in expected["images"].values()))
 
@@ -80,6 +95,48 @@ class BannerLocalIntegrationContractTest(unittest.TestCase):
         self.assertNotIn("page.route", source)
         self.assertIsNone(re.search(r"^\s*assert\s", source, flags=re.MULTILINE))
 
+    def test_authoritative_owner_entrypoints_are_executed(self):
+        source = (TEST_DIR / "run.py").read_text(encoding="utf-8")
+        for pattern in (
+            r"aio-deployment-migration/test\.sh.*all",
+            r"operations-binary-compatibility/test\.sh.*all",
+            r"banner-feed-compatibility/test\.sh.*all",
+            r"BannerManagementCacheRefreshIntegrationTest",
+            r"tests/banner-rollout",
+            r"test_build_spec\.py",
+        ):
+            self.assertRegex(source, re.compile(pattern, flags=re.DOTALL))
+
+    def test_expected_only_row_is_rejected_and_executing_head_is_required(self):
+        expected = json.loads((TEST_DIR / "expected-result.json").read_text(encoding="utf-8"))
+        with tempfile.TemporaryDirectory() as directory:
+            result_path = Path(directory) / "result.json"
+            result_path.write_text(json.dumps(expected), encoding="utf-8")
+            completed = subprocess.run(
+                ["python3", str(TEST_DIR / "run.py"), "--finalize", str(ROOT), str(result_path)],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+        self.assertNotEqual(0, completed.returncode, completed.stdout)
+        self.assertIn("runtime", completed.stderr + completed.stdout)
+
+        source = (TEST_DIR / "run.py").read_text(encoding="utf-8")
+        self.assertIn('"deploymentConfig": repository_head(self.aio_root)', source)
+
+    def test_privileged_route_proof_rejects_missing_and_wrong_method(self):
+        source = (TEST_DIR / "run.py").read_text(encoding="utf-8")
+        self.assertRegex(source, r"allowed in \{[^}]*404[^}]*405[^}]*\}")
+        self.assertIn("expected_privileged_statuses", source)
+        spec = importlib.util.spec_from_file_location("banner_local_run", TEST_DIR / "run.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        for route_name in (
+            "list", "create", "save", "order", "update", "publish", "disable", "archive", "restore"
+        ):
+            self.assertNotIn(404, module.expected_privileged_statuses(route_name))
+            self.assertNotIn(405, module.expected_privileged_statuses(route_name))
+
     def test_workflow_is_read_only_bounded_and_exactly_pinned(self):
         workflow = (ROOT / ".github/workflows/banner-local-integration.yml").read_text(
             encoding="utf-8"
@@ -94,8 +151,28 @@ class BannerLocalIntegrationContractTest(unittest.TestCase):
             "7b69aa960ff98f97c1a2d026b7137b0e3dcdf603",
             "05b1a77512dc0921570f0d442853fdcee75b8131",
             "53802f3efbd030042fab442f9c5a3a29770528ca",
+            "5d2ba9f59f161ace5e807c82a0580518a9d44d16",
+            "ca8ac3641ba122a93cda8a5d7cad7f23f7a46bb6",
         ):
             self.assertIn(f"ref: {commit}", workflow)
+
+    def test_failure_diagnostics_survive_runtime_cleanup_and_ci_uploads_them(self):
+        runner = (TEST_DIR / "test.sh").read_text(encoding="utf-8")
+        workflow = (ROOT / ".github/workflows/banner-local-integration.yml").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("BANNER_LOCAL_DIAGNOSTICS_ROOT", runner)
+        self.assertIn("test-failure-diagnostics.sh", runner)
+        self.assertIn("actions/upload-artifact@", workflow)
+        self.assertIn("if: failure()", workflow)
+        completed = subprocess.run(
+            ["bash", str(TEST_DIR / "test-failure-diagnostics.sh")],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(0, completed.returncode, completed.stderr)
+        self.assertIn("runtime cleanup PASS", completed.stdout)
 
     def test_cleanup_is_run_scoped_and_tested(self):
         cleanup = (TEST_DIR / "cleanup-resources.sh").read_text(encoding="utf-8")
@@ -206,6 +283,85 @@ class BannerLocalIntegrationContractTest(unittest.TestCase):
             self.assertEqual(
                 "http://pic-sure-logging", value(operations, "LOGGING_SERVICE_URL")
             )
+
+    def test_configure_logging_rotates_operations_with_other_clients(self):
+        job = ROOT / "initial-configuration/jenkins/jenkins-docker/jobs/Configure Logging/config.xml"
+        shell = "\n".join(node.text or "" for node in ET.parse(job).getroot().findall(".//command"))
+        with tempfile.TemporaryDirectory() as directory:
+            config = Path(directory) / "config"
+            shutil.copytree(ROOT / "initial-configuration/config", config)
+            operations = config / "operations/operations.env"
+            operations.write_text(
+                operations.read_text(encoding="utf-8").replace(
+                    "SPRING_DATASOURCE_PASSWORD=__PICSURE_MYSQL_PASSWORD__",
+                    "SPRING_DATASOURCE_PASSWORD=t22a-synthetic-password",
+                ),
+                encoding="utf-8",
+            )
+            gateway = config / "gateway/gateway.env"
+            gateway.write_text(
+                gateway.read_text(encoding="utf-8").replace(
+                    "TOKEN_INTROSPECTION_TOKEN=__TOKEN_INTROSPECTION_TOKEN__",
+                    "TOKEN_INTROSPECTION_TOKEN=t22a-synthetic-introspection",
+                ),
+                encoding="utf-8",
+            )
+            configured = subprocess.run(
+                ["bash", str(ROOT / "initial-configuration/configure-service-envs.sh")],
+                env={**os.environ, "DOCKER_CONFIG_DIR": str(config)},
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(0, configured.returncode, configured.stderr)
+            for service in ("gateway", "operations", "logging"):
+                env_path = config / service / f"{service}.env"
+                env_path.write_text(
+                    re.sub(
+                        r"^LOGGING_API_KEY=.*$",
+                        f"LOGGING_API_KEY={'new-key' if service == 'logging' else 'old-key'}",
+                        env_path.read_text(encoding="utf-8"),
+                        flags=re.MULTILINE,
+                    ),
+                    encoding="utf-8",
+                )
+            completed = subprocess.run(
+                ["bash", "-c", shell.replace("/usr/local/docker-config", str(config))],
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(0, completed.returncode, completed.stderr)
+            for service in ("gateway", "operations", "logging"):
+                value = (config / service / f"{service}.env").read_text(encoding="utf-8")
+                self.assertIn("LOGGING_API_KEY=new-key\n", value, service)
+            migrated = subprocess.run(
+                ["bash", str(ROOT / "initial-configuration/migrate-env.sh")],
+                env={
+                    **os.environ,
+                    "DOCKER_CONFIG_DIR": str(config),
+                    "MIGRATION_TEMPLATE_DIR": str(ROOT / "initial-configuration/config"),
+                },
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(0, migrated.returncode, migrated.stderr)
+
+    def test_result_contract_is_deployment_neutral_and_typed(self):
+        contract = json.loads((TEST_DIR / "contract.json").read_text(encoding="utf-8"))
+        self.assertNotIn("deployment", contract)
+        self.assertEqual("object", contract["type"])
+        self.assertEqual(
+            ["AIO", "BDC", "AIM_AHEAD"],
+            contract["properties"]["deployment"]["enum"],
+        )
+        self.assertIn("deploymentExtensions", contract["properties"])
+        for field in (
+            "schemaVersion", "deployment", "status", "sourceCommits", "images", "checks",
+            "observations", "limitations", "deploymentExtensions",
+        ):
+            self.assertIn(field, contract["required"])
 
 
 if __name__ == "__main__":

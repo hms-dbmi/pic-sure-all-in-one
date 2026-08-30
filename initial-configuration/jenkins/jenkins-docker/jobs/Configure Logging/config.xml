@@ -26,17 +26,20 @@ if [ -z "$NEW_API_KEY" ]; then
     exit 0
 fi
 
-GATEWAY_ENV="/usr/local/docker-config/gateway/gateway.env"
-if [ ! -f "$GATEWAY_ENV" ]; then
-    echo "ERROR: gateway.env is required at $GATEWAY_ENV"
-    exit 2
-fi
-if grep -q '^LOGGING_API_KEY=' "$GATEWAY_ENV"; then
-    sed -i "s|^LOGGING_API_KEY=.*|LOGGING_API_KEY=$NEW_API_KEY|" "$GATEWAY_ENV"
-else
-    echo "LOGGING_API_KEY=$NEW_API_KEY" &gt;&gt; "$GATEWAY_ENV"
-fi
-echo "gateway.env logging key updated -- recreate gateway to apply."
+for SERVICE in gateway operations; do
+    SERVICE_ENV="/usr/local/docker-config/$SERVICE/$SERVICE.env"
+    if [ ! -f "$SERVICE_ENV" ]; then
+        echo "ERROR: $SERVICE.env is required at $SERVICE_ENV"
+        exit 2
+    fi
+    if grep -q '^LOGGING_API_KEY=' "$SERVICE_ENV"; then
+        sed "s|^LOGGING_API_KEY=.*|LOGGING_API_KEY=$NEW_API_KEY|" "$SERVICE_ENV" &gt; "$SERVICE_ENV.tmp"
+        mv "$SERVICE_ENV.tmp" "$SERVICE_ENV"
+    else
+        echo "LOGGING_API_KEY=$NEW_API_KEY" &gt;&gt; "$SERVICE_ENV"
+    fi
+    echo "$SERVICE.env logging key updated -- recreate $SERVICE to apply."
+done
 
 </command>
     </hudson.tasks.Shell>

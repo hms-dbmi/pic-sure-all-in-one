@@ -3,12 +3,10 @@
   "deployment": "AIO",
   "status": "PASS",
   "sourceCommits": {
-    "aioReleaseWorkflow": "b453a5b59cf1f3c90ebfd6a4eb3d80108ee44b6a",
-    "aioProofBase": "8830fbf9dffe69b273a51d35410413115878841f",
-    "releaseControl": "53802f3efbd030042fab442f9c5a3a29770528ca",
     "backend": "0178bbd2d1753e07dcead77a6d0e8ca37bf76dd8",
     "frontend": "7b69aa960ff98f97c1a2d026b7137b0e3dcdf603",
-    "migrations": "05b1a77512dc0921570f0d442853fdcee75b8131"
+    "migrationSource": "05b1a77512dc0921570f0d442853fdcee75b8131",
+    "releaseControl": "53802f3efbd030042fab442f9c5a3a29770528ca"
   },
   "rolloutContractSha256": "f8cb265d735b757872391e04fdcd5b999b785eaa427ca13f8f2eefd493715359",
   "images": {
@@ -19,28 +17,23 @@
     "playwright": "mcr.microsoft.com/playwright:v1.60.0-noble@sha256:9bd26ad900bb5e0f4dee75839e957a89ae89c2b7ab1e76050e559790e946b948"
   },
   "checks": {
-    "tupleAndRolloutContract": "PASS",
-    "ticket15MigrationOwner": "PASS",
-    "ticket17BinarySchemaOwner": "PASS",
-    "ticket18FeedRollbackOwner": "PASS",
-    "ticket19CacheRolloutOwner": "PASS",
-    "aioAuthorizationAndPicsureMigrations": "PASS",
+    "releaseTupleAndRolloutContract": "PASS",
+    "migrationOwner": "PASS",
+    "binarySchemaOwner": "PASS",
+    "feedRollbackOwner": "PASS",
+    "authorizationCacheOwner": "PASS",
+    "deploymentRolloutOwner": "PASS",
+    "authorizationAndApplicationMigrations": "PASS",
     "emptyAnonymousV2Feed": "PASS",
-    "emptyChromiumRegion": "PASS",
+    "emptyBrowserRegion": "PASS",
     "managementAuthorization": "PASS",
-    "publishThroughGateway": "PASS",
-    "operationsAuditReceipt": "PASS",
+    "publishThroughEdge": "PASS",
+    "auditReceipt": "PASS",
     "publishedAnonymousV2Feed": "PASS",
-    "publishedChromiumRender": "PASS",
+    "publishedBrowserRender": "PASS",
     "cleanup": "PASS"
   },
   "observations": {
-    "ticket15EntrypointSha256": "92cadb8a7e107d5035ec1c628103f5efe0eec52ce017aa3abee6f739deca2767",
-    "ticket15MatrixSha256": "077de240d8649b55a370e17bdcf95aca5b8164cc6cd609bd9f08ad72ecb5acb5",
-    "ticket17EntrypointSha256": "437dbee30b9f80e85c9d5d40d0d5d0052e361f1e0df7490d1632c9172a699ab6",
-    "ticket17MatrixSha256": "a211596a81df2488caad8a9ffefe881aff9804fda7a6199e3968cbdf1535614d",
-    "ticket18EntrypointSha256": "fb7e0ef5a0b0067a95d86b1ed5a1c38bc90443fa19948866cb4f0e5407b30d71",
-    "ticket18MatrixSha256": "ba930313d94cf02f23654c4916aed7d2d48f9959d5a230c7f16c5fbc2b0ae741",
     "emptyFeedCount": 0,
     "emptyBannerRegionCount": 0,
     "managementRouteCount": 9,
@@ -51,9 +44,23 @@
   "limitations": {
     "productionTls": "NOT_RUN",
     "externalRouting": "NOT_RUN",
-    "jenkinsExecution": "NOT_RUN",
-    "embeddedDeploymentFlywayParity": "NOT_RUN",
+    "deploymentAutomation": "NOT_RUN",
+    "embeddedMigrationRuntimeParity": "NOT_RUN",
     "liveAuthorization": "NOT_RUN",
-    "bdcAimAheadDeploymentLocalProof": "NOT_RUN"
+    "peerDeploymentLocalProofs": "NOT_RUN"
+  },
+  "deploymentExtensions": {
+    "AIO": {
+      "proofBase": "8830fbf9dffe69b273a51d35410413115878841f",
+      "releaseWorkflowCommit": "b453a5b59cf1f3c90ebfd6a4eb3d80108ee44b6a",
+      "ownerArtifacts": {
+        "ticket15EntrypointSha256": "92cadb8a7e107d5035ec1c628103f5efe0eec52ce017aa3abee6f739deca2767",
+        "ticket15MatrixSha256": "077de240d8649b55a370e17bdcf95aca5b8164cc6cd609bd9f08ad72ecb5acb5",
+        "ticket17EntrypointSha256": "437dbee30b9f80e85c9d5d40d0d5d0052e361f1e0df7490d1632c9172a699ab6",
+        "ticket17MatrixSha256": "a211596a81df2488caad8a9ffefe881aff9804fda7a6199e3968cbdf1535614d",
+        "ticket18EntrypointSha256": "fb7e0ef5a0b0067a95d86b1ed5a1c38bc90443fa19948866cb4f0e5407b30d71",
+        "ticket18MatrixSha256": "ba930313d94cf02f23654c4916aed7d2d48f9959d5a230c7f16c5fbc2b0ae741"
+      }
+    }
   }
 }

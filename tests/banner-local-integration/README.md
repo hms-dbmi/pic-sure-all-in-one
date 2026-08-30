@@ -15,46 +15,52 @@ service or response in the request path.
 
 ## Run
 
-Docker must be available. Set the four read-only source roots and run:
+Docker must be available. Set the six read-only source roots and run:
 
 ```bash
 export BANNER_LOCAL_BACKEND_ROOT=/path/to/pic-sure
 export BANNER_LOCAL_FRONTEND_ROOT=/path/to/PIC-SURE-Frontend
 export BANNER_LOCAL_MIGRATIONS_ROOT=/path/to/PIC-SURE-Migrations
 export BANNER_LOCAL_RELEASE_CONTROL_ROOT=/path/to/baseline-pic-sure-release-control
+export BANNER_LOCAL_BDC_ROOT=/path/to/pic-sure-bdc-infrastructure
+export BANNER_LOCAL_LEGACY_PSAMA_ROOT=/path/to/pic-sure-auth-microapp
 tests/banner-local-integration/test.sh all
 ```
 
-Each root must be clean and at the commit recorded in `expected-result.json`.
+The current inputs must be clean and at the commits recorded in
+`expected-result.json`; the BDC root is pinned by the binary/feed owner contract,
+and the clean legacy PSAMA root must contain the exact annotated `v4.2.2` tag.
 Use `test.sh contract` for the normal and optimized checked-in contract tests
 without starting Docker.
 
 Resources are labeled with `org.pic-sure.banner-local-integration=<run-id>`.
 The runner removes its containers, network, locally built images, and temporary
 directory on success and failure. Failure diagnostics are captured before that
-cleanup and emitted by the failing command.
+cleanup under `${BANNER_LOCAL_DIAGNOSTICS_ROOT:-/tmp/banner-local-integration-diagnostics}`.
+CI uploads that directory when the job fails.
 
 ## Proof composition and result
 
-Ticket 15 remains the migration proof owner. The harness validates its exact
-entrypoint and matrix checksums and consumes its checked-in PASS/MATCH cells
-before independently applying the production migration files needed here.
-Tickets 17 and 18 remain the binary/schema and feed-rollback proof owners. The
-harness validates their exact entrypoint and matrix checksums and runs their
-normal and optimized contract suites. Ticket 19 remains the cache/rollout proof
-owner; its exact Java contract test runs against the exported backend source.
-This composes those owner proofs without copying their application-level test
-matrices into AIO.
+Ticket 15 remains the migration proof owner. The harness builds its historical
+inputs from exact local Git objects and runs its authoritative `test.sh all`.
+Tickets 17 and 18 remain the binary/schema and feed-rollback proof owners, and
+their authoritative `test.sh all` entrypoints run against the exact current
+inputs. Ticket 19's cache-restart integration and rollout-contract Java tests
+run against the exported backend source. Ticket 20's AIO and release-control
+owner suites run normally and with Python optimization. No owner PASS is
+inferred from a checked-in result or checksum.
 
-`contract.json` defines the reusable fields, checks, limitations, and
-`PASS`/`FAIL`/`NOT_RUN` vocabulary. `expected-result.json` is the stable AIO row.
-The runner records runtime-only jar hashes, image IDs, and the synthetic banner
-UUID in the observed row, then compares every stable field before reporting
-PASS.
+`contract.json` is the deployment-neutral JSON Schema consumed unchanged by
+AIO, BDC, and AIM-AHEAD. `expected-result.json` is the stable AIO expectation
+template; it deliberately omits the executing commit and runtime artifacts.
+The runner constructs the observed row independently, records exact source
+commits, image and contract digests, application hashes, built image IDs, and
+the synthetic banner UUID, then separately compares stable expectations before
+reporting PASS.
 
 ## Deliberate limits
 
-This local proof does not claim production TLS, external routing, Jenkins
-execution, parity with the deployment image's undeclared embedded Flyway
-version, live authorization, or BDC/AIM-AHEAD deployment-local behavior. Those
-fields remain `NOT_RUN` for the follow-on deployment proofs.
+This local proof does not claim production TLS, external routing, deployment
+automation execution, parity with the deployment image's undeclared embedded
+migration runtime, live authorization, or peer deployment-local behavior.
+Those fields remain `NOT_RUN` for the follow-on deployment proofs.

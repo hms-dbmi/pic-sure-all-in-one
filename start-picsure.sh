@@ -16,21 +16,25 @@ AIO_HEALTH_POLL_SECONDS="${AIO_HEALTH_POLL_SECONDS:-2}"
 AIO_PUBLISH_FRONTEND="${AIO_PUBLISH_FRONTEND:-true}"
 AIO_RECREATE_PSAMA_AFTER_BACKEND="${AIO_RECREATE_PSAMA_AFTER_BACKEND:-false}"
 AIO_GATEWAY_HEALTH_MODE="${AIO_GATEWAY_HEALTH_MODE:-banner-v2}"
+AIO_ROLLBACK_STATE_VERIFIED="${AIO_ROLLBACK_STATE_VERIFIED:-false}"
 
 for value_name in AIO_HEALTH_TIMEOUT_SECONDS AIO_HEALTH_POLL_SECONDS; do
   [[ "${!value_name}" =~ ^[1-9][0-9]*$ ]] || { echo "ERROR: $value_name must be a positive integer." >&2; exit 2; }
 done
-for value_name in AIO_PUBLISH_FRONTEND AIO_RECREATE_PSAMA_AFTER_BACKEND; do
+for value_name in AIO_PUBLISH_FRONTEND AIO_RECREATE_PSAMA_AFTER_BACKEND AIO_ROLLBACK_STATE_VERIFIED; do
   [[ "${!value_name}" == "true" || "${!value_name}" == "false" ]] || { echo "ERROR: $value_name must be true or false." >&2; exit 2; }
 done
 case "$AIO_GATEWAY_HEALTH_MODE" in
   banner-v2)
+    [[ "$AIO_ROLLBACK_STATE_VERIFIED" == "false" ]] || { echo "ERROR: verified rollback must use legacy Gateway health mode." >&2; exit 2; }
     GATEWAY_HEALTH_COMMAND='wget -q --spider http://127.0.0.1:8080/operations/banners/active/v2 || exit 1'
     ;;
   legacy)
-    # The command substitution must run inside the Gateway container.
-    # shellcheck disable=SC2016
-    GATEWAY_HEALTH_COMMAND='test "$(wget -qO- http://127.0.0.1:8080/system/status)" = RUNNING'
+    if [[ "$AIO_ROLLBACK_STATE_VERIFIED" != "true" || "$AIO_PUBLISH_FRONTEND" != "false" || "$AIO_RECREATE_PSAMA_AFTER_BACKEND" != "true" ]]; then
+      echo "ERROR: legacy Gateway health mode is restricted to a verified fail-closed rollback." >&2
+      exit 2
+    fi
+    GATEWAY_HEALTH_COMMAND='wget -q --spider http://127.0.0.1:8080/actuator/health/liveness || exit 1'
     ;;
   *)
     echo "ERROR: AIO_GATEWAY_HEALTH_MODE must be banner-v2 or legacy." >&2

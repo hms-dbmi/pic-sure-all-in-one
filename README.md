@@ -295,9 +295,9 @@ The rollback job checks the shared contract and attestations, verifies every ima
 image ID, confirms that httpd is stopped and the frontend rollback tag is staged, then retags and starts the rolled-back
 Operations, Query, and Gateway services before recreating PSAMA. It keeps httpd stopped, retaining the management-write
 freeze while a backend below the targeted-feed boundary is active. Do not restart the public entrypoint until a
-targeting-capable backend has been restored. The rollback health gate uses the legacy Gateway `/system/status` route;
-normal forward startup still requires the v2 banner feed. Rollback always keeps the forward database schema; Flyway
-down-migrations are prohibited.
+targeting-capable backend has been restored. After the rollback script verifies the operator state, it uses Gateway
+`/actuator/health/liveness`; normal forward startup rejects that rollback-only mode and still requires the v2 banner
+feed. Rollback always keeps the forward database schema; Flyway down-migrations are prohibited.
 
 - If you would like to connect to a remote database, then run the "Configure Remote MySQL Instance" Jenkins job.
     - You need to provide remote database connection information to "Configure Remote MySQL Instance" Jenkins job
@@ -383,6 +383,9 @@ contain the same reviewed workflow files; reinstall the package for the required
 An exact-ref update records the current update branch and checks out the commit on the managed
 `picsure-aio-release-pin` branch. The next normal update restores the recorded branch and performs a fast-forward-only
 pull. Git failures stop the script before Jenkins is stopped or any jobs are replaced.
+
+The workflow fingerprint follows the update, initial-install, and rollback job call paths transitively. Editing any
+bound Jenkins job requires recomputing the AIO workflow fingerprint and re-pinning it in release control.
 
 A backup of your jenkins home can be found here: `"$DOCKER_CONFIG_DIR"/jenkins_home_bak/`
 

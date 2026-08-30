@@ -274,9 +274,6 @@ printf '%s\\n' "$*" >> "$MOCK_WGET_LOG"
 if [[ -n "${MOCK_FAILED_HEALTH_PATH:-}" && "$*" == *"$MOCK_FAILED_HEALTH_PATH"* ]]; then
   exit 1
 fi
-if [[ "$*" == *"/system/status"* ]]; then
-  printf '%s\\n' RUNNING
-fi
 """
     )
     wget.chmod(0o755)
@@ -483,7 +480,7 @@ class RolloutContractTest(unittest.TestCase):
         self.assertIn("/operations/actuator/health/readiness", source)
         self.assertIn("/actuator/health/liveness", source)
         self.assertIn("/operations/banners/active/v2", source)
-        self.assertIn("/system/status", source)
+        self.assertNotIn("/system/status", source)
         self.assertNotIn("# shellcheck disable=SC1091,SC2086", source)
         self.assertEqual(source.count("for value_name in"), 2)
         self.assertNotIn('case "$value_name"', source)
@@ -608,7 +605,7 @@ class RolloutContractTest(unittest.TestCase):
         self.assertLess(index_of(commands, "run --name=gateway"), index_of(commands, "run --name=psama"))
         self.assertFalse(any("run --name=httpd" in command for command in commands))
 
-    def test_rollback_uses_legacy_gateway_health_and_reaches_final_httpd_check(self):
+    def test_rollback_uses_gateway_liveness_and_reaches_final_httpd_check(self):
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             config = required_config(tmp_path / "config")
@@ -626,11 +623,26 @@ class RolloutContractTest(unittest.TestCase):
             health_commands = (tmp_path / "wget.log").read_text().splitlines()
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("httpd restarted during fail-closed rollback", result.stderr)
-        self.assertTrue(any("/system/status" in command for command in health_commands))
+        self.assertEqual(
+            health_commands[-1],
+            "-q --spider http://127.0.0.1:8080/actuator/health/liveness",
+        )
         self.assertFalse(
             any("/operations/banners/active/v2" in command for command in health_commands)
         )
+        self.assertFalse(any("/system/status" in command for command in health_commands))
         self.assertFalse(any("run --name=httpd" in command for command in commands))
+
+    def test_normal_start_rejects_rollback_only_gateway_health_mode(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = required_config(Path(tmp) / "config")
+            result, commands = run_script(
+                ROOT / "start-picsure.sh",
+                config,
+                {"AIO_GATEWAY_HEALTH_MODE": "legacy"},
+            )
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(commands, [])
 
     def test_rollback_rejects_an_image_id_that_changed_after_attestation(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -817,17 +829,23 @@ class RolloutContractTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             shutil.copy2(ROOT / "workflow-sha256.sh", root / "workflow-sha256.sh")
-            (root / "aio-sha256.sh").write_text(
+            shutil.copy2(CHECKSUM_HELPER, root / "aio-sha256.sh")
+            self.assertEqual(
+                (root / "aio-sha256.sh").read_bytes(), CHECKSUM_HELPER.read_bytes()
+            )
+            bin_dir = root / "bin"
+            bin_dir.mkdir()
+            sha256sum = bin_dir / "sha256sum"
+            sha256sum.write_text(
                 """#!/usr/bin/env bash
-sha256_file() {
-  if [[ "$1" == */present.txt ]]; then
-    echo "synthetic checksum read failure" >&2
-    return 23
-  fi
-  printf '%064d\\n' 0
-}
+if [[ "$1" == */present.txt ]]; then
+  echo "synthetic checksum read failure" >&2
+  exit 23
+fi
+printf '%064d  %s\\n' 0 "$1"
 """
             )
+            sha256sum.chmod(0o755)
             manifest = root / "initial-configuration/jenkins/jenkins-docker/aio-workflow-files.txt"
             manifest.parent.mkdir(parents=True)
             manifest.write_text("repo:present.txt\n")
@@ -835,7 +853,11 @@ sha256_file() {
             result = subprocess.run(
                 ["bash", str(root / "workflow-sha256.sh")],
                 cwd=root,
-                env={**os.environ, "AIO_WORKFLOW_MODE": "source"},
+                env={
+                    **os.environ,
+                    "PATH": f"{bin_dir}:{os.environ['PATH']}",
+                    "AIO_WORKFLOW_MODE": "source",
+                },
                 text=True,
                 capture_output=True,
                 check=False,
@@ -846,7 +868,7 @@ sha256_file() {
 
     def test_transitive_release_jobs_are_bound_by_the_workflow_manifest(self):
         release_jobs = transitive_release_jobs(
-            {"Check For Updates", "Initial Configuration Pipeline"}
+            {"Check For Updates", "Initial Configuration Pipeline", "Rollback PIC-SURE"}
         )
         self.assertIn("Migrate Dictionary Database", release_jobs)
         self.assertIn("Retrieve Build Spec", release_jobs)
@@ -882,6 +904,11 @@ if [[ "${1:-}" == "stop" || "${1:-}" == "rm" ]]; then
   exit 1
 fi
 if [[ "${1:-} ${2:-}" == "container inspect" ]]; then
+  if [[ -n "${MOCK_DOCKER_INSPECT_ERROR:-}" ]]; then
+    echo "synthetic Docker daemon failure" >&2
+    exit "$MOCK_DOCKER_INSPECT_ERROR"
+  fi
+  echo "Error: No such container: jenkins" >&2
   exit 1
 fi
 exit 0
@@ -926,6 +953,7 @@ exit 0
             update_docker_commands = (root / "update-docker.log").read_text()
             final_state = state.read_text().strip()
             (root / "jenkins.log").write_text("")
+            docker_log_before_failure = (root / "update-docker.log").read_text()
             failed_checkout = subprocess.run(
                 ["bash", str(root / "update-jenkins.sh"), "--jobs-only", "--aio-ref", aio_ref],
                 cwd=root,
@@ -935,6 +963,17 @@ exit 0
                 check=False,
             )
             jenkins_commands_after_failure = (root / "jenkins.log").read_text()
+            docker_log_after_failure = (root / "update-docker.log").read_text()
+            (root / "jenkins.log").write_text("")
+            inspect_failure = subprocess.run(
+                ["bash", str(root / "update-jenkins.sh"), "--jobs-only"],
+                cwd=root,
+                env={**env, "MOCK_DOCKER_INSPECT_ERROR": "42"},
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            jenkins_commands_after_inspect_failure = (root / "jenkins.log").read_text()
         self.assertEqual(pinned.returncode, 0, pinned.stdout + pinned.stderr)
         self.assertEqual(normal.returncode, 0, normal.stdout + normal.stderr)
         self.assertIn("checkout -B picsure-aio-release-pin", git_commands)
@@ -944,9 +983,10 @@ exit 0
         self.assertNotIn("stop jenkins", update_docker_commands)
         self.assertNotEqual(failed_checkout.returncode, 0)
         self.assertEqual(jenkins_commands_after_failure, "")
-
-    def test_update_git_mock_has_no_obsolete_detached_checkout(self):
-        self.assertNotIn("checkout " + "--detach", update_git_mock())
+        self.assertEqual(docker_log_after_failure, docker_log_before_failure)
+        self.assertEqual(inspect_failure.returncode, 42)
+        self.assertIn("synthetic Docker daemon failure", inspect_failure.stderr)
+        self.assertEqual(jenkins_commands_after_inspect_failure, "")
 
     def test_start_jenkins_binds_content_in_safe_git_and_non_git_installs(self):
         for git_mode, expected_commit in (

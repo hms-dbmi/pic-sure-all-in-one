@@ -154,15 +154,87 @@ def matching_token(
     raise AssertionError(f"unterminated Groovy {opening}{closing} group")
 
 
-def statement_position(tokens: list[GroovyToken], index: int) -> bool:
-    if index == 0:
+def previous_token(tokens: list[GroovyToken], index: int) -> int:
+    index -= 1
+    while index >= 0 and tokens[index].kind == "newline":
+        index -= 1
+    return index
+
+
+def map_has_job_key(tokens: list[GroovyToken], start: int, end: int) -> bool:
+    depth = 0
+    for index in range(start + 1, end):
+        token = tokens[index]
+        if token.kind == "symbol" and token.value in {"(", "[", "{"}:
+            depth += 1
+        elif token.kind == "symbol" and token.value in {")", "]", "}"}:
+            depth -= 1
+        elif depth == 0 and token.kind == "identifier" and token.value == "job":
+            colon = next_token(tokens, index + 1)
+            if (
+                colon < end
+                and tokens[colon].kind == "symbol"
+                and tokens[colon].value == ":"
+            ):
+                return True
+    return False
+
+
+def is_build_call(tokens: list[GroovyToken], index: int) -> bool:
+    target = index + 1
+    if target >= len(tokens) or tokens[target].kind == "newline":
+        return False
+    previous = previous_token(tokens, index)
+    if previous >= 0 and (
+        (
+            tokens[previous].kind == "symbol"
+            and tokens[previous].value in {".", "&"}
+        )
+        or (
+            tokens[previous].kind == "identifier"
+            and tokens[previous].value
+            in {
+                "def",
+                "void",
+                "boolean",
+                "byte",
+                "char",
+                "double",
+                "float",
+                "int",
+                "long",
+                "short",
+            }
+        )
+    ):
+        return False
+
+    token = tokens[target]
+    if token.kind == "identifier":
+        return token.value not in {"as", "in", "instanceof"}
+    if token.kind in {"string", "number"}:
         return True
-    previous = tokens[index - 1]
-    if previous.kind == "newline":
+    if token.kind != "symbol":
+        return False
+    if token.value == "(":
+        closing = matching_token(tokens, target, "(", ")")
+        after = next_token(tokens, closing + 1)
+        if (
+            previous >= 0
+            and tokens[previous].kind == "identifier"
+            and tokens[previous].value not in {"return", "throw"}
+            and after < len(tokens)
+            and tokens[after].kind == "symbol"
+            and tokens[after].value == "{"
+        ):
+            return False
         return True
-    if previous.kind == "identifier" and previous.value == "return":
+    if token.value == "[":
+        end = matching_token(tokens, target, "[", "]")
+        return map_has_job_key(tokens, target, end)
+    if token.value == "{":
         return True
-    return previous.kind == "symbol" and previous.value in {"{", "}", ";", "="}
+    return False
 
 
 def literal_job(token: GroovyToken) -> str:
@@ -215,7 +287,7 @@ def build_jobs(tokens: list[GroovyToken]) -> list[str]:
         if (
             token.kind != "identifier"
             or token.value != "build"
-            or not statement_position(tokens, index)
+            or not is_build_call(tokens, index)
         ):
             continue
         target = index + 1
@@ -2574,6 +2646,10 @@ printf '%064d  %s\\n' 0 "$1"
             "build 'Known Job'.toString()",
             "build [job: targetJob]",
             "build [job: 'Known Job'] + extra",
+            "if (ready) build targetJob",
+            "wrap(build(resolveTarget()))",
+            "def values = [build(job: targetJob)]",
+            "def result = ready ? build([job: targetJob]) : null",
             "Jenkins.instance.getItemByFullName(targetJob).scheduleBuild2(0)",
             "Jenkins.instance.getItem('Known Job' + suffix).scheduleBuild2(0)",
             "resolvedJob.scheduleBuild2(0)",
@@ -2590,24 +2666,75 @@ printf '%064d  %s\\n' 0 "$1"
                 ):
                     jenkins_job_references(config)
 
+    def test_trigger_scanner_resolves_literal_calls_in_expression_contexts(self):
+        contexts = {
+            "if": ("if (ready) build 'If Job'", "If Job"),
+            "while": ('while (ready) build "While Job"', "While Job"),
+            "case": (
+                "switch (kind) { case 'x': build job: 'Case Job'; break }",
+                "Case Job",
+            ),
+            "ternary": (
+                "def result = ready ? build('Ternary Job') : null",
+                "Ternary Job",
+            ),
+            "list": (
+                "def results = [build(job: 'List Job', wait: true)]",
+                "List Job",
+            ),
+            "nested argument": (
+                "wrap(build([job: 'Nested Job', wait: true]))",
+                "Nested Job",
+            ),
+            "map value": (
+                "def results = [downstream: build('Map Value Job')]",
+                "Map Value Job",
+            ),
+        }
+        for context, (groovy, job) in contexts.items():
+            with self.subTest(context=context), tempfile.TemporaryDirectory() as tmp:
+                config = Path(tmp) / "config.xml"
+                config.write_text(
+                    "<flow-definition><definition><script><![CDATA["
+                    f"{groovy}"
+                    "]]></script></definition></flow-definition>"
+                )
+                self.assertEqual(jenkins_job_references(config), {job})
+
     def test_trigger_scanner_ignores_non_step_build_tokens(self):
-        groovy = """
-// build targetJob
-/* build resolveTarget() */
-def message = "build job: targetJob"
-def build = 'ordinary variable'
-for (build in builds) { echo build }
-def build(String name) { return name }
-b.build 'Receiver Call'
-"""
-        with tempfile.TemporaryDirectory() as tmp:
-            config = Path(tmp) / "config.xml"
-            config.write_text(
-                "<flow-definition><definition><script><![CDATA["
-                f"{groovy}"
-                "]]></script></definition></flow-definition>"
-            )
-            self.assertEqual(jenkins_job_references(config), set())
+        controls = {
+            "comments": "// build targetJob\n/* build resolveTarget() */",
+            "string": 'def message = "build job: targetJob"',
+            "closure parameter": "items.each { build -> echo build }",
+            "multiple closure parameters": (
+                "items.inject(null) { value, build -> echo build }"
+            ),
+            "loop parameter": "for (build in builds) { echo build }",
+            "method declaration": "def build(String name) { return name }",
+            "typed declaration": "void build(String name) { echo name }",
+            "custom typed declaration": (
+                "SyntheticResult build(String name) { return null }"
+            ),
+            "variable declaration": "def build = 'ordinary variable'",
+            "assignment": "build = targetJob",
+            "compound assignment": "build += suffix",
+            "map key": "def value = [build: 'ordinary map value']",
+            "receiver call": "b.build 'Receiver Call'",
+            "property call": "b?.build('Property Call')",
+            "ordinary argument": "consume(build)",
+            "ordinary return": "return build",
+            "ordinary list value": "def values = [build]",
+            "ordinary property": "build.toString()",
+        }
+        for control, groovy in controls.items():
+            with self.subTest(control=control), tempfile.TemporaryDirectory() as tmp:
+                config = Path(tmp) / "config.xml"
+                config.write_text(
+                    "<flow-definition><definition><script><![CDATA["
+                    f"{groovy}"
+                    "]]></script></definition></flow-definition>"
+                )
+                self.assertEqual(jenkins_job_references(config), set())
 
     def test_exact_ref_update_handles_absent_jenkins_and_restores_branch(self):
         with tempfile.TemporaryDirectory() as tmp:

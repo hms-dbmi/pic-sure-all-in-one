@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "deployment": "AIO",
+  "statusVocabulary": [
+    "PASS",
+    "FAIL",
+    "NOT_RUN"
+  ],
+  "requiredChecks": [
+    "tupleAndRolloutContract",
+    "ticket15MigrationOwner",
+    "ticket17BinarySchemaOwner",
+    "ticket18FeedRollbackOwner",
+    "ticket19CacheRolloutOwner",
+    "aioAuthorizationAndPicsureMigrations",
+    "emptyAnonymousV2Feed",
+    "emptyChromiumRegion",
+    "managementAuthorization",
+    "publishThroughGateway",
+    "operationsAuditReceipt",
+    "publishedAnonymousV2Feed",
+    "publishedChromiumRender",
+    "cleanup"
+  ],
+  "requiredLimitations": [
+    "productionTls",
+    "externalRouting",
+    "jenkinsExecution",
+    "embeddedDeploymentFlywayParity",
+    "liveAuthorization",
+    "bdcAimAheadDeploymentLocalProof"
+  ]
+}

@@ -1,0 +1,623 @@
+#!/usr/bin/env python3
+
+import base64
+import csv
+import hashlib
+import hmac
+import http.client
+import json
+import os
+from pathlib import Path
+import shutil
+import subprocess
+import sys
+import tarfile
+import time
+import urllib.error
+import urllib.request
+
+
+BACKEND_COMMIT = "0178bbd2d1753e07dcead77a6d0e8ca37bf76dd8"
+FRONTEND_COMMIT = "7b69aa960ff98f97c1a2d026b7137b0e3dcdf603"
+MIGRATIONS_COMMIT = "05b1a77512dc0921570f0d442853fdcee75b8131"
+RELEASE_CONTROL_COMMIT = "53802f3efbd030042fab442f9c5a3a29770528ca"
+AIO_PROOF_BASE = "8830fbf9dffe69b273a51d35410413115878841f"
+AIO_RELEASE_COMMIT = "b453a5b59cf1f3c90ebfd6a4eb3d80108ee44b6a"
+ROLLOUT_SHA256 = "f8cb265d735b757872391e04fdcd5b999b785eaa427ca13f8f2eefd493715359"
+MYSQL_IMAGE = "mysql:8.0.43@sha256:ccf4fed7ff4b886aeb3573a1f5d5b509525ecff55a2d1e2653c27a5abdded309"
+FLYWAY_IMAGE = "flyway/flyway:11.7.2@sha256:8ace7d9825bb3ad1d6e14ee27b3a830b638ac841ba424b99b2d92aa65a99d484"
+BUILD_IMAGE = "maven:3-amazoncorretto-25@sha256:de7a3e517efac1b933af6ceb375974a061ba71c908ea51a18bd937716a8ade93"
+RUNTIME_IMAGE = "amazoncorretto:25@sha256:397edfaaa0fdfc95001d4c4a4ab82174073277a5d630fd9375c94dca25b5991d"
+SYNTHETIC_PASSWORD = "t22a-local-password"
+SYNTHETIC_LOGGING_KEY = "t22a-local-logging-key"
+SYNTHETIC_CLIENT_SECRET = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+APPLICATION_UUID = "11111111-1111-1111-1111-111111111111"
+
+
+class ProofError(RuntimeError):
+    pass
+
+
+def sha256_file(path):
+    digest = hashlib.sha256()
+    with Path(path).open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def command(arguments, *, cwd=None, env=None, capture=False, timeout=1800, check=True, stdin=None):
+    result = subprocess.run(
+        [str(value) for value in arguments], cwd=cwd, env=env, input=stdin,
+        text=True, capture_output=capture, timeout=timeout, check=False,
+    )
+    if check and result.returncode != 0:
+        output = ""
+        if capture:
+            output = f"\nstdout:\n{result.stdout}\nstderr:\n{result.stderr}"
+        raise ProofError(f"command failed with status {result.returncode}: {' '.join(map(str, arguments))}{output}")
+    return result
+
+
+def require_repository(root, expected, label):
+    head = command(["git", "-C", root, "rev-parse", "HEAD"], capture=True, timeout=30).stdout.strip()
+    if head != expected:
+        raise ProofError(f"{label} commit drift: expected {expected}, got {head}")
+    status = command(
+        ["git", "-C", root, "status", "--porcelain", "--untracked-files=all"],
+        capture=True, timeout=30,
+    ).stdout
+    if status:
+        raise ProofError(f"{label} source is dirty:\n{status.rstrip()}")
+
+
+def export_head(repository, destination):
+    destination.mkdir(parents=True)
+    archive = destination.parent / f"{destination.name}.tar"
+    with archive.open("wb") as output:
+        result = subprocess.run(
+            ["git", "-C", str(repository), "archive", "HEAD"], stdout=output,
+            stderr=subprocess.PIPE, timeout=60, check=False,
+        )
+    if result.returncode != 0:
+        raise ProofError(f"cannot export {repository}: {result.stderr.decode(errors='replace')}")
+    with tarfile.open(archive) as bundle:
+        resolved = destination.resolve()
+        for member in bundle.getmembers():
+            target = (destination / member.name).resolve()
+            if target != resolved and resolved not in target.parents:
+                raise ProofError(f"unsafe archive member: {member.name}")
+        bundle.extractall(destination)
+    archive.unlink()
+
+
+def jwt(subject, uuid, email, secret=SYNTHETIC_CLIENT_SECRET):
+    now = int(time.time())
+    header = {"alg": "HS256"}
+    payload = {
+        "sub": subject, "uuid": uuid, "email": email, "name": "T22A synthetic user",
+        "iss": "t22a-local-proof", "jti": uuid, "iat": now, "exp": now + 3600,
+    }
+
+    def encode(value):
+        raw = json.dumps(value, sort_keys=True, separators=(",", ":")).encode()
+        return base64.urlsafe_b64encode(raw).rstrip(b"=")
+
+    unsigned = encode(header) + b"." + encode(payload)
+    signature = base64.urlsafe_b64encode(hmac.new(secret.encode(), unsigned, hashlib.sha256).digest()).rstrip(b"=")
+    return (unsigned + b"." + signature).decode()
+
+
+class Harness:
+    def __init__(self, aio_root, temp_root, run_id):
+        self.aio_root = Path(aio_root).resolve()
+        self.test_dir = self.aio_root / "tests" / "banner-local-integration"
+        self.temp_root = Path(temp_root).resolve()
+        self.run_id = run_id
+        self.label = f"org.pic-sure.banner-local-integration={run_id}"
+        self.network = f"banner-local-{run_id}"
+        self.contract = json.loads((self.test_dir / "contract.json").read_text(encoding="utf-8"))
+        self.expected = json.loads((self.test_dir / "expected-result.json").read_text(encoding="utf-8"))
+        self.backend = Path(os.environ["BANNER_LOCAL_BACKEND_ROOT"]).resolve()
+        self.frontend = Path(os.environ["BANNER_LOCAL_FRONTEND_ROOT"]).resolve()
+        self.migrations = Path(os.environ["BANNER_LOCAL_MIGRATIONS_ROOT"]).resolve()
+        self.release_control = Path(os.environ["BANNER_LOCAL_RELEASE_CONTROL_ROOT"]).resolve()
+        self.backend_export = self.temp_root / "source" / "backend"
+        self.frontend_export = self.temp_root / "source" / "frontend"
+        self.logs = self.temp_root / "logs"
+        self.logs.mkdir(parents=True, exist_ok=True)
+        self.containers = {}
+        self.urls = {}
+        self.tokens = {}
+        self.observed = json.loads(json.dumps(self.expected))
+        self.observed["status"] = "FAIL"
+        self.observed["checks"] = {key: "NOT_RUN" for key in self.expected["checks"]}
+        self.observed["checks"]["cleanup"] = "NOT_RUN"
+
+    def docker(self, *arguments, capture=False, timeout=300, check=True, stdin=None):
+        return command(
+            ["docker", *arguments], capture=capture, timeout=timeout, check=check, stdin=stdin
+        )
+
+    def verify_inputs(self):
+        ancestry = command(
+            ["git", "-C", self.aio_root, "merge-base", "--is-ancestor", AIO_PROOF_BASE, "HEAD"],
+            check=False, timeout=30,
+        )
+        if ancestry.returncode != 0:
+            raise ProofError(f"AIO proof is not descended from required base {AIO_PROOF_BASE}")
+        if (
+            self.contract.get("schemaVersion") != self.expected.get("schemaVersion")
+            or self.contract.get("deployment") != self.expected.get("deployment")
+            or set(self.contract.get("requiredChecks", [])) != set(self.expected.get("checks", {}))
+            or set(self.contract.get("requiredLimitations", [])) != set(self.expected.get("limitations", {}))
+        ):
+            raise ProofError("checked-in result contract and expected AIO row disagree")
+        require_repository(self.backend, BACKEND_COMMIT, "backend")
+        require_repository(self.frontend, FRONTEND_COMMIT, "frontend")
+        require_repository(self.migrations, MIGRATIONS_COMMIT, "migrations")
+        require_repository(self.release_control, RELEASE_CONTROL_COMMIT, "release control")
+        rollout = self.backend / ".github" / "banner-rollout-contract.json"
+        if sha256_file(rollout) != ROLLOUT_SHA256:
+            raise ProofError("authoritative rollout contract checksum drift")
+        source = json.loads(
+            (self.aio_root / "initial-configuration/jenkins/jenkins-docker/banner-rollout-source.json").read_text()
+        )
+        if source != {"contractSourceCommit": BACKEND_COMMIT, "contractSha256": ROLLOUT_SHA256}:
+            raise ProofError(f"AIO rollout source drift: {source}")
+        spec = json.loads((self.release_control / "build-spec.json").read_text())
+        entries = {item["project_job_git_key"]: item["git_hash"] for item in spec["application"]}
+        expected = {"PSA": BACKEND_COMMIT, "PSF": FRONTEND_COMMIT, "PSM": MIGRATIONS_COMMIT, "AIO": AIO_RELEASE_COMMIT}
+        if {key: entries.get(key) for key in expected} != expected:
+            raise ProofError(f"release tuple drift: {entries}")
+        workflow = command(
+            ["bash", self.aio_root / "workflow-sha256.sh"], cwd=self.aio_root,
+            env={**os.environ, "AIO_WORKFLOW_MODE": "source"}, capture=True,
+        ).stdout.strip()
+        if workflow != spec["bannerRollout"]["aioWorkflowSha256"]:
+            raise ProofError(f"AIO workflow checksum drift: {workflow}")
+        self.observed["checks"]["tupleAndRolloutContract"] = "PASS"
+
+    def compose_owner_contracts(self):
+        paths = {
+            "ticket15EntrypointSha256": self.migrations / "tests/aio-deployment-migration/test.sh",
+            "ticket15MatrixSha256": self.migrations / "tests/aio-deployment-migration/matrix.tsv",
+            "ticket17EntrypointSha256": self.backend / "tests/operations-binary-compatibility/test.sh",
+            "ticket17MatrixSha256": self.backend / "tests/operations-binary-compatibility/matrix.tsv",
+            "ticket18EntrypointSha256": self.backend / "tests/banner-feed-compatibility/test.sh",
+            "ticket18MatrixSha256": self.backend / "tests/banner-feed-compatibility/matrix.tsv",
+        }
+        for field, path in paths.items():
+            actual = sha256_file(path)
+            if actual != self.expected["observations"][field]:
+                raise ProofError(f"owner artifact drift for {field}: {actual}")
+        with (self.migrations / "tests/aio-deployment-migration/matrix.tsv").open(newline="", encoding="utf-8") as handle:
+            rows = list(csv.DictReader(handle, delimiter="\t"))
+        if [row["cell"] for row in rows] != ["fresh", "supported-upgrade", "occurrence-only"]:
+            raise ProofError("Ticket 15 owner cells drift")
+        if any(row["result"] != "PASS" or row["feature_sql_checksum_result"] != "MATCH" for row in rows):
+            raise ProofError("Ticket 15 checked-in owner result is not PASS/MATCH")
+        env = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
+        for owner in ("operations-binary-compatibility", "banner-feed-compatibility"):
+            directory = self.backend / "tests" / owner
+            command([sys.executable, "-m", "unittest", "discover", "-v", "-s", directory, "-p", "test_*.py"], env=env)
+            command(
+                [sys.executable, "-m", "unittest", "discover", "-v", "-s", directory, "-p", "test_*.py"],
+                env={**env, "PYTHONOPTIMIZE": "1"},
+            )
+        self.observed["checks"]["ticket15MigrationOwner"] = "PASS"
+        self.observed["checks"]["ticket17BinarySchemaOwner"] = "PASS"
+        self.observed["checks"]["ticket18FeedRollbackOwner"] = "PASS"
+
+    def prepare_sources(self):
+        export_head(self.backend, self.backend_export)
+        export_head(self.frontend, self.frontend_export)
+        (self.frontend_export / ".env").write_text(
+            "VITE_APPLICATION_NAME=Ticket 22A local proof\n"
+            "VITE_ORIGIN=http://frontend\n"
+            "VITE_CONFIG_MODE=override\n"
+            "VITE_API_CONFIG_FEATURES=\nVITE_API_CONFIG_SETTINGS=\nVITE_API_CONFIG_BRANDING=\n"
+            "VITE_MAX_CONFIG_RETRIES=0\n",
+            encoding="utf-8",
+        )
+        generated = self.temp_root / "generated"
+        generated.mkdir()
+        (generated / "httpd-vhosts.conf").write_text(
+            "<VirtualHost *:80>\n"
+            "  ServerName frontend\n  ProxyRequests Off\n  ProxyPreserveHost On\n"
+            "  ProxyPass /picsure/ http://gateway:8080/\n"
+            "  ProxyPassReverse /picsure/ http://gateway:8080/\n"
+            "  ProxyPass / http://127.0.0.1:3000/\n"
+            "  ProxyPassReverse / http://127.0.0.1:3000/\n"
+            "  ErrorLog /dev/stderr\n  CustomLog /dev/stdout combined\n</VirtualHost>\n",
+            encoding="utf-8",
+        )
+
+    def build(self):
+        m2 = Path(os.environ.get("BANNER_LOCAL_M2_ROOT", self.temp_root / "m2")).resolve()
+        m2.mkdir(parents=True, exist_ok=True)
+        modules = (
+            "services/pic-sure-operations-service,services/pic-sure-gateway,"
+            "services/pic-sure-auth-microapp/pic-sure-auth-services,services/pic-sure-logging"
+        )
+        self.docker(
+            "run", "--rm", "--label", self.label, "--user", f"{os.getuid()}:{os.getgid()}",
+            "-e", "HOME=/tmp/t22a-home", "-e", "MAVEN_CONFIG=/m2",
+            "-v", f"{self.backend_export}:/source", "-v", f"{m2}:/m2", "-w", "/source", BUILD_IMAGE,
+            "mvn", "-q", "-B", "-Dmaven.repo.local=/m2", "-DskipTests", "-pl", modules, "-am", "package",
+            timeout=1800,
+        )
+        self.docker(
+            "run", "--rm", "--label", self.label, "--user", f"{os.getuid()}:{os.getgid()}",
+            "-e", "HOME=/tmp/t22a-home", "-e", "MAVEN_CONFIG=/m2",
+            "-v", f"{self.backend_export}:/source", "-v", f"{m2}:/m2", "-w", "/source", BUILD_IMAGE,
+            "mvn", "-q", "-B", "-Dmaven.repo.local=/m2", "-Dtest=BannerRolloutContractTest",
+            "-Dsurefire.failIfNoSpecifiedTests=false", "-pl",
+            "services/pic-sure-auth-microapp/pic-sure-auth-services", "-am", "test", timeout=900,
+        )
+        self.observed["checks"]["ticket19CacheRolloutOwner"] = "PASS"
+        self.jars = {
+            "operations": self.backend_export / "services/pic-sure-operations-service/target/pic-sure-operations-service-3.0.0.jar",
+            "gateway": self.backend_export / "services/pic-sure-gateway/target/pic-sure-gateway-3.0.0.jar",
+            "psama": self.backend_export / "services/pic-sure-auth-microapp/pic-sure-auth-services/target/pic-sure-auth-services-3.0.0.jar",
+            "logging": self.backend_export / "services/pic-sure-logging/target/pic-sure-logging-3.0.0.jar",
+        }
+        missing = [name for name, path in self.jars.items() if not path.is_file()]
+        if missing:
+            raise ProofError(f"missing real application jars: {missing}")
+        self.observed["observations"]["jarSha256"] = {name: sha256_file(path) for name, path in self.jars.items()}
+        frontend_image = f"banner-local-frontend:{self.run_id.lower()}"
+        self.docker(
+            "build", "--label", self.label, "--tag", frontend_image,
+            "--file", self.frontend_export / "Dockerfile", self.frontend_export,
+            capture=True, timeout=1800,
+        )
+        browser_image = f"banner-local-browser:{self.run_id.lower()}"
+        self.docker(
+            "build", "--label", self.label, "--tag", browser_image,
+            "--file", self.test_dir / "browser.Dockerfile", self.test_dir,
+            capture=True, timeout=900,
+        )
+        self.images = {"frontend": frontend_image, "browser": browser_image}
+        self.observed["observations"]["builtImageIds"] = {
+            name: self.docker("image", "inspect", "--format", "{{.Id}}", image, capture=True).stdout.strip()
+            for name, image in self.images.items()
+        }
+
+    def start_mysql_and_migrate(self):
+        self.docker("network", "create", "--label", self.label, self.network)
+        name = f"banner-local-{self.run_id}-mysql"
+        self.docker(
+            "run", "--detach", "--name", name, "--label", self.label, "--network", self.network,
+            "--network-alias", "mysql", "-e", f"MYSQL_ROOT_PASSWORD={SYNTHETIC_PASSWORD}", MYSQL_IMAGE,
+        )
+        self.containers["mysql"] = name
+        deadline = time.monotonic() + 90
+        while time.monotonic() < deadline:
+            result = self.docker(
+                "exec", "-e", f"MYSQL_PWD={SYNTHETIC_PASSWORD}", name,
+                "mysqladmin", "ping", "-h127.0.0.1", "-uroot", "--silent", check=False,
+            )
+            if result.returncode == 0:
+                break
+            time.sleep(1)
+        else:
+            raise ProofError("MySQL did not become ready")
+        self.mysql("CREATE DATABASE auth; CREATE DATABASE picsure;", database=None)
+        migration_root = self.temp_root / "migrations"
+        shutil.copytree(self.backend_export / "services/pic-sure-auth-microapp/pic-sure-auth-db/db/sql", migration_root / "core-auth")
+        shutil.copytree(self.backend_export / "services/pic-sure-operations-service/db/sql", migration_root / "core-picsure")
+        shutil.copytree(self.migrations / "Baseline/auth", migration_root / "custom-auth")
+        shutil.copytree(self.migrations / "Baseline/picsure", migration_root / "custom-picsure")
+        for path in (migration_root / "custom-auth").glob("*.sql"):
+            path.write_text(path.read_text().replace("__APPLICATION_UUID__", APPLICATION_UUID.replace("-", "")))
+        for path in (migration_root / "custom-picsure").glob("*.sql"):
+            path.write_text(path.read_text().replace("__RESOURCE_UUID__", "22222222222222222222222222222222"))
+        self.flyway("auth", migration_root / "core-auth", "flyway_schema_history", False)
+        self.flyway("picsure", migration_root / "core-picsure", "flyway_schema_history", False)
+        self.flyway("picsure", migration_root / "custom-picsure", "flyway_custom_schema_history", True)
+        self.flyway("auth", migration_root / "custom-auth", "flyway_custom_schema_history", True)
+        maxima = self.mysql(
+            "SELECT CONCAT((SELECT MAX(CAST(version AS UNSIGNED)) FROM auth.flyway_custom_schema_history WHERE success=1),':',"
+            "(SELECT MAX(CAST(version AS UNSIGNED)) FROM picsure.flyway_custom_schema_history WHERE success=1));",
+            database=None,
+        ).strip()
+        if maxima != "11:12":
+            raise ProofError(f"AIO migration maxima drift: {maxima}")
+        self.observed["checks"]["aioAuthorizationAndPicsureMigrations"] = "PASS"
+
+    def flyway(self, schema, directory, history, baseline):
+        options = [
+            f"-url=jdbc:mysql://mysql:3306/{schema}?allowPublicKeyRetrieval=true&useSSL=false&serverTimezone=UTC",
+            "-user=root", f"-password={SYNTHETIC_PASSWORD}", f"-table={history}",
+            "-locations=filesystem:/flyway/sql", "-connectRetries=30", "-validateMigrationNaming=true",
+        ]
+        if baseline:
+            options.append("-baselineOnMigrate=true")
+        self.docker(
+            "run", "--rm", "--label", self.label, "--network", self.network,
+            "-v", f"{directory.resolve()}:/flyway/sql:ro", FLYWAY_IMAGE, *options, "migrate", timeout=300,
+        )
+
+    def mysql(self, sql, database="auth"):
+        arguments = [
+            "exec", "--interactive", "-e", f"MYSQL_PWD={SYNTHETIC_PASSWORD}", self.containers["mysql"],
+            "mysql", "-h127.0.0.1", "-uroot", "--batch", "--skip-column-names",
+        ]
+        if database:
+            arguments.append(database)
+        return self.docker(*arguments, capture=True, stdin=sql).stdout
+
+    def seed_auth(self):
+        subjects = {
+            "ordinary": ("20000000-0000-4000-8000-000000000001", "t22a-ordinary", "797FD002DC366B0D8420F998F885D0ED"),
+            "admin": ("20000000-0000-4000-8000-000000000002", "t22a-admin", "8F885D0ED797FD002DC366B0D8420F99"),
+            "super": ("20000000-0000-4000-8000-000000000003", "t22a-super", "002DC366B0D8420F998F885D0ED797FD"),
+        }
+        app_token = jwt(
+            f"PSAMA_APPLICATION|{APPLICATION_UUID}", APPLICATION_UUID, "application@synthetic.invalid"
+        )
+        statements = [
+            f"UPDATE application SET token='{app_token}' WHERE name='PICSURE';",
+        ]
+        for identity, (uuid, subject, role_hex) in subjects.items():
+            email = f"{identity}@synthetic.invalid"
+            user_token = jwt(f"LONG_TERM_TOKEN|{subject}", uuid, email)
+            statements.append(
+                "INSERT INTO user (uuid,auth0_metadata,general_metadata,connectionId,email,matched,subject,is_active,long_term_token) VALUES "
+                f"(UUID_TO_BIN('{uuid}'),'{{}}','{{\"name\":\"T22A {identity}\"}}',"
+                "0x97FD002DC366B0D8420F998F885D0ED7,"
+                f"'{email}',b'1','{subject}',b'1','{user_token}');"
+            )
+            statements.append(f"INSERT INTO user_role VALUES (UUID_TO_BIN('{uuid}'),0x{role_hex});")
+            self.tokens[identity] = user_token
+        self.tokens["application"] = app_token
+        self.mysql("\n".join(statements))
+
+    def start_services(self):
+        log_dir = self.temp_root / "audit-logs"
+        log_dir.mkdir()
+        self.start_jar(
+            "logging", self.jars["logging"], "80", [
+                "-e", f"LOGGING_API_KEY={SYNTHETIC_LOGGING_KEY}", "-e", "APP=pic-sure",
+                "-e", "PLATFORM=all-in-one", "-e", "ENVIRONMENT=local-proof", "-e", "PORT=80",
+                "-e", "ALLOWED_ORIGIN=*", "-v", f"{log_dir}:/app/logs",
+            ], ["java", "-jar", "/application.jar"], "/health",
+        )
+        self.start_jar(
+            "operations", self.jars["operations"], "8080", [
+                "-e", "SPRING_DATASOURCE_URL=jdbc:mysql://mysql:3306/picsure?serverTimezone=UTC",
+                "-e", "SPRING_DATASOURCE_USERNAME=root", "-e", f"SPRING_DATASOURCE_PASSWORD={SYNTHETIC_PASSWORD}",
+                "-e", "QUERY_SERVICE_INTERNAL_TOKEN=t22a-internal", "-e", "PICSURE_ACTUATOR_EXPOSURE=health",
+                "-e", "PICSURE_ACTUATOR_REQUIRE_TOKEN=false", "-e", "LOGGING_SERVICE_URL=http://pic-sure-logging",
+                "-e", f"LOGGING_API_KEY={SYNTHETIC_LOGGING_KEY}",
+            ], ["java", "-jar", "/application.jar", "--logging.level.root=WARN"], "/operations/actuator/health/readiness",
+        )
+        self.start_jar(
+            "psama", self.jars["psama"], "8090", [
+                "-e", "DATASOURCE_URL=jdbc:mysql://mysql:3306/auth?serverTimezone=UTC", "-e", "DATASOURCE_USERNAME=root",
+                "-e", f"DATASOURCE_PASSWORD={SYNTHETIC_PASSWORD}", "-e", f"APPLICATION_CLIENT_SECRET={SYNTHETIC_CLIENT_SECRET}",
+                "-e", "APPLICATION_CLIENT_SECRET_IS_BASE_64=false", "-e", "TOS_ENABLED=false",
+                "-e", f"STACK_SPECIFIC_APPLICATION_ID={APPLICATION_UUID}", "-e", "AUTH0_IDP_PROVIDER_IS_ENABLED=false",
+                "-e", "OPEN_IDP_PROVIDER_IS_ENABLED=false", "-e", "PICSURE_ACTUATOR_EXPOSURE=health",
+                "-e", "LOGGING_SERVICE_URL=http://pic-sure-logging", "-e", f"LOGGING_API_KEY={SYNTHETIC_LOGGING_KEY}",
+                "-e", "JAVA_OPTS=-Xms128m -Xmx512m", "-v", f"{self.logs}:/var/log",
+            ], ["sh", "-c", "java ${JAVA_OPTS} -jar /application.jar --logging.level.root=WARN"], "/auth/actuator/health",
+        )
+        self.start_jar(
+            "gateway", self.jars["gateway"], "8080", [
+                "-e", "SPRING_PROFILE=aio", "-e", "OPERATIONS_SERVICE_URL=http://operations:8080",
+                "-e", "TOKEN_INTROSPECTION_URL=http://psama:8090/auth/token/inspect",
+                "-e", "OPEN_ACCESS_VALIDATE_URL=http://psama:8090/auth/open/validate",
+                "-e", f"TOKEN_INTROSPECTION_TOKEN={self.tokens['application']}",
+                "-e", "GATEWAY_OPEN_ACCESS_ENABLED=false", "-e", "QUERY_SERVICE_INTERNAL_TOKEN=t22a-internal",
+                "-e", "PICSURE_ACTUATOR_EXPOSURE=health", "-e", "PICSURE_ACTUATOR_REQUIRE_TOKEN=false",
+                "-e", "LOGGING_SERVICE_URL=http://pic-sure-logging", "-e", f"LOGGING_API_KEY={SYNTHETIC_LOGGING_KEY}",
+            ], ["java", "-jar", "/application.jar", "--logging.level.root=WARN"], "/actuator/health/liveness",
+        )
+        name = f"banner-local-{self.run_id}-frontend"
+        self.docker(
+            "run", "--detach", "--name", name, "--label", self.label, "--network", self.network,
+            "--network-alias", "frontend", "-p", "127.0.0.1::80", "--no-healthcheck",
+            "-v", f"{self.temp_root / 'generated/httpd-vhosts.conf'}:/usr/local/apache2/conf/extra/httpd-vhosts.conf:ro",
+            self.images["frontend"],
+        )
+        self.containers["frontend"] = name
+        self.urls["frontend"] = self.container_url(name, "80/tcp")
+        self.wait_http(self.urls["frontend"] + "/login", "frontend")
+
+    def start_jar(self, service, jar, port, docker_options, java_command, health_path):
+        name = f"banner-local-{self.run_id}-{service}"
+        aliases = ["--network-alias", service]
+        if service == "logging":
+            aliases.extend(["--network-alias", "pic-sure-logging"])
+        self.docker(
+            "run", "--detach", "--name", name, "--label", self.label, "--network", self.network,
+            *aliases, "-p", f"127.0.0.1::{port}", *docker_options,
+            "-v", f"{jar}:/application.jar:ro", RUNTIME_IMAGE, *java_command,
+        )
+        self.containers[service] = name
+        self.urls[service] = self.container_url(name, f"{port}/tcp")
+        self.wait_http(self.urls[service] + health_path, service)
+
+    def container_url(self, name, port):
+        mapping = self.docker("port", name, port, capture=True).stdout.strip()
+        if not mapping:
+            raise ProofError(f"container {name} has no host port for {port}")
+        return "http://127.0.0.1:" + mapping.rsplit(":", 1)[1]
+
+    def wait_http(self, url, service):
+        deadline = time.monotonic() + 150
+        last = "not attempted"
+        while time.monotonic() < deadline:
+            status, body = self.http("GET", url)
+            if status == 200:
+                return
+            last = f"HTTP {status}: {body[:200]}"
+            running = self.docker("inspect", "-f", "{{.State.Running}}", self.containers[service], capture=True, check=False)
+            if running.returncode != 0 or running.stdout.strip() != "true":
+                self.capture_logs()
+                raise ProofError(f"{service} exited before readiness: {last}")
+            time.sleep(1)
+        self.capture_logs()
+        raise ProofError(f"{service} readiness timed out: {last}")
+
+    def http(self, method, url, payload=None, token=None):
+        data = None if payload is None else json.dumps(payload).encode()
+        headers = {"Content-Type": "application/json"}
+        if token:
+            headers["Authorization"] = "Bearer " + token
+        request = urllib.request.Request(url, data=data, headers=headers, method=method)
+        try:
+            with urllib.request.urlopen(request, timeout=15) as response:
+                return response.status, response.read().decode()
+        except urllib.error.HTTPError as error:
+            return error.code, error.read().decode()
+        except (urllib.error.URLError, http.client.HTTPException, ConnectionError, TimeoutError) as error:
+            return 0, str(error)
+
+    def browser(self, mode):
+        output = self.temp_root / f"browser-{mode}.json"
+        self.docker(
+            "run", "--rm", "--label", self.label, "--network", self.network,
+            "-v", f"{self.temp_root}:/results", self.images["browser"], mode, f"/results/{output.name}", timeout=120,
+        )
+        return json.loads(output.read_text())
+
+    def prove_path(self):
+        public_url = self.urls["frontend"] + "/picsure/operations/banners/active/v2"
+        status, body = self.http("GET", public_url)
+        if status != 200 or json.loads(body) != []:
+            raise ProofError(f"empty v2 feed drift: HTTP {status} {body}")
+        self.observed["checks"]["emptyAnonymousV2Feed"] = "PASS"
+        empty_browser = self.browser("empty")
+        if empty_browser.get("feedCount") != 0 or empty_browser.get("regionCount") != 0:
+            raise ProofError(f"empty browser observation drift: {empty_browser}")
+        self.observed["checks"]["emptyChromiumRegion"] = "PASS"
+
+        fake = "00000000-0000-0000-0000-000000000001"
+        routes = [
+            ("GET", "/banners", None), ("POST", "/banners", {}), ("POST", "/banners/saved", {}),
+            ("PUT", "/banners/order", {"bannerUuids": []}), ("PUT", f"/banners/{fake}", {}),
+            ("POST", f"/banners/{fake}/publish", {}), ("POST", f"/banners/{fake}/disable", None),
+            ("POST", f"/banners/{fake}/archive", None), ("POST", f"/banners/{fake}/restore", {}),
+        ]
+        base = self.urls["frontend"] + "/picsure/operations"
+        for method, path, payload in routes:
+            anonymous = self.http(method, base + path, payload)[0]
+            ordinary = self.http(method, base + path, payload, self.tokens["ordinary"])[0]
+            if anonymous != 401 or ordinary != 403:
+                raise ProofError(f"management denial drift for {method} {path}: anonymous={anonymous}, ordinary={ordinary}")
+            for identity in ("admin", "super"):
+                allowed = self.http(method, base + path, payload, self.tokens[identity])[0]
+                if allowed in {0, 401, 403, 502} or allowed >= 500:
+                    raise ProofError(f"{identity} did not reach management route {method} {path}: HTTP {allowed}")
+        self.observed["checks"]["managementAuthorization"] = "PASS"
+
+        payload = {
+            "htmlContent": "<p>T22A synthetic banner</p>", "title": "T22A synthetic banner",
+            "appearance": "PRIMARY", "icon": "INFORMATION", "dismissible": False,
+            "audience": "EVERYONE", "placement": "SITE_TOP", "pageTargets": [{"kind": "ALL"}],
+            "startAt": None, "endAt": None,
+        }
+        status, body = self.http("POST", base + "/banners", payload, self.tokens["admin"])
+        if status != 201:
+            raise ProofError(f"publish through Gateway failed: HTTP {status} {body}")
+        published = json.loads(body)
+        banner_uuid = published.get("uuid")
+        if not banner_uuid:
+            raise ProofError(f"publish omitted UUID: {published}")
+        self.observed["checks"]["publishThroughGateway"] = "PASS"
+
+        deadline = time.monotonic() + 20
+        audit_text = ""
+        while time.monotonic() < deadline:
+            audit_logs = self.docker(
+                "logs", self.containers["logging"], capture=True, check=False, timeout=30
+            )
+            audit_text = (audit_logs.stdout or "") + (audit_logs.stderr or "")
+            if "banner.published" in audit_text and banner_uuid in audit_text:
+                break
+            time.sleep(0.25)
+        else:
+            raise ProofError("normal logging service did not record the banner.published audit event")
+        if "<p>T22A synthetic banner</p>" in audit_text:
+            raise ProofError("audit log contains raw banner HTML")
+        self.observed["checks"]["operationsAuditReceipt"] = "PASS"
+
+        status, body = self.http("GET", public_url)
+        feed = json.loads(body) if status == 200 else None
+        if not isinstance(feed, list) or len(feed) != 1 or feed[0].get("uuid") != banner_uuid:
+            raise ProofError(f"published anonymous v2 feed drift: HTTP {status} {body}")
+        self.observed["checks"]["publishedAnonymousV2Feed"] = "PASS"
+        browser = self.browser("published")
+        if browser.get("feedCount") != 1 or browser.get("regionCount") != 1:
+            raise ProofError(f"published Chromium observation drift: {browser}")
+        self.observed["checks"]["publishedChromiumRender"] = "PASS"
+        self.observed["observations"].update(
+            {
+                "emptyFeedCount": 0, "emptyBannerRegionCount": 0, "managementRouteCount": len(routes),
+                "publishedFeedCount": 1, "publishedBannerRegionCount": 1,
+                "auditAction": "banner.published", "publishedBannerUuid": banner_uuid,
+            }
+        )
+
+    def capture_logs(self):
+        for service, container in self.containers.items():
+            result = self.docker("logs", container, capture=True, check=False, timeout=30)
+            (self.logs / f"{service}.log").write_text((result.stdout or "") + (result.stderr or ""), errors="replace")
+
+    def write_result(self):
+        self.observed["status"] = "PASS"
+        path = self.temp_root / "observed-result.json"
+        path.write_text(json.dumps(self.observed, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        print(f"Ticket 22A pre-cleanup result: {path}", flush=True)
+        return path
+
+    def run(self):
+        phases = (
+            self.verify_inputs, self.compose_owner_contracts, self.prepare_sources, self.build,
+            self.start_mysql_and_migrate, self.seed_auth, self.start_services, self.prove_path,
+        )
+        try:
+            for phase in phases:
+                print(f"Ticket 22A phase: {phase.__name__}", flush=True)
+                phase()
+            return self.write_result()
+        except Exception:
+            self.capture_logs()
+            (self.temp_root / "failed-result.json").write_text(
+                json.dumps(self.observed, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+            )
+            raise
+
+
+def finalize(aio_root, result_path):
+    root = Path(aio_root)
+    result = json.loads(Path(result_path).read_text())
+    expected = json.loads((root / "tests/banner-local-integration/expected-result.json").read_text())
+    result["checks"]["cleanup"] = "PASS"
+    for field in ("schemaVersion", "deployment", "sourceCommits", "rolloutContractSha256", "images", "limitations"):
+        if result.get(field) != expected.get(field):
+            raise ProofError(f"observed result field drift: {field}")
+    if result.get("status") != "PASS" or result.get("checks") != expected.get("checks"):
+        raise ProofError("observed result did not pass every required check")
+    for field, value in expected["observations"].items():
+        if result["observations"].get(field) != value:
+            raise ProofError(f"observed result drift for {field}")
+    Path(result_path).write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
+    print(Path(result_path).read_text(), end="")
+    print("AIO deployment-local banner integration PASS", flush=True)
+
+
+def main():
+    if len(sys.argv) == 4 and sys.argv[1] == "--finalize":
+        finalize(sys.argv[2], sys.argv[3])
+        return
+    if len(sys.argv) != 4:
+        raise SystemExit("usage: run.py <aio-root> <temp-root> <run-id>")
+    Harness(sys.argv[1], sys.argv[2], sys.argv[3]).run()
+
+
+if __name__ == "__main__":
+    main()

@@ -16,7 +16,7 @@ services, `dictionary-dump`, and `dictionaryetl`.
 - `dictionaryetl`: populates the Postgres database
 
 If you want to learn more about the Dictionary API, you can start by visiting 
-[the repo](https://github.com/hms-dbmi/picsure-dictionary/)
+[the monorepo](https://github.com/hms-dbmi/pic-sure/tree/main/services/picsure-dictionary/)
 If you want to better understand the Dictionary Schema, you can explore it by connecting the database:
 
 ```shell

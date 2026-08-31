@@ -1,7 +1,7 @@
 <?xml version='1.1' encoding='UTF-8'?>
 <project>
-  <actions/>
-  <description></description>
+  <actions />
+  <description />
   <keepDependencies>false</keepDependencies>
   <properties>
     <hudson.model.ParametersDefinitionProperty>
@@ -9,42 +9,42 @@
       <hudson.model.StringParameterDefinition>
             <name>SERVERNAME</name>
           <description>the server name to query for a certificate</description>
-          <defaultValue></defaultValue>
+          <defaultValue />
           <trim>true</trim>
         </hudson.model.StringParameterDefinition>
         <hudson.model.StringParameterDefinition>
             <name>CERTALIAS</name>
           <description>Alias for this certificate in the trustStore</description>
-          <defaultValue></defaultValue>
+          <defaultValue />
           <trim>true</trim>
         </hudson.model.StringParameterDefinition>
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
   </properties>
-  <scm class="hudson.scm.NullSCM"/>
+  <scm class="hudson.scm.NullSCM" />
   <canRoam>true</canRoam>
   <disabled>false</disabled>
   <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
   <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
-  <triggers/>
+  <triggers />
   <concurrentBuild>false</concurrentBuild>
   <builders>
     <hudson.tasks.Shell>
       <command>
-      if [ -f /usr/local/docker-config/wildfly/application.truststore ] ; then
+      if [ -f /usr/local/docker-config/psama/application.truststore ] ; then
         set +e
-      	keytool -v -delete -alias $CERTALIAS -keystore /usr/local/docker-config/wildfly/application.truststore -storepass password 
+      	keytool -v -delete -alias $CERTALIAS -keystore /usr/local/docker-config/psama/application.truststore -storepass password 
       	set -e
       fi
       
-      echo | openssl s_client -showcerts -servername $SERVERNAME -connect $SERVERNAME:443  2>&amp;1 | openssl x509 -text | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' > server.crt
+      echo | openssl s_client -showcerts -servername $SERVERNAME -connect $SERVERNAME:443  2&gt;&amp;1 | openssl x509 -text | sed -ne '/-BEGIN CERTIFICATE-/,/-END CERTIFICATE-/p' &gt; server.crt
       
-      keytool -import -noprompt -trustcacerts -keystore /usr/local/docker-config/wildfly/application.truststore -storepass password -alias $CERTALIAS -file server.crt
+      keytool -import -noprompt -trustcacerts -keystore /usr/local/docker-config/psama/application.truststore -storepass password -alias $CERTALIAS -file server.crt
       
       rm server.crt
 </command>
     </hudson.tasks.Shell>
   </builders>
-  <publishers/>
-  <buildWrappers/>
+  <publishers />
+  <buildWrappers />
 </project>

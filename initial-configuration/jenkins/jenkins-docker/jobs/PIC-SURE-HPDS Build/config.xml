@@ -1,7 +1,7 @@
 <?xml version='1.1' encoding='UTF-8'?>
 <project>
   <actions/>
-  <description></description>
+  <description>Build and tag the PIC-SURE-HPDS service and ETL container images from the shared "PIC-SURE Maven Build" reactor workspace. This job does not compile and does not deploy -- deploy is exclusively via Stop/Start PIC-SURE. The former Maven-in-Docker build-bootstrap image is retired; the reactor build now produces both the service jar and the ETL fat-jars directly.</description>
   <keepDependencies>false</keepDependencies>
   <properties>
     <hudson.model.ParametersDefinitionProperty>
@@ -11,30 +11,10 @@
           <defaultValue>MANUAL_RUN</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
-        <hudson.model.StringParameterDefinition>
-          <name>git_hash</name>
-          <defaultValue>*/master</defaultValue>
-          <trim>false</trim>
-        </hudson.model.StringParameterDefinition>
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
   </properties>
-  <scm class="hudson.plugins.git.GitSCM" plugin="git@5.9.0">
-    <configVersion>2</configVersion>
-    <userRemoteConfigs>
-      <hudson.plugins.git.UserRemoteConfig>
-        <url>https://github.com/hms-dbmi/pic-sure-hpds.git</url>
-      </hudson.plugins.git.UserRemoteConfig>
-    </userRemoteConfigs>
-    <branches>
-      <hudson.plugins.git.BranchSpec>
-        <name>${git_hash}</name>
-      </hudson.plugins.git.BranchSpec>
-    </branches>
-    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
-    <submoduleCfg class="empty-list"/>
-    <extensions/>
-  </scm>
+  <scm class="hudson.scm.NullSCM"/>
   <canRoam>true</canRoam>
   <disabled>false</disabled>
   <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
@@ -44,32 +24,43 @@
   <concurrentBuild>false</concurrentBuild>
   <builders>
     <hudson.tasks.Shell>
-      <command>if [ -f &quot;/usr/local/docker-config/setProxy.sh&quot; ]; then
+      <command>#!/bin/bash
+set -e
+
+MAVEN_WS=&quot;/var/jenkins_home/workspace/PIC-SURE Maven Build&quot;
+HPDS_DIR=&quot;$MAVEN_WS/services/pic-sure-hpds&quot;
+
+if [ -f &quot;/usr/local/docker-config/setProxy.sh&quot; ]; then
    . /usr/local/docker-config/setProxy.sh
 fi
 
-GIT_BRANCH_SHORT=`echo ${GIT_BRANCH} | cut -d &quot;/&quot; -f 2` 
-GIT_COMMIT_SHORT=`echo ${GIT_COMMIT} | cut -c1-7`
+# Guard: the reactor build produces the service jar AND writes the ETL
+# fat-jars straight into docker/pic-sure-hpds-etl/ (assembly outputDirectory).
+if [ ! -f &quot;$MAVEN_WS/build-info.txt&quot; ] \
+   || ! ls &quot;$HPDS_DIR&quot;/service/target/service-*.jar &gt;/dev/null 2&gt;&amp;1 \
+   || ! ls &quot;$HPDS_DIR&quot;/docker/pic-sure-hpds-etl/*-jar-with-dependencies.jar &gt;/dev/null 2&gt;&amp;1; then
+  echo &quot;ERROR: no reactor artifacts found -- run &apos;PIC-SURE Maven Build&apos; first&quot;
+  exit 2
+fi
+. &quot;$MAVEN_WS/build-info.txt&quot;
+if [ &quot;${PIPELINE_BUILD_ID:-}&quot; != &quot;$pipeline_build_id&quot; ]; then
+  echo &quot;ERROR: reactor artifacts belong to pipeline &apos;${PIPELINE_BUILD_ID:-unknown}&apos;, expected &apos;$pipeline_build_id&apos;&quot;
+  exit 2
+fi
 
-docker build -f docker/build.Dockerfile -t hms-dbmi/hpds-build .
-
-docker run --rm \
-  -v &quot;$DOCKER_CONFIG_DIR/jenkins_home/workspace/$JOB_NAME/:/app&quot; \
-  -v maven_m2_cache:/root/.m2 \
-  -w /app \
-  hms-dbmi/hpds-build \
-  sh -lc &quot;mvn clean install -DskipTests&quot;
-
-docker build -f docker/pic-sure-hpds/Dockerfile --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_proxy --build-arg no_proxy=&quot;$no_proxy&quot; \
---build-arg HTTP_PROXY=$http_proxy --build-arg HTTPS_PROXY=$http_proxy --build-arg NO_PROXY=&quot;$no_proxy&quot; \
--t hms-dbmi/pic-sure-hpds:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} .
-docker tag hms-dbmi/pic-sure-hpds:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} hms-dbmi/pic-sure-hpds:LATEST
+# Build/tag only. Deploy happens exclusively via Stop/Start PIC-SURE.
+docker build -f &quot;$HPDS_DIR/docker/pic-sure-hpds/Dockerfile&quot; \
+  --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_proxy --build-arg no_proxy=&quot;$no_proxy&quot; \
+  --build-arg HTTP_PROXY=$http_proxy --build-arg HTTPS_PROXY=$http_proxy --build-arg NO_PROXY=&quot;$no_proxy&quot; \
+  -t &quot;hms-dbmi/pic-sure-hpds:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT}&quot; &quot;$HPDS_DIR&quot;
+docker tag &quot;hms-dbmi/pic-sure-hpds:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT}&quot; hms-dbmi/pic-sure-hpds:LATEST
 
 # HPDS ETL
-docker build -f docker/pic-sure-hpds-etl/Dockerfile --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_proxy --build-arg no_proxy=&quot;$no_proxy&quot; \
---build-arg HTTP_PROXY=$http_proxy --build-arg HTTPS_PROXY=$http_proxy --build-arg NO_PROXY=&quot;$no_proxy&quot; \
--t hms-dbmi/pic-sure-hpds-etl:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} .
-docker tag hms-dbmi/pic-sure-hpds-etl:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} hms-dbmi/pic-sure-hpds-etl:LATEST</command>
+docker build -f &quot;$HPDS_DIR/docker/pic-sure-hpds-etl/Dockerfile&quot; \
+  --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_proxy --build-arg no_proxy=&quot;$no_proxy&quot; \
+  --build-arg HTTP_PROXY=$http_proxy --build-arg HTTPS_PROXY=$http_proxy --build-arg NO_PROXY=&quot;$no_proxy&quot; \
+  -t &quot;hms-dbmi/pic-sure-hpds-etl:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT}&quot; &quot;$HPDS_DIR&quot;
+docker tag &quot;hms-dbmi/pic-sure-hpds-etl:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT}&quot; hms-dbmi/pic-sure-hpds-etl:LATEST</command>
       <configuredLocalRules/>
     </hudson.tasks.Shell>
   </builders>

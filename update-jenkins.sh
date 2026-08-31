@@ -6,6 +6,40 @@ sed_inplace() {
     sed -i '' "$@"
   fi
 }
+
+read_jenkins_env_value() {
+  local key=$1
+  local config_file=$2
+
+  awk -v needle="<string>$key</string>" '
+    index($0, needle) {
+      if (getline) {
+        sub(/^[[:space:]]*<string>/, "")
+        sub(/<\/string>[[:space:]]*$/, "")
+        print
+        exit
+      }
+    }
+  ' "$config_file"
+}
+
+restore_jenkins_env_value() {
+  local key=$1
+  local backup_config=$2
+  local target_config=$3
+  local value
+  local escaped_value
+
+  value=$(read_jenkins_env_value "$key" "$backup_config")
+  if [ -z "$value" ]; then
+    echo "Unable to restore Jenkins environment value: $key" >&2
+    return 1
+  fi
+
+  escaped_value=$(printf '%s' "$value" | sed 's/[\\&|]/\\&/g')
+  sed_inplace "/<string>$key<\\/string>/{n;s|<string>.*</string>|<string>$escaped_value</string>|;}" "$target_config"
+}
+
 ./stop-jenkins.sh
 git pull
 
@@ -39,18 +73,34 @@ else
   cp -r initial-configuration/jenkins/jenkins-docker/scriptApproval.xml "$DOCKER_CONFIG_DIR"/jenkins_home/
   cp -r initial-configuration/jenkins/jenkins-docker/hudson.tasks.Maven.xml "$DOCKER_CONFIG_DIR"/jenkins_home/hudson.tasks.Maven.xml
 
-  if [ ! -f "$DOCKER_CONFIG_DIR"/wildfly/mysql-connector-java-5.1.49.jar ]; then
-  	cp initial-configuration/config/wildfly/mysql-connector-java-5.1.49.jar "$DOCKER_CONFIG_DIR"/wildfly/
-  	cp initial-configuration/config/wildfly/wildfly_mysql_module.xml "$DOCKER_CONFIG_DIR"/wildfly/
-  fi
+  # Keep Jenkins from treating an existing installation as a new one after
+  # the full reset. These files contain only installation/upgrade state.
+  for install_state_file in \
+    jenkins.install.UpgradeWizard.state \
+    jenkins.install.InstallUtil.lastExecVersion; do
+    if [ -f "$DOCKER_CONFIG_DIR/jenkins_home_bak/$install_state_file" ]; then
+      cp -p "$DOCKER_CONFIG_DIR/jenkins_home_bak/$install_state_file" "$DOCKER_CONFIG_DIR/jenkins_home/"
+    fi
+  done
 
-  # Pull through previous PICSURE configurations
-  sed_inplace "s|__PROJECT_SPECIFIC_OVERRIDE_REPO__|`cat "$DOCKER_CONFIG_DIR"/jenkins_home_bak/config.xml | grep -A1 project_specific_override_repo | tail -1 | sed 's/<\/*string>//g' | sed 's/ //g' `|g" "$DOCKER_CONFIG_DIR"/jenkins_home/config.xml
-  sed_inplace "s|__RELEASE_CONTROL_REPO__|`cat "$DOCKER_CONFIG_DIR"/jenkins_home_bak/config.xml | grep -A1 release_control_repo | tail -1 | sed 's/<\/*string>//g' | sed 's/ //g' `|g" "$DOCKER_CONFIG_DIR"/jenkins_home/config.xml
-  sed_inplace "s|/usr/local/docker-config/|`cat "$DOCKER_CONFIG_DIR"/jenkins_home_bak/config.xml | grep -A1 DOCKER_CONFIG_DIR | tail -1 | sed 's/<\/*string>//g' | sed 's/ //g' `|g" "$DOCKER_CONFIG_DIR"/jenkins_home/config.xml
-  sed_inplace "s|host|`cat "$DOCKER_CONFIG_DIR"/jenkins_home_bak/config.xml | grep -A1 MYSQL_NETWORK | tail -1 | sed 's/<\/*string>//g' | sed 's/ //g' `|g" "$DOCKER_CONFIG_DIR"/jenkins_home/config.xml
-  sed_inplace "s|*/master|`cat "$DOCKER_CONFIG_DIR"/jenkins_home_bak/config.xml | grep -A1 release_control_branch | tail -1 | sed 's/<\/*string>//g' | sed 's/ //g' `|g" "$DOCKER_CONFIG_DIR"/jenkins_home/config.xml
-  sed_inplace "s|__PROJECT_SPECIFIC_MIGRATION_NAME__|`cat "$DOCKER_CONFIG_DIR"/jenkins_home_bak/config.xml | grep -A1 MIGRATION_NAME | tail -1 | sed 's/<\/*string>//g' | sed 's/ //g' `|g" "$DOCKER_CONFIG_DIR"/jenkins_home/config.xml
+  # Restore configurable values by key so paths embedded in other values are
+  # not accidentally rewritten.
+  backup_config="$DOCKER_CONFIG_DIR/jenkins_home_bak/config.xml"
+  target_config="$DOCKER_CONFIG_DIR/jenkins_home/config.xml"
+  for env_key in \
+    release_control_branch \
+    release_control_repo \
+    DOCKER_CONFIG_DIR \
+    MYSQL_NETWORK \
+    MYSQL_CONFIG_DIR \
+    MIGRATION_REPO \
+    MIGRATION_NAME; do
+    # Jenkins is stopped and jenkins_home is already repopulated by this point, so a
+    # key the backup lacks must not abort the update - that leaves Jenkins down.
+    if ! restore_jenkins_env_value "$env_key" "$backup_config" "$target_config"; then
+      echo "Keeping the shipped default for $env_key" >&2
+    fi
+  done
 fi
 
 ./start-jenkins.sh

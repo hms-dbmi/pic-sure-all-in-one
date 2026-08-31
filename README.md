@@ -183,6 +183,11 @@ sudo ./install-dependencies-docker.sh /path/to/desired/config/dir/
       controls what code is built and deployed. If you just want the default PIC-SURE behavior use this
       repo : https://github.com/hms-dbmi/baseline-pic-sure-release-control
 
+      All PIC-SURE Java services build from the single `hms-dbmi/pic-sure` monorepo: the build-spec's
+      `PSA` entry pins one ref (branch, tag, or hash) that every service job builds from
+      (`services/<name>` subdirectories). A release is one monorepo ref — the remaining separate
+      entries are only for genuinely separate repos (`PSF` frontend, `PSM` migrations, `DICTIONARY_ETL`).
+
     - `ANALYTICS_ID`: This is the Google Analytics ID for your project. If you do not have one, you can leave this blank.
 
 Note: Ensure none of these fields contain leading or trailing whitespace, the values must be exact. Once you have
@@ -225,12 +230,8 @@ sudo ./stop-jenkins.sh
 
 - To start or stop PIC-SURE use the "Start PIC-SURE" and "Stop PIC-SURE" jobs.
 
-- To start or stop JupyterHub use the "Start JupyterHub" and "Stop JupyterHub" jobs. The Start JupyterHub job asks you
-  to set a password. Currently this password is shared by all JupyterHub users, we are working to integrate JupyterHub
-  with the PIC-SURE Auth Micro-App so that users can log in using the same credentials they use to access PIC-SURE UI.
-  To access JupyterHub browse to your server ip address on the path /jupyterhub
-
-For example, if your server has IP `10.109.190.146`, browse to https://10.109.190.146/jupyterhub
+- The legacy JupyterHub jobs are archived under
+  `initial-configuration/jenkins/jenkins-docker/archived-jobs` and are not installed into Jenkins.
 
 - If you have an Apache HTTPD compatible certificate, chain, and key files for SSL configuration, navigate to the
   Configuration tab and run the Configure SSL Certificates job uploading your server.crt, server.chain, and server.key
@@ -318,6 +319,28 @@ does migrate your initial configurations.  (Does not impact PIC-SURE users)
 1. Follow the jenkins set up steps again.
 
 A backup of your jenkins home can be found here: `"$DOCKER_CONFIG_DIR"/jenkins_home_bak/`
+
+### Migrating an existing WildFly environment
+
+Updating Jenkins installs the mono-repo jobs, but it does not create the gateway,
+operations-service, or query-service environment files required to replace a legacy
+WildFly deployment. For an existing Docker all-in-one installation:
+
+1. Back up `DOCKER_CONFIG_DIR`, including the `wildfly`, `httpd`, `logging`, and
+   Jenkins configuration directories.
+2. Update Jenkins using the instructions above.
+3. Run **Migrate PIC-SURE Environment** and review its migration summary. The job
+   copies required values such as the token-introspection token, PIC-SURE database
+   password, and logging key into the new service env files; it also creates and
+   synchronizes the new internal service tokens. WildFly remains running during this preparation step.
+4. Run **PIC-SURE Database Migrations**, then run **PIC-SURE Pipeline**. The
+   pipeline builds the mono-repo images and performs the Stop/Start restart that
+   removes the legacy WildFly container and starts the gateway-era services.
+
+The environment migration is idempotent and is safe to rerun after a partial
+failure. It does not stop WildFly or archive the legacy configuration directory.
+Do not run **Initial Configuration Pipeline** as an upgrade procedure for an
+existing deployment.
 
 ## Users
 

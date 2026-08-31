@@ -202,13 +202,6 @@ else
   echo "dictionary network already exists. Leaving it alone."
 fi
 
-if [ -z "$(docker volume ls --format '{{.Name}}' | grep ^wildfly_deployments$)" ]; then
-  echo "Creating docker volume for WildFly"
-  docker volume create wildfly_deployments
-else
-  echo "docker volume for WildFly already exists."
-fi
-
 #-------------------------------------------------------------------------------------------------#
 #                                           MySQL Start                                           #
 #                                 Install Mysql and configure DB                                  #
@@ -234,12 +227,13 @@ cp -r jenkins/jenkins-docker/jobs "$DOCKER_CONFIG_DIR"/jenkins_home/
 cp -r jenkins/jenkins-docker/config.xml "$DOCKER_CONFIG_DIR"/jenkins_home/config.xml
 cp -r jenkins/jenkins-docker/hudson.tasks.Maven.xml "$DOCKER_CONFIG_DIR"/jenkins_home/hudson.tasks.Maven.xml
 cp -r jenkins/jenkins-docker/scriptApproval.xml "$DOCKER_CONFIG_DIR"/jenkins_home/scriptApproval.xml
+cp -r jenkins/jenkins-docker/jenkins.install.UpgradeWizard.state "$DOCKER_CONFIG_DIR"/jenkins_home/jenkins.install.UpgradeWizard.state
+cp -r jenkins/jenkins-docker/jenkins.install.InstallUtil.lastExecVersion "$DOCKER_CONFIG_DIR"/jenkins_home/jenkins.install.InstallUtil.lastExecVersion
 mkdir -p "$DOCKER_CONFIG_DIR"/log/httpd-docker-logs/ssl_mutex
 
 export APP_ID=`uuidgen | tr '[:upper:]' '[:lower:]'`
 export APP_ID_HEX=`echo $APP_ID | awk '{ print toupper($0) }'|sed 's/-//g'`
 sed_inplace "s/__STACK_SPECIFIC_APPLICATION_ID__/$APP_ID/g" $DOCKER_CONFIG_DIR/httpd/picsureui_settings.json
-sed_inplace "s/__STACK_SPECIFIC_APPLICATION_ID__/$APP_ID/g" $DOCKER_CONFIG_DIR/wildfly/standalone.xml
 sed_inplace "s/__STACK_SPECIFIC_APPLICATION_ID__/$APP_ID/g" $DOCKER_CONFIG_DIR/psama/psama.env
 
 export RESOURCE_ID=`uuidgen | tr '[:upper:]' '[:lower:]'`
@@ -257,8 +251,10 @@ echo $RESOURCE_ID_HEX > $DOCKER_CONFIG_DIR/RESOURCE_ID_HEX
 # existing deployments upgrading without this directory remain opt-in.
 mkdir -p $DOCKER_CONFIG_DIR/logging
 mkdir -p $DOCKER_CONFIG_DIR/log/logging-docker-logs
-LOGGING_API_KEY=$(openssl rand -hex 32)
-sed_inplace "s/__LOGGING_API_KEY__/$LOGGING_API_KEY/g" $DOCKER_CONFIG_DIR/logging/logging.env
+
+# Render secrets shared by the gateway, operations, query, and logging services.
+# The renderer preserves already-rendered values and never prints them.
+./configure-service-envs.sh
 
 mkdir -p $DOCKER_CONFIG_DIR/hpds_csv
 mkdir -p $DOCKER_CONFIG_DIR/hpds/all

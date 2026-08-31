@@ -91,9 +91,7 @@
 def retrieveBuildSpecId;
 def pipelineBuildId;
 def build_hashes = [
-    DICTIONARY: false,
-    UPLOADER: false,
-    AGGREGATE: false
+    PSF: false
 ];
 pipeline {
     agent any
@@ -139,11 +137,10 @@ pipeline {
                     sh &apos;cat build-spec.json&apos;
                     sh &apos;cat pipeline_git_commit.txt&apos;
                     sh &apos;pwd&apos;
-                    def buildSpec = new JsonSlurper().parse(new File(&apos;/var/jenkins_home/workspace/PIC-SURE Pipeline/build-spec.json&apos;))
-                    pipelineBuildId = new File(&apos;/var/jenkins_home/workspace/PIC-SURE Pipeline/pipeline_git_commit.txt&apos;).text.trim()
-                    for(def build : buildSpec.application){
-                        build_hashes[build.project_job_git_key] = build.git_hash
-                    }
+                    def buildSpec = new JsonSlurper().parse(new File(&apos;/var/jenkins_home/workspace/Set up public 1000Genomes Genomic Data/build-spec.json&apos;))
+                    pipelineBuildId = new File(&apos;/var/jenkins_home/workspace/Set up public 1000Genomes Genomic Data/pipeline_git_commit.txt&apos;).text.trim()
+                    def frontendBuild = buildSpec.application.find { it.project_job_git_key.equalsIgnoreCase(&apos;PSF&apos;) }
+                    build_hashes[&apos;PSF&apos;] = frontendBuild?.git_hash ?: false
                 }
             }
         }
@@ -172,7 +169,8 @@ pipeline {
                         branches: [[name: env.GIT_BRANCH]],
                         userRemoteConfigs: [[url: env.GIT_REPOSITORY]],
                         extensions: [
-                            [$class: &apos;SparseCheckoutPaths&apos;, sparseCheckoutPaths: [[path: env.SPARSE_CHECKOUT_PATH]]]
+                            [$class: &apos;SparseCheckoutPaths&apos;, sparseCheckoutPaths: [[path: env.SPARSE_CHECKOUT_PATH]]],
+                            [$class: &apos;PruneStaleBranch&apos;]
                         ]
                     ])
                 }

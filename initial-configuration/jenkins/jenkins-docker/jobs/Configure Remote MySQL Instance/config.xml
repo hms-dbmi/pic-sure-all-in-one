@@ -1,6 +1,6 @@
 <?xml version='1.1' encoding='UTF-8'?>
 <project>
-  <actions/>
+  <actions />
   <description>This configures PIC-SURE for the DB, but also configures the DB for PIC-SURE.</description>
   <keepDependencies>false</keepDependencies>
   <properties>
@@ -40,74 +40,97 @@
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
   </properties>
-  <scm class="hudson.scm.NullSCM"/>
+  <scm class="hudson.scm.NullSCM" />
   <canRoam>true</canRoam>
   <disabled>false</disabled>
   <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
   <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
-  <triggers/>
+  <triggers />
   <concurrentBuild>false</concurrentBuild>
   <builders>
     <hudson.tasks.Shell>
       <command>#!/usr/bin/env bash
-echo &quot;Configure Remote MySql Instance&quot;
-FILE=&quot;/root/.my.cnf&quot;
+echo "Configure Remote MySql Instance"
+FILE="/root/.my.cnf"
 cat &lt;&lt;EOM &gt;$FILE
 [mysql]
 user=$MYSQL_USER_NAME
-password=&quot;$MYSQL_PASSWORD&quot;
+password="$MYSQL_PASSWORD"
 host=$MYSQL_HOST_NAME
 port=$MYSQL_PORT
 EOM
-echo &quot;&quot;
+echo ""
 
 
 flyway_auth_url=jdbc:mysql://$MYSQL_HOST_NAME:$MYSQL_PORT/auth?serverTimezone=UTC
 flyway_picsure_url=jdbc:mysql://$MYSQL_HOST_NAME:$MYSQL_PORT/picsure?serverTimezone=UTC
 
 cd /usr/local/docker-config/flyway/auth
-sed -i &apos;/flyway.url/d&apos; ./flyway-auth.conf
-sed -i &quot;1iflyway.url=$flyway_auth_url&quot; ./flyway-auth.conf
-sed -i &apos;/host/d&apos; ./sql.properties
-sed -i &quot;1ihost=$MYSQL_HOST_NAME&quot; ./sql.properties
-sed -i &apos;/port/d&apos; ./sql.properties
-sed -i &quot;2iport=$MYSQL_PORT&quot; ./sql.properties
+sed -i '/flyway.url/d' ./flyway-auth.conf
+sed -i "1iflyway.url=$flyway_auth_url" ./flyway-auth.conf
+sed -i '/host/d' ./sql.properties
+sed -i "1ihost=$MYSQL_HOST_NAME" ./sql.properties
+sed -i '/port/d' ./sql.properties
+sed -i "2iport=$MYSQL_PORT" ./sql.properties
 
 cd /usr/local/docker-config/flyway/picsure
-sed -i &apos;/flyway.url/d&apos; ./flyway-picsure.conf
-sed -i &quot;1iflyway.url=$flyway_picsure_url&quot; ./flyway-picsure.conf
-sed -i &apos;/host/d&apos; ./sql.properties
-sed -i &quot;1ihost=$MYSQL_HOST_NAME&quot; ./sql.properties
-sed -i &apos;/port/d&apos; ./sql.properties
-sed -i &quot;2iport=$MYSQL_PORT&quot; ./sql.properties
+sed -i '/flyway.url/d' ./flyway-picsure.conf
+sed -i "1iflyway.url=$flyway_picsure_url" ./flyway-picsure.conf
+sed -i '/host/d' ./sql.properties
+sed -i "1ihost=$MYSQL_HOST_NAME" ./sql.properties
+sed -i '/port/d' ./sql.properties
+sed -i "2iport=$MYSQL_PORT" ./sql.properties
 
-sed -i &apos;s/jdbc:mysql*.*auth/jdbc:mysql:\/\/&apos;$MYSQL_HOST_NAME&apos;:&apos;$MYSQL_PORT&apos;\/auth/g&apos; /usr/local/docker-config/psama/psama.env
+sed -i 's/jdbc:mysql*.*auth/jdbc:mysql:\/\/'$MYSQL_HOST_NAME':'$MYSQL_PORT'\/auth/g' /usr/local/docker-config/psama/psama.env
 
-cd /usr/local/docker-config/wildfly
-sed -i &apos;s/jdbc:mysql*.*picsure/jdbc:mysql:\/\/&apos;$MYSQL_HOST_NAME&apos;:&apos;$MYSQL_PORT&apos;\/picsure/g&apos; /usr/local/docker-config/wildfly/standalone.xml
+# picsure DB owner is now the operations-service; point it at the remote instance too.
+OPS_ENV=/usr/local/docker-config/operations/operations.env
+PICSURE_PASSWORD=""
 
-echo `grep &quot;password&quot; /usr/local/docker-config/flyway/auth/sql.properties | cut -d &quot;=&quot; -f2-` &gt;  airflow.tmp
-sed -n -e &apos;/&lt;user-name&gt;auth/{n;p}&apos; ./standalone.xml &gt; auth.tmp
-sed -n -e &apos;/&lt;user-name&gt;picsure/{n;p}&apos; ./standalone.xml &gt; picsure.tmp
+# Creating this file (or its directory) would switch INCLUDE_OPERATIONS on in
+# start-picsure.sh and deploy operations-service with no internal tokens.
+if [ ! -f "$OPS_ENV" ]; then
+  echo "operations.env is not present; skipping operations-service wiring."
+  echo "Run 'Migrate PIC-SURE Environment' or the Initial Configuration Pipeline first, then rerun this job."
+else
+  PICSURE_PASSWORD=$(grep '^SPRING_DATASOURCE_PASSWORD=' "$OPS_ENV" | cut -d '=' -f 2-)
+  if [ -z "$PICSURE_PASSWORD" ] || [ "$PICSURE_PASSWORD" = "__PICSURE_MYSQL_PASSWORD__" ]; then
+    PICSURE_PASSWORD=$(tr -dc 'A-Za-z0-9' &lt; /dev/urandom | head -c 24)
+    if grep -q '^SPRING_DATASOURCE_PASSWORD=' "$OPS_ENV"; then
+      sed -i "s|^SPRING_DATASOURCE_PASSWORD=.*|SPRING_DATASOURCE_PASSWORD=$PICSURE_PASSWORD|" "$OPS_ENV"
+    else
+      echo "SPRING_DATASOURCE_PASSWORD=$PICSURE_PASSWORD" &gt;&gt; "$OPS_ENV"
+    fi
+  fi
 
-AIRFLOW_PASSWORD=`grep &quot;password&quot; /usr/local/docker-config/flyway/auth/sql.properties | cut -d &quot;=&quot; -f2-`
-PICSURE_PASSWORD=`sed -n &apos;s/&lt;password&gt;\(.*\)&lt;\/password&gt;/\1/p&apos; picsure.tmp | xargs` 
-AUTH_PASSWORD=`sed -n &apos;s/&lt;password&gt;\(.*\)&lt;\/password&gt;/\1/p&apos; auth.tmp | xargs` 
-
-docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  &quot;grant all privileges on auth.* to &apos;airflow&apos;@&apos;%&apos; identified by &apos;$AIRFLOW_PASSWORD&apos;;flush privileges;&quot; mysql
-docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  &quot;grant all privileges on picsure.* to &apos;airflow&apos;@&apos;%&apos; identified by &apos;$AIRFLOW_PASSWORD&apos;;flush privileges;&quot; mysql
-docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  &quot;grant all privileges on picsure.* to &apos;picsure&apos;@&apos;%&apos; identified by &apos;$PICSURE_PASSWORD&apos;;flush privileges;&quot; mysql
-docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  &quot;grant all privileges on auth.* to &apos;auth&apos;@&apos;%&apos; identified by &apos;$AUTH_PASSWORD&apos;;flush privileges;&quot; mysql
-
-if [ &quot;$DROP_EXISTING_TABLES&quot; = &quot;TRUE&quot; ]; then
-  docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  &quot;drop database IF EXISTS auth;&quot; mysql
-  docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  &quot;drop database IF EXISTS picsure;&quot; mysql
+  if grep -q '^SPRING_DATASOURCE_URL=' "$OPS_ENV"; then
+    sed -i 's|^SPRING_DATASOURCE_URL=.*|SPRING_DATASOURCE_URL=jdbc:mysql://'$MYSQL_HOST_NAME':'$MYSQL_PORT'/picsure?useUnicode=true\&amp;characterEncoding=UTF-8\&amp;autoReconnect=true\&amp;autoReconnectForPools=true\&amp;serverTimezone=UTC|' "$OPS_ENV"
+  else
+    echo 'SPRING_DATASOURCE_URL=jdbc:mysql://'$MYSQL_HOST_NAME':'$MYSQL_PORT'/picsure?useUnicode=true&amp;characterEncoding=UTF-8&amp;autoReconnect=true&amp;autoReconnectForPools=true&amp;serverTimezone=UTC' &gt;&gt; "$OPS_ENV"
+  fi
 fi
 
-docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  &quot;create database IF NOT EXISTS auth;&quot; mysql
-docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  &quot;create database IF NOT EXISTS picsure;&quot; mysql
+AIRFLOW_PASSWORD=`grep "password" /usr/local/docker-config/flyway/auth/sql.properties | cut -d "=" -f2-`
+AUTH_PASSWORD=`grep '^DATASOURCE_PASSWORD=' /usr/local/docker-config/psama/psama.env | cut -d '=' -f 2-`
+
+docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  "grant all privileges on auth.* to 'airflow'@'%' identified by '$AIRFLOW_PASSWORD';flush privileges;" mysql
+docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  "grant all privileges on picsure.* to 'airflow'@'%' identified by '$AIRFLOW_PASSWORD';flush privileges;" mysql
+if [ -n "$PICSURE_PASSWORD" ]; then
+  docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  "grant all privileges on picsure.* to 'picsure'@'%' identified by '$PICSURE_PASSWORD';flush privileges;" mysql
+else
+  echo "No operations-service password configured; leaving the picsure MySQL user untouched."
+fi
+docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  "grant all privileges on auth.* to 'auth'@'%' identified by '$AUTH_PASSWORD';flush privileges;" mysql
+
+if [ "$DROP_EXISTING_TABLES" = "TRUE" ]; then
+  docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  "drop database IF EXISTS auth;" mysql
+  docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  "drop database IF EXISTS picsure;" mysql
+fi
+
+docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  "create database IF NOT EXISTS auth;" mysql
+docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  "create database IF NOT EXISTS picsure;" mysql
       </command>
-      <configuredLocalRules/>
+      <configuredLocalRules />
     </hudson.tasks.Shell>
   </builders>
   <publishers>
@@ -121,5 +144,5 @@ docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf mysql mysql -e  &q
       </threshold>
     </hudson.tasks.BuildTrigger>
   </publishers>
-  <buildWrappers/>
+  <buildWrappers />
 </project>

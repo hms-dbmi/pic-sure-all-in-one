@@ -1,7 +1,7 @@
 <?xml version='1.1' encoding='UTF-8'?>
 <project>
   <actions/>
-  <description>Deploy Dictionary API Container</description>
+  <description>Build and tag the PIC-SURE Dictionary API container images (avillach/dictionary-api, avillach/dictionary-dump) from the shared &quot;PIC-SURE Maven Build&quot; reactor workspace. This job does not compile. If dictionary-db has never been created, this job bootstraps it (one-time); otherwise deploy is exclusively via Stop/Start PIC-SURE.</description>
   <keepDependencies>false</keepDependencies>
   <properties>
     <hudson.model.ParametersDefinitionProperty>
@@ -14,30 +14,10 @@
           <defaultValue>MANUAL_RUN</defaultValue>
           <trim>false</trim>
         </hudson.model.StringParameterDefinition>
-        <hudson.model.StringParameterDefinition>
-          <name>git_hash</name>
-          <defaultValue>origin/main</defaultValue>
-          <trim>true</trim>
-        </hudson.model.StringParameterDefinition>
       </parameterDefinitions>
     </hudson.model.ParametersDefinitionProperty>
   </properties>
-  <scm class="hudson.plugins.git.GitSCM" plugin="git@5.2.2">
-    <configVersion>2</configVersion>
-    <userRemoteConfigs>
-      <hudson.plugins.git.UserRemoteConfig>
-        <url>https://github.com/hms-dbmi/picsure-dictionary.git</url>
-      </hudson.plugins.git.UserRemoteConfig>
-    </userRemoteConfigs>
-    <branches>
-      <hudson.plugins.git.BranchSpec>
-        <name>${git_hash}</name>
-      </hudson.plugins.git.BranchSpec>
-    </branches>
-    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
-    <submoduleCfg class="empty-list"/>
-    <extensions/>
-  </scm>
+  <scm class="hudson.scm.NullSCM"/>
   <canRoam>true</canRoam>
   <disabled>false</disabled>
   <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
@@ -48,64 +28,64 @@
   <builders>
     <hudson.tasks.Shell>
       <command>#!/bin/bash
+set -e
+trap &apos;rm -f &quot;$DICT_DIR/.env&quot;&apos; EXIT
 
+MAVEN_WS=&quot;/var/jenkins_home/workspace/PIC-SURE Maven Build&quot;
+DICT_DIR=&quot;$MAVEN_WS/services/picsure-dictionary&quot;
 CONFIG_DIR=&quot;/usr/local/docker-config/dictionary&quot;
-COMPOSE_FILE=&quot;docker-compose.yml&quot;
+
+if [ ! -f &quot;$MAVEN_WS/build-info.txt&quot; ] \
+   || ! ls &quot;$DICT_DIR&quot;/target/dictionary-*.jar &gt;/dev/null 2&gt;&amp;1 \
+   || ! ls &quot;$DICT_DIR&quot;/aggregate/target/dump-*.jar &gt;/dev/null 2&gt;&amp;1; then
+  echo &quot;ERROR: no reactor artifacts found -- run &apos;PIC-SURE Maven Build&apos; first&quot;
+  exit 2
+fi
+. &quot;$MAVEN_WS/build-info.txt&quot;
+if [ &quot;${PIPELINE_BUILD_ID:-}&quot; != &quot;$pipeline_build_id&quot; ]; then
+  echo &quot;ERROR: reactor artifacts belong to pipeline &apos;${PIPELINE_BUILD_ID:-unknown}&apos;, expected &apos;$pipeline_build_id&apos;&quot;
+  exit 2
+fi
 
 mkdir -p &quot;$CONFIG_DIR&quot;
 mkdir -p &quot;$CONFIG_DIR/db/data&quot;
+cp &quot;$DICT_DIR/db/schema.sql&quot; &quot;$CONFIG_DIR/db/schema.sql&quot;
 
-cp ./db/schema.sql &quot;$CONFIG_DIR/db/schema.sql&quot;
-
-docker run --rm \
-  -v &quot;$DOCKER_CONFIG_DIR/jenkins_home/workspace/$JOB_NAME/:/app&quot; \
-  -v maven_m2_cache:/root/.m2 \
-  -w /app \
-  --platform=linux/amd64 \
-  maven:3-amazoncorretto-21 \
-  sh -lc &quot;mvn -B clean package -DskipTests&quot;
-
-docker run --rm \
-  -v &quot;$DOCKER_CONFIG_DIR/jenkins_home/workspace/$JOB_NAME/aggregate/:/app&quot; \
-  -v maven_m2_cache:/root/.m2 \
-  -w /app \
-  --platform=linux/amd64 \
-  maven:3-amazoncorretto-25 \
-  sh -lc &quot;mvn -B clean package -DskipTests&quot;
-
-# Step 1: Handle the .env file logic
+# env-file cascade (uploaded param &gt; existing config &gt; generated default)
 if [ -f dictionary.env ]; then
     echo &quot;A new dictionary.env was loaded.&quot;
     cp dictionary.env &quot;$CONFIG_DIR/dictionary.env&quot;
-    mv dictionary.env .env
 elif [ -f &quot;$CONFIG_DIR/dictionary.env&quot; ]; then
     echo &quot;Using existing dictionary.env&quot;
-    cp &quot;$CONFIG_DIR/dictionary.env&quot; .env
 else
     echo &quot;Creating new dictionary.env file.&quot;
-
     POSTGRES_PASSWORD=$(tr -dc A-Za-z0-9 &lt;/dev/urandom | head -c 24)
-
     {
         echo &quot;POSTGRES_PASSWORD=$POSTGRES_PASSWORD&quot;
         echo &quot;POSTGRES_USER=picsure&quot;
         echo &quot;POSTGRES_DB=dictionary&quot;
         echo &quot;POSTGRES_HOST=dictionary-db&quot;
-    } &gt; .env
-
-    cp .env &quot;$CONFIG_DIR/dictionary.env&quot;
+        echo &quot;PICSURE_ACTUATOR_EXPOSURE=health&quot;
+    } &gt; &quot;$CONFIG_DIR/dictionary.env&quot;
 fi
 
-# Step 2: Check if dictionary-db service is running
-if docker ps --filter &quot;name=dictionary-db&quot; --format &apos;{{.Names}}&apos; | grep -q &quot;dictionary-db&quot;; then
-    echo &quot;dictionary-db is already running. Rebuilding only the dictionary-api service.&quot;
-    docker stop dictionary-api &amp;&amp; docker rm dictionary-api
-    docker stop dictionary-dump &amp;&amp; docker rm dictionary-dump
-    docker compose up -d --no-deps --build dictionary-api dictionary-dump
+# Build/tag only (compose no longer builds). start-picsure.sh runs the
+# containers from these tags.
+docker build -t avillach/dictionary-api:latest &quot;$DICT_DIR&quot;
+docker tag avillach/dictionary-api:latest &quot;avillach/dictionary-api:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT}&quot;
+docker build -t avillach/dictionary-dump:latest &quot;$DICT_DIR/aggregate&quot;
+docker tag avillach/dictionary-dump:latest &quot;avillach/dictionary-dump:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT}&quot;
+
+# Bootstrap dictionary-db if it has never been created: start-picsure.sh only
+# does `docker start dictionary-db`, so first creation must happen here.
+if ! docker ps -a --filter &quot;name=dictionary-db&quot; --format &apos;{{.Names}}&apos; | grep -q &quot;^dictionary-db$&quot;; then
+    echo &quot;dictionary-db does not exist yet; creating it via compose (no build, db service only).&quot;
+    cd &quot;$DICT_DIR&quot;
+    cp &quot;$CONFIG_DIR/dictionary.env&quot; .env
+    docker compose up -d --no-build dictionary-db
+    rm -f .env
 else
-    echo &quot;dictionary-db is not running. Starting all services.&quot;
-    docker stop dictionary-api &amp;&amp; docker rm dictionary-api
-    docker compose up -d --build
+    echo &quot;dictionary-db already exists; leaving it to Stop/Start PIC-SURE.&quot;
 fi</command>
       <configuredLocalRules/>
     </hudson.tasks.Shell>

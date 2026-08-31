@@ -1,25 +1,21 @@
 <?xml version='1.1' encoding='UTF-8'?>
 <project>
   <actions/>
-  <description></description>
+  <description>Build the weights:latest container image from the shared &quot;PIC-SURE Maven Build&quot; reactor workspace and run the dictionary weights batch container. This job does not compile and is not part of the Pipeline -- it is a one-off data task, not a service deploy.</description>
   <keepDependencies>false</keepDependencies>
-  <properties/>
-  <scm class="hudson.plugins.git.GitSCM" plugin="git@5.5.2">
-    <configVersion>2</configVersion>
-    <userRemoteConfigs>
-      <hudson.plugins.git.UserRemoteConfig>
-        <url>https://github.com/hms-dbmi/picsure-dictionary</url>
-      </hudson.plugins.git.UserRemoteConfig>
-    </userRemoteConfigs>
-    <branches>
-      <hudson.plugins.git.BranchSpec>
-        <name>*/main</name>
-      </hudson.plugins.git.BranchSpec>
-    </branches>
-    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
-    <submoduleCfg class="empty-list"/>
-    <extensions/>
-  </scm>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>pipeline_build_id</name>
+          <description>Identity of the PIC-SURE Maven Build reactor artifacts to consume.</description>
+          <defaultValue>MANUAL_RUN</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.scm.NullSCM"/>
   <canRoam>true</canRoam>
   <disabled>false</disabled>
   <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
@@ -29,11 +25,26 @@
   <concurrentBuild>false</concurrentBuild>
   <builders>
     <hudson.tasks.Shell>
-      <command>rm -rf /usr/local/docker-config/dictionary/weights.csv
-cp dictionaryweights/weights.csv /usr/local/docker-config/dictionary/weights.csv
-cd dictionaryweights
+      <command>#!/bin/bash
+set -e
 
-docker build --no-cache -t weights:latest .
+MAVEN_WS=&quot;/var/jenkins_home/workspace/PIC-SURE Maven Build&quot;
+WEIGHTS_DIR=&quot;$MAVEN_WS/services/picsure-dictionary/dictionaryweights&quot;
+
+if [ ! -f &quot;$MAVEN_WS/build-info.txt&quot; ] || ! ls &quot;$WEIGHTS_DIR&quot;/target/dictionaryweights-*.jar &gt;/dev/null 2&gt;&amp;1; then
+  echo &quot;ERROR: no reactor artifacts found -- run &apos;PIC-SURE Maven Build&apos; first&quot;
+  exit 2
+fi
+. &quot;$MAVEN_WS/build-info.txt&quot;
+if [ &quot;${PIPELINE_BUILD_ID:-}&quot; != &quot;$pipeline_build_id&quot; ]; then
+  echo &quot;ERROR: reactor artifacts belong to pipeline &apos;${PIPELINE_BUILD_ID:-unknown}&apos;, expected &apos;$pipeline_build_id&apos;&quot;
+  exit 2
+fi
+
+rm -rf /usr/local/docker-config/dictionary/weights.csv
+cp &quot;$WEIGHTS_DIR/weights.csv&quot; /usr/local/docker-config/dictionary/weights.csv
+
+docker build --no-cache -t weights:latest &quot;$WEIGHTS_DIR&quot;
 
 cp /usr/local/docker-config/dictionary/dictionary.env .env
 

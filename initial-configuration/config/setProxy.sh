@@ -10,7 +10,7 @@ proxyProto=""
 proxyUser=""
 proxyPass=""
 # List of hosts that bypass the proxy
-noProxy="localhost,127.0.0.1,wildfly,httpd,hpds"
+noProxy="localhost,127.0.0.1,httpd,hpds"
 ### END: Configuration
 ############################################################
 

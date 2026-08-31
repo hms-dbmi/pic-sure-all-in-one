@@ -11,6 +11,17 @@ DOCKER_CONFIG_DIR="${DOCKER_CONFIG_DIR:-/usr/local/docker-config}"
 # Except for --env_file commands, which refer to the current file system, not the root fs
 CURRENT_FS_DOCKER_CONFIG_DIR="${CURRENT_FS_DOCKER_CONFIG_DIR:-$DOCKER_CONFIG_DIR}"
 
+stop_and_remove_container() {
+  local container_name=$1
+
+  if ! docker container inspect "$container_name" >/dev/null 2>&1; then
+    echo "$container_name does not exist; nothing to stop."
+    return 0
+  fi
+
+  docker stop "$container_name" && docker rm "$container_name"
+}
+
 if [ -f "$CURRENT_FS_DOCKER_CONFIG_DIR/setProxy.sh" ]; then
    . $CURRENT_FS_DOCKER_CONFIG_DIR/setProxy.sh
 fi
@@ -18,8 +29,6 @@ fi
 # Optional services
 [[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/hpds" ]] && INCLUDE_HPDS=true || INCLUDE_HPDS=false
 echo "INCLUDE_HPDS=$INCLUDE_HPDS"
-[[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/uploader" ]] && INCLUDE_UPLOADER=true || INCLUDE_UPLOADER=false
-echo "INCLUDE_UPLOADER=$INCLUDE_UPLOADER"
 [[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/dictionary" ]] && INCLUDE_DICTIONARY=true || INCLUDE_DICTIONARY=false
 echo "INCLUDE_DICTIONARY=$INCLUDE_DICTIONARY"
 [[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/dictionary/dump" ]] && INCLUDE_AGG_DICT=true || INCLUDE_AGG_DICT=false
@@ -30,29 +39,42 @@ echo "INCLUDE_PASSTHRU=$INCLUDE_PASSTHRU"
 echo "INCLUDE_LOGGING=$INCLUDE_LOGGING"
 [[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/visualization" ]] && INCLUDE_VISUALIZATION=true || INCLUDE_VISUALIZATION=false
 echo "INCLUDE_VISUALIZATION=$INCLUDE_VISUALIZATION"
+[[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/gateway" ]] && INCLUDE_GATEWAY=true || INCLUDE_GATEWAY=false
+echo "INCLUDE_GATEWAY=$INCLUDE_GATEWAY"
+[[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/operations" ]] && INCLUDE_OPERATIONS=true || INCLUDE_OPERATIONS=false
+echo "INCLUDE_OPERATIONS=$INCLUDE_OPERATIONS"
+[[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/query" ]] && INCLUDE_QUERY=true || INCLUDE_QUERY=false
+echo "INCLUDE_QUERY=$INCLUDE_QUERY"
 
 if $INCLUDE_HPDS; then
-  docker stop hpds && docker rm hpds
+  stop_and_remove_container hpds
 fi
-docker stop httpd && docker rm httpd
-docker stop wildfly && docker rm wildfly
-docker stop psama && docker rm psama
+stop_and_remove_container httpd
+# WildFly is no longer deployed; clean up a leftover container from older installs.
+stop_and_remove_container wildfly
+stop_and_remove_container psama
 
-if $INCLUDE_UPLOADER; then
-  docker compose --profile production -f $CURRENT_FS_DOCKER_CONFIG_DIR/uploader/docker-compose.yml down
-fi
 if $INCLUDE_DICTIONARY; then
-  docker stop dictionary-api && docker rm dictionary-api
+  stop_and_remove_container dictionary-api
 fi
 if $INCLUDE_AGG_DICT; then
-  docker stop dictionary-dump && docker rm dictionary-dump
+  stop_and_remove_container dictionary-dump
 fi
 if $INCLUDE_PASSTHRU; then
-  docker stop passthru && docker rm passthru
+  stop_and_remove_container passthru
 fi
 if $INCLUDE_LOGGING; then
-  docker stop pic-sure-logging && docker rm pic-sure-logging
+  stop_and_remove_container pic-sure-logging
 fi
 if $INCLUDE_VISUALIZATION; then
-  docker stop visualization && docker rm visualization
+  stop_and_remove_container visualization
+fi
+if $INCLUDE_GATEWAY; then
+  stop_and_remove_container gateway
+fi
+if $INCLUDE_OPERATIONS; then
+  stop_and_remove_container pic-sure-operations-service
+fi
+if $INCLUDE_QUERY; then
+  stop_and_remove_container pic-sure-hpds-query-service
 fi

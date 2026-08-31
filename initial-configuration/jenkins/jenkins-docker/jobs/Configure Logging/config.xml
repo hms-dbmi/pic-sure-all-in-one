@@ -1,45 +1,46 @@
 <?xml version='1.1' encoding='UTF-8'?>
 <project>
-  <actions/>
-  <description>Configure the PIC-SURE Logging Service API key in wildfly standalone.xml. Reads the key from logging.env and replaces the current value in standalone.xml.</description>
+  <actions />
+  <description>Configure the PIC-SURE Logging Service API key. Reads the key from logging.env and propagates it to the services that use the logging client.</description>
   <keepDependencies>false</keepDependencies>
-  <properties/>
-  <scm class="hudson.scm.NullSCM"/>
+  <properties />
+  <scm class="hudson.scm.NullSCM" />
   <canRoam>true</canRoam>
   <disabled>false</disabled>
   <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
   <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
-  <triggers/>
+  <triggers />
   <concurrentBuild>false</concurrentBuild>
   <builders>
     <hudson.tasks.Shell>
-      <command>LOGGING_ENV=&quot;/usr/local/docker-config/logging/logging.env&quot;
-STANDALONE=&quot;/usr/local/docker-config/wildfly/standalone.xml&quot;
+      <command>LOGGING_ENV="/usr/local/docker-config/logging/logging.env"
 
-if [ ! -f &quot;$LOGGING_ENV&quot; ]; then
-    echo &quot;No logging.env found at $LOGGING_ENV - skipping.&quot;
+if [ ! -f "$LOGGING_ENV" ]; then
+    echo "No logging.env found at $LOGGING_ENV - skipping."
     exit 0
 fi
 
-NEW_API_KEY=$(grep &apos;^LOGGING_API_KEY=&apos; &quot;$LOGGING_ENV&quot; | cut -d= -f2-)
-if [ -z &quot;$NEW_API_KEY&quot; ]; then
-    echo &quot;LOGGING_API_KEY not set in $LOGGING_ENV - skipping.&quot;
+NEW_API_KEY=$(grep '^LOGGING_API_KEY=' "$LOGGING_ENV" | cut -d= -f2-)
+if [ -z "$NEW_API_KEY" ]; then
+    echo "LOGGING_API_KEY not set in $LOGGING_ENV - skipping."
     exit 0
 fi
 
-# Read current value from standalone.xml
-OLD_API_KEY=$(grep &apos;logging_api_key&apos; &quot;$STANDALONE&quot; | sed &apos;s/.*value=&quot;\([^&quot;]*\)&quot;.*/\1/&apos;)
-
-if [ &quot;$OLD_API_KEY&quot; = &quot;$NEW_API_KEY&quot; ]; then
-    echo &quot;Logging API key already up to date.&quot;
-    exit 0
+GATEWAY_ENV="/usr/local/docker-config/gateway/gateway.env"
+if [ ! -f "$GATEWAY_ENV" ]; then
+    echo "ERROR: gateway.env is required at $GATEWAY_ENV"
+    exit 2
 fi
+if grep -q '^LOGGING_API_KEY=' "$GATEWAY_ENV"; then
+    sed -i "s|^LOGGING_API_KEY=.*|LOGGING_API_KEY=$NEW_API_KEY|" "$GATEWAY_ENV"
+else
+    echo "LOGGING_API_KEY=$NEW_API_KEY" &gt;&gt; "$GATEWAY_ENV"
+fi
+echo "gateway.env logging key updated -- recreate gateway to apply."
 
-echo &quot;Updating logging_api_key in standalone.xml&quot;
-sed -i &quot;s|$OLD_API_KEY|$NEW_API_KEY|g&quot; &quot;$STANDALONE&quot;
 </command>
     </hudson.tasks.Shell>
   </builders>
-  <publishers/>
-  <buildWrappers/>
+  <publishers />
+  <buildWrappers />
 </project>

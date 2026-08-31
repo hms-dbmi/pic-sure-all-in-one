@@ -1,9 +1,9 @@
 <?xml version='1.1' encoding='UTF-8'?>
 <project>
-  <actions/>
-  <description></description>
+  <actions />
+  <description />
   <keepDependencies>false</keepDependencies>
-  <properties/>
+  <properties />
   <scm class="hudson.plugins.git.GitSCM" plugin="git@4.2.2">
     <configVersion>2</configVersion>
     <userRemoteConfigs>
@@ -17,44 +17,49 @@
       </hudson.plugins.git.BranchSpec>
     </branches>
     <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
-    <submoduleCfg class="list"/>
-    <extensions/>
+    <submoduleCfg class="list" />
+    <extensions>
+      <hudson.plugins.git.extensions.impl.PruneStaleBranch/>
+    </extensions>
   </scm>
   <canRoam>true</canRoam>
   <disabled>false</disabled>
   <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
   <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
-  <triggers/>
+  <triggers />
   <concurrentBuild>false</concurrentBuild>
   <builders>
     <hudson.tasks.Maven>
       <targets>clean install</targets>
       <mavenName>Maven Home</mavenName>
       <usePrivateRepository>false</usePrivateRepository>
-      <settings class="jenkins.mvn.DefaultSettingsProvider"/>
-      <globalSettings class="jenkins.mvn.DefaultGlobalSettingsProvider"/>
+      <settings class="jenkins.mvn.DefaultSettingsProvider" />
+      <globalSettings class="jenkins.mvn.DefaultGlobalSettingsProvider" />
       <injectBuildVariables>false</injectBuildVariables>
     </hudson.tasks.Maven>
     <hudson.tasks.Shell>
       <command>cd target
 
-cat /usr/local/docker-config/wildfly/standalone.xml | grep client_secret | cut -d &apos;=&apos; -f 3 | sed &apos;s/[\&quot;/\&gt;]//g&apos; &gt; secret.txt
+grep '^APPLICATION_CLIENT_SECRET=' /usr/local/docker-config/psama/psama.env | cut -d '=' -f 2- &gt; secret.txt
 
-export appplication_uuid=`docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -N -e &quot;SELECT BIN_TO_UUID(uuid) FROM auth.application where name=&apos;PICSURE&apos;;&quot;`
+export appplication_uuid=`docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -N -e "SELECT BIN_TO_UUID(uuid) FROM auth.application where name='PICSURE';"`
 
 # This UUID is currently a magic number of sorts, this will need to be parameterized to make this job portable
-export new_token_introspection_token=`java -jar generateJwt.jar secret.txt sub &quot;PSAMA_APPLICATION|${appplication_uuid}&quot; 365 day | grep -v &quot;Generating&quot;`
+export new_token_introspection_token=`java -jar generateJwt.jar secret.txt sub "PSAMA_APPLICATION|${appplication_uuid}" 365 day | grep -v "Generating"`
 
-export old_token_introspection_token=`cat /usr/local/docker-config/wildfly/standalone.xml | grep token_introspection_token | cut -d &apos;=&apos; -f 3 | sed &apos;s/[\&quot;/\&gt;]//&apos;g`
-sed -i &quot;s/$old_token_introspection_token/$new_token_introspection_token/g&quot; /usr/local/docker-config/wildfly/standalone.xml
-
-sed -i &quot;s/$old_token_introspection_token/$new_token_introspection_token/g&quot; /usr/local/docker-config/psama/psama.env
+gateway_env=/usr/local/docker-config/gateway/gateway.env
+if grep -q '^TOKEN_INTROSPECTION_TOKEN=' "$gateway_env"; then
+  sed -i "s|^TOKEN_INTROSPECTION_TOKEN=.*|TOKEN_INTROSPECTION_TOKEN=$new_token_introspection_token|" "$gateway_env"
+else
+  printf '\nTOKEN_INTROSPECTION_TOKEN=%s\n' "$new_token_introspection_token" &gt;&gt; "$gateway_env"
+fi
+echo "gateway.env updated -- recreate the gateway container (Deploy or Start PIC-SURE) to apply."
 
 docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e \
-&quot;update application set token=&apos;$new_token_introspection_token&apos;;&quot; auth
+"update application set token='$new_token_introspection_token';" auth
 </command>
     </hudson.tasks.Shell>
   </builders>
-  <publishers/>
-  <buildWrappers/>
+  <publishers />
+  <buildWrappers />
 </project>

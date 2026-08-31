@@ -81,7 +81,16 @@ if [ -z "$(docker ps --format '{{.Names}}' | grep picsure-db)" ]; then
   docker exec -t picsure-db mysql -u root -p$ROOT_PASS -e "GRANT ALL PRIVILEGES ON picsure.* TO 'airflow'@'%';FLUSH PRIVILEGES;";
 
   PICSURE_PASS=$(generate-random)
-  sed_inplace s/__PIC_SURE_MYSQL_PASSWORD__/$PICSURE_PASS/g "$DOCKER_CONFIG_DIR/wildfly/standalone.xml"
+  OPS_ENV="$DOCKER_CONFIG_DIR/operations/operations.env"
+  if [ ! -f "$OPS_ENV" ]; then
+    echo "ERROR: operations environment template is missing: $OPS_ENV" >&2
+    exit 2
+  fi
+  if ! grep -q '^SPRING_DATASOURCE_PASSWORD=__PICSURE_MYSQL_PASSWORD__$' "$OPS_ENV"; then
+    echo "ERROR: operations database password placeholder is missing from $OPS_ENV" >&2
+    exit 2
+  fi
+  sed_inplace "s|^SPRING_DATASOURCE_PASSWORD=__PICSURE_MYSQL_PASSWORD__$|SPRING_DATASOURCE_PASSWORD=$PICSURE_PASS|" "$OPS_ENV"
   docker exec -t picsure-db mysql -u root -p$ROOT_PASS -e "CREATE USER 'picsure'@'%' IDENTIFIED BY '$PICSURE_PASS';";
   docker exec -t picsure-db mysql -u root -p$ROOT_PASS -e "GRANT ALL PRIVILEGES ON picsure.* to 'picsure'@'%';FLUSH PRIVILEGES";
 
@@ -94,4 +103,25 @@ if [ -z "$(docker ps --format '{{.Names}}' | grep picsure-db)" ]; then
 else
   echo "You are already running a docker container named picsure-db. If you want to remove it, do so manually"
   echo "Don't forget to rm the $DOCKER_CONFIG_DIR/picsure-db volume too"
+
+  # The branch above is what normally renders the operations datasource password, so
+  # on this path operations.env can still hold the template placeholder - which starts
+  # operations-service with a password no MySQL user has.
+  OPS_ENV="$DOCKER_CONFIG_DIR/operations/operations.env"
+  if [ -f "$OPS_ENV" ] && grep -q '^SPRING_DATASOURCE_PASSWORD=__PICSURE_MYSQL_PASSWORD__$' "$OPS_ENV"; then
+    ROOT_PASS=$(sed -n 's/^PICSURE_DB_ROOT_PASS=//p' mysql-docker/.env 2>/dev/null | head -n 1)
+    if [ -z "$ROOT_PASS" ]; then
+      echo "ERROR: operations.env still holds the database password placeholder, and the" >&2
+      echo "picsure-db root password could not be read from mysql-docker/.env." >&2
+      echo "Set SPRING_DATASOURCE_PASSWORD to match the picsure MySQL user by hand, or" >&2
+      echo "remove the picsure-db container and rerun this script." >&2
+      exit 2
+    fi
+    PICSURE_PASS=$(generate-random)
+    docker exec -t picsure-db mysql -u root -p$ROOT_PASS -e "CREATE USER IF NOT EXISTS 'picsure'@'%' IDENTIFIED BY '$PICSURE_PASS';";
+    docker exec -t picsure-db mysql -u root -p$ROOT_PASS -e "ALTER USER 'picsure'@'%' IDENTIFIED BY '$PICSURE_PASS';";
+    docker exec -t picsure-db mysql -u root -p$ROOT_PASS -e "GRANT ALL PRIVILEGES ON picsure.* to 'picsure'@'%';FLUSH PRIVILEGES;";
+    sed_inplace "s|^SPRING_DATASOURCE_PASSWORD=__PICSURE_MYSQL_PASSWORD__$|SPRING_DATASOURCE_PASSWORD=$PICSURE_PASS|" "$OPS_ENV"
+    echo "Rendered the operations-service database password against the existing picsure-db."
+  fi
 fi

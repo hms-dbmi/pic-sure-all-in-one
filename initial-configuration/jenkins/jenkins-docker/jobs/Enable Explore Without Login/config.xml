@@ -1,7 +1,7 @@
 <?xml version='1.1' encoding='UTF-8'?>
 <project>
     <actions />
-    <description>Enables or disables Explore Without Login while preserving the existing Discover configuration. Shared anonymous access remains enabled when either feature is active.</description>
+    <description>Enables or disables Explore Without Login while preserving the existing Discover configuration. Shared anonymous access remains enabled when either feature is active. DISABLE_PUBLIC_ACCESS revokes anonymous access to the authenticated HPDS backend on its own, without touching anything else.</description>
     <keepDependencies>false</keepDependencies>
     <properties>
         <hudson.model.ParametersDefinitionProperty>
@@ -9,6 +9,11 @@
                 <hudson.model.BooleanParameterDefinition>
                     <name>ENABLE_EXPLORE_WITHOUT_LOGIN</name>
                     <description>Allow anonymous users to use Explorer against the authenticated HPDS backend.</description>
+                    <defaultValue>false</defaultValue>
+                </hudson.model.BooleanParameterDefinition>
+                <hudson.model.BooleanParameterDefinition>
+                    <name>DISABLE_PUBLIC_ACCESS</name>
+                    <description>Revoke anonymous access to the authenticated HPDS backend and change nothing else. Writes ENABLE_PUBLIC_ACCESS=false and leaves Discover, the gateway, and the open IDP provider alone. Cannot be combined with Explore Without Login.</description>
                     <defaultValue>false</defaultValue>
                 </hudson.model.BooleanParameterDefinition>
                 <hudson.model.BooleanParameterDefinition>
@@ -33,9 +38,16 @@ set -euo pipefail
 
 ENABLE_EXPLORE_WITHOUT_LOGIN="${ENABLE_EXPLORE_WITHOUT_LOGIN:-false}"
 CONFIRM_AUTH_HPDS_PUBLIC="${CONFIRM_AUTH_HPDS_PUBLIC:-false}"
+DISABLE_PUBLIC_ACCESS="${DISABLE_PUBLIC_ACCESS:-false}"
 
 if [ "$ENABLE_EXPLORE_WITHOUT_LOGIN" = "true" ] &amp;&amp; [ "$CONFIRM_AUTH_HPDS_PUBLIC" != "true" ]; then
     echo "ERROR: CONFIRM_AUTH_HPDS_PUBLIC must be true when ENABLE_EXPLORE_WITHOUT_LOGIN=true."
+    exit 1
+fi
+
+if [ "$ENABLE_EXPLORE_WITHOUT_LOGIN" = "true" ] &amp;&amp; [ "$DISABLE_PUBLIC_ACCESS" = "true" ]; then
+    echo "ERROR: DISABLE_PUBLIC_ACCESS revokes the anonymous access ENABLE_EXPLORE_WITHOUT_LOGIN grants."
+    echo "ERROR: Pick one. To turn Explore Without Login off entirely, leave both unchecked."
     exit 1
 fi
 
@@ -46,12 +58,12 @@ HTTPD_ENV="$CONFIG_DIR/httpd/httpd.env"
 PSAMA_ENV="$CONFIG_DIR/psama/psama.env"
 GATEWAY_ENV="$CONFIG_DIR/gateway/gateway.env"
 
-for required_file in "$HTTPD_ENV" "$PSAMA_ENV" "$GATEWAY_ENV"; do
-    if [ ! -f "$required_file" ]; then
-        echo "ERROR: Required configuration file not found: $required_file"
+require_file() {
+    if [ ! -f "$1" ]; then
+        echo "ERROR: Required configuration file not found: $1"
         exit 1
     fi
-done
+}
 
 upsert_env() {
     local key=$1
@@ -90,6 +102,29 @@ validate_env() {
         exit 1
     fi
 }
+
+if [ "$DISABLE_PUBLIC_ACCESS" = "true" ]; then
+    require_file "$PSAMA_ENV"
+
+    upsert_env ENABLE_PUBLIC_ACCESS false "$PSAMA_ENV"
+    validate_env ENABLE_PUBLIC_ACCESS false "$PSAMA_ENV"
+
+    echo "Anonymous access to authenticated HPDS (ENABLE_PUBLIC_ACCESS): false"
+    echo "Discover, gateway open access, and the open IDP provider were left as they are."
+
+    if [ -f "$HTTPD_ENV" ] &amp;&amp; [ "$(read_env VITE_OPEN_EXPLORER "$HTTPD_ENV")" = "true" ]; then
+        echo "WARNING: VITE_OPEN_EXPLORER is still true, so the frontend keeps offering Explore"
+        echo "WARNING: Without Login. Those queries will now be denied by PSAMA. Re-run this job"
+        echo "WARNING: with every box unchecked to take the feature down cleanly."
+    fi
+
+    echo "Run Start PIC-SURE to apply: PSAMA reads ENABLE_PUBLIC_ACCESS at startup."
+    exit 0
+fi
+
+require_file "$HTTPD_ENV"
+require_file "$PSAMA_ENV"
+require_file "$GATEWAY_ENV"
 
 DISCOVER_ENABLED="$(read_env VITE_DISCOVER "$HTTPD_ENV")"
 DISCOVER_ENABLED="${DISCOVER_ENABLED:-false}"

@@ -367,7 +367,11 @@ Cannot log in:
 - Custom IDP: configure PSAMA connections in the admin UI and add frontend
   `VITE_AUTH_PROVIDER_MODULE_*` values in `.env`, then rebuild `httpd`.
 - SSL: replace `certs/server.crt`, `certs/server.key`, and
-  `certs/server.chain`, then restart `httpd`.
+  `certs/server.chain`, then restart `httpd`. The key is bind-mounted into a
+  container whose Apache runs as uid/gid 2, so it must be readable by that uid
+  (`sudo chgrp 2 certs/server.key && sudo chmod 0640 certs/server.key`) —
+  otherwise SSL init fails and `httpd` serves nothing. `./preflight.sh` checks
+  this.
 - Custom trust certs: place `.crt`, `.cer`, or `.pem` files under
   `certs/trust/`; `init.sh` imports them into the PSAMA truststore at
   `config/psama/application.truststore`.

@@ -201,6 +201,7 @@ file). Consumers must treat checks as a list, not a map.
 | `host.daemon` | docker daemon reachable |
 | `files.<path>` | required file exists |
 | `exec.<path>` | required script is executable |
+| `tls.key.readable` | `certs/server.key` is readable by httpd's uid 2 (`warn` before `init.sh` has generated it; skipped on macOS) |
 | `syntax.<path>` | `bash -n` passes |
 | `env.present` | `.env` exists (`warn` when missing) |
 | `env.parse` | `.env` is valid shell (`fail` when not; per-var checks are then skipped) |

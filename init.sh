@@ -272,6 +272,30 @@ if [ ! -f "$CERTS_DIR/server.crt" ] || [ "$FORCE" = "true" ]; then
   # Create a self-signed chain (just the cert itself for self-signed)
   cp "$CERTS_DIR/server.crt" "$CERTS_DIR/server.chain"
 
+  # openssl leaves the key 0600 owned by whoever ran init.sh, but Apache in
+  # the httpd image runs as uid/gid 2 (daemon) and docker-compose.yml mounts
+  # this key in as an individual file — so the HOST ownership wins over the
+  # image's build-time chown of /usr/local/apache2/cert. Any invoking uid
+  # other than 2 therefore yields a key Apache cannot read: SSL init aborts
+  # with "AH02574: Init: Can't open server private key file", no listener
+  # ever starts, and httpd just sits unhealthy with nothing on 80/443.
+  #
+  # When the chgrp can take (root) the key stays off the world by handing its
+  # group to gid 2. Otherwise 0644 is the only mode that yields a stack which
+  # serves: an unprivileged user cannot chgrp to a group they are not in.
+  # Testing the chgrp itself rather than the uid keeps the same promise on a
+  # host where being root is not enough (root-squashed NFS) instead of dying
+  # there. World-readable is an acceptable trade for THIS key: it is the
+  # throwaway self-signed localhost cert generated three lines up. An
+  # operator's real key never reaches here — the enclosing guard skips the
+  # whole block once server.crt exists — so replacing certs/server.* with
+  # production files keeps whatever permissions their owner gave them.
+  if chgrp 2 "$CERTS_DIR/server.key" 2>/dev/null; then
+    chmod 0640 "$CERTS_DIR/server.key"
+  else
+    chmod 0644 "$CERTS_DIR/server.key"
+  fi
+
   info "Certificate generated in $CERTS_DIR/"
   warn "This is a self-signed certificate for development/evaluation only."
   warn "Replace with real certificates for production use."

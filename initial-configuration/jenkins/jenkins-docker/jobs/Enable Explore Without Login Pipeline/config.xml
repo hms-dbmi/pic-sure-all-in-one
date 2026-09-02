@@ -20,6 +20,11 @@
           <defaultValue>false</defaultValue>
         </hudson.model.BooleanParameterDefinition>
         <hudson.model.BooleanParameterDefinition>
+          <name>DISABLE_PUBLIC_ACCESS</name>
+          <description>Revoke Explore Without Login: closes the authenticated HPDS backend to anonymous callers and takes the Explorer out of the UI. Rebuilds the frontend and restarts, so both halves land together. Cannot be combined with Explore Without Login.</description>
+          <defaultValue>false</defaultValue>
+        </hudson.model.BooleanParameterDefinition>
+        <hudson.model.BooleanParameterDefinition>
           <name>CONFIRM_AUTH_HPDS_PUBLIC</name>
           <description>I understand that Explore Without Login makes authenticated HPDS data publicly accessible.</description>
           <defaultValue>false</defaultValue>
@@ -46,12 +51,22 @@
             }
         }
 
+        stage(&apos;Reject Contradictory Request&apos;) {
+            when {
+                expression { env.ENABLE_EXPLORE_WITHOUT_LOGIN.toBoolean() &amp;&amp; env.DISABLE_PUBLIC_ACCESS.toBoolean() }
+            }
+            steps {
+                error(&apos;DISABLE_PUBLIC_ACCESS revokes the anonymous access ENABLE_EXPLORE_WITHOUT_LOGIN grants. Pick one.&apos;)
+            }
+        }
+
         stage(&apos;Configure Anonymous Access&apos;) {
             steps {
                 script {
                     def result = build job: &apos;Enable Explore Without Login&apos;, parameters: [
                         [$class: &apos;BooleanParameterValue&apos;, name: &apos;ENABLE_EXPLORE_WITHOUT_LOGIN&apos;, value: env.ENABLE_EXPLORE_WITHOUT_LOGIN.toBoolean()],
-                        [$class: &apos;BooleanParameterValue&apos;, name: &apos;CONFIRM_AUTH_HPDS_PUBLIC&apos;, value: env.CONFIRM_AUTH_HPDS_PUBLIC.toBoolean()]
+                        [$class: &apos;BooleanParameterValue&apos;, name: &apos;CONFIRM_AUTH_HPDS_PUBLIC&apos;, value: env.CONFIRM_AUTH_HPDS_PUBLIC.toBoolean()],
+                        [$class: &apos;BooleanParameterValue&apos;, name: &apos;DISABLE_PUBLIC_ACCESS&apos;, value: env.DISABLE_PUBLIC_ACCESS.toBoolean()]
                     ]
                 }
             }

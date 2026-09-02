@@ -30,6 +30,10 @@ picsure_load_env "$ENV_FILE"
 
 RETRIES="${DB_WAIT_RETRIES:-30}"
 SLEEP_SECONDS="${DB_WAIT_SLEEP_SECONDS:-2}"
+# The authenticated probe below gets its own budget rather than sharing
+# RETRIES: it only starts once the container is healthy, so time already spent
+# waiting for health is not its to spend.
+AUTH_RETRIES="$RETRIES"
 
 if [ "${DB_MODE:-local}" = "remote" ]; then
   info "Waiting for remote MySQL at ${DB_HOST:-unset}:${DB_PORT:-3306}..."
@@ -54,6 +58,42 @@ else
     RETRIES=$((RETRIES - 1))
     if [ "$RETRIES" -le 0 ]; then
       error "picsure-db did not become healthy in time."
+      error "Check logs: docker compose logs picsure-db"
+      exit 1
+    fi
+    sleep "$SLEEP_SECONDS"
+  done
+
+  # "healthy" is not "ready to authenticate". The Compose healthcheck is
+  # `mysqladmin ping`, which reports alive on access-denied AND against the
+  # socket-only temporary server the mysql entrypoint runs while it initialises
+  # an empty datadir (logged as "ready for connections ... port: 0"). On a
+  # first install that lands seconds before root can log in, so a caller that
+  # immediately runs a real query — init.sh's credential check — sees a
+  # spurious failure on a brand-new volume.
+  #
+  # Probe over TCP to 127.0.0.1 rather than the container socket: the temporary
+  # server runs with --skip-networking, so an answer on 3306 also proves the
+  # entrypoint has finished (root grants applied, docker-entrypoint-initdb.d
+  # scripts run) and the real mysqld is the one serving.
+  info "Waiting for picsure-db to accept authenticated connections..."
+  while ! probe_error="$(picsure_db_exec_mysql -h 127.0.0.1 -e "SELECT 1;" 2>&1)"; do
+    # Access denied is a definitive answer from a fully started server: the
+    # wait is over either way, and retrying would burn the whole budget before
+    # anyone hears why. Not fatal here — this script's contract stays
+    # "reachable" (the ping healthcheck also passed on access-denied before
+    # this loop existed), and init.sh owns the stale-volume diagnosis with the
+    # actionable message. Ours would be swallowed anyway: init.sh sends this
+    # script's output to /dev/null unless --verbose/--log.
+    if [[ "$probe_error" == *"Access denied"* ]]; then
+      warn "picsure-db is accepting connections but rejected DB_ROOT_PASSWORD."
+      break
+    fi
+
+    AUTH_RETRIES=$((AUTH_RETRIES - 1))
+    if [ "$AUTH_RETRIES" -le 0 ]; then
+      error "picsure-db did not accept an authenticated connection in time."
+      error "Last error: $probe_error"
       error "Check logs: docker compose logs picsure-db"
       exit 1
     fi

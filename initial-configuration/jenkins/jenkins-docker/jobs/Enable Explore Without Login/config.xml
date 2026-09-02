@@ -1,7 +1,7 @@
 <?xml version='1.1' encoding='UTF-8'?>
 <project>
     <actions />
-    <description>Enables or disables Explore Without Login while preserving the existing Discover configuration. Shared anonymous access remains enabled when either feature is active.</description>
+    <description>Enables or disables Explore Without Login while preserving the existing Discover configuration. Shared anonymous access remains enabled when either feature is active. DISABLE_PUBLIC_ACCESS revokes Explore Without Login on its own, backend and UI, without touching Discover or the gateway.</description>
     <keepDependencies>false</keepDependencies>
     <properties>
         <hudson.model.ParametersDefinitionProperty>
@@ -9,6 +9,11 @@
                 <hudson.model.BooleanParameterDefinition>
                     <name>ENABLE_EXPLORE_WITHOUT_LOGIN</name>
                     <description>Allow anonymous users to use Explorer against the authenticated HPDS backend.</description>
+                    <defaultValue>false</defaultValue>
+                </hudson.model.BooleanParameterDefinition>
+                <hudson.model.BooleanParameterDefinition>
+                    <name>DISABLE_PUBLIC_ACCESS</name>
+                    <description>Revoke Explore Without Login: closes the authenticated HPDS backend to anonymous callers (ENABLE_PUBLIC_ACCESS=false) and takes the Explorer out of the UI (VITE_OPEN_EXPLORER=false). Discover, shared anonymous access, the gateway, and the open IDP provider are left alone. The UI half needs a frontend rebuild, so prefer the Pipeline job. Cannot be combined with Explore Without Login.</description>
                     <defaultValue>false</defaultValue>
                 </hudson.model.BooleanParameterDefinition>
                 <hudson.model.BooleanParameterDefinition>
@@ -33,9 +38,16 @@ set -euo pipefail
 
 ENABLE_EXPLORE_WITHOUT_LOGIN="${ENABLE_EXPLORE_WITHOUT_LOGIN:-false}"
 CONFIRM_AUTH_HPDS_PUBLIC="${CONFIRM_AUTH_HPDS_PUBLIC:-false}"
+DISABLE_PUBLIC_ACCESS="${DISABLE_PUBLIC_ACCESS:-false}"
 
 if [ "$ENABLE_EXPLORE_WITHOUT_LOGIN" = "true" ] &amp;&amp; [ "$CONFIRM_AUTH_HPDS_PUBLIC" != "true" ]; then
     echo "ERROR: CONFIRM_AUTH_HPDS_PUBLIC must be true when ENABLE_EXPLORE_WITHOUT_LOGIN=true."
+    exit 1
+fi
+
+if [ "$ENABLE_EXPLORE_WITHOUT_LOGIN" = "true" ] &amp;&amp; [ "$DISABLE_PUBLIC_ACCESS" = "true" ]; then
+    echo "ERROR: DISABLE_PUBLIC_ACCESS revokes the anonymous access ENABLE_EXPLORE_WITHOUT_LOGIN grants."
+    echo "ERROR: Pick one. To turn Explore Without Login off entirely, leave both unchecked."
     exit 1
 fi
 
@@ -46,12 +58,12 @@ HTTPD_ENV="$CONFIG_DIR/httpd/httpd.env"
 PSAMA_ENV="$CONFIG_DIR/psama/psama.env"
 GATEWAY_ENV="$CONFIG_DIR/gateway/gateway.env"
 
-for required_file in "$HTTPD_ENV" "$PSAMA_ENV" "$GATEWAY_ENV"; do
-    if [ ! -f "$required_file" ]; then
-        echo "ERROR: Required configuration file not found: $required_file"
+require_file() {
+    if [ ! -f "$1" ]; then
+        echo "ERROR: Required configuration file not found: $1"
         exit 1
     fi
-done
+}
 
 upsert_env() {
     local key=$1
@@ -91,6 +103,30 @@ validate_env() {
     fi
 }
 
+if [ "$DISABLE_PUBLIC_ACCESS" = "true" ]; then
+    require_file "$PSAMA_ENV"
+    require_file "$HTTPD_ENV"
+
+    upsert_env ENABLE_PUBLIC_ACCESS false "$PSAMA_ENV"
+    upsert_env VITE_OPEN_EXPLORER false "$HTTPD_ENV"
+    validate_env ENABLE_PUBLIC_ACCESS false "$PSAMA_ENV"
+    validate_env VITE_OPEN_EXPLORER false "$HTTPD_ENV"
+
+    echo "Anonymous access to authenticated HPDS (ENABLE_PUBLIC_ACCESS): false"
+    echo "Explorer offered to anonymous users (VITE_OPEN_EXPLORER): false"
+    echo "Discover, shared anonymous access, gateway open access, and the open IDP provider"
+    echo "were left as they are. VITE_OPEN stays set, so a Discover-only stack keeps working."
+    echo "PSAMA reads ENABLE_PUBLIC_ACCESS at startup; run Start PIC-SURE to apply it."
+    echo "VITE_OPEN_EXPLORER is baked into the frontend bundle at build time, so the UI keeps"
+    echo "offering Explore Without Login until PIC-SURE Frontend Build runs. Use Enable Explore"
+    echo "Without Login Pipeline to get the rebuild and the restart together."
+    exit 0
+fi
+
+require_file "$HTTPD_ENV"
+require_file "$PSAMA_ENV"
+require_file "$GATEWAY_ENV"
+
 DISCOVER_ENABLED="$(read_env VITE_DISCOVER "$HTTPD_ENV")"
 DISCOVER_ENABLED="${DISCOVER_ENABLED:-false}"
 if [ "$DISCOVER_ENABLED" != "true" ] &amp;&amp; [ "$DISCOVER_ENABLED" != "false" ]; then
@@ -107,16 +143,19 @@ fi
 upsert_env VITE_OPEN "$ENABLE_ANONYMOUS_REQUESTS" "$HTTPD_ENV"
 upsert_env VITE_OPEN_EXPLORER "$ENABLE_EXPLORE_WITHOUT_LOGIN" "$HTTPD_ENV"
 upsert_env OPEN_IDP_PROVIDER_IS_ENABLED "$ENABLE_ANONYMOUS_REQUESTS" "$PSAMA_ENV"
+upsert_env ENABLE_PUBLIC_ACCESS "$ENABLE_EXPLORE_WITHOUT_LOGIN" "$PSAMA_ENV"
 upsert_env GATEWAY_OPEN_ACCESS_ENABLED "$ENABLE_ANONYMOUS_REQUESTS" "$GATEWAY_ENV"
 
 validate_env VITE_OPEN "$ENABLE_ANONYMOUS_REQUESTS" "$HTTPD_ENV"
 validate_env VITE_OPEN_EXPLORER "$ENABLE_EXPLORE_WITHOUT_LOGIN" "$HTTPD_ENV"
 validate_env OPEN_IDP_PROVIDER_IS_ENABLED "$ENABLE_ANONYMOUS_REQUESTS" "$PSAMA_ENV"
+validate_env ENABLE_PUBLIC_ACCESS "$ENABLE_EXPLORE_WITHOUT_LOGIN" "$PSAMA_ENV"
 validate_env GATEWAY_OPEN_ACCESS_ENABLED "$ENABLE_ANONYMOUS_REQUESTS" "$GATEWAY_ENV"
 
 echo "Existing Open Access/Discover: $DISCOVER_ENABLED"
 echo "Explore Without Login: $ENABLE_EXPLORE_WITHOUT_LOGIN"
 echo "Anonymous requests: $ENABLE_ANONYMOUS_REQUESTS"
+echo "Anonymous access to authenticated HPDS (ENABLE_PUBLIC_ACCESS): $ENABLE_EXPLORE_WITHOUT_LOGIN"
 echo "Configuration written and validated."
 </command>
         </hudson.tasks.Shell>

@@ -262,7 +262,7 @@ migrate_service_envs() {
   local query_env="$DOCKER_CONFIG_DIR/query/query.env"
   local logging_env="$DOCKER_CONFIG_DIR/logging/logging.env"
   local gateway_keys="TOKEN_INTROSPECTION_TOKEN LOGGING_API_KEY PICSURE_APPLICATION_TOKEN QUERY_SERVICE_INTERNAL_TOKEN"
-  local operations_keys="SPRING_DATASOURCE_PASSWORD QUERY_SERVICE_INTERNAL_TOKEN PICSURE_APPLICATION_TOKEN"
+  local operations_keys="SPRING_DATASOURCE_PASSWORD QUERY_SERVICE_INTERNAL_TOKEN PICSURE_APPLICATION_TOKEN LOGGING_API_KEY LOGGING_SERVICE_URL"
   local query_keys="QUERY_SERVICE_INTERNAL_TOKEN AGGREGATE_OBFUSCATION_SALT PICSURE_APPLICATION_TOKEN"
   local source_xml
   local harvested_value
@@ -274,7 +274,7 @@ migrate_service_envs() {
     "$gateway_env" "$operations_env" "$query_env")
   PICSURE_APPLICATION_TOKEN=$(shared_value PICSURE_APPLICATION_TOKEN \
     "$gateway_env" "$operations_env" "$query_env")
-  LOGGING_API_KEY=$(shared_value LOGGING_API_KEY "$gateway_env" "$logging_env")
+  LOGGING_API_KEY=$(shared_value LOGGING_API_KEY "$gateway_env" "$operations_env" "$logging_env")
 
   # shellcheck disable=SC2086
   complete_env "$gateway_env" $gateway_keys || need_install=true
@@ -369,6 +369,8 @@ migrate_service_envs() {
     upsert_env LOGGING_API_KEY "$LOGGING_API_KEY" "$logging_env"
     note "logging/logging.env: logging key synchronized"
   fi
+  upsert_env LOGGING_SERVICE_URL http://pic-sure-logging "$operations_env"
+  note "operations/operations.env: logging URL synchronized"
 }
 
 migrate_actuator_exposure() {

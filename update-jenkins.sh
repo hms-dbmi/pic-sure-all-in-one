@@ -1,35 +1,4 @@
 #!/bin/bash
-# shellcheck disable=SC2154
-set -o errexit
-set -o pipefail
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$SCRIPT_DIR" || exit 2
-
-REBUILD=false
-JOBS_ONLY=false
-AIO_REF=""
-while [[ $# -gt 0 ]]; do
-  case "$1" in
-    --rebuild)
-      REBUILD=true
-      ;;
-    --jobs-only)
-      JOBS_ONLY=true
-      ;;
-    --aio-ref)
-      shift
-      AIO_REF=${1:-}
-      [[ "$AIO_REF" =~ ^[0-9a-f]{40}$ ]] || { echo "--aio-ref requires an exact 40-character commit" >&2; exit 2; }
-      ;;
-    *)
-      echo "Unknown option: $1" >&2
-      exit 2
-      ;;
-  esac
-  shift
-done
-
 sed_inplace() {
   if sed --version 2>/dev/null | grep -q "GNU sed"; then
     sed -i "$@"
@@ -71,60 +40,27 @@ restore_jenkins_env_value() {
   sed_inplace "/<string>$key<\\/string>/{n;s|<string>.*</string>|<string>$escaped_value</string>|;}" "$target_config"
 }
 
-PIN_BRANCH=picsure-aio-release-pin
-UPDATE_BRANCH_CONFIG=picsure.updateBranch
-if [[ -n "$AIO_REF" ]]; then
-  current_branch=$(git -c safe.directory="$SCRIPT_DIR" -C "$SCRIPT_DIR" symbolic-ref --short HEAD) || {
-    echo "Cannot install an exact AIO ref from an unmanaged detached checkout." >&2
-    exit 2
-  }
-  if [[ "$current_branch" != "$PIN_BRANCH" ]]; then
-    git -c safe.directory="$SCRIPT_DIR" -C "$SCRIPT_DIR" config "$UPDATE_BRANCH_CONFIG" "$current_branch"
-  elif ! git -c safe.directory="$SCRIPT_DIR" -C "$SCRIPT_DIR" config --get "$UPDATE_BRANCH_CONFIG" >/dev/null; then
-    echo "The saved AIO update branch is unavailable." >&2
-    exit 2
-  fi
-  if ! git -c safe.directory="$SCRIPT_DIR" -C "$SCRIPT_DIR" cat-file -e "$AIO_REF^{commit}"; then
-    git -c safe.directory="$SCRIPT_DIR" -C "$SCRIPT_DIR" fetch origin "$AIO_REF"
-  fi
-  git -c safe.directory="$SCRIPT_DIR" -C "$SCRIPT_DIR" checkout -B "$PIN_BRANCH" "$AIO_REF"
-  installed_ref=$(git -c safe.directory="$SCRIPT_DIR" -C "$SCRIPT_DIR" rev-parse HEAD)
-  [[ "$installed_ref" == "$AIO_REF" ]] || { echo "Exact AIO ref checkout resolved to $installed_ref, expected $AIO_REF." >&2; exit 2; }
-else
-  current_branch=$(git -c safe.directory="$SCRIPT_DIR" -C "$SCRIPT_DIR" symbolic-ref --short HEAD) || {
-    echo "Cannot update an unmanaged detached checkout. Run this script with --aio-ref or check out the configured branch." >&2
-    exit 2
-  }
-  if [[ "$current_branch" == "$PIN_BRANCH" ]]; then
-    update_branch=$(git -c safe.directory="$SCRIPT_DIR" -C "$SCRIPT_DIR" config --get "$UPDATE_BRANCH_CONFIG") || {
-      echo "The saved AIO update branch is unavailable." >&2
-      exit 2
-    }
-    git -c safe.directory="$SCRIPT_DIR" -C "$SCRIPT_DIR" checkout "$update_branch"
-  fi
-  git -c safe.directory="$SCRIPT_DIR" -C "$SCRIPT_DIR" pull --ff-only
-fi
 ./stop-jenkins.sh
+git pull
 
 echo "Sometimes we have to update not just the Jenkins jobs, but also the docker image itself."
 echo "If you want to update that image. Rerun this command with the --rebuild flag added."
 
 DOCKER_CONFIG_DIR="${DOCKER_CONFIG_DIR:-/usr/local/docker-config}"
 
-if $REBUILD; then
+if [ "$1" = "--rebuild" ]; then
   #  Rebuild the docker image. This matches the initial dep script. The proxy args are generally empty, but you might
   # run into bugs if you have an http proxy, but don't set it somewhere clever like your bash profile
-  cd initial-configuration || exit 2
+  cd initial-configuration
   echo "Rebuilding the Jenkins container:"
-  jenkins_tag=$(git -c safe.directory="$SCRIPT_DIR" -C "$SCRIPT_DIR" rev-parse --short=7 HEAD)
-  docker build --build-arg http_proxy="$http_proxy" --build-arg https_proxy="$http_proxy" --build-arg no_proxy="$no_proxy" \
-    --build-arg HTTP_PROXY="$http_proxy" --build-arg HTTPS_PROXY="$http_proxy" --build-arg NO_PROXY="$no_proxy" \
-    -t "pic-sure-jenkins:$jenkins_tag" jenkins/jenkins-docker
-  docker tag "pic-sure-jenkins:$jenkins_tag" pic-sure-jenkins:LATEST
+  docker build --build-arg http_proxy=$http_proxy --build-arg https_proxy=$http_proxy --build-arg no_proxy="$no_proxy" \
+    --build-arg HTTP_PROXY=$http_proxy --build-arg HTTPS_PROXY=$http_proxy --build-arg NO_PROXY="$no_proxy" \
+    -t pic-sure-jenkins:`git log -n 1 | grep commit | cut -d ' ' -f 2 | cut -c 1-7` jenkins/jenkins-docker
+  docker tag pic-sure-jenkins:`git log -n 1 | grep commit | cut -d ' ' -f 2 | cut -c 1-7` pic-sure-jenkins:LATEST
   cd ../
 fi
 
-if $JOBS_ONLY; then
+if [ "$1" = "--jobs-only" ] || [ "$2" = "--jobs-only" ]; then
   echo "Updating jobs only (preserving Jenkins state)"
   rm -rf "$DOCKER_CONFIG_DIR"/jenkins_home/jobs
   cp -r initial-configuration/jenkins/jenkins-docker/jobs "$DOCKER_CONFIG_DIR"/jenkins_home/jobs

@@ -29,13 +29,6 @@
   <triggers/>
   <concurrentBuild>false</concurrentBuild>
   <builders>
-    <hudson.tasks.Shell>
-      <command>#!/usr/bin/env bash
-set -e
-/scripts/validate-build-spec.sh build-spec.json
-</command>
-      <configuredLocalRules/>
-    </hudson.tasks.Shell>
     <hudson.plugins.groovy.SystemGroovy plugin="groovy@2.2">
       <source class="hudson.plugins.groovy.StringSystemScriptSource">
         <script plugin="script-security@1.71">
@@ -47,26 +40,16 @@ import groovy.json.JsonSlurper;
   
 def buildSpec = new JsonSlurper().parse(new File(&apos;/var/jenkins_home/workspace/Check For Updates/build-spec.json&apos;));
 
-def releaseControlCommit = build.getEnvironment(listener).get(&quot;GIT_COMMIT&quot;)
-if (!(releaseControlCommit ==~ /[0-9a-f]{40}/)) {
-    throw new Exception(&quot;Check For Updates requires an exact release-control commit, got: ${releaseControlCommit}&quot;)
+def pipelineRun = Jenkins.instance.getItemByFullName(&quot;PIC-SURE Pipeline&quot;)
+    .scheduleBuild2(0).get()
+if (pipelineRun.result != Result.SUCCESS) {
+    throw new Exception(&quot;PIC-SURE Pipeline failed with result: ${pipelineRun.result}&quot;)
 }
 
 def migrationsRun = Jenkins.instance.getItemByFullName(&quot;PIC-SURE Database Migrations&quot;)
-    .scheduleBuild2(0, new ParametersAction(
-        new StringParameterValue(&quot;release_control_commit&quot;, releaseControlCommit)
-    )).get()
+    .scheduleBuild2(0).get()
 if (migrationsRun.result != Result.SUCCESS) {
     throw new Exception(&quot;PIC-SURE Database Migrations failed with result: ${migrationsRun.result}&quot;)
-}
-
-def pipelineRun = Jenkins.instance.getItemByFullName(&quot;PIC-SURE Pipeline&quot;)
-    .scheduleBuild2(0, new ParametersAction(
-        new StringParameterValue(&quot;release_control_commit&quot;, releaseControlCommit),
-        new StringParameterValue(&quot;migration_build_number&quot;, migrationsRun.number.toString())
-    )).get()
-if (pipelineRun.result != Result.SUCCESS) {
-    throw new Exception(&quot;PIC-SURE Pipeline failed with result: ${pipelineRun.result}&quot;)
 }
 </script>
           <sandbox>false</sandbox>

@@ -11,18 +11,7 @@
   </actions>
   <description></description>
   <keepDependencies>false</keepDependencies>
-  <properties>
-    <hudson.model.ParametersDefinitionProperty>
-      <parameterDefinitions>
-        <hudson.model.StringParameterDefinition>
-          <name>release_control_commit</name>
-          <defaultValue></defaultValue>
-          <description>Exact release-control commit for an orchestrated update.</description>
-          <trim>true</trim>
-        </hudson.model.StringParameterDefinition>
-      </parameterDefinitions>
-    </hudson.model.ParametersDefinitionProperty>
-  </properties>
+  <properties/>
   <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@4009.v0089238351a_9">
     <script>import groovy.json.JsonSlurper;
 def psa_ref = &apos;&apos;
@@ -32,21 +21,15 @@ def psm_ref = &apos;&apos;
 node {
     stage(&apos;Retrieve Build Spec&apos;) {
         script {
-            if (!(params.release_control_commit ==~ /[0-9a-f]{40}/)) {
-                error(&apos;PIC-SURE Database Migrations requires an exact release_control_commit; use Check For Updates.&apos;)
-            }
-            def result = build job: &apos;Retrieve Pinned Build Spec&apos;, parameters: [
-                [$class: &apos;StringParameterValue&apos;, name: &apos;release_control_commit&apos;, value: params.release_control_commit]
-            ]
+            def result = build job: &apos;Retrieve Build Spec&apos;
             retrieveBuildSpecId = result.number
         }
         script {
-            copyArtifacts filter: &apos;*&apos;, projectName: &apos;Retrieve Pinned Build Spec&apos;, selector: specific(&quot;&quot;+retrieveBuildSpecId)
+            copyArtifacts filter: &apos;*&apos;, projectName: &apos;Retrieve Build Spec&apos;, selector: specific(&quot;&quot;+retrieveBuildSpecId)
             sh &apos;cat build-spec.json&apos;
             sh &apos;cat pipeline_git_commit.txt&apos;
             sh &apos;pwd&apos;
             sh &apos;ls&apos;
-            sh &apos;/scripts/validate-build-spec.sh build-spec.json&apos;
             def path = pwd()
             def filePath = path + &apos;/build-spec.json&apos;
             echo filePath
@@ -121,10 +104,6 @@ node {
                     [$class: &apos;StringParameterValue&apos;, name: &apos;git_hash&apos;, value: psa_ref]
             ]
         }
-    }
-    stage(&apos;Record Migration Input&apos;) {
-        writeFile file: &apos;migration-release-control-commit.txt&apos;, text: params.release_control_commit + &apos;\n&apos;
-        archiveArtifacts artifacts: &apos;migration-release-control-commit.txt&apos;, fingerprint: true
     }
     stage(&apos;Clean Workspace&apos;){
         cleanWs()

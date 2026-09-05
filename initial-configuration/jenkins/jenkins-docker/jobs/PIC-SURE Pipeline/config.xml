@@ -3,9 +3,7 @@
   <actions>
     <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobAction plugin="pipeline-model-definition@2.2277.v00573e73ddf1"/>
     <org.jenkinsci.plugins.pipeline.modeldefinition.actions.DeclarativeJobPropertyTrackerAction plugin="pipeline-model-definition@2.2277.v00573e73ddf1">
-      <jobProperties>
-        <string>org.jenkinsci.plugins.workflow.job.properties.DisableConcurrentBuildsJobProperty</string>
-      </jobProperties>
+      <jobProperties/>
       <triggers/>
       <parameters/>
       <options/>
@@ -13,27 +11,7 @@
   </actions>
   <description></description>
   <keepDependencies>false</keepDependencies>
-  <properties>
-    <org.jenkinsci.plugins.workflow.job.properties.DisableConcurrentBuildsJobProperty plugin="workflow-job@1571.vb_423c255d6d9">
-      <abortPrevious>false</abortPrevious>
-    </org.jenkinsci.plugins.workflow.job.properties.DisableConcurrentBuildsJobProperty>
-    <hudson.model.ParametersDefinitionProperty>
-      <parameterDefinitions>
-        <hudson.model.StringParameterDefinition>
-          <name>release_control_commit</name>
-          <defaultValue></defaultValue>
-          <description>Exact release-control commit for an orchestrated update.</description>
-          <trim>true</trim>
-        </hudson.model.StringParameterDefinition>
-        <hudson.model.StringParameterDefinition>
-          <name>migration_build_number</name>
-          <defaultValue></defaultValue>
-          <description>Successful PIC-SURE Database Migrations build for the same release-control commit.</description>
-          <trim>true</trim>
-        </hudson.model.StringParameterDefinition>
-      </parameterDefinitions>
-    </hudson.model.ParametersDefinitionProperty>
-  </properties>
+  <properties/>
   <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps@4255.vd9c37f80fd8a_">
     <script>import groovy.json.JsonSlurper;
 
@@ -51,43 +29,17 @@ pipeline {
         stage(&apos;Retrieve Build Spec&apos;) {
             steps {
                 script {
-                    if (!(params.release_control_commit ==~ /[0-9a-f]{40}/)) {
-                        error(&apos;PIC-SURE Pipeline requires an exact release_control_commit; use Check For Updates.&apos;)
-                    }
-                    def result = build job: &apos;Retrieve Pinned Build Spec&apos;, parameters: [
-                        [$class: &apos;StringParameterValue&apos;, name: &apos;release_control_commit&apos;, value: params.release_control_commit]
-                    ]
+                    def result = build job: &apos;Retrieve Build Spec&apos;
                     retrieveBuildSpecId = result.number
                 }
                 script {
-                    copyArtifacts filter: &apos;*&apos;, projectName: &apos;Retrieve Pinned Build Spec&apos;, selector: specific(&quot;&quot;+retrieveBuildSpecId)
+                    copyArtifacts filter: &apos;*&apos;, projectName: &apos;Retrieve Build Spec&apos;, selector: specific(&quot;&quot;+retrieveBuildSpecId)
                     sh &apos;cat build-spec.json&apos;
                     sh &apos;cat pipeline_git_commit.txt&apos;
-                    sh &apos;/scripts/validate-build-spec.sh build-spec.json&apos;
                     def buildSpec = new JsonSlurper().parse(new File(&apos;/var/jenkins_home/workspace/PIC-SURE Pipeline/build-spec.json&apos;))
                     pipelineBuildId = new File(&apos;/var/jenkins_home/workspace/PIC-SURE Pipeline/pipeline_git_commit.txt&apos;).text.trim()
                     for(def build : buildSpec.application){
                         build_hashes[build.project_job_git_key] = build.git_hash
-                    }
-                }
-            }
-        }
-        stage(&apos;Verify Migrations&apos;) {
-            steps {
-                script {
-                    if (!(params.migration_build_number ==~ /[1-9][0-9]*/)) {
-                        error(&apos;PIC-SURE Pipeline requires a successful migration_build_number; use Check For Updates.&apos;)
-                    }
-                    build job: &apos;Verify PIC-SURE Database Migration&apos;, parameters: [
-                        [$class: &apos;StringParameterValue&apos;, name: &apos;migration_build_number&apos;, value: params.migration_build_number]
-                    ]
-                    sh &apos;rm -f migration-release-control-commit.txt&apos;
-                    copyArtifacts filter: &apos;migration-release-control-commit.txt&apos;,
-                        projectName: &apos;PIC-SURE Database Migrations&apos;,
-                        selector: specific(params.migration_build_number)
-                    def migratedCommit = new File(&apos;/var/jenkins_home/workspace/PIC-SURE Pipeline/migration-release-control-commit.txt&apos;).text.trim()
-                    if (migratedCommit != params.release_control_commit) {
-                        error(&quot;Migration build ${params.migration_build_number} used release-control commit ${migratedCommit}, expected ${params.release_control_commit}.&quot;)
                     }
                 }
             }

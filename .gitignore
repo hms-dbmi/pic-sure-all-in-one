@@ -4,5 +4,3 @@
 initial-configuration/mysql-docker/.env
 pass.tmp
 initial-configuration/pass.tmp
-__pycache__/
-*.py[cod]

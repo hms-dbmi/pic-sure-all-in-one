@@ -1,7 +1,7 @@
 <?xml version='1.1' encoding='UTF-8'?>
 <project>
   <actions />
-  <description>Disabled because replacing only the frontend bypasses the release tuple, migrations, PSAMA recreation, and backend readiness gates. Use Check For Updates.</description>
+  <description />
   <keepDependencies>false</keepDependencies>
   <properties>
     <hudson.model.ParametersDefinitionProperty>
@@ -47,7 +47,7 @@
     </extensions>
   </scm>
   <canRoam>true</canRoam>
-  <disabled>true</disabled>
+  <disabled>false</disabled>
   <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
   <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
   <jdk>(System)</jdk>

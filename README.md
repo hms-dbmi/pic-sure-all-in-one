@@ -239,76 +239,8 @@ sudo ./stop-jenkins.sh
   run the Deploy PIC-SURE job to restart your containers so the updated SSL configuration is used.
 
 - As your project progresses you will run the "Check For Updates" job to pull and build the latest release of each
-  component as the release control repository is updated. The job applies migrations, builds the release, and restarts
-  PIC-SURE in the guarded order described below.
-
-### Banner-capable release order
-
-`Check For Updates` resolves one release-control commit, applies the database migrations from that release, and only
-then builds and restarts the application. `Start PIC-SURE` recreates PSAMA, starts Operations, Query, and Gateway, and
-waits for PSAMA health, Operations readiness, Query liveness, and the banner feed through Gateway before it starts the
-public httpd/frontend container. The Gateway check calls `/operations/banners/active/v2`, so it proves the
-Gateway-to-Operations-to-database path without requiring optional HPDS, Dictionary, Logging, or Visualization services.
-PSAMA recreation is the deployment-wide authorization-cache refresh. AIO has no global cache-eviction operation.
-
-The update is fail closed. A migration or backend-health failure leaves the new frontend unpublished. During startup,
-new banner management routes may remain unavailable until PSAMA has been recreated and the backend is healthy.
-
-Use `Rollback PIC-SURE` only with an operator-reviewed `rollback-state.json`. Before running the job, disable
-httpd's restart policy and then stop it so the banner-management-write freeze survives a Docker daemon or host restart:
-
-```bash
-docker update --restart=no httpd
-docker stop httpd
-```
-
-Retag the chosen exact frontend rollback image as
-`hms-dbmi/pic-sure-frontend:LATEST`, and disable every Active or Scheduled targeted banner through the final Operations
-management API. With public httpd stopped, the Jenkins container can still reach the existing Gateway on the
-shared `picsure` Docker network at `http://gateway:8080`. Send the normal authenticated management request through that
-path and do not put its token in the state file. The state file attests those steps in this exact order and binds each
-exact local image tag to the image ID inspected during operator review:
-
-```json
-{
-  "schemaVersion": 1,
-  "contractSourceCommit": "0178bbd2d1753e07dcead77a6d0e8ca37bf76dd8",
-  "contractSha256": "f8cb265d735b757872391e04fdcd5b999b785eaa427ca13f8f2eefd493715359",
-  "completedPhases": [
-    "FREEZE_BANNER_MANAGEMENT_WRITES",
-    "ROLL_BACK_FRONTEND",
-    "DISABLE_ACTIVE_AND_SCHEDULED_TARGETED_BANNERS_BEFORE_LEGACY_ACTIVE_FEED_BACKEND"
-  ],
-  "forwardSchemaRetained": true,
-  "downMigrationRequested": false,
-  "rollbackImages": {
-    "frontend": "local/pic-sure-frontend:exact-rollback-tag",
-    "psama": "local/psama:exact-rollback-tag",
-    "operations": "local/pic-sure-operations-service:exact-rollback-tag",
-    "query": "local/pic-sure-hpds-query-service:exact-rollback-tag",
-    "gateway": "local/pic-sure-gateway:exact-rollback-tag"
-  },
-  "rollbackImageIds": {
-    "frontend": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-    "psama": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
-    "operations": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
-    "query": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
-    "gateway": "sha256:4444444444444444444444444444444444444444444444444444444444444444"
-  }
-}
-```
-
-The rollback job checks the shared contract and attestations, verifies every image tag still resolves to its attested
-image ID, confirms that httpd is stopped with restart disabled and the frontend rollback tag is staged, then retags and
-starts the rolled-back Operations, Query, and Gateway services before recreating PSAMA. It keeps httpd stopped,
-retaining the management-write freeze while a backend below the targeted-feed boundary is active. Do not restart the
-public entrypoint until a targeting-capable backend has been restored. The rollback script passes the reviewed state
-file explicitly to the start script. The start script independently checks its current contract, ordered phases, schema
-flags, image IDs, retagged images, and restart-proof stopped httpd before it enables Gateway
-`/actuator/health/liveness`. Normal startup explicitly selects forward mode, rejects inherited rollback controls,
-requires the v2 banner feed, and publishes the frontend. It removes the frozen httpd container and recreates it with
-the ordinary `--restart always` policy. Rollback always keeps the forward database schema; Flyway down-migrations are
-prohibited.
+  component as the release control repository is updated. To deploy the latest updates after "Check For Updates" is run,
+  execute the Start PIC-SURE job.
 
 - If you would like to connect to a remote database, then run the "Configure Remote MySQL Instance" Jenkins job.
     - You need to provide remote database connection information to "Configure Remote MySQL Instance" Jenkins job
@@ -385,18 +317,6 @@ does migrate your initial configurations.  (Does not impact PIC-SURE users)
 1. Run `sudo ./update-jenkins.sh`
 1. If jenkins is not running run the start script `sudo ./start-jenkins.sh`
 1. Follow the jenkins set up steps again.
-
-`Check For Updates` compares the installed AIO commit and workflow-file fingerprint with the exact AIO entry in the
-release tuple. A normal `update-jenkins.sh` run follows the configured Git branch. If that branch has moved beyond the
-release tuple, the check stops before migrations and prints the required commit. Install that exact revision with
-`sudo ./update-jenkins.sh --aio-ref <40-character-AIO-commit>`, then rerun `Check For Updates`. A non-Git package must
-contain the same reviewed workflow files; reinstall the package for the required AIO commit if its fingerprint differs.
-An exact-ref update records the current update branch and checks out the commit on the managed
-`picsure-aio-release-pin` branch. The next normal update restores the recorded branch and performs a fast-forward-only
-pull. Git failures stop the script before Jenkins is stopped or any jobs are replaced.
-
-The workflow fingerprint follows the update, initial-install, and rollback job call paths transitively. Editing any
-bound Jenkins job requires recomputing the AIO workflow fingerprint and re-pinning it in release control.
 
 A backup of your jenkins home can be found here: `"$DOCKER_CONFIG_DIR"/jenkins_home_bak/`
 

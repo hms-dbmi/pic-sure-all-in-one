@@ -1,9 +1,0 @@
-{
-  "name": "pic-sure-banner-local-browser-proof",
-  "private": true,
-  "version": "1.0.0",
-  "type": "module",
-  "dependencies": {
-    "playwright": "1.60.0"
-  }
-}

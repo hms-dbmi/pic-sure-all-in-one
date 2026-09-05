@@ -33,8 +33,7 @@ for SERVICE in gateway operations; do
         exit 2
     fi
     if grep -q '^LOGGING_API_KEY=' "$SERVICE_ENV"; then
-        sed "s|^LOGGING_API_KEY=.*|LOGGING_API_KEY=$NEW_API_KEY|" "$SERVICE_ENV" &gt; "$SERVICE_ENV.tmp"
-        mv "$SERVICE_ENV.tmp" "$SERVICE_ENV"
+        sed -i "s|^LOGGING_API_KEY=.*|LOGGING_API_KEY=$NEW_API_KEY|" "$SERVICE_ENV"
     else
         echo "LOGGING_API_KEY=$NEW_API_KEY" &gt;&gt; "$SERVICE_ENV"
     fi

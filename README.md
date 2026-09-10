@@ -320,6 +320,53 @@ does migrate your initial configurations.  (Does not impact PIC-SURE users)
 
 A backup of your jenkins home can be found here: `"$DOCKER_CONFIG_DIR"/jenkins_home_bak/`
 
+### Database backup and restore
+
+Use [backup-databases.sh](initial-configuration/backup-databases.sh) on the Docker
+host before cutover. Run it with an optional **new** backup directory, for example
+`./initial-configuration/backup-databases.sh /secure/backups/pre-v4`. Without a
+path it creates a timestamped directory under `$HOME/picsure-backups`. Stop
+application writers and schema migrations first, leaving the databases running.
+
+The script backs up MySQL `auth` and `picsure`, including Flyway histories, views,
+triggers, routines, and events. It also backs up the dictionary database when
+`dictionary-db` exists; use `--skip-dictionary` to omit it explicitly. Files are
+private, existing backup directories are never overwritten, and the directory is
+marked complete only after all selected dumps and checksums succeed. A stopped
+or failing dictionary container causes a failure rather than a successful partial
+backup.
+
+Use [restore-databases.sh](initial-configuration/restore-databases.sh) with that
+backup directory, for example
+`./initial-configuration/restore-databases.sh /secure/backups/pre-v4`. It checks
+all selected archives, checksums, and target connections before asking you to type
+`RESTORE`. For noninteractive use, `--yes` confirms replacement and that writers
+are stopped. Restore **drops and recreates** the application databases, removing
+changes made after the backup. Applications are not stopped or restarted by
+these scripts. If a restore fails, keep them stopped: restoration across MySQL
+and PostgreSQL is not atomic.
+
+Both scripts accept `MYSQL_CONTAINER` and `DICTIONARY_CONTAINER` environment
+overrides (defaults: `picsure-db` and `dictionary-db`) and provide `--help`.
+Credentials come from inside those containers. The dictionary database name must
+match its original name. These scripts target the local AIO database containers;
+back up externally hosted databases using their own configured server/tooling.
+MySQL accounts/grants and PostgreSQL roles/custom ownership/grants are not
+exported: retain the existing database configuration and credentials. Dictionary
+objects are restored under the target container's `POSTGRES_USER`.
+
+Before cutover, rehearse a backup and restore into **isolated containers of
+matching database versions**, using the container overrides. Verify users, named
+datasets, Flyway histories, and record counts. Checksums and archive checks detect
+corruption but do not prove that a restore will succeed. Only restore trusted
+backups. Keep old image versions and configuration too: rollback after the
+resource-table drop needs compatible database state as well as the old containers.
+Do not treat copying a running MySQL data directory as a consistent backup.
+
+The MySQL dump uses `--single-transaction` for a consistent snapshot of InnoDB
+tables. Keep writers stopped and prohibit DDL throughout the backup; see the
+[MySQL 8.0 mysqldump documentation](https://dev.mysql.com/doc/refman/8.0/en/mysqldump.html).
+
 ### Migrating an existing WildFly environment
 
 Updating Jenkins installs the mono-repo jobs, but it does not create the gateway,
@@ -333,7 +380,11 @@ WildFly deployment. For an existing Docker all-in-one installation:
    copies required values such as the token-introspection token, PIC-SURE database
    password, and logging key into the new service env files; it also creates and
    synchronizes the new internal service tokens. WildFly remains running during this preparation step.
-4. Run **PIC-SURE Database Migrations**, then run **PIC-SURE Pipeline**. The
+4. Prepare the release images, enter a maintenance window, drain requests, and stop
+   application writers (including WildFly) while leaving the databases running.
+   Take the [database backups](#database-backup-and-restore). Baseline migrations drop the legacy
+   resource table, so WildFly must not continue serving during this step.
+5. Run **PIC-SURE Database Migrations**, then run **PIC-SURE Pipeline**. The
    pipeline builds the mono-repo images and performs the Stop/Start restart that
    removes the legacy WildFly container and starts the gateway-era services.
 

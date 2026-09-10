@@ -117,8 +117,8 @@ upsert_env() {
   fi
   temp_file=$(mktemp "${file}.tmp.XXXXXX")
 
-  awk -v key="$key" -v value="$value" '
-    BEGIN { found = 0 }
+  MIGRATION_ENV_VALUE="$value" awk -v key="$key" '
+    BEGIN { found = 0; value = ENVIRON["MIGRATION_ENV_VALUE"] }
     index($0, key "=") == 1 {
       if (!found) {
         print key "=" value
@@ -183,6 +183,76 @@ xml_mysql_password() {
       exit
     }
   ' "$source_xml"
+}
+
+# Read a connection field from the PicsureDS section of the AIO WildFly
+# configuration. Decode XML entities before writing Docker's literal env format.
+xml_mysql_connection_value() {
+  local source_xml=$1
+  local field=$2
+  local value
+
+  value=$(awk -v field="$field" '
+    /pool-name="PicsureDS"/ { in_picsure = 1 }
+    in_picsure { xml = xml $0 "\n" }
+    in_picsure && /<\/datasource>/ { exit }
+    END {
+      start = "<" field ">"
+      finish = "</" field ">"
+      begin = index(xml, start)
+      if (!begin) exit
+      xml = substr(xml, begin + length(start))
+      end = index(xml, finish)
+      if (!end) exit
+      value = substr(xml, 1, end - 1)
+      sub(/^[[:space:]]+/, "", value)
+      sub(/[[:space:]]+$/, "", value)
+      print value
+    }
+  ' "$source_xml")
+
+  # Unusual entity references require manual resolution rather than silently
+  # sending an XML-encoded host or username to MySQL.
+  if printf '%s' "$value" | sed -e 's/&amp;//g' -e 's/&lt;//g' \
+      -e 's/&gt;//g' -e 's/&quot;//g' -e 's/&apos;//g' | grep -q '&'; then
+    fail "PicsureDS $field contains an unsupported XML entity; configure it explicitly in operations.env"
+  fi
+  printf '%s\n' "$value" | sed -e 's/&lt;/</g' -e 's/&gt;/>/g' \
+    -e 's/&quot;/"/g' -e "s/&apos;/'/g" -e 's/&amp;/\&/g'
+}
+
+database_connection_value() {
+  local operations_env=$1
+  local key=$2
+  local source_xml=$3
+  local field=$4
+  local service_default=$5
+  local value
+
+  if value=$(real_value "$operations_env" "$key"); then
+    : # Explicit Operations settings take precedence, including on repair.
+  elif [ -n "$source_xml" ]; then
+    value=$(xml_mysql_connection_value "$source_xml" "$field") || return $?
+  else
+    # An already migrated service without these overrides uses these defaults.
+    # A new installation without XML will still fail the secret preflight.
+    value="$service_default"
+  fi
+
+  valid_harvested_value "$value" || fail "$key is missing or unresolved; configure it explicitly in operations.env"
+  if printf '%s' "$value" | grep -Eq '__[A-Z_]+__'; then
+    fail "$key contains an unresolved template placeholder"
+  fi
+  case "$value" in
+    *'${'*|*$'\n'*|*$'\r'*) fail "$key contains an unresolved expression or newline" ;;
+  esac
+  if [ "$key" = SPRING_DATASOURCE_URL ]; then
+    case "$value" in
+      jdbc:mysql://?*) ;;
+      *) fail "SPRING_DATASOURCE_URL must be a resolved MySQL JDBC URL" ;;
+    esac
+  fi
+  printf '%s\n' "$value"
 }
 
 valid_harvested_value() {
@@ -265,10 +335,18 @@ migrate_service_envs() {
   local operations_keys="SPRING_DATASOURCE_PASSWORD QUERY_SERVICE_INTERNAL_TOKEN PICSURE_APPLICATION_TOKEN"
   local query_keys="QUERY_SERVICE_INTERNAL_TOKEN AGGREGATE_OBFUSCATION_SALT PICSURE_APPLICATION_TOKEN"
   local source_xml
+  local database_url
+  local database_username
   local harvested_value
   local need_install=false
 
   source_xml=$(find_source_xml)
+
+  database_url=$(database_connection_value "$operations_env" SPRING_DATASOURCE_URL \
+    "$source_xml" connection-url \
+    'jdbc:mysql://picsure-db:3306/picsure?useUnicode=true&characterEncoding=UTF-8&autoReconnect=true&autoReconnectForPools=true&serverTimezone=UTC')
+  database_username=$(database_connection_value "$operations_env" SPRING_DATASOURCE_USERNAME \
+    "$source_xml" user-name picsure)
 
   QUERY_SERVICE_INTERNAL_TOKEN=$(shared_value QUERY_SERVICE_INTERNAL_TOKEN \
     "$gateway_env" "$operations_env" "$query_env")
@@ -362,6 +440,14 @@ migrate_service_envs() {
   else
     note "gateway/operations/query env files are already complete"
   fi
+
+  upsert_env SPRING_DATASOURCE_URL "$database_url" "$operations_env"
+  upsert_env SPRING_DATASOURCE_USERNAME "$database_username" "$operations_env"
+  case "$database_url" in
+    jdbc:mysql://picsure-db:3306/*|jdbc:mysql://picsure-db/*)
+      note "operations/operations.env: local picsure-db connection preserved" ;;
+    *) note "operations/operations.env: remote/custom MySQL connection preserved" ;;
+  esac
 
   migrate_gateway_open_access "$gateway_env"
 

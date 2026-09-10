@@ -331,9 +331,13 @@ WildFly deployment. For an existing Docker all-in-one installation:
 2. Update Jenkins using the instructions above.
 3. Run **Migrate PIC-SURE Environment** and review its migration summary. The job
    copies required values such as the token-introspection token, PIC-SURE database
-   password, and logging key into the new service env files; it also creates and
+   connection URL, username, password, and logging key into the new service env files; it also creates and
    synchronizes the new internal service tokens. WildFly remains running during this preparation step.
-4. Run **PIC-SURE Database Migrations**, then run **PIC-SURE Pipeline**. The
+4. Prepare the release images, enter a maintenance window, drain requests, and stop
+   application writers (including WildFly) while leaving the databases running.
+   Take the database backups described below. Baseline migrations drop the legacy
+   resource table, so WildFly must not continue serving during this step.
+5. Run **PIC-SURE Database Migrations**, then run **PIC-SURE Pipeline**. The
    pipeline builds the mono-repo images and performs the Stop/Start restart that
    removes the legacy WildFly container and starts the gateway-era services.
 
@@ -341,6 +345,72 @@ The environment migration is idempotent and is safe to rerun after a partial
 failure. It does not stop WildFly or archive the legacy configuration directory.
 Do not run **Initial Configuration Pipeline** as an upgrade procedure for an
 existing deployment.
+
+The migration preserves an explicitly configured Operations datasource first;
+otherwise it reads the `PicsureDS` connection from WildFly, including XML-escaped
+URL parameters. Its summary identifies the standard local `picsure-db` connection
+or a remote/custom connection without printing credentials. If the legacy
+connection is missing or unresolved, configure `SPRING_DATASOURCE_URL` and
+`SPRING_DATASOURCE_USERNAME` in `operations/operations.env` before rerunning.
+On an already migrated installation with no WildFly configuration, omitted
+connection settings are made explicit using the existing Operations defaults.
+
+#### Database backup before cutover
+
+Run this on the Docker host in Bash, with application writers stopped and no
+schema migrations running. Keep MySQL running. The standard AIO `picsure-db`
+container supplies `MYSQL_ROOT_PASSWORD`; the command uses it internally without
+putting its value in your shell history or command arguments.
+
+```bash
+set -euo pipefail
+umask 077
+backup_dir="$HOME/picsure-backups/$(date -u +%Y%m%dT%H%M%SZ)"
+mkdir -p "$backup_dir"
+
+if docker exec picsure-db sh -c '
+  : "${MYSQL_ROOT_PASSWORD:?MySQL root password is unavailable}"
+  MYSQL_PWD="$MYSQL_ROOT_PASSWORD" exec mysqldump --user=root \
+    --single-transaction --quick --routines --events --triggers \
+    --hex-blob --no-tablespaces --set-gtid-purged=OFF \
+    --databases auth picsure
+' | gzip > "$backup_dir/auth-picsure.sql.gz.partial"; then
+  mv "$backup_dir/auth-picsure.sql.gz.partial" "$backup_dir/auth-picsure.sql.gz"
+else
+  rm -f "$backup_dir/auth-picsure.sql.gz.partial"
+  echo 'Database backup failed; do not proceed with cutover.' >&2
+  exit 1
+fi
+gzip -t "$backup_dir/auth-picsure.sql.gz"
+echo "MySQL backup: $backup_dir/auth-picsure.sql.gz"
+```
+
+This captures the two application databases, their Flyway histories, views,
+triggers, routines, and events. It does not export MySQL accounts/grants or the
+separate PostgreSQL dictionary database. Retain the existing MySQL credentials
+and configuration. If the Dictionary service is installed, also back up its
+database before the Database Migrations job changes it:
+
+```bash
+docker exec dictionary-db sh -c 'exec pg_dumpall --username="${POSTGRES_USER:-postgres}"' \
+  | gzip > "$backup_dir/dictionary.sql.gz.partial"
+mv "$backup_dir/dictionary.sql.gz.partial" "$backup_dir/dictionary.sql.gz"
+gzip -t "$backup_dir/dictionary.sql.gz"
+```
+
+Use the same Bash session so `pipefail` and `umask` remain active. For a database
+configured elsewhere, run its backup against the configured server instead.
+`--single-transaction` provides a consistent snapshot of InnoDB tables; keep
+writers stopped and prohibit DDL throughout the backup. See the
+[MySQL 8.0 mysqldump documentation](https://dev.mysql.com/doc/refman/8.0/en/mysqldump.html).
+
+Before the real cutover, rehearse restoring these dumps into isolated databases
+of matching versions. Verify Flyway histories, users, named datasets, and record
+counts. `gzip -t` checks compression integrity only; it does not prove the dump
+can be restored. Preserve the old image versions and configuration too: rollback
+after the resource-table drop requires compatible database state, not just old
+containers. Do not treat copying a running MySQL data directory as a consistent
+backup.
 
 ## Users
 

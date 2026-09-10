@@ -9,7 +9,7 @@
         <hudson.model.StringParameterDefinition>
           <name>git_hash</name>
           <description>pic-sure-all-in-one branch or commit containing the environment migrations to run.</description>
-          <defaultValue>pic_sure_api_mono_repo</defaultValue>
+          <defaultValue>main</defaultValue>
           <trim>true</trim>
         </hudson.model.StringParameterDefinition>
       </parameterDefinitions>

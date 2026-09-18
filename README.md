@@ -342,14 +342,14 @@ failure. It does not stop WildFly or archive the legacy configuration directory.
 Do not run **Initial Configuration Pipeline** as an upgrade procedure for an
 existing deployment.
 
-The migration preserves an explicitly configured Operations datasource first;
-otherwise it reads the `PicsureDS` connection from WildFly, including XML-escaped
-URL parameters. Its summary identifies the standard local `picsure-db` connection
-or a remote/custom connection without printing credentials. If the legacy
-connection is missing or unresolved, configure `SPRING_DATASOURCE_URL` and
-`SPRING_DATASOURCE_USERNAME` in `operations/operations.env` before rerunning.
-On an already migrated installation with no WildFly configuration, omitted
-connection settings are made explicit using the existing Operations defaults.
+For the PIC-SURE database connection, a `SPRING_DATASOURCE_URL` or
+`SPRING_DATASOURCE_USERNAME` already set in `operations/operations.env` is kept.
+Otherwise the job reads the `PicsureDS` connection from `standalone.xml`, decoding
+XML entities such as `&amp;` in the URL, and when no WildFly configuration exists it
+writes the operations service defaults so the settings are explicit. The summary
+says which of the three happened for each key without printing the values. If the
+job reports the connection as missing or unresolved, set both keys in
+`operations/operations.env` and rerun.
 
 ## Users
 

@@ -331,7 +331,7 @@ WildFly deployment. For an existing Docker all-in-one installation:
 2. Update Jenkins using the instructions above.
 3. Run **Migrate PIC-SURE Environment** and review its migration summary. The job
    copies required values such as the token-introspection token, PIC-SURE database
-   password, and logging key into the new service env files; it also creates and
+   connection URL, username, password, and logging key into the new service env files; it also creates and
    synchronizes the new internal service tokens. WildFly remains running during this preparation step.
 4. Run **PIC-SURE Database Migrations**, then run **PIC-SURE Pipeline**. The
    pipeline builds the mono-repo images and performs the Stop/Start restart that
@@ -341,6 +341,15 @@ The environment migration is idempotent and is safe to rerun after a partial
 failure. It does not stop WildFly or archive the legacy configuration directory.
 Do not run **Initial Configuration Pipeline** as an upgrade procedure for an
 existing deployment.
+
+For the PIC-SURE database connection, a `SPRING_DATASOURCE_URL` or
+`SPRING_DATASOURCE_USERNAME` already set in `operations/operations.env` is kept.
+Otherwise the job reads the `PicsureDS` connection from `standalone.xml`, decoding
+XML entities such as `&amp;` in the URL, and when no WildFly configuration exists it
+writes the operations service defaults so the settings are explicit. The summary
+says which of the three happened for each key without printing the values. If the
+job reports the connection as missing or unresolved, set both keys in
+`operations/operations.env` and rerun.
 
 ## Users
 

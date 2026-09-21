@@ -71,8 +71,8 @@ upsert_env() {
     local env_file=$3
     local temp_file="${env_file}.tmp.$$"
 
-    awk -v key="$key" -v value="$value" '
-        BEGIN { found = 0 }
+    UPSERT_ENV_VALUE="$value" awk -v key="$key" '
+        BEGIN { found = 0; value = ENVIRON["UPSERT_ENV_VALUE"] }
         index($0, key "=") == 1 {
             if (!found) print key "=" value
             found = 1

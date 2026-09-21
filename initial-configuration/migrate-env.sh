@@ -117,8 +117,8 @@ upsert_env() {
   fi
   temp_file=$(mktemp "${file}.tmp.XXXXXX")
 
-  awk -v key="$key" -v value="$value" '
-    BEGIN { found = 0 }
+  MIGRATION_ENV_VALUE="$value" awk -v key="$key" '
+    BEGIN { found = 0; value = ENVIRON["MIGRATION_ENV_VALUE"] }
     index($0, key "=") == 1 {
       if (!found) {
         print key "=" value
@@ -163,26 +163,105 @@ find_source_xml() {
   printf '%s\n' "$newest"
 }
 
+# Decode the five predefined XML entities in a value read from standalone.xml.
+# Any other entity reference fails the run: the legacy configuration never
+# wrote one, and passing it through would send an encoded value to MySQL.
+decode_xml_entities() {
+  local label=$1
+  local encoded=$2
+
+  printf '%s\n' "$encoded" | awk '
+    BEGIN {
+      entity["amp"] = "&"; entity["lt"] = "<"; entity["gt"] = ">"
+      entity["quot"] = "\""; entity["apos"] = "\047"
+    }
+    {
+      decoded = ""
+      rest = $0
+      while ((at = index(rest, "&")) > 0) {
+        decoded = decoded substr(rest, 1, at - 1)
+        rest = substr(rest, at)
+        if (!match(rest, /^&[a-z]+;/)) exit 3
+        name = substr(rest, 2, RLENGTH - 2)
+        if (!(name in entity)) exit 3
+        decoded = decoded entity[name]
+        rest = substr(rest, RLENGTH + 1)
+      }
+      print decoded rest
+    }
+  ' || fail "$label contains an unsupported XML entity; set it explicitly in the service env file and rerun"
+}
+
 xml_prop() {
   local source_xml=$1
   local name=$2
+  local value
+
   [ -n "$source_xml" ] || return 0
-  sed -n "s/.*java:global\/${name}\" value=\"\([^\"]*\)\".*/\1/p" "$source_xml" | head -n 1
+  value=$(sed -n "s/.*java:global\/${name}\" value=\"\([^\"]*\)\".*/\1/p" "$source_xml" | head -n 1)
+  decode_xml_entities "$name" "$value"
 }
 
-xml_mysql_password() {
+# Read one field (connection-url, user-name, password) from the PicsureDS
+# datasource of the AIO WildFly configuration and decode its XML entities.
+xml_mysql_connection_value() {
   local source_xml=$1
-  [ -n "$source_xml" ] || return 0
-  awk '
+  local field=$2
+  local value
+
+  value=$(awk -v field="$field" '
     /pool-name="PicsureDS"/ { in_picsure = 1 }
-    in_picsure && /<password>/ {
-      line = $0
-      sub(/.*<password>/, "", line)
-      sub(/<\/password>.*/, "", line)
-      print line
-      exit
+    in_picsure { xml = xml $0 "\n" }
+    in_picsure && /<\/datasource>/ { exit }
+    END {
+      start = "<" field ">"
+      finish = "</" field ">"
+      begin = index(xml, start)
+      if (!begin) exit
+      xml = substr(xml, begin + length(start))
+      end = index(xml, finish)
+      if (!end) exit
+      value = substr(xml, 1, end - 1)
+      sub(/^[[:space:]]+/, "", value)
+      sub(/[[:space:]]+$/, "", value)
+      print value
     }
-  ' "$source_xml"
+  ' "$source_xml")
+  decode_xml_entities "PicsureDS $field" "$value"
+}
+
+# Resolve one Operations datasource setting into the variable named by key and
+# record where it came from. An explicit operations.env value wins so a repair
+# never undoes an operator's change; otherwise the PicsureDS field is read from
+# WildFly; without any WildFly configuration the service default is written so
+# the setting is explicit once the migration has run.
+resolve_database_setting() {
+  local operations_env=$1
+  local key=$2
+  local source_xml=$3
+  local field=$4
+  local service_default=$5
+  local value
+
+  if value=$(real_value "$operations_env" "$key"); then
+    note "$key: reused from existing operations.env"
+  elif [ -n "$source_xml" ]; then
+    value=$(xml_mysql_connection_value "$source_xml" "$field") || exit $?
+    valid_harvested_value "$value" || \
+      fail "PicsureDS $field is missing or unresolved in the WildFly configuration"
+    note "$key: harvested from WildFly configuration"
+  else
+    value=$service_default
+    note "$key: set to the operations service default; no WildFly configuration found"
+  fi
+
+  if printf '%s' "$value" | grep -Eq '__[A-Z_]+__'; then
+    fail "$key contains an unresolved template placeholder"
+  fi
+  case "$value" in
+    *'${'*|*$'\n'*|*$'\r'*) fail "$key contains an unresolved expression or newline" ;;
+  esac
+  printf -v "$key" '%s' "$value"
 }
 
 valid_harvested_value() {
@@ -270,6 +349,14 @@ migrate_service_envs() {
 
   source_xml=$(find_source_xml)
 
+  resolve_database_setting "$operations_env" SPRING_DATASOURCE_URL "$source_xml" connection-url \
+    'jdbc:mysql://picsure-db:3306/picsure?useUnicode=true&characterEncoding=UTF-8&autoReconnect=true&autoReconnectForPools=true&serverTimezone=UTC'
+  resolve_database_setting "$operations_env" SPRING_DATASOURCE_USERNAME "$source_xml" user-name picsure
+  case "$SPRING_DATASOURCE_URL" in
+    jdbc:mysql*://?*) ;;
+    *) fail "SPRING_DATASOURCE_URL must be a resolved MySQL JDBC URL" ;;
+  esac
+
   QUERY_SERVICE_INTERNAL_TOKEN=$(shared_value QUERY_SERVICE_INTERNAL_TOKEN \
     "$gateway_env" "$operations_env" "$query_env")
   PICSURE_APPLICATION_TOKEN=$(shared_value PICSURE_APPLICATION_TOKEN \
@@ -303,7 +390,7 @@ migrate_service_envs() {
       note "PIC-SURE database password: reused from existing operations.env"
     else
       [ -n "$source_xml" ] || fail "required migration values are missing and no WildFly standalone.xml was found"
-      harvested_value=$(xml_mysql_password "$source_xml")
+      harvested_value=$(xml_mysql_connection_value "$source_xml" password) || exit $?
       valid_harvested_value "$harvested_value" || \
         fail "PicsureDS password is missing or unresolved in the WildFly configuration"
       PICSURE_MYSQL_PASSWORD="$harvested_value"
@@ -362,6 +449,9 @@ migrate_service_envs() {
   else
     note "gateway/operations/query env files are already complete"
   fi
+
+  upsert_env SPRING_DATASOURCE_URL "$SPRING_DATASOURCE_URL" "$operations_env"
+  upsert_env SPRING_DATASOURCE_USERNAME "$SPRING_DATASOURCE_USERNAME" "$operations_env"
 
   migrate_gateway_open_access "$gateway_env"
 

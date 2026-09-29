@@ -309,6 +309,7 @@ install_env() {
     -e "s|__LOGGING_API_KEY__|$LOGGING_API_KEY|g" \
     -e "s|__PICSURE_APPLICATION_TOKEN__|$PICSURE_APPLICATION_TOKEN|g" \
     -e "s|__QUERY_SERVICE_INTERNAL_TOKEN__|$QUERY_SERVICE_INTERNAL_TOKEN|g" \
+    -e "s|__MCP_SERVICE_TOKEN__|$MCP_SERVICE_TOKEN|g" \
     -e "s|__PICSURE_MYSQL_PASSWORD__|$PICSURE_MYSQL_PASSWORD|g" \
     -e "s|__AGGREGATE_OBFUSCATION_SALT__|$AGGREGATE_OBFUSCATION_SALT|g" \
     "$template" > "$temp_file"
@@ -340,9 +341,11 @@ migrate_service_envs() {
   local operations_env="$DOCKER_CONFIG_DIR/operations/operations.env"
   local query_env="$DOCKER_CONFIG_DIR/query/query.env"
   local logging_env="$DOCKER_CONFIG_DIR/logging/logging.env"
-  local gateway_keys="TOKEN_INTROSPECTION_TOKEN LOGGING_API_KEY PICSURE_APPLICATION_TOKEN QUERY_SERVICE_INTERNAL_TOKEN"
+  local mcp_env="$DOCKER_CONFIG_DIR/mcp/mcp.env"
+  local gateway_keys="TOKEN_INTROSPECTION_TOKEN LOGGING_API_KEY PICSURE_APPLICATION_TOKEN QUERY_SERVICE_INTERNAL_TOKEN MCP_SERVICE_URL MCP_SERVICE_TOKEN"
   local operations_keys="SPRING_DATASOURCE_PASSWORD QUERY_SERVICE_INTERNAL_TOKEN PICSURE_APPLICATION_TOKEN LOGGING_API_KEY LOGGING_SERVICE_URL"
   local query_keys="QUERY_SERVICE_INTERNAL_TOKEN AGGREGATE_OBFUSCATION_SALT PICSURE_APPLICATION_TOKEN"
+  local mcp_keys="PICSURE_GATEWAY_URL MCP_SERVICE_TOKEN MCP_ADAPTER_BASE_URL"
   local source_xml
   local harvested_value
   local need_install=false
@@ -362,6 +365,7 @@ migrate_service_envs() {
   PICSURE_APPLICATION_TOKEN=$(shared_value PICSURE_APPLICATION_TOKEN \
     "$gateway_env" "$operations_env" "$query_env")
   LOGGING_API_KEY=$(shared_value LOGGING_API_KEY "$gateway_env" "$operations_env" "$logging_env")
+  MCP_SERVICE_TOKEN=$(shared_value MCP_SERVICE_TOKEN "$gateway_env" "$mcp_env")
 
   # shellcheck disable=SC2086
   complete_env "$gateway_env" $gateway_keys || need_install=true
@@ -369,6 +373,8 @@ migrate_service_envs() {
   complete_env "$operations_env" $operations_keys || need_install=true
   # shellcheck disable=SC2086
   complete_env "$query_env" $query_keys || need_install=true
+  # shellcheck disable=SC2086
+  complete_env "$mcp_env" $mcp_keys || need_install=true
 
   TOKEN_INTROSPECTION_TOKEN=""
   PICSURE_MYSQL_PASSWORD=""
@@ -402,6 +408,13 @@ migrate_service_envs() {
       note "QUERY_SERVICE_INTERNAL_TOKEN: generated"
     else
       note "QUERY_SERVICE_INTERNAL_TOKEN: reused from existing env files"
+    fi
+
+    if [ -z "$MCP_SERVICE_TOKEN" ]; then
+      MCP_SERVICE_TOKEN=$(openssl rand -hex 32)
+      note "MCP_SERVICE_TOKEN: generated"
+    else
+      note "MCP_SERVICE_TOKEN: reused from existing env files"
     fi
 
     if [ -z "$PICSURE_APPLICATION_TOKEN" ]; then
@@ -438,6 +451,7 @@ migrate_service_envs() {
     validate_substitution_value LOGGING_API_KEY "$LOGGING_API_KEY"
     validate_substitution_value QUERY_SERVICE_INTERNAL_TOKEN "$QUERY_SERVICE_INTERNAL_TOKEN"
     validate_substitution_value PICSURE_APPLICATION_TOKEN "$PICSURE_APPLICATION_TOKEN"
+    validate_substitution_value MCP_SERVICE_TOKEN "$MCP_SERVICE_TOKEN"
     validate_substitution_value AGGREGATE_OBFUSCATION_SALT "$AGGREGATE_OBFUSCATION_SALT"
 
     # shellcheck disable=SC2086
@@ -446,8 +460,10 @@ migrate_service_envs() {
     install_env operations operations.env $operations_keys
     # shellcheck disable=SC2086
     install_env query query.env $query_keys
+    # shellcheck disable=SC2086
+    install_env mcp mcp.env $mcp_keys
   else
-    note "gateway/operations/query env files are already complete"
+    note "gateway/operations/query/mcp env files are already complete"
   fi
 
   upsert_env SPRING_DATASOURCE_URL "$SPRING_DATASOURCE_URL" "$operations_env"

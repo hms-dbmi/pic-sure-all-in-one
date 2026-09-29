@@ -59,6 +59,7 @@ GATEWAY_ENV="$DOCKER_CONFIG_DIR/gateway/gateway.env"
 OPERATIONS_ENV="$DOCKER_CONFIG_DIR/operations/operations.env"
 QUERY_ENV="$DOCKER_CONFIG_DIR/query/query.env"
 LOGGING_ENV="$DOCKER_CONFIG_DIR/logging/logging.env"
+MCP_ENV="$DOCKER_CONFIG_DIR/mcp/mcp.env"
 
 render_shared_secret \
   QUERY_SERVICE_INTERNAL_TOKEN __QUERY_SERVICE_INTERNAL_TOKEN__ 32 \
@@ -69,6 +70,9 @@ render_shared_secret \
 render_shared_secret \
   LOGGING_API_KEY __LOGGING_API_KEY__ 32 \
   "$GATEWAY_ENV" "$OPERATIONS_ENV" "$LOGGING_ENV"
+render_shared_secret \
+  MCP_SERVICE_TOKEN __MCP_SERVICE_TOKEN__ 32 \
+  "$GATEWAY_ENV" "$MCP_ENV"
 render_shared_secret \
   AGGREGATE_OBFUSCATION_SALT __AGGREGATE_OBFUSCATION_SALT__ 16 \
   "$QUERY_ENV"

@@ -55,6 +55,7 @@
         <string>PIC-SURE Dictionary-ETL Build</string>
         <string>PIC-SURE Gateway Build and Deploy</string>
         <string>PIC-SURE HPDS Query Service Build and Deploy</string>
+        <string>PIC-SURE MCP Build and Deploy</string>
         <string>PIC-SURE Logging Build and Deploy</string>
         <string>PIC-SURE Maven Build</string>
         <string>PIC-SURE Operations Service Build and Deploy</string>

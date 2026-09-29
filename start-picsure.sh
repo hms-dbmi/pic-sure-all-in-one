@@ -34,6 +34,8 @@ echo "INCLUDE_GATEWAY=$INCLUDE_GATEWAY"
 echo "INCLUDE_OPERATIONS=$INCLUDE_OPERATIONS"
 [[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/query" ]] && INCLUDE_QUERY=true || INCLUDE_QUERY=false
 echo "INCLUDE_QUERY=$INCLUDE_QUERY"
+[[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/mcp" ]] && INCLUDE_MCP=true || INCLUDE_MCP=false
+echo "INCLUDE_MCP=$INCLUDE_MCP"
 
 # Docker Volumes
 export PICSURE_BANNER_VOLUME="-v $DOCKER_CONFIG_DIR/httpd/banner_config.json:/usr/local/apache2/htdocs/picsureui/settings/banner_config.json"
@@ -155,6 +157,15 @@ if $INCLUDE_QUERY; then
   docker run --name=pic-sure-hpds-query-service --restart always --network=picsure \
     --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/query/query.env \
     -d hms-dbmi/pic-sure-hpds-query-service:LATEST \
+    || exit 2
+fi
+
+if $INCLUDE_MCP; then
+  docker stop pic-sure-mcp && docker rm pic-sure-mcp
+  docker run --name=pic-sure-mcp --restart always --network=picsure \
+    --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/mcp/mcp.env \
+    $LOGGING_ENVS \
+    -d hms-dbmi/pic-sure-mcp:LATEST \
     || exit 2
 fi
 

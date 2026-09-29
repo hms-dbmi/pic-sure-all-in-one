@@ -45,6 +45,8 @@ echo "INCLUDE_GATEWAY=$INCLUDE_GATEWAY"
 echo "INCLUDE_OPERATIONS=$INCLUDE_OPERATIONS"
 [[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/query" ]] && INCLUDE_QUERY=true || INCLUDE_QUERY=false
 echo "INCLUDE_QUERY=$INCLUDE_QUERY"
+[[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/mcp" ]] && INCLUDE_MCP=true || INCLUDE_MCP=false
+echo "INCLUDE_MCP=$INCLUDE_MCP"
 
 if $INCLUDE_HPDS; then
   stop_and_remove_container hpds
@@ -77,4 +79,7 @@ if $INCLUDE_OPERATIONS; then
 fi
 if $INCLUDE_QUERY; then
   stop_and_remove_container pic-sure-hpds-query-service
+fi
+if $INCLUDE_MCP; then
+  stop_and_remove_container pic-sure-mcp
 fi

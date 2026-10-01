@@ -54,8 +54,11 @@ type (
 		err      error
 	}
 	statusMsg struct {
-		status *contract.Status
-		err    error
+		status    *contract.Status
+		err       error
+		deep      bool
+		startedAt time.Time
+		checkedAt time.Time
 	}
 
 	logLinesMsg struct {
@@ -125,17 +128,22 @@ func pollServices(root string) tea.Cmd {
 	}
 }
 
-func pollStatus(root string) tea.Cmd {
+func pollStatus(root string, deep bool) tea.Cmd {
 	return func() tea.Msg {
+		startedAt := time.Now()
 		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 		defer cancel()
-		cmd := pollCmd(ctx, root, scripts.Status, "--json")
+		args := []string{"--json"}
+		if deep {
+			args = append(args, "--deep-health")
+		}
+		cmd := pollCmd(ctx, root, scripts.Status, args...)
 		var out bytes.Buffer
 		cmd.Stdout = &out
 		if err := cmd.Run(); err != nil {
-			return statusMsg{err: err}
+			return statusMsg{err: err, deep: deep, startedAt: startedAt, checkedAt: time.Now()}
 		}
 		status, err := contract.ParseStatus(out.Bytes())
-		return statusMsg{status: status, err: err}
+		return statusMsg{status: status, err: err, deep: deep, startedAt: startedAt, checkedAt: time.Now()}
 	}
 }

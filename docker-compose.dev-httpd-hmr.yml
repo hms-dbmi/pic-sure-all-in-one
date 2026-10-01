@@ -4,7 +4,7 @@
 # on the Docker network. Source is mounted as a volume so edits are instant.
 #
 # Usage:
-#   docker compose -f docker-compose.yml -f docker-compose.dev-httpd-hmr.yml up -d httpd
+#   scripts/compose.sh dev up httpd-hmr
 #
 # Then browse to http://localhost:3000 (NOT https://localhost — this is the Vite dev server).
 # The Vite server proxies /picsure/* to the gateway (prefix stripped) and
@@ -14,34 +14,19 @@
 #   docker compose up -d httpd
 services:
   httpd:
-    image: node:24.14.1-alpine3.23
+    image: node:${FRONTEND_NODE_VERSION:-24.19.0}-alpine3.23
     container_name: httpd
     working_dir: /app
-    command: sh -c "npm install -g pnpm@10.24.0 && pnpm config set store-dir /pnpm-store && pnpm install && pnpm dev"
+    command: sh -c "npm install -g pnpm@10.24.0 && pnpm config set store-dir /pnpm-store && pnpm install && pnpm dev --config vite.config.aio.ts"
     volumes:
       - ${FRONTEND_SRC:-./repos/PIC-SURE-Frontend}:/app
       - frontend_node_modules:/app/node_modules
-      - ./config/httpd/vite.config.dev.ts:/app/vite.config.ts:ro
+      - ./config/httpd/vite.config.dev.ts:/app/vite.config.aio.ts:ro
+      - ./.data/frontend/hmr.env:/app/.env:ro
     ports:
       - "3000:3000"
     environment:
       NODE_ENV: development
-      # Explicit VITE_* allowlist — the Vite dev server only needs these frontend
-      # feature-flag and config vars; NO DB_*, AUTH0_CLIENT_SECRET, or other stack
-      # secrets should be visible in the internet-facing httpd container.
-      VITE_ENABLE_TOS: ${VITE_ENABLE_TOS:-false}
-      VITE_ENFORCE_TOS_ACCEPT: ${VITE_ENFORCE_TOS_ACCEPT:-false}
-      VITE_RESOURCE_HPDS: ${VITE_RESOURCE_HPDS:-}
-      VITE_RESOURCE_OPEN_HPDS: ${VITE_RESOURCE_OPEN_HPDS:-}
-      VITE_LOGO: ${VITE_LOGO:-}
-      VITE_AUTH0_TENANT: ${VITE_AUTH0_TENANT:-}
-      VITE_AUTH_PROVIDER_MODULE_GOOGLE: ${VITE_AUTH_PROVIDER_MODULE_GOOGLE:-true}
-      VITE_AUTH_PROVIDER_MODULE_GOOGLE_TYPE: ${VITE_AUTH_PROVIDER_MODULE_GOOGLE_TYPE:-AUTH0}
-      VITE_AUTH_PROVIDER_MODULE_GOOGLE_CLIENTID: ${VITE_AUTH_PROVIDER_MODULE_GOOGLE_CLIENTID:-}
-      VITE_AUTH_PROVIDER_MODULE_GOOGLE_CONNECTION: ${VITE_AUTH_PROVIDER_MODULE_GOOGLE_CONNECTION:-google-oauth2}
-      VITE_AUTH_PROVIDER_MODULE_GOOGLE_DESCRIPTION: ${VITE_AUTH_PROVIDER_MODULE_GOOGLE_DESCRIPTION:-Login}
-      VITE_GOOGLE_ANALYTICS_ID: ${VITE_GOOGLE_ANALYTICS_ID:-}
-      VITE_GOOGLE_TAG_MANAGER_ID: ${VITE_GOOGLE_TAG_MANAGER_ID:-}
     networks:
       - public
       - app

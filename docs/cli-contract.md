@@ -34,6 +34,7 @@ document, not the exit code. A non-zero exit means the script itself broke.
 | `env.db_host` | string\|null | `null` unless `db_mode=remote` |
 | `env.db_port` | string\|null | `null` unless `db_mode=remote` |
 | `env.auth_mode` | string | default `required` |
+| `env.introspection_configured` | boolean\|null | Nonempty, nonplaceholder token without whitespace; configuration completeness only, not JWT validity. `null` when env missing/invalid; absent in older scripts. |
 | `env.picsure_image_tag` | string | default `LATEST` |
 | `release_control.repo` | string | |
 | `release_control.branch` | string | |
@@ -58,6 +59,12 @@ document, not the exit code. A non-zero exit means the script itself broke.
 | `health.healthy` | boolean\|null | `true` only when the gateway reports `RUNNING`; `null` when not checked |
 | `health.status` | string\|null | raw `/system/status` text (`RUNNING`, `ONE OR MORE COMPONENTS DEGRADED`); `null` when not checked or unreachable |
 | `health.message` | string | fixed human summary, incl. the reason a check was skipped |
+| `data.checked` | boolean | Deep HPDS query attempted; false without `--deep-health` or when HPDS unavailable |
+| `data.ready` | boolean\|null | True only for numeric COUNT and UP metadata health; false for rejected query (403) or unhealthy data aggregate (503/DOWN); null for skipped, unavailable, or unexpected response |
+| `data.message` | string | Diagnostic summary; no count values or response bodies |
+| `http.checked` | boolean | HTML ingress probe attempted; false when skipped or httpd unavailable |
+| `http.csp_source` | string | `frontend` (one nonce-bearing policy), `both` (multiple policies), `floor` (exact Apache fallback on HTML), `none`, or `unknown` |
+| `http.message` | string | Diagnostic summary; unknown on non-200, redirects, non-HTML, or unrecognized policy |
 | `database.mode` | string | `local` \| `remote` |
 | `database.service` | string\|null | `picsure-db` when local, `null` when remote |
 | `database.host` | string\|null | remote only |
@@ -127,6 +134,31 @@ see the healthcheck comments in `docker-compose.yml`), but reaching it costs a
 `compose ps` plus a `compose exec` into the gateway container. It is therefore
 gated on `--deep-health`; without the flag `health.checked` is `false` and
 nothing is executed.
+
+### Additive diagnostics and dashboard
+
+`data` and `http` are optional schema-v1 additions. Missing fields in older
+scripts mean unknown, never ready. `data.ready` is independent of container
+health and gateway health: HPDS can be alive while queries are locked. The
+probe posts a read-only COUNT to HPDS `/PIC-SURE/v3/query/sync`, then checks
+`/actuator/health` metadata readiness; the latter alone never checks the key.
+It does not prove every dataset or query works. The HTTP probe checks the
+local TLS ingress `/` HTML response. `frontend` describes the header shape,
+not cryptographic proof of its origin. Multiple policies are a warning;
+the exact fallback floor on HTML is a configuration fault.
+
+Both probes require `--deep-health`; individual requests time out after five
+seconds. The dashboard's `h` key requests them explicitly (the overall status
+command has a 60-second process-group timeout). Ordinary polling stays cheap
+and retains the last explicit diagnostic result with its visible local
+last-checked date/time. State-changing dashboard actions invalidate the cached
+result, including probes still in flight; read-only preflight does not.
+Unchecked/unknown diagnostics are neutral information, never healthy or a
+warning by themselves. Setup and data loading remain unchanged.
+
+The COUNT probe is read-only with respect to data but passes through HPDS's
+`query.sync` audit annotation, so an explicit deep check can emit an audit
+event. No COUNT result value is included in status output.
 
 ### Parsing inside status.sh
 

@@ -41,6 +41,8 @@ source "$SCRIPT_DIR/scripts/lib/common.sh"
 
 # shellcheck source=scripts/picsure-compose.sh
 source "$SCRIPT_DIR/scripts/picsure-compose.sh"
+# shellcheck source=scripts/lib/frontend-env.sh
+source "$SCRIPT_DIR/scripts/lib/frontend-env.sh"
 
 usage() {
   sed -n '2,30p' "${BASH_SOURCE[0]}"
@@ -117,7 +119,33 @@ case "$VERB" in
           exit 1
         fi
         info "Starting $SVC from local source (overlay: $OVERLAY). One-shot: a plain 'up' or update reverts it."
-        picsure_compose_dev "$OVERLAY_FILE" up -d --no-deps --build "$SVC"
+        if [ "$SVC" = httpd ]; then
+          FRONTEND_SRC="${FRONTEND_SRC:-$SCRIPT_DIR/repos/PIC-SURE-Frontend}"
+          case "$FRONTEND_SRC" in
+            /*) ;;
+            *) FRONTEND_SRC="$SCRIPT_DIR/$FRONTEND_SRC" ;;
+          esac
+          export FRONTEND_SRC
+          if [ ! -f "$FRONTEND_SRC/.nvmrc" ]; then
+            error "Frontend source/.nvmrc missing at $FRONTEND_SRC; clone the frontend first."
+            exit 1
+          fi
+          FRONTEND_NODE_VERSION="$(tr -d '[:space:]' < "$FRONTEND_SRC/.nvmrc")"
+          if [[ ! "$FRONTEND_NODE_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            error "Frontend .nvmrc must specify a concrete Node version."
+            exit 1
+          fi
+          export FRONTEND_NODE_VERSION
+          if [ "$OVERLAY" = httpd-hmr ]; then
+            mkdir -p "$SCRIPT_DIR/.data/frontend"
+            picsure_frontend_env "$ENV_FILE" hmr > "$SCRIPT_DIR/.data/frontend/hmr.env"
+            picsure_compose_dev "$OVERLAY_FILE" up -d --no-deps --build "$SVC"
+          else
+            picsure_frontend_with_env "$FRONTEND_SRC" "$ENV_FILE" picsure_compose_dev "$OVERLAY_FILE" up -d --no-deps --build "$SVC"
+          fi
+        else
+          picsure_compose_dev "$OVERLAY_FILE" up -d --no-deps --build "$SVC"
+        fi
         ;;
       off)
         NAME="${2:-}"

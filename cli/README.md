@@ -180,6 +180,7 @@ Live view of the running stack: services pane (state + health, polled every
 | `r` | restart selected service (one-keystroke confirm) |
 | `u` | update (confirm → embedded runner pane) |
 | `p` | preflight — read-only, runs immediately (no confirm) |
+| `h` | deep health — query readiness and HTML CSP diagnostics, without changing setup or loading data |
 | `m` / `s` | migrate / seed-db (one-keystroke confirm) |
 | `e` | demo-data dataset picker — the selection is the consent; it dispatches on pick (Cancel row backs out, no second confirm) |
 | `R` | reset — the same one-screen dialog as the landing: scope (**Keep the database** `reset.sh --yes` / **Full wipe** `reset.sh --all --yes`) + optional **reset sibling repos** toggle (`--repos`), then type `reset` to confirm |

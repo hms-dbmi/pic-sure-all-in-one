@@ -8,6 +8,7 @@ import (
 
 	"github.com/hms-dbmi/pic-sure-all-in-one/cli/internal/actions"
 	"github.com/hms-dbmi/pic-sure-all-in-one/cli/internal/dialog"
+	"github.com/hms-dbmi/pic-sure-all-in-one/cli/internal/scripts"
 )
 
 // startConfirm opens a huh dialog for an action. Destructive actions
@@ -153,6 +154,10 @@ func (m *model) updateForm(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *model) startAction(act actions.Action) (tea.Model, tea.Cmd) {
+	m.actionChangesState = act.Script != scripts.Preflight
+	if m.actionChangesState {
+		m.invalidateDiagnostics()
+	}
 	rows, cols := m.actionPaneSize()
 	runner, err := startPTY(m.root, act, rows, cols)
 	if err != nil {

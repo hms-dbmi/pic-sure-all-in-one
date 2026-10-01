@@ -12,18 +12,23 @@
 #   docker run --rm -v "${PICSURE_SRC:-$PWD/repos/pic-sure}:/src" -v maven_m2_cache:/root/.m2 \
 #     -w /src maven:3-amazoncorretto-25 mvn -B clean install -T1C -DskipTests
 #
-# To build only ONE service, use the per-service overlay instead:
-#   docker compose -f docker-compose.yml -f docker-compose.dev-httpd.yml up -d --build httpd
-#   docker compose -f docker-compose.yml -f docker-compose.dev-gateway.yml up -d --build gateway
-#   docker compose -f docker-compose.yml -f docker-compose.dev-operations.yml up -d --build pic-sure-operations-service
-#   docker compose -f docker-compose.yml -f docker-compose.dev-query.yml up -d --build pic-sure-hpds-query-service
-#   docker compose -f docker-compose.yml -f docker-compose.dev-psama.yml up -d --build psama
-#   docker compose -f docker-compose.yml -f docker-compose.dev-hpds.yml up -d --build hpds
-#   docker compose -f docker-compose.yml -f docker-compose.dev-dictionary.yml up -d --build dictionary-api
-#   docker compose -f docker-compose.yml -f docker-compose.dev-visualization.yml up -d --build visualization
+# This combined overlay is retained as a build-definition reference, not a
+# complete frontend setup entry point: it cannot generate AIO's frontend .env.
+# To rebuild and run the whole stack from source with generated configuration:
+#   ./build-images.sh --force
+#   scripts/compose.sh up
 #
-# Stack multiple overlays to build a subset:
-#   docker compose -f docker-compose.yml -f docker-compose.dev-httpd.yml -f docker-compose.dev-psama.yml up -d --build httpd psama
+# For selected services, use the per-service wrappers (or matching CLI commands):
+#   scripts/compose.sh dev up httpd
+#   scripts/compose.sh dev up gateway
+#   scripts/compose.sh dev up operations
+#   scripts/compose.sh dev up query
+#   scripts/compose.sh dev up psama
+#   scripts/compose.sh dev up hpds
+#   scripts/compose.sh dev up dictionary
+#   scripts/compose.sh dev up visualization
+# Run multiple wrapper commands to develop a subset. The httpd wrapper generates
+# frontend configuration before the build and restores the source .env afterward.
 #
 # Source directories default to ./repos/ (cloned by ./clone-repos.sh)
 # Override with environment variables: PICSURE_SRC, FRONTEND_SRC.
@@ -122,15 +127,7 @@ services:
   httpd:
     build:
       context: ${FRONTEND_SRC:-./repos/PIC-SURE-Frontend}
-      dockerfile: ${PWD}/config/httpd/dev.Dockerfile
-      args:
-        THEME: ${PICSURE_THEME:-picsure}
-        VITE_RESOURCE_HPDS: ${PICSURE_RESOURCE_ID:-}
-        VITE_RESOURCE_OPEN_HPDS: ${VITE_RESOURCE_OPEN_HPDS:-}
-        VITE_RESOURCE_VIZ: ${PICSURE_VIZ_RESOURCE_ID:-}
-        VITE_AUTH0_TENANT: ${AUTH0_TENANT:-avillachlab}
-        VITE_AUTH_PROVIDER_MODULE_GOOGLE_CLIENTID: ${AUTH0_CLIENT_ID:-}
-        VITE_AUTH_PROVIDER_MODULE_GOOGLE_CONNECTION: ${VITE_AUTH_PROVIDER_MODULE_GOOGLE_CONNECTION:-google-oauth2}
+      dockerfile: Dockerfile
     image: hms-dbmi/pic-sure-httpd:dev
 
   # ---------------------------------------------------------------------------

@@ -57,12 +57,8 @@ const (
 const (
 	leftWidthMin = 36 // floor: fits the services row format below
 	leftWidthMax = 50 // ceiling: don't starve the logs/status panes on huge terminals
-	// summaryHeight is the status pane's fixed total height (incl. its 2 border
-	// rows). U4's severity-first layout grows to 10 content rows in the worst
-	// case (every check a blocker plus a repo warning), up from the old fixed 5,
-	// so the pane is 13 rows tall (11 content rows of headroom). logView height
-	// derives from this (layout() subtracts it), so the logs pane simply gets
-	// two fewer rows on a tall terminal.
+	// summaryHeight reserves space for status; layout derives log height from it.
+
 	summaryHeight = 13
 	maxLogLines   = 2000
 )
@@ -80,13 +76,16 @@ type model struct {
 	root          string
 	width, height int
 
-	services        []contract.ComposeService
-	servicesErr     error
-	pollingServices bool // a compose ps poll is in flight
-	status          *contract.Status
-	statusErr       error
-	pollingStatus   bool // a status.sh --json poll is in flight
-	selected        int
+	services          []contract.ComposeService
+	servicesErr       error
+	pollingServices   bool // a compose ps poll is in flight
+	status            *contract.Status
+	statusErr         error
+	pollingStatus     bool // a status.sh --json poll is in flight
+	selected          int
+	lastDeepStatus    *contract.Status
+	deepCheckedAt     time.Time
+	deepInvalidatedAt time.Time
 
 	logView    viewport.Model
 	logLines   []string
@@ -108,13 +107,14 @@ type model struct {
 	resetRepos    bool   // reset-sibling-repos toggle — set only while modeReset
 	pending       *actions.Action
 
-	runner          runnerHandle
-	actionView      viewport.Model
-	actionOut       *actions.OutputBuffer
-	actionName      string
-	actionAbortNote string // the running action's re-run-safety note, shown after an abort
-	actionSeq       int    // increments per startAction; stamps grace timers so stale ones are discarded
-	lastResult      string
+	runner             runnerHandle
+	actionView         viewport.Model
+	actionOut          *actions.OutputBuffer
+	actionName         string
+	actionChangesState bool
+	actionAbortNote    string // the running action's re-run-safety note, shown after an abort
+	actionSeq          int    // increments per startAction; stamps grace timers so stale ones are discarded
+	lastResult         string
 
 	// Abort state for the action pane (mirrors the activity screen): a bare
 	// ctrl+c/esc first asks to confirm; a confirmed abort sends ctrl-c and, if
@@ -128,13 +128,25 @@ type model struct {
 	lastAborted     bool
 }
 
+// A probe started before a mutation finishes cannot describe the resulting state.
+func (m *model) invalidateDiagnostics() {
+	m.lastDeepStatus = nil
+	m.deepCheckedAt = time.Time{}
+	m.deepInvalidatedAt = time.Now()
+	if m.status != nil {
+		m.status.Data = contract.Data{}
+		m.status.HTTP = contract.HTTP{}
+		m.status.Health = contract.Health{}
+	}
+}
+
 func newModel(root string) *model {
 	return &model{root: root}
 }
 
 func (m *model) Init() tea.Cmd {
 	m.pollingServices, m.pollingStatus = true, true
-	return tea.Batch(pollServices(m.root), pollStatus(m.root), servicesTick(), statusTick())
+	return tea.Batch(pollServices(m.root), pollStatus(m.root, false), servicesTick(), statusTick())
 }
 
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -172,7 +184,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, statusTick() // skip while a script runs or a poll is in flight
 		}
 		m.pollingStatus = true
-		return m, tea.Batch(pollStatus(m.root), statusTick())
+		return m, tea.Batch(pollStatus(m.root, false), statusTick())
 
 	case servicesMsg:
 		m.pollingServices = false
@@ -190,6 +202,18 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case statusMsg:
 		m.pollingStatus = false
+		if msg.deep && msg.startedAt.Before(m.deepInvalidatedAt) {
+			return m, nil // A state-changing action invalidated this in-flight probe.
+		}
+		if msg.deep {
+			m.lastDeepStatus = msg.status
+			m.deepCheckedAt = msg.checkedAt
+		}
+		if !msg.deep && msg.status != nil && m.lastDeepStatus != nil {
+			msg.status.Data = m.lastDeepStatus.Data
+			msg.status.HTTP = m.lastDeepStatus.HTTP
+			msg.status.Health = m.lastDeepStatus.Health
+		}
 		m.status, m.statusErr = msg.status, msg.err
 		return m, nil
 
@@ -245,6 +269,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case actions.DoneMsg:
+		if m.actionChangesState {
+			m.invalidateDiagnostics()
+		}
 		name := m.actionName
 		m.lastAborted = m.aborted // latch for the finished-pane AbortNote
 		switch {
@@ -277,7 +304,7 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		if !m.pollingStatus {
 			m.pollingStatus = true
-			cmds = append(cmds, pollStatus(m.root))
+			cmds = append(cmds, pollStatus(m.root, false))
 		}
 		return m, tea.Batch(cmds...)
 
@@ -338,6 +365,12 @@ func (m *model) handleKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		var cmd tea.Cmd
 		m.logView, cmd = m.logView.Update(msg)
 		return m, cmd
+	case "h":
+		if m.pollingStatus {
+			return m, nil
+		}
+		m.pollingStatus = true
+		return m, pollStatus(m.root, true)
 	case "u":
 		return m.startConfirm(actions.Update())
 	case "p":

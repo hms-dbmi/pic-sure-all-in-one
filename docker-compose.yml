@@ -30,6 +30,7 @@ services:
       - ./config/httpd/httpd-vhosts.conf:/usr/local/apache2/conf/extra/httpd-vhosts.conf:ro
       - ./.data/logs/httpd:/app/logs
     environment:
+      GATEWAY_DOCS_ENABLED: ${GATEWAY_DOCS_ENABLED:-true}
       # Logging
       LOGGING_API_KEY: ${LOGGING_API_KEY:-disabled}
       LOGGING_SERVICE_URL: ${LOGGING_SERVICE_URL:-http://pic-sure-logging/}
@@ -71,6 +72,7 @@ services:
       TOKEN_INTROSPECTION_TOKEN: ${PICSURE_INTROSPECTION_TOKEN}
       QUERY_SERVICE_INTERNAL_TOKEN: ${QUERY_SERVICE_INTERNAL_TOKEN}
       GATEWAY_OPEN_ACCESS_ENABLED: ${GATEWAY_OPEN_ACCESS_ENABLED:-false}
+      GATEWAY_DOCS_ENABLED: ${GATEWAY_DOCS_ENABLED:-true}
       # Actuator (gated by X-Application-Token)
       PICSURE_APPLICATION_TOKEN: ${PICSURE_APPLICATION_TOKEN}
       PICSURE_ACTUATOR_EXPOSURE: ${PICSURE_ACTUATOR_EXPOSURE:-health}
@@ -119,6 +121,9 @@ services:
       PICSURE_APPLICATION_TOKEN: ${PICSURE_APPLICATION_TOKEN}
       PICSURE_ACTUATOR_EXPOSURE: ${PICSURE_ACTUATOR_EXPOSURE:-health}
       PICSURE_ACTUATOR_DETAILS: ${PICSURE_ACTUATOR_DETAILS:-when_authorized}
+      # Audit logging for operations that emit events
+      LOGGING_API_KEY: ${LOGGING_API_KEY:-disabled}
+      LOGGING_SERVICE_URL: ${LOGGING_SERVICE_URL:-http://pic-sure-logging/}
     networks:
       - app
     depends_on:
@@ -148,11 +153,11 @@ services:
       HPDS_OPEN_URL: http://hpds:8080/PIC-SURE
       # This service owns no database — query state lives in operations-service
       OPERATIONS_SERVICE_URL: http://pic-sure-operations-service:8080
+      CONSENT_BASED_AUTHORIZATION_ENABLED: "${CONSENT_BASED_AUTHORIZATION_ENABLED:-false}"
+      PSAMA_URL: ${PSAMA_URL:-http://psama:8090}
       QUERY_SERVICE_INTERNAL_TOKEN: ${QUERY_SERVICE_INTERNAL_TOKEN}
       # Open-path aggregation / obfuscation
       VISUALIZATION_URL: http://visualization
-      AGGREGATE_VISUALIZATION_RESOURCE_ID: ${PICSURE_VIZ_RESOURCE_ID:-}
-      AGGREGATE_TARGET_RESOURCE_ID: ${OPEN_HPDS_RESOURCE_UUID:-}
       AGGREGATE_OBFUSCATION_THRESHOLD: ${OBFUSCATION_THRESHOLD:-10}
       AGGREGATE_OBFUSCATION_VARIANCE: ${OBFUSCATION_VARIANCE:-3}
       AGGREGATE_OBFUSCATION_SALT: ${AGGREGATE_OBFUSCATION_SALT}
@@ -202,6 +207,8 @@ services:
       AUTH0_IDP_PROVIDER_IS_ENABLED: "true"
       AUTH0_HOST: https://${AUTH0_TENANT:-avillachlab}.auth0.com/
       OPEN_IDP_PROVIDER_IS_ENABLED: "${OPEN_IDP_PROVIDER_IS_ENABLED:-false}"
+      ENABLE_PUBLIC_ACCESS: "${ENABLE_PUBLIC_ACCESS:-false}"
+      CONSENT_BASED_AUTHORIZATION_ENABLED: "${CONSENT_BASED_AUTHORIZATION_ENABLED:-false}"
       STACK_SPECIFIC_APPLICATION_ID: ${PICSURE_APPLICATION_ID}
       # Tokens
       TOKEN_EXPIRATION_TIME: ${PSAMA_TOKEN_EXPIRATION:-3600000}

@@ -20,6 +20,8 @@ ENV_FILE="$SCRIPT_DIR/.env"
 LOG_PREFIX="build"
 # shellcheck source=scripts/lib/common.sh
 source "$SCRIPT_DIR/scripts/lib/common.sh"
+# shellcheck source=scripts/lib/frontend-env.sh
+source "$SCRIPT_DIR/scripts/lib/frontend-env.sh"
 
 FORCE=false
 VERBOSE=false
@@ -57,7 +59,19 @@ if [ "$LOG" = "true" ]; then
 fi
 
 run_step() {
-  picsure_run_logged "$SCRIPT_DIR/.data/logs/build" "$@"
+  local label="$1" log_file="$SCRIPT_DIR/.data/logs/build/$1.log"
+  # The shared logger exits on failure; isolate that exit so a confirmed apk
+  # resolver error can include the upstream repair path without editing sources.
+  if (picsure_run_logged "$SCRIPT_DIR/.data/logs/build" "$@"); then
+    return 0
+  fi
+  if [ "$label" = pic-sure-hpds-etl-docker ] && [ "${VERBOSE:-false}" != true ] &&
+     [ -f "$log_file" ] && grep -q 'unable to select packages' "$log_file" &&
+     grep -q 'apk' "$log_file"; then
+    error "ETL's upstream Dockerfile requests packages unavailable in the Alpine index."
+    error "Inspect $PICSURE_SRC/services/pic-sure-hpds/docker/pic-sure-hpds-etl/Dockerfile and the build log; select a corrected PICSURE_REF or repair the upstream package pins. AIO does not rewrite that Dockerfile."
+  fi
+  return 1
 }
 
 set -a
@@ -75,6 +89,10 @@ case "$PICSURE_SRC" in
   *) PICSURE_SRC="$SCRIPT_DIR/$PICSURE_SRC" ;;
 esac
 FRONTEND_SRC="${FRONTEND_SRC:-$SCRIPT_DIR/repos/PIC-SURE-Frontend}"
+case "$FRONTEND_SRC" in
+  /*) ;;
+  *) FRONTEND_SRC="$SCRIPT_DIR/$FRONTEND_SRC" ;;
+esac
 FRONTEND_THEME="${PICSURE_THEME:-picsure}"
 REACTOR_BUILD_DIR="$SCRIPT_DIR/.build-pic-sure"
 
@@ -82,6 +100,8 @@ REACTOR_BUILD_DIR="$SCRIPT_DIR/.build-pic-sure"
 # "image name|build context|Dockerfile" — the last two relative to the reactor
 # build dir. Each Dockerfile copies its module's target/ jar, so the reactor is
 # the only Maven run.
+# scripts/config-drift.sh reads this literal service:Dockerfile matrix.
+# Keep entries one per line so its source compatibility check stays aligned.
 MONOREPO_IMAGES=(
   "pic-sure-gateway|services/pic-sure-gateway|services/pic-sure-gateway/Dockerfile"
   "pic-sure-operations-service|services/pic-sure-operations-service|services/pic-sure-operations-service/Dockerfile"
@@ -170,13 +190,10 @@ fi
 # label — so re-running init rebuilds the frontend iff its config changed,
 # without a global --force and without any external state to track. The dev
 # overlay builds a separate :dev tag, so it never desyncs this label.
-FRONTEND_DEFAULTS="$FRONTEND_SRC/.env.example"
 FRONTEND_LABEL="org.hms-dbmi.picsure.frontend-config"
 
-# Exact bytes baked into the frontend image (same concatenation as the build).
 frontend_vite_env() {
-  if [ -f "$FRONTEND_DEFAULTS" ]; then grep '^VITE_' "$FRONTEND_DEFAULTS" || true; fi
-  grep '^VITE_' "$ENV_FILE" || true
+  picsure_frontend_env "$ENV_FILE"
 }
 
 # Portable sha256 over stdin (mirrors cli/install.sh's sha256sum→shasum fallback).
@@ -207,13 +224,10 @@ if [ "$FORCE" = "true" ] || [ "$frontend_want_hash" != "$frontend_have_hash" ]; 
     fi
   else
     info "Building frontend (theme: $FRONTEND_THEME)..."
-    frontend_vite_env > "$FRONTEND_SRC/.env"
-    run_step "pic-sure-httpd-docker" docker build -f "$FRONTEND_SRC/Dockerfile" \
-      --build-arg THEME="$FRONTEND_THEME" \
+    picsure_frontend_with_env "$FRONTEND_SRC" "$ENV_FILE" run_step "pic-sure-httpd-docker" docker build -f "$FRONTEND_SRC/Dockerfile" \
       --label "$FRONTEND_LABEL=$frontend_want_hash" \
       -t "hms-dbmi/pic-sure-httpd:$IMAGE_TAG" \
       "$FRONTEND_SRC"
-    rm -f "$FRONTEND_SRC/.env"
     info "Built hms-dbmi/pic-sure-httpd:$IMAGE_TAG"
   fi
 else

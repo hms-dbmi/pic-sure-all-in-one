@@ -59,12 +59,18 @@ jobs:
             load-demo-data.sh build-images.sh clone-repos.sh \
             bootstrap-remote-db.sh \
             scripts/lib/common.sh scripts/lib/json.sh \
+            scripts/lib/config.sh scripts/lib/etl.sh scripts/lib/frontend-env.sh \
             scripts/picsure-compose.sh scripts/env-set.sh scripts/compose.sh \
             scripts/env-normalize.sh \
             scripts/db-wait.sh \
             scripts/smoke-matrix.sh scripts/smoke-remote-db.sh \
             scripts/test-release-control.sh scripts/test-repo-reset.sh \
             scripts/test-db-secrets.sh scripts/test-env-normalize.sh \
+            scripts/config-drift.sh scripts/test-config-drift.sh \
+            scripts/test-config.sh scripts/test-frontend-env.sh \
+            scripts/test-status-diagnostics.sh scripts/test-etl-user.sh \
+            scripts/test-etl-load-csv.sh scripts/test-etl-orchestrators.sh \
+            scripts/test-httpd-policy.sh \
             scripts/check-env-example.sh scripts/check-protected-files.sh \
             scripts/check-secrets.sh \
             config/scripts/generate-introspection-token.sh \
@@ -80,6 +86,13 @@ jobs:
           ./scripts/test-repo-reset.sh
           ./scripts/test-db-secrets.sh
           ./scripts/test-env-normalize.sh
+          ./scripts/test-config.sh
+          ./scripts/test-config-drift.sh
+          ./scripts/test-frontend-env.sh
+          ./scripts/test-status-diagnostics.sh
+          ./scripts/test-etl-user.sh
+          ./scripts/test-etl-load-csv.sh
+          ./scripts/test-etl-orchestrators.sh
 
       # Permanent contract check: both JSON modes must emit parseable
       # documents, including values with quotes/backslashes/tabs, and the
@@ -121,3 +134,35 @@ jobs:
           jq -e '[.checks[] | select(.name == "env.parse" and .status == "fail")] | length == 1' broken-preflight.json
 
           rm -f .env status.json preflight.json broken-status.json broken-preflight.json
+
+  frontend-contract:
+    name: Frontend Vite integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with:
+          repository: hms-dbmi/PIC-SURE-Frontend
+          ref: 0b7273048ee12462ecc5a3a03aa0a4852b646596
+          path: upstream-frontend
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: upstream-frontend/.nvmrc
+      - run: npm install -g pnpm@10.24.0
+      - run: pnpm install --frozen-lockfile
+        working-directory: upstream-frontend
+      - run: cp config/httpd/vite.config.dev.ts upstream-frontend/vite.config.aio.ts
+      - run: node ../scripts/test-frontend-vite.mjs
+        working-directory: upstream-frontend
+
+  httpd-policy:
+    name: Apache documentation and CSP integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker pull httpd:2.4.68-alpine3.23
+      - run: docker pull node:24.19.0-alpine3.23
+      - run: ./scripts/test-httpd-policy.sh
+        env:
+          HTTPD_TEST_IMAGE: httpd:2.4.68-alpine3.23
+          HTTPD_TEST_NODE_IMAGE: node:24.19.0-alpine3.23

@@ -185,6 +185,7 @@ dry_run_update() {
 
   echo ""
   echo "Image action:"
+  echo "  would check resolved configuration (and selected sources when rebuilding) before changing images or services"
   if [ "$PULL_IMAGES" = "true" ]; then
     echo "  would run: docker compose pull"
   elif [ "$REBUILD_IMAGES" = "true" ]; then
@@ -231,6 +232,15 @@ if [ -x "$SCRIPT_DIR/release-control.sh" ]; then
   info "Resolving release-control refs..."
   "$SCRIPT_DIR/release-control.sh"
 fi
+
+# Release control and normalization can change .env. Validate the selected
+# sources and effective configuration before builds, migrations or restarts.
+picsure_load_env "$ENV_FILE"
+drift_args=()
+if [ "$PULL_IMAGES" = "true" ] || [ "$REBUILD_IMAGES" = "false" ]; then
+  drift_args+=(--images-only)
+fi
+"$SCRIPT_DIR/scripts/config-drift.sh" ${drift_args[@]+"${drift_args[@]}"}
 
 if [ "$PULL_IMAGES" = "true" ]; then
   info "Pulling published images for PICSURE_IMAGE_TAG=${PICSURE_IMAGE_TAG:-LATEST}..."

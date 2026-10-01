@@ -32,6 +32,8 @@ export PICSURE_ROOT
 LOG_PREFIX="init"
 # shellcheck source=scripts/lib/common.sh
 source "$SCRIPT_DIR/scripts/lib/common.sh"
+# shellcheck source=scripts/lib/config.sh
+source "$SCRIPT_DIR/scripts/lib/config.sh"
 
 # shellcheck source=scripts/picsure-compose.sh
 source "$SCRIPT_DIR/scripts/picsure-compose.sh"
@@ -156,6 +158,15 @@ if [ -n "$INIT_RELEASE_CONTROL_BRANCH" ]; then
 fi
 
 # Validate required fields
+if ! picsure_theme_valid "${PICSURE_THEME:-picsure}"; then
+  error "PICSURE_THEME must be picsure, bdc, aim-ahead, or local."
+  exit 1
+fi
+case "${AUTH_MODE:-required}" in
+  required|open|explore) ;;
+  *) error "AUTH_MODE must be required, open, or explore."; exit 1 ;;
+esac
+
 if [ -z "${AUTH0_CLIENT_ID:-}" ]; then
   warn "AUTH0_CLIENT_ID is not set in .env"
   warn "You can set it later, but the app won't work without it."
@@ -179,13 +190,7 @@ set_env_var "DB_AIRFLOW_PASSWORD" "$(generate_password)" "$FORCE"
 info "Generating application UUIDs..."
 set_env_var "PICSURE_APPLICATION_ID" "$(generate_uuid)" "$FORCE"
 RESOURCE_ID=$(generate_uuid)
-AUTH_RESOURCE_ID="$RESOURCE_ID"
-if [ -n "${PICSURE_RESOURCE_ID:-}" ] && [ "$FORCE" != "true" ]; then
-  AUTH_RESOURCE_ID="$PICSURE_RESOURCE_ID"
-fi
-set_env_var "PICSURE_RESOURCE_ID"    "$RESOURCE_ID" "$FORCE"
-set_env_var "AUTH_HPDS_RESOURCE_UUID" "$AUTH_RESOURCE_ID" "$FORCE"
-set_env_var "VITE_RESOURCE_HPDS"     "$AUTH_RESOURCE_ID" "$FORCE"
+set_env_var "PICSURE_RESOURCE_ID" "$RESOURCE_ID" "$FORCE"
 
 # Re-source .env so later auth-mode logic sees generated/backfilled UUIDs.
 set -a
@@ -313,44 +318,7 @@ fi
 # ---------------------------------------------------------------------------
 
 info "Configuring auth mode: ${AUTH_MODE:-required}..."
-# Anonymous access spans three services and must move as one set: psama
-# (OPEN_IDP_PROVIDER_IS_ENABLED), the gateway (GATEWAY_OPEN_ACCESS_ENABLED) and
-# the frontend (VITE_OPEN). VITE_OPEN_EXPLORER/VITE_DISCOVER then pick which
-# anonymous surface is shown.
-# See https://pic-sure.gitbook.io/pic-sure-developer-guide/configuring-pic-sure/explore-without-login
-case "${AUTH_MODE:-required}" in
-  open)
-    # Open PIC-SURE: Discover page without login, no export/API
-    set_env_var "OPEN_IDP_PROVIDER_IS_ENABLED" "true" "true"
-    set_env_var "GATEWAY_OPEN_ACCESS_ENABLED" "true" "true"
-    set_env_var "VITE_OPEN" "true" "true"
-    set_env_var "VITE_OPEN_EXPLORER" "false" "true"
-    set_env_var "VITE_DISCOVER" "true" "true"
-    # Open HPDS resource must match the main HPDS resource for unauthenticated queries
-    set_env_var "OPEN_HPDS_RESOURCE_UUID" "${PICSURE_RESOURCE_ID}" "true"
-    set_env_var "VITE_RESOURCE_OPEN_HPDS" "${PICSURE_RESOURCE_ID}" "true"
-    ;;
-  explore)
-    # Explore Without Login: full query builder without login, export prompts login
-    set_env_var "OPEN_IDP_PROVIDER_IS_ENABLED" "true" "true"
-    set_env_var "GATEWAY_OPEN_ACCESS_ENABLED" "true" "true"
-    set_env_var "VITE_OPEN" "true" "true"
-    set_env_var "VITE_OPEN_EXPLORER" "true" "true"
-    # Explore-Without-Login uses the query builder, NOT the Discover page.
-    set_env_var "VITE_DISCOVER" "false" "true"
-    # Open HPDS resource must match the main HPDS resource for unauthenticated queries
-    set_env_var "OPEN_HPDS_RESOURCE_UUID" "${PICSURE_RESOURCE_ID}" "true"
-    set_env_var "VITE_RESOURCE_OPEN_HPDS" "${PICSURE_RESOURCE_ID}" "true"
-    ;;
-  required|*)
-    # Login Required: no access without authentication
-    set_env_var "OPEN_IDP_PROVIDER_IS_ENABLED" "false" "true"
-    set_env_var "GATEWAY_OPEN_ACCESS_ENABLED" "false" "true"
-    set_env_var "VITE_OPEN" "false" "true"
-    set_env_var "VITE_OPEN_EXPLORER" "false" "true"
-    set_env_var "VITE_DISCOVER" "false" "true"
-    ;;
-esac
+picsure_configure_auth
 
 if [ "${TOS_ENABLED:-false}" = "true" ]; then
   set_env_var "VITE_ENABLE_TOS" "true" "true"
@@ -427,7 +395,6 @@ fi
 
 info "Configuring visualization resource..."
 set_env_var "PICSURE_VIZ_RESOURCE_ID" "$(generate_uuid)" "$FORCE"
-set_env_var "VITE_RESOURCE_VIZ" "" "$FORCE"
 
 # Re-source to get all current values
 set -a
@@ -435,24 +402,9 @@ set -a
 source "$ENV_FILE"
 set +a
 
-# Update VIZ to match
-set_env_var "VITE_RESOURCE_VIZ" "${PICSURE_VIZ_RESOURCE_ID}" "true"
-
-# The frontend's SSR config cache (src/lib/server/configCache.ts) fetches
-# ui:setting and ui:branding from ${VITE_ORIGIN}/picsure/configuration and is
-# baked in at build time. Without this key, build-images.sh's frontend_vite_env
-# falls through to the frontend repo's own .env.example, which ships the
-# placeholder https://picsure.example.com/ -- the fetches then fail ENOTFOUND
-# and the UI silently renders built-in defaults instead of the configuration
-# rows in the database.
-#
-# This is an IN-CONTAINER origin, not the browser one: the fetch runs in the
-# SvelteKit node process beside httpd, so it must not carry HTTPS_PORT (that
-# maps to 443 inside) or the public hostname. http://localhost is what the
-# port-80 vhost in config/httpd/httpd-vhosts.conf exists to serve -- it proxies
-# /picsure/* to the gateway for Host localhost|127.0.0.1 only, and redirects
-# everything else to HTTPS. Plain HTTP also sidesteps the self-signed cert,
-# which node's fetch would otherwise reject.
+# SSR configuration fetches go through the container-local HTTP proxy, avoiding
+# public host ports and the development certificate. The HMR helper overrides
+# this origin with its local Vite proxy address.
 set_env_var "VITE_ORIGIN" "http://localhost" "true"
 
 # ---------------------------------------------------------------------------

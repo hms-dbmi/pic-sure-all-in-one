@@ -211,15 +211,8 @@ func (m *model) servicesEmptyState() string {
 // Blockers/Warnings/OK sections stand out from their member lines.
 var summaryLabel = lipgloss.NewStyle().Bold(true)
 
-// summaryPane renders the status summary severity-first (U4): blockers (red)
-// at the top, then warnings (yellow), then a compact folded line for everything
-// healthy. Sections are separated by blank lines and introduced by bold labels,
-// so a single dirty repo no longer hides among nine equally-weighted rows. The
-// release context line always shows last (it is neither a blocker nor a
-// warning, just orientation). Row budget worst case: title + Blockers label +
-// 3 blocker lines (.env, docker, migrations — each contributes at most one) +
-// blank + Warnings label + 1 repos line + blank + release = 10 content rows,
-// within summaryHeight-2 (= 11) — see model.go.
+// summaryPane shows the diagnostic timestamp before severity-ordered findings,
+// then neutral information and release context.
 func (m *model) summaryPane() string {
 	width := max(m.width-m.leftWidth()-6, 20)
 	var b strings.Builder
@@ -242,7 +235,7 @@ func (m *model) summaryBody() string {
 	s := m.status
 
 	// Classify each check once into blocker / warning / ok-token.
-	var blockers, warnings, okTokens []string
+	var blockers, warnings, okTokens, info []string
 
 	// .env
 	switch {
@@ -252,6 +245,14 @@ func (m *model) summaryBody() string {
 		blockers = append(blockers, ".env INVALID shell syntax")
 	default:
 		okTokens = append(okTokens, ".env")
+	}
+
+	if s.Env.IntrospectionConfigured == nil {
+		info = append(info, "introspection configuration unknown")
+	} else if !*s.Env.IntrospectionConfigured {
+		blockers = append(blockers, "introspection token missing or invalid")
+	} else {
+		okTokens = append(okTokens, "introspection config")
 	}
 
 	// docker (daemon + compose config)
@@ -273,6 +274,33 @@ func (m *model) summaryBody() string {
 		okTokens = append(okTokens, "migrations")
 	default:
 		blockers = append(blockers, "migrations failed")
+	}
+
+	// Data readiness is separate from service liveness, including older scripts
+	// that omit these additive fields entirely.
+	switch {
+	case !s.Data.Checked:
+		info = append(info, "data readiness unchecked — h checks health")
+	case s.Data.Ready == nil:
+		info = append(info, "data readiness unknown")
+	case !*s.Data.Ready:
+		blockers = append(blockers, "data not ready — check key/data loading")
+	default:
+		okTokens = append(okTokens, "data")
+	}
+	if s.HTTP.Checked {
+		switch s.HTTP.CSPSource {
+		case "frontend":
+			okTokens = append(okTokens, "CSP")
+		case "floor":
+			blockers = append(blockers, "CSP floor on HTML — update FRONTEND_REF and rebuild")
+		case "both":
+			warnings = append(warnings, "multiple CSP policies — check httpd vhost")
+		case "none":
+			warnings = append(warnings, "HTML has no CSP")
+		default:
+			info = append(info, "CSP unknown")
+		}
 	}
 
 	// repos (dirty/missing are warnings; clean folds into OK)
@@ -301,6 +329,9 @@ func (m *model) summaryBody() string {
 	}
 
 	var b strings.Builder
+	if !m.deepCheckedAt.IsZero() {
+		fmt.Fprintf(&b, "Health checked %s\n", m.deepCheckedAt.Format("2006-01-02 15:04:05"))
+	}
 	if len(blockers) > 0 {
 		b.WriteString(summaryLabel.Render("Blockers") + "\n")
 		for _, line := range blockers {
@@ -318,6 +349,10 @@ func (m *model) summaryBody() string {
 	if len(okTokens) > 0 {
 		// Fold every healthy check onto one compact line.
 		b.WriteString(okStyle.Render("OK: "+strings.Join(okTokens, " · ")) + "\n")
+	}
+
+	for _, line := range info {
+		b.WriteString(line + "\n")
 	}
 
 	// Release context always last: orientation, not severity.
@@ -396,9 +431,9 @@ func (m *model) helpLine() string {
 	// U12: narrow terminals (<100 cols) show a reduced hint set so the help
 	// line fits on one row without wrapping. Wide terminals get the full legend.
 	if m.width < 100 {
-		return "↑/↓ select · r restart · u update · esc back · q quit"
+		return "↑/↓ select · r restart · u update · h health · esc back · q quit"
 	}
-	return "↑/↓ · r restart · u update · p/m/s · e demo · R reset · X uninstall · pgup/dn scroll · esc · q"
+	return "↑/↓ · r restart · u update · h health · p/m/s · e demo · R reset · X uninstall · pgup/dn · esc · q"
 }
 
 func shortCommit(c string) string {

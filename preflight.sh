@@ -22,6 +22,8 @@ export PICSURE_ROOT
 LOG_PREFIX="preflight"
 # shellcheck source=scripts/lib/common.sh
 source "$SCRIPT_DIR/scripts/lib/common.sh"
+# shellcheck source=scripts/lib/config.sh
+source "$SCRIPT_DIR/scripts/lib/config.sh"
 
 # shellcheck source=scripts/picsure-compose.sh
 source "$SCRIPT_DIR/scripts/picsure-compose.sh"
@@ -222,6 +224,28 @@ if [ -f "$ENV_FILE" ]; then
     check_required_env AUTH0_CLIENT_SECRET
     check_required_env AUTH0_TENANT
     check_required_env ADMIN_EMAIL
+
+    if picsure_theme_valid "${PICSURE_THEME:-picsure}"; then
+      ok env.theme "PICSURE_THEME=${PICSURE_THEME:-picsure}"
+    else
+      fail env.theme "PICSURE_THEME must be picsure, bdc, aim-ahead, or local."
+    fi
+
+    if picsure_introspection_configured; then
+      ok env.introspection_token "Introspection token is configured (signature and expiry not verified)."
+    else
+      warn env.introspection_token "Introspection token is missing, a placeholder, or contains whitespace; configure Auth0 and run init.sh before starting the gateway."
+    fi
+
+    case "${CONSENT_BASED_AUTHORIZATION_ENABLED:-false}" in
+      false) ok env.consent_authorization "Consent authorization is disabled for AIO." ;;
+      true) warn env.consent_authorization "Consent authorization requires populated user consents; query service PSAMA_URL=${PSAMA_URL:-http://psama:8090}." ;;
+      *) fail env.consent_authorization "CONSENT_BASED_AUTHORIZATION_ENABLED must be true or false." ;;
+    esac
+    case "${GATEWAY_DOCS_ENABLED:-true}" in
+      true|false) ok env.api_docs "GATEWAY_DOCS_ENABLED=${GATEWAY_DOCS_ENABLED:-true}" ;;
+      *) fail env.api_docs "GATEWAY_DOCS_ENABLED must be true or false." ;;
+    esac
 
     case "${DB_MODE:-local}" in
       local|remote) ok env.db_mode "DB_MODE=${DB_MODE:-local}" ;;

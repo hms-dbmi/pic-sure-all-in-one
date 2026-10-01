@@ -1166,10 +1166,11 @@ func TestSummaryHealthyFolds(t *testing.T) {
 	valid := boolPtr(true)
 	m := testModel(t)
 	m.status = &contract.Status{
-		Env:            contract.StatusEnv{FilePresent: true, FileValid: valid},
+		Env:            contract.StatusEnv{FilePresent: true, FileValid: valid, IntrospectionConfigured: valid},
 		Docker:         contract.Docker{DaemonReachable: true, ComposeConfigValid: valid},
 		Repos:          []contract.Repo{{Name: "a", State: "clean"}},
 		Migrations:     contract.Migrations{Checked: true, Ready: valid},
+		Data:           contract.Data{Checked: true, Ready: valid},
 		ReleaseControl: contract.ReleaseControl{Branch: "main"},
 	}
 	plain := ansi.Strip(m.summaryPane())

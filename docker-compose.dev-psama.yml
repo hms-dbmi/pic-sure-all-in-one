@@ -1,5 +1,5 @@
 # Build psama from local monorepo source with Java remote debugging enabled.
-# Usage: docker compose -f docker-compose.yml -f docker-compose.dev-psama.yml up -d --build psama
+# Usage: scripts/compose.sh dev up psama
 #
 # Requires: the reactor run INTO the checkout first — the Dockerfile only copies
 # target/*.jar, and ./build-images.sh builds in a throwaway copy of the repo:

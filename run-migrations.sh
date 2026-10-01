@@ -114,12 +114,8 @@ run_check() {
 
   require_env_var "PICSURE_APPLICATION_ID" || failed=true
   require_env_var "PICSURE_RESOURCE_ID" || failed=true
-  # Required even though Baseline's V9 drops the resource table: the query
-  # service stamps it outbound as AGGREGATE_VISUALIZATION_RESOURCE_ID, the
-  # frontend reads it as VITE_RESOURCE_VIZ, and config/flyway/run-migrations.sh
-  # hard-fails without it inside flyway-init (V8 substitutes it as a token).
-  # Relaxing the check here would only move that failure into the container,
-  # where it is harder to read.
+  # Flyway V8 still substitutes this UUID before V9 drops the resource table.
+  # Check here rather than letting flyway-init fail inside the container.
   require_env_var "PICSURE_VIZ_RESOURCE_ID" || failed=true
   check_remote_db_env || failed=true
 

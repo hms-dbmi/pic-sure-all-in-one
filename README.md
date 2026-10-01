@@ -120,7 +120,7 @@ and adds checkout-root discovery, TTY safety, and `--json` / `--yes` pass-throug
 |---|---|---|
 | `./preflight.sh` | `pic-sure preflight` | Check host tools, config shape, Compose validity, and pinned refs |
 | `./status.sh` | `pic-sure status` | Print read-only stack, release-control, repo, DB, and migration readiness |
-| `./status.sh --deep-health` | `pic-sure status --deep-health` | The above, plus the gateway's `/system/status` cross-service probe |
+| `./status.sh --deep-health` | `pic-sure status --deep-health` | Gateway downstream health, HPDS data readiness, and HTML CSP diagnostics |
 | `./update.sh --dry-run` | `pic-sure update --dry-run` | Resolve release-control and preview an update |
 | `./update.sh` | `pic-sure update` | Apply release-control refs, rebuild/pull images, run migrations, rotate introspection token, restart services |
 | `./run-migrations.sh --check` | `pic-sure migrate --check` | Validate migration inputs without touching the database |
@@ -140,7 +140,7 @@ and adds checkout-root discovery, TTY safety, and `--json` / `--yes` pass-throug
 
 ```text
 docker-compose.yml              # Main Compose stack
-docker-compose.dev*.yml         # Build-from-source overlays (all services, or one at a time)
+docker-compose.dev*.yml         # Source-build definitions; use scripts/compose.sh dev
 docker-compose.remote-db.yml    # Remote MySQL/RDS overlay
 .env.example                    # Configuration template
 init.sh                         # First install

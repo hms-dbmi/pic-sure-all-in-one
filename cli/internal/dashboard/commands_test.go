@@ -55,3 +55,30 @@ func TestPollCmdNotWedgedByOrphanGrandchild(t *testing.T) {
 			"stdout pipe held open by orphaned grandchild (bug B3). got %q", out.String())
 	}
 }
+
+func TestStatusPollDeepIsExplicit(t *testing.T) {
+	root := t.TempDir()
+	body := `#!/usr/bin/env bash
+printf '%s' "$*" > args
+printf '{"schema_version":1,"command":"status"}\n'
+`
+	if err := os.WriteFile(filepath.Join(root, "status.sh"), []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	for _, tc := range []struct {
+		deep bool
+		want string
+	}{{false, "--json"}, {true, "--json --deep-health"}} {
+		msg := pollStatus(root, tc.deep)().(statusMsg)
+		if msg.err != nil {
+			t.Fatal(msg.err)
+		}
+		got, err := os.ReadFile(filepath.Join(root, "args"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if string(got) != tc.want {
+			t.Fatalf("got %q want %q", got, tc.want)
+		}
+	}
+}

@@ -44,6 +44,9 @@ source "$SCRIPT_DIR/scripts/lib/common.sh"
 # shellcheck source=scripts/picsure-compose.sh
 source "$SCRIPT_DIR/scripts/picsure-compose.sh"
 
+# shellcheck source=scripts/lib/etl.sh
+source "$SCRIPT_DIR/scripts/lib/etl.sh"
+
 usage() {
   # Print the header comment block (from line 2) up to but not including the
   # first non-comment line, then trim the trailing `# ===` divider that closes
@@ -388,7 +391,7 @@ load_csv() {
   local rc=0
   copy_hpds_key "$(volume_name hpds-data)" || rc=$?
   if [ "$rc" -eq 0 ]; then
-    docker run --rm \
+    picsure_etl_run \
       --name hpds-etl-loader \
       -v "$(volume_name hpds-data):/opt/local/hpds" \
       -v "$resolved:/opt/local/hpds/allConcepts.csv:ro" \
@@ -422,7 +425,7 @@ load_multiple() {
   docker volume rm "$temp_volume" >/dev/null 2>&1 || true
   docker volume create "$temp_volume" >/dev/null
   copy_hpds_key "$temp_volume"
-  docker run --rm \
+  picsure_etl_run \
     --name hpds-data-load-multiple-files \
     -v "$temp_volume:/opt/local/hpds" \
     -v "$input_dir:/opt/local/hpds_input:ro" \
@@ -462,7 +465,7 @@ load_rdbms() {
     -v "$sql_properties:/input/sql.properties:ro" \
     -v "$query:/input/loadQuery.sql:ro" \
     alpine sh -c "cp /input/sql.properties /data/sql.properties && cp /input/loadQuery.sql /data/loadQuery.sql"
-  docker run --rm \
+  picsure_etl_run \
     --name hpds-data-load-rdbms \
     -v "$temp_volume:/opt/local/hpds" \
     -e HEAPSIZE="$heap" \
@@ -488,7 +491,7 @@ hydrate_dictionary() {
   ensure_image "hms-dbmi/pic-sure-hpds-etl:${PICSURE_IMAGE_TAG:-LATEST}"
   start_dictionary_etl
   trap stop_dictionary_etl EXIT
-  docker run --rm \
+  picsure_etl_run \
     --name hpds-generate-columnmeta-csv \
     -v "$(volume_name hpds-data):/opt/local/hpds/" \
     -e JAVA_OPTS="-Dlogback.log.level=INFO" \
@@ -637,17 +640,17 @@ load_vcf() {
   if [ -n "$vcf_dir" ]; then
     vcf_mount=(-v "$vcf_dir:$vcf_dir:ro")
   fi
-  docker run --rm --name "hpds-new-vcf-loader-$partition" \
+  picsure_etl_run --name "hpds-new-vcf-loader-$partition" \
     -v "$stage_dir:/opt/local/hpds" \
     ${vcf_mount[@]+"${vcf_mount[@]}"} \
     -e HEAPSIZE="$heap" -e LOADER_NAME=SplitChromosomeVcfLoader \
     "hms-dbmi/pic-sure-hpds-etl:${PICSURE_IMAGE_TAG:-LATEST}"
-  docker run --rm --name "hpds-vcf-metadata-loader-$partition" \
+  picsure_etl_run --name "hpds-vcf-metadata-loader-$partition" \
     -v "$stage_dir:/opt/local/hpds" \
     ${vcf_mount[@]+"${vcf_mount[@]}"} \
     -e HEAPSIZE="$heap" -e LOADER_NAME=VariantMetadataLoader \
     "hms-dbmi/pic-sure-hpds-etl:${PICSURE_IMAGE_TAG:-LATEST}"
-  docker run --rm --name "genomic-dataset-finalizer-$partition" \
+  picsure_etl_run --name "genomic-dataset-finalizer-$partition" \
     -v "$stage_dir/genomic/$partition:/opt/local/hpds/all" \
     -e HEAPSIZE="$heap" -e LOADER_NAME=GenomicDatasetFinalizer \
     "hms-dbmi/pic-sure-hpds-etl:${PICSURE_IMAGE_TAG:-LATEST}"

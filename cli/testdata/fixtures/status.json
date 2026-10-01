@@ -8,6 +8,7 @@
     "db_mode": "remote",
     "db_host": "db.example.com",
     "db_port": "3307",
+    "introspection_configured": true,
     "auth_mode": "required",
     "picsure_image_tag": "LATEST"
   },
@@ -40,6 +41,8 @@
     { "name": "picsure-db", "state": "exited", "health": "unhealthy", "exit_code": 137 }
   ],
   "health": { "checked": false, "healthy": null, "status": null, "message": "Skipped; pass --deep-health to probe the gateway" },
+  "data": { "checked": false, "ready": null, "message": "Not checked; run status --deep-health" },
+  "http": { "checked": false, "csp_source": "unknown", "message": "Not checked; run status --deep-health" },
   "database": { "mode": "remote", "service": null, "host": "db.example.com", "port": "3307" },
   "migrations": { "checked": true, "ready": false, "message": "Migration input check failed; run ./run-migrations.sh --check" }
 }

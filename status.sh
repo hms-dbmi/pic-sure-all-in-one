@@ -27,6 +27,9 @@ source "$SCRIPT_DIR/scripts/lib/common.sh"
 # shellcheck source=scripts/picsure-compose.sh
 source "$SCRIPT_DIR/scripts/picsure-compose.sh"
 
+# shellcheck source=scripts/lib/config.sh
+source "$SCRIPT_DIR/scripts/lib/config.sh"
+
 JSON=false
 DEEP_HEALTH=false
 for arg in "$@"; do
@@ -188,6 +191,89 @@ collect_gateway_health() {
   fi
 }
 
+# Diagnostics remain opt-in: no query results or HTTP bodies are reported.
+collect_diagnostics() {
+  DATA_CHECKED=false DATA_READY="" DATA_MESSAGE="Not checked; run status --deep-health"
+  HTTP_CHECKED=false CSP_SOURCE=unknown
+  HTTP_MESSAGE="Not checked; run status --deep-health"
+  [ "$DEEP_HEALTH" = true ] || return 0
+  if ! docker_reachable; then
+    DATA_MESSAGE="Docker unavailable; data readiness unknown"
+    HTTP_MESSAGE="Docker unavailable; CSP unknown"
+    return 0
+  fi
+  local running response code body health
+  running="$(picsure_compose ps --services --filter status=running 2>/dev/null || true)"
+  if printf '%s\n' "$running" | grep -qx hpds; then
+    DATA_CHECKED=true
+    # HPDS has no authentication filter. The V3 handler checks Crypto.hasKey
+    # before COUNT; Actuator alone checks metadata but never the encryption key.
+    response="$(picsure_compose exec -T hpds wget -q -S -O - -T 5 \
+      --header='Content-Type: application/json' \
+      --post-data='{"query":{"expectedResultType":"COUNT"}}' \
+      http://localhost:8080/PIC-SURE/v3/query/sync 2>&1 || true)"
+    code="$(printf '%s\n' "$response" | awk '/^[[:space:]]*HTTP\/[0-9.]+ / {code=$2} END {print code}')"
+    body="$(printf '%s\n' "$response" | tail -n 1 | tr -d '\r')"
+    case "$code" in
+      403)
+        DATA_READY=false
+        DATA_MESSAGE="HPDS rejected the query (HTTP 403); check the encryption key and run ./etl.sh or ./load-demo-data.sh"
+        ;;
+      200)
+        if [[ "$body" =~ ^[0-9]+$ ]]; then
+          health="$(picsure_compose exec -T hpds wget -q -S -O - -T 5 \
+            http://localhost:8080/actuator/health 2>&1 || true)"
+          if printf '%s\n' "$health" | grep -Eq 'HTTP/[0-9.]+ 503'; then
+            health='{"status":"DOWN"}'
+          else
+            health="$(printf '%s\n' "$health" | tail -n 1)"
+          fi
+          case "$(printf '%s' "$health" | run_jq '.status // empty' /dev/stdin 2>/dev/null || true)" in
+            UP) DATA_READY=true; DATA_MESSAGE="HPDS metadata and synchronous COUNT are ready" ;;
+            DOWN|OUT_OF_SERVICE) DATA_READY=false; DATA_MESSAGE="HPDS data health is not ready; check data loading" ;;
+            *) DATA_MESSAGE="COUNT answered, but HPDS data health is unknown" ;;
+          esac
+        else
+          DATA_MESSAGE="Unexpected HPDS COUNT response; data readiness unknown"
+        fi
+        ;;
+      *) DATA_MESSAGE="HPDS query unavailable or unexpected HTTP ${code:-response}; data readiness unknown" ;;
+    esac
+  else
+    DATA_MESSAGE="HPDS is not running; data readiness unknown"
+  fi
+  if printf '%s\n' "$running" | grep -qx httpd; then
+    HTTP_CHECKED=true
+    # Probe HTML over the TLS ingress. Reject redirects/error documents so the
+    # Apache fallback on an error page cannot be mistaken for a broken frontend.
+    response="$(picsure_compose exec -T httpd wget -q --no-check-certificate -S -O /dev/null -T 5 \
+      https://127.0.0.1/ 2>&1 || true)"
+    code="$(printf '%s\n' "$response" | awk '/^[[:space:]]*HTTP\/[0-9.]+ / {n++; code=$2} END {if (n==1) print code}')"
+    if [ "$code" = 200 ] && printf '%s\n' "$response" | grep -Eiq '^[[:space:]]*Content-Type: text/html([;[:space:]]|$)'; then
+      local policies count floor
+      policies="$(printf '%s\n' "$response" | tr -d '\r' | sed -n 's/^[[:space:]]*[Cc][Oo][Nn][Tt][Ee][Nn][Tt]-[Ss][Ee][Cc][Uu][Rr][Ii][Tt][Yy]-[Pp][Oo][Ll][Ii][Cc][Yy]:[[:space:]]*//p')"
+      count="$(printf '%s\n' "$policies" | awk 'NF {n++} END {print n+0}')"
+      floor="default-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; sandbox"
+      if [ "$count" -eq 0 ]; then
+        CSP_SOURCE=none; HTTP_MESSAGE="HTML response has no CSP"
+      elif [ "$count" -gt 1 ]; then
+        CSP_SOURCE=both; HTTP_MESSAGE="Multiple CSP headers intersect; check the httpd vhost"
+      elif [ "$policies" = "$floor" ]; then
+        CSP_SOURCE=floor; HTTP_MESSAGE="HTML has only the Apache CSP floor; update FRONTEND_REF and rebuild"
+      elif [[ "$policies" == *"'nonce-"* ]]; then
+        CSP_SOURCE=frontend; HTTP_MESSAGE="HTML has one nonce-bearing CSP"
+      else
+        HTTP_MESSAGE="HTML CSP is unrecognized"
+      fi
+    else
+      HTTP_MESSAGE="HTML probe unavailable or unexpected response; CSP unknown"
+    fi
+  else
+    HTTP_MESSAGE="httpd is not running; CSP unknown"
+  fi
+}
+
+
 release_control_commit() {
   if [ -n "${RELEASE_CONTROL_COMMIT:-}" ]; then
     printf '%s' "$RELEASE_CONTROL_COMMIT"
@@ -247,6 +333,13 @@ status_json() {
   else
     env_fields+=("$(json_null db_host)")
     env_fields+=("$(json_null db_port)")
+  fi
+  local introspection_configured=false
+  picsure_introspection_configured && introspection_configured=true
+  if [ "$env_present" = true ] && [ "$env_valid" = true ]; then
+    env_fields+=("$(json_bool introspection_configured "$introspection_configured")")
+  else
+    env_fields+=("$(json_null introspection_configured)")
   fi
   env_fields+=("$(json_str auth_mode "$(eff_auth_mode)")")
   env_fields+=("$(json_str picsure_image_tag "$(eff_image_tag)")")
@@ -324,6 +417,19 @@ status_json() {
   health_fields+=("$(json_str_or_null status "$HEALTH_STATUS")")
   health_fields+=("$(json_str message "$HEALTH_MESSAGE")")
 
+  collect_diagnostics
+  local data_fields=() http_fields=()
+  data_fields+=("$(json_bool checked "$DATA_CHECKED")")
+  if [ -n "$DATA_READY" ]; then
+    data_fields+=("$(json_bool ready "$DATA_READY")")
+  else
+    data_fields+=("$(json_null ready)")
+  fi
+  data_fields+=("$(json_str message "$DATA_MESSAGE")")
+  http_fields+=("$(json_bool checked "$HTTP_CHECKED")")
+  http_fields+=("$(json_str csp_source "$CSP_SOURCE")")
+  http_fields+=("$(json_str message "$HTTP_MESSAGE")")
+
   # --- database ---
   local db_fields=()
   db_fields+=("$(json_str mode "$(eff_db_mode)")")
@@ -367,6 +473,8 @@ status_json() {
   top+=("$(json_raw docker "$(json_obj "${docker_fields[@]}")")")
   top+=("$(json_raw services "$services_json")")
   top+=("$(json_raw health "$(json_obj "${health_fields[@]}")")")
+  top+=("$(json_raw data "$(json_obj "${data_fields[@]}")")")
+  top+=("$(json_raw http "$(json_obj "${http_fields[@]}")")")
   top+=("$(json_raw database "$(json_obj "${db_fields[@]}")")")
   top+=("$(json_raw migrations "$(json_obj "${mig_fields[@]}")")")
   json_obj "${top[@]}"
@@ -402,6 +510,11 @@ if [ "$(eff_db_mode)" = "remote" ]; then
   echo "  DB_PORT=$(eff_db_port)"
 fi
 echo "  AUTH_MODE=$(eff_auth_mode)"
+if picsure_introspection_configured; then
+  ok "Introspection token configuration is complete (signature/expiry not checked)"
+else
+  warn "Introspection token is missing, placeholder, or contains whitespace"
+fi
 echo "  PICSURE_IMAGE_TAG=$(eff_image_tag)"
 
 section "Release Control"
@@ -451,6 +564,10 @@ elif [ -n "$HEALTH_STATUS" ]; then
 else
   bad "$HEALTH_MESSAGE"
 fi
+
+section "Data and HTTP diagnostics"
+collect_diagnostics
+printf '  Data: %s\n  HTTP: %s\n' "$DATA_MESSAGE" "$HTTP_MESSAGE"
 
 section "Database"
 if [ ! -f "$ENV_FILE" ]; then

@@ -1,5 +1,5 @@
 # Build visualization service from local monorepo source
-# Usage: docker compose -f docker-compose.yml -f docker-compose.dev-visualization.yml up -d --build visualization
+# Usage: scripts/compose.sh dev up visualization
 #
 # Requires: the reactor run INTO the checkout first — the Dockerfile only copies
 # target/*.jar, and ./build-images.sh builds in a throwaway copy of the repo:

@@ -49,6 +49,20 @@ work", pass `--deep-health`: it execs into the gateway and reads
 opt-in because it needs a running gateway and costs a round trip to every
 service behind it.
 
+Deep status also performs a bounded HPDS COUNT and metadata-health check, and
+checks the HTML response's CSP. Data readiness is separate from liveness:
+an empty or locked HPDS is not query-ready, even when its container is running.
+Unavailable probes remain unknown. The dashboard's `h` key requests these
+checks; regular status polling stays lightweight and retains the last explicit
+result with its local last-checked date/time. State-changing dashboard actions
+invalidate that result; read-only preflight preserves it. Unknown/unchecked
+readiness is neutral information. The COUNT probe can emit a `query.sync` audit
+event, but status never prints the count. Initialization and explicit data
+loading are unchanged.
+
+The introspection diagnostic checks configuration completeness only. It does
+not verify the token's signature, expiry, or acceptance by PSAMA.
+
 ## Build Images
 
 ```bash
@@ -71,6 +85,27 @@ separately. It bakes `VITE_*` values and the theme into the image, so it is
 rebuilt whenever those build inputs change — tracked as a hash label on the
 image, no `--force` needed.
 
+Only explicitly configured `VITE_*` values are baked into the image.
+`PICSURE_THEME` supplies `VITE_THEME`; unconfigured fields use the frontend's
+application/API defaults, not its example environment. `init.sh` sets
+`VITE_CONFIG_MODE=override`, so explicit environment values win over admin
+configuration for the same field, including branding.
+
+Use `scripts/compose.sh dev up httpd` for a compiled frontend or
+`scripts/compose.sh dev up httpd-hmr` for live reload. Both use the same public
+configuration generator. The compiled build restores any developer-owned
+frontend `.env` afterward. HMR mounts its generated environment separately,
+uses Node from the selected frontend's `.nvmrc`, and pins pnpm to 10.24.0.
+Run these through the wrapper or CLI so configuration is generated first.
+
+For a complete source rebuild, use `./build-images.sh --force` followed by
+`scripts/compose.sh up`. For a subset, run `scripts/compose.sh dev up <overlay>`
+for each selected service (for example, `httpd` and `psama`). The retained
+`docker-compose.dev.yml` combines build definitions but is not a complete
+frontend setup entry point: direct Compose invocation does not generate the
+frontend environment. `dev list` lists the supported per-service overlays.
+
+
 ## Safe Update
 
 ```bash
@@ -82,6 +117,15 @@ service repos, rebuilds local images through `build-images.sh --force`, runs
 `./run-migrations.sh --check` then `./run-migrations.sh`, rotates/syncs the
 PIC-SURE introspection token, runs `docker compose up -d`, and then restarts
 `psama` and `httpd`. It does not delete volumes.
+
+Before image builds/pulls, migrations, or service changes, `scripts/config-drift.sh`
+checks the resolved Compose environment against the selected auth mode and
+explicit AIO settings. Known mismatches stop the update with a remedy.
+Unrecognized upstream environment keys, image users, and build-context changes
+warn for review; they are not proof of an incompatibility. Source checks use the
+selected local checkout and print its revision. `--no-rebuild` and `--pull-images`
+check configuration only because local sources cannot establish image contents.
+This is a targeted compatibility check, not an end-to-end readiness guarantee.
 
 Only those two get an extra `restart`: `psama` to flush its TTL-less
 roles/privileges caches, and `httpd` to re-read its bind-mounted vhost and
@@ -331,6 +375,30 @@ Cannot log in:
 - Analytics: set `VITE_GOOGLE_ANALYTICS_ID` or `VITE_GOOGLE_TAG_MANAGER_ID`
   before rebuilding the frontend.
 - Auth modes: set `AUTH_MODE=required`, `open`, or `explore`.
+
+After changing auth mode, rerun `init.sh` and rebuild the frontend. Explore
+provides exact counts and charts to anonymous visitors, with login required
+for export. Discover is the obfuscated mode; expanded Discover deployment and
+separate public-data topology remain deferred in this AIO demo implementation.
+AIO does not seed user consents, so consent authorization defaults off in both
+PSAMA and the query service. Enabling it requires an actual consent workflow.
+
+API documentation defaults on. Set `GATEWAY_DOCS_ENABLED=false` and recreate
+gateway and httpd (`scripts/compose.sh up gateway httpd`) to disable gateway
+documentation and direct PSAMA documents. In HMR, rerun the dev wrapper to
+recreate the frontend container. Current core versions without a docs console
+still return 404; the switch does not install documentation support.
+
+The frontend supplies its nonce-based CSP. Apache supplies a restrictive
+fallback for responses with no policy. The gateway Swagger viewer has a
+separate policy permitting its upstream inline initializer only on that page;
+it does not relax application pages or API responses.
+
+HPDS ETL containers explicitly run as `0:0`, matching the service and AIO's
+root-owned named volumes. An operator who has prepared compatible permissions
+on all data volumes and genomic bind directories can set `ETL_RUN_AS` in `.env`.
+Alpine copy helpers and other loaders retain their image defaults. No upstream
+Dockerfile is rewritten to handle package pin failures.
 
 ## Retired Jenkins Workflows
 

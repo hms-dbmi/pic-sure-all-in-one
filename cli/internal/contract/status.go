@@ -23,17 +23,20 @@ type Status struct {
 	Health         Health         `json:"health"`
 	Database       Database       `json:"database"`
 	Migrations     Migrations     `json:"migrations"`
+	Data           Data           `json:"data"`
+	HTTP           HTTP           `json:"http"`
 }
 
 type StatusEnv struct {
-	FilePresent        bool    `json:"file_present"`
-	FileValid          *bool   `json:"file_valid"`
-	ComposeProjectName string  `json:"compose_project_name"`
-	DBMode             string  `json:"db_mode"`
-	DBHost             *string `json:"db_host"`
-	DBPort             *string `json:"db_port"`
-	AuthMode           string  `json:"auth_mode"`
-	PicsureImageTag    string  `json:"picsure_image_tag"`
+	FilePresent             bool    `json:"file_present"`
+	FileValid               *bool   `json:"file_valid"`
+	ComposeProjectName      string  `json:"compose_project_name"`
+	DBMode                  string  `json:"db_mode"`
+	DBHost                  *string `json:"db_host"`
+	DBPort                  *string `json:"db_port"`
+	AuthMode                string  `json:"auth_mode"`
+	PicsureImageTag         string  `json:"picsure_image_tag"`
+	IntrospectionConfigured *bool   `json:"introspection_configured"`
 }
 
 type ReleaseControl struct {
@@ -74,6 +77,19 @@ type Health struct {
 	Healthy *bool   `json:"healthy"`
 	Status  *string `json:"status"`
 	Message string  `json:"message"`
+}
+
+// Data is independent of container liveness; nil Ready is never healthy.
+type Data struct {
+	Checked bool   `json:"checked"`
+	Ready   *bool  `json:"ready"`
+	Message string `json:"message"`
+}
+
+type HTTP struct {
+	Checked   bool   `json:"checked"`
+	CSPSource string `json:"csp_source"`
+	Message   string `json:"message"`
 }
 
 type Database struct {

@@ -29,6 +29,9 @@ source "$SCRIPT_DIR/scripts/lib/common.sh"
 # shellcheck source=scripts/picsure-compose.sh
 source "$SCRIPT_DIR/scripts/picsure-compose.sh"
 
+# shellcheck source=scripts/lib/etl.sh
+source "$SCRIPT_DIR/scripts/lib/etl.sh"
+
 # Parse flags
 VERBOSE=false
 DATASET="nhanes"
@@ -243,7 +246,7 @@ else
   LOAD_CSV="$DATA_DIR/allConcepts.csv"
 fi
 
-run_logged "hpds-etl-loader" docker run --rm \
+run_logged "hpds-etl-loader" picsure_etl_run \
   --name hpds-etl-loader \
   -v "$HPDS_DATA_VOLUME:/opt/local/hpds" \
   -v "$LOAD_CSV:/opt/local/hpds/allConcepts.csv:ro" \
@@ -308,7 +311,7 @@ if [ "${SKIP_DICT:-}" != "true" ]; then
 
   # Step 3a: Generate columnMeta.csv from HPDS data
   info "Generating columnMeta.csv from HPDS data..."
-  run_logged "hpds-columnmeta" docker run --rm \
+  run_logged "hpds-columnmeta" picsure_etl_run \
     --name hpds-columnmeta \
     -v "$HPDS_DATA_VOLUME:/opt/local/hpds/" \
     -e HEAPSIZE=4096 \

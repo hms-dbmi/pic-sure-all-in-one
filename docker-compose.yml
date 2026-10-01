@@ -18,7 +18,6 @@ services:
   # ---------------------------------------------------------------------------
   httpd:
     image: hms-dbmi/pic-sure-httpd:${PICSURE_IMAGE_TAG:-LATEST}
-    container_name: httpd
     restart: always
     ports:
       - "${HTTP_PORT:-80}:80"
@@ -63,7 +62,6 @@ services:
   # only secrets and toggles are set here.
   gateway:
     image: hms-dbmi/pic-sure-gateway:${PICSURE_IMAGE_TAG:-LATEST}
-    container_name: gateway
     restart: always
     environment:
       JAVA_OPTS: ${GATEWAY_JAVA_OPTS:--Xms512m -Xmx2g}
@@ -107,7 +105,6 @@ services:
   # ---------------------------------------------------------------------------
   pic-sure-operations-service:
     image: hms-dbmi/pic-sure-operations-service:${PICSURE_IMAGE_TAG:-LATEST}
-    container_name: pic-sure-operations-service
     restart: always
     environment:
       JAVA_OPTS: ${OPERATIONS_JAVA_OPTS:--Xms512m -Xmx2g}
@@ -144,7 +141,6 @@ services:
   # ---------------------------------------------------------------------------
   pic-sure-hpds-query-service:
     image: hms-dbmi/pic-sure-hpds-query-service:${PICSURE_IMAGE_TAG:-LATEST}
-    container_name: pic-sure-hpds-query-service
     restart: always
     environment:
       JAVA_OPTS: ${QUERY_SERVICE_JAVA_OPTS:--Xms512m -Xmx2g}
@@ -187,7 +183,6 @@ services:
   # ---------------------------------------------------------------------------
   psama:
     image: hms-dbmi/pic-sure-psama:${PICSURE_IMAGE_TAG:-LATEST}
-    container_name: psama
     restart: always
     volumes:
       - ./.data/logs/psama:/var/log
@@ -250,7 +245,6 @@ services:
   # ---------------------------------------------------------------------------
   hpds:
     image: hms-dbmi/pic-sure-hpds:${PICSURE_IMAGE_TAG:-LATEST}
-    container_name: hpds
     restart: always
     volumes:
       - hpds-data:/opt/local/hpds
@@ -305,7 +299,6 @@ services:
   # ---------------------------------------------------------------------------
   visualization:
     image: hms-dbmi/pic-sure-visualization:${PICSURE_IMAGE_TAG:-LATEST}
-    container_name: visualization
     restart: always
     volumes:
       - ./.data/logs/visualization:/var/log
@@ -340,7 +333,6 @@ services:
   # ---------------------------------------------------------------------------
   dictionary-api:
     image: hms-dbmi/pic-sure-dictionary-api:${PICSURE_IMAGE_TAG:-LATEST}
-    container_name: dictionary-api
     restart: always
     env_file:
       - ./config/dictionary/dictionary.env
@@ -378,7 +370,6 @@ services:
   # ---------------------------------------------------------------------------
   dictionary-dump:
     image: hms-dbmi/pic-sure-dictionary-dump:${PICSURE_IMAGE_TAG:-LATEST}
-    container_name: dictionary-dump
     restart: always
     env_file:
       - ./config/dictionary/dictionary.env
@@ -397,7 +388,6 @@ services:
   # ---------------------------------------------------------------------------
   picsure-db:
     image: mysql:8.0
-    container_name: picsure-db
     restart: always
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
@@ -425,7 +415,6 @@ services:
   # ---------------------------------------------------------------------------
   dictionary-db:
     image: postgres:16-alpine
-    container_name: dictionary-db
     restart: always
     env_file:
       - ./config/dictionary/dictionary.env
@@ -471,7 +460,6 @@ services:
   # docker-compose.remote-db.yml.
   flyway-init:
     image: flyway/flyway:10
-    container_name: flyway-init
     entrypoint: ["bash", "/scripts/run-migrations.sh"]
     volumes:
       - ./config/flyway/run-migrations.sh:/scripts/run-migrations.sh:ro
@@ -523,7 +511,6 @@ services:
   #     tier, and vice versa.
   flyway-dictionary-init:
     image: flyway/flyway:10
-    container_name: flyway-dictionary-init
     entrypoint: ["bash", "/scripts/run-dictionary-migrations.sh"]
     # POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB / POSTGRES_HOST, generated
     # by ./init.sh — the same file dictionary-db and dictionary-api read.
@@ -554,7 +541,6 @@ services:
   # ---------------------------------------------------------------------------
   pic-sure-logging:
     image: hms-dbmi/pic-sure-logging:${PICSURE_IMAGE_TAG:-LATEST}
-    container_name: pic-sure-logging
     restart: always
     volumes:
       - ./.data/logs/logging:/app/logs

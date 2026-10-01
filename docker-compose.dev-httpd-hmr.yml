@@ -15,7 +15,6 @@
 services:
   httpd:
     image: node:${FRONTEND_NODE_VERSION:-24.19.0}-alpine3.23
-    container_name: httpd
     working_dir: /app
     command: sh -c "npm install -g pnpm@10.24.0 && pnpm config set store-dir /pnpm-store && pnpm install && pnpm dev --config vite.config.aio.ts"
     volumes:

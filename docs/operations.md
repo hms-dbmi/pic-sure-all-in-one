@@ -303,16 +303,28 @@ See [etl.md](etl.md).
 ## Multiple Local Stacks
 
 Two all-in-ones can run on one Docker host when each checkout uses a distinct
-Compose project and ports:
+Compose project, image tag, and ports:
 
 ```env
 COMPOSE_PROJECT_NAME=picsure2
+PICSURE_IMAGE_TAG=picsure2
 HTTP_PORT=8080
 HTTPS_PORT=8443
 ```
 
-Container names must also be project-scoped. Prefer removing fixed
-`container_name` entries from Compose before running two stacks at once.
+Compose names each container `<project>-<service>-N` (for example
+`picsure2-picsure-db-1`), so the two stacks' containers, volumes, and networks
+stay apart. Reach a container by service through its own checkout's project,
+never by a container name:
+
+```bash
+docker compose exec picsure-db bash      # run from the checkout, or add -p <project>
+docker compose logs -f gateway
+```
+
+Inside a stack, services still reach each other by service name (`picsure-db`,
+`gateway`, ...). The ETL scripts prefix the containers they start themselves
+with the project name, so two stacks can run ETL at the same time.
 
 ## Troubleshooting
 

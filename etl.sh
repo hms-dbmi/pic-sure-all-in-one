@@ -149,33 +149,43 @@ build_dictionary_etl_image() {
   docker build --label "$DICT_ETL_LABEL=$want_commit" -t hms-dbmi/dictionary-etl:latest "$src"
 }
 
+# The ETL container's name carries the project so a sibling stack's ETL is
+# never removed by ours. Callers reach it as http://dictionaryetl:8086 through
+# a network alias on this project's data network.
+dictionary_etl_container() {
+  picsure_container_name dictionaryetl
+}
+
 start_dictionary_etl() {
   build_dictionary_etl_image
-  docker rm -f dictionaryetl >/dev/null 2>&1 || true
+  local container
+  container="$(dictionary_etl_container)"
+  docker rm -f "$container" >/dev/null 2>&1 || true
   local dict_env="$SCRIPT_DIR/config/dictionary/dictionary.env"
   require_file "$dict_env"
 
   docker run -d \
-    --name dictionaryetl \
+    --name "$container" \
     --env-file "$dict_env" \
     --network "$(network_name data)" \
+    --network-alias dictionaryetl \
     -v "$(volume_name hpds-data):/opt/local/hpds/" \
     hms-dbmi/dictionary-etl:latest >/dev/null
 
   for _ in $(seq 1 24); do
-    if docker logs dictionaryetl 2>&1 | grep -q "Started DictionaryEtlApplication"; then
+    if docker logs "$container" 2>&1 | grep -q "Started DictionaryEtlApplication"; then
       return 0
     fi
     sleep 5
   done
 
-  docker logs dictionaryetl >&2 || true
+  docker logs "$container" >&2 || true
   error "Dictionary ETL did not start."
   exit 1
 }
 
 stop_dictionary_etl() {
-  docker rm -f dictionaryetl >/dev/null 2>&1 || true
+  docker rm -f "$(dictionary_etl_container)" >/dev/null 2>&1 || true
 }
 
 curl_data() {
@@ -392,7 +402,7 @@ load_csv() {
   copy_hpds_key "$(volume_name hpds-data)" || rc=$?
   if [ "$rc" -eq 0 ]; then
     picsure_etl_run \
-      --name hpds-etl-loader \
+      --name "$(picsure_container_name hpds-etl-loader)" \
       -v "$(volume_name hpds-data):/opt/local/hpds" \
       -v "$resolved:/opt/local/hpds/allConcepts.csv:ro" \
       -e HEAPSIZE="$heap" \
@@ -426,7 +436,7 @@ load_multiple() {
   docker volume create "$temp_volume" >/dev/null
   copy_hpds_key "$temp_volume"
   picsure_etl_run \
-    --name hpds-data-load-multiple-files \
+    --name "$(picsure_container_name hpds-data-load-multiple-files)" \
     -v "$temp_volume:/opt/local/hpds" \
     -v "$input_dir:/opt/local/hpds_input:ro" \
     -e JAVA_OPTS="-Dlogback.log.level=INFO" \
@@ -466,7 +476,7 @@ load_rdbms() {
     -v "$query:/input/loadQuery.sql:ro" \
     alpine sh -c "cp /input/sql.properties /data/sql.properties && cp /input/loadQuery.sql /data/loadQuery.sql"
   picsure_etl_run \
-    --name hpds-data-load-rdbms \
+    --name "$(picsure_container_name hpds-data-load-rdbms)" \
     -v "$temp_volume:/opt/local/hpds" \
     -e HEAPSIZE="$heap" \
     -e LOADER_NAME=SQLLoader \
@@ -492,7 +502,7 @@ hydrate_dictionary() {
   start_dictionary_etl
   trap stop_dictionary_etl EXIT
   picsure_etl_run \
-    --name hpds-generate-columnmeta-csv \
+    --name "$(picsure_container_name hpds-generate-columnmeta-csv)" \
     -v "$(volume_name hpds-data):/opt/local/hpds/" \
     -e JAVA_OPTS="-Dlogback.log.level=INFO" \
     -e HEAPSIZE=4096 \
@@ -610,7 +620,7 @@ run_weights() {
   local dict_env="$SCRIPT_DIR/config/dictionary/dictionary.env"
   require_file "$dict_env"
   docker run --rm \
-    --name dictionary-weights \
+    --name "$(picsure_container_name dictionary-weights)" \
     --network "$(network_name data)" \
     --env-file "$dict_env" \
     -v "$weights:/weights.csv:ro" \
@@ -640,17 +650,17 @@ load_vcf() {
   if [ -n "$vcf_dir" ]; then
     vcf_mount=(-v "$vcf_dir:$vcf_dir:ro")
   fi
-  picsure_etl_run --name "hpds-new-vcf-loader-$partition" \
+  picsure_etl_run --name "$(picsure_container_name "hpds-new-vcf-loader-$partition")" \
     -v "$stage_dir:/opt/local/hpds" \
     ${vcf_mount[@]+"${vcf_mount[@]}"} \
     -e HEAPSIZE="$heap" -e LOADER_NAME=SplitChromosomeVcfLoader \
     "hms-dbmi/pic-sure-hpds-etl:${PICSURE_IMAGE_TAG:-LATEST}"
-  picsure_etl_run --name "hpds-vcf-metadata-loader-$partition" \
+  picsure_etl_run --name "$(picsure_container_name "hpds-vcf-metadata-loader-$partition")" \
     -v "$stage_dir:/opt/local/hpds" \
     ${vcf_mount[@]+"${vcf_mount[@]}"} \
     -e HEAPSIZE="$heap" -e LOADER_NAME=VariantMetadataLoader \
     "hms-dbmi/pic-sure-hpds-etl:${PICSURE_IMAGE_TAG:-LATEST}"
-  picsure_etl_run --name "genomic-dataset-finalizer-$partition" \
+  picsure_etl_run --name "$(picsure_container_name "genomic-dataset-finalizer-$partition")" \
     -v "$stage_dir/genomic/$partition:/opt/local/hpds/all" \
     -e HEAPSIZE="$heap" -e LOADER_NAME=GenomicDatasetFinalizer \
     "hms-dbmi/pic-sure-hpds-etl:${PICSURE_IMAGE_TAG:-LATEST}"

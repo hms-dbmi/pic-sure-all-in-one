@@ -54,7 +54,7 @@ else
   info "Starting bundled picsure-db if needed..."
   picsure_compose up -d picsure-db >/dev/null
   info "Waiting for bundled picsure-db to become healthy..."
-  until docker inspect --format='{{.State.Health.Status}}' picsure-db 2>/dev/null | grep -q healthy; do
+  until [ "$(picsure_service_health picsure-db)" = healthy ]; do
     RETRIES=$((RETRIES - 1))
     if [ "$RETRIES" -le 0 ]; then
       error "picsure-db did not become healthy in time."

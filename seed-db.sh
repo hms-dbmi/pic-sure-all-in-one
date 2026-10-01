@@ -25,6 +25,9 @@ LOG_PREFIX="seed"
 # shellcheck source=scripts/lib/common.sh
 source "$SCRIPT_DIR/scripts/lib/common.sh"
 
+# shellcheck source=scripts/picsure-compose.sh
+source "$SCRIPT_DIR/scripts/picsure-compose.sh"
+
 # Source .env
 if [ ! -f "$SCRIPT_DIR/.env" ]; then
   error ".env not found. Run ./init.sh first."
@@ -41,7 +44,8 @@ set +a
 # from its own environment into the container, so host ps shows only the name.
 # (`-e MYSQL_PWD="$pass"` would expand the value into host argv.) The -i flag
 # lets callers stream SQL on stdin, so secret-bearing statements (e.g. the
-# introspection token, the admin email) stay out of argv as well.
+# introspection token, the admin email) stay out of argv as well. Locally,
+# picsure-db is reached by this project's container id, not a fixed name.
 db_mysql() {
   if [ "${DB_MODE:-local}" = "remote" ]; then
     MYSQL_PWD="${DB_ROOT_PASSWORD}" docker run --rm -i \
@@ -49,9 +53,15 @@ db_mysql() {
       mysql:8.0 \
       mysql -h "${DB_HOST}" -P "${DB_PORT:-3306}" -u "${DB_ROOT_USER:-root}" "$@"
   else
+    local cid
+    cid="$(picsure_service_cid picsure-db)"
+    if [ -z "$cid" ]; then
+      error "picsure-db is not running in project ${COMPOSE_PROJECT_NAME:-picsure}."
+      return 1
+    fi
     MYSQL_PWD="${DB_ROOT_PASSWORD}" docker exec -i \
       -e MYSQL_PWD \
-      picsure-db mysql -uroot "$@"
+      "$cid" mysql -uroot "$@"
   fi
 }
 
@@ -72,7 +82,7 @@ if [ "${DB_MODE:-local}" = "remote" ]; then
     exit 1
   fi
 else
-  if ! docker inspect --format='{{.State.Health.Status}}' picsure-db 2>/dev/null | grep -q healthy; then
+  if [ "$(picsure_service_health picsure-db)" != healthy ]; then
     error "picsure-db is not healthy. Run 'docker compose up -d' first."
     exit 1
   fi

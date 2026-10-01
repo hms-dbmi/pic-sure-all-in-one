@@ -75,11 +75,18 @@ CAPTURE_STDIN="$TEST_ROOT/stdin"
 FAKE_DOCKER_ARGV="$CAPTURE_DOCKER_ARGV"
 export FAKE_DOCKER_ARGV
 
+# Services the fake `docker compose ps -q` reports as running in this project.
+FAKE_RUNNING_SERVICES="picsure-db"
+export FAKE_RUNNING_SERVICES
+
 # --- Fake docker -----------------------------------------------------------
-# Emulates `docker run [opts] IMAGE cmd...` and `docker exec [opts] NAME cmd...`.
-# Records its OWN argv (the host ps view), resolves -e specs with real docker
-# semantics (bare names forward from the client's own environment), then runs
-# `cmd...` under env -i — the container boundary — with stdin passed through.
+# Emulates `docker run [opts] IMAGE cmd...` and `docker exec [opts] NAME cmd...`,
+# plus `docker compose ... ps -q SERVICE`, which prints a fake container id
+# (fakecid-SERVICE) for each service in FAKE_RUNNING_SERVICES and nothing
+# otherwise. Records its OWN argv (the host ps view), resolves -e specs with
+# real docker semantics (bare names forward from the client's own
+# environment), then runs `cmd...` under env -i — the container boundary —
+# with stdin passed through.
 mkdir -p "$TEST_ROOT/bin"
 cat > "$TEST_ROOT/bin/docker" <<'DOCKER'
 #!/usr/bin/env bash
@@ -93,6 +100,18 @@ sub="${1:-}"
 shift || true
 case "$sub" in
   run|exec) ;;
+  compose)
+    service="${*: -1}"
+    case "$*" in
+      *" ps -q "*)
+        case " ${FAKE_RUNNING_SERVICES:-} " in
+          *" $service "*) echo "fakecid-$service" ;;
+        esac
+        exit 0
+        ;;
+    esac
+    echo "fake-docker: unsupported compose call: $*" >&2; exit 99
+    ;;
   *) echo "fake-docker: unsupported subcommand: $sub" >&2; exit 99 ;;
 esac
 
@@ -120,7 +139,7 @@ while [ "$#" -gt 0 ]; do
       shift
       ;;
     --rm|-i|-t|-d) shift ;;        # flags with no value
-    --name|--network) shift 2 ;;    # flags with a value
+    --name|--network|--network-alias) shift 2 ;;  # flags with a value
     -*) shift ;;                    # ignore any other flag (best-effort)
     *)
       # First non-flag positional is the IMAGE (run) or container NAME (exec).
@@ -183,6 +202,15 @@ assert_pass_not_in_docker_argv() {
     fail "$1: bare '-e MYSQL_PWD' missing from docker argv (password cannot cross the boundary)"
   fi
   pass "$1: password absent from docker argv (bare -e MYSQL_PWD present)"
+}
+
+# Local mode must reach picsure-db by the id this project's compose resolves,
+# never by a fixed container name another stack may also be using.
+assert_exec_targets_project_cid() {
+  if ! grep -qE -- '^docker exec .* fakecid-picsure-db mysql' "$CAPTURE_DOCKER_ARGV"; then
+    fail "$1: docker exec did not target the compose-resolved picsure-db id"
+  fi
+  pass "$1: docker exec targets the compose-resolved picsure-db id"
 }
 
 assert_token_not_in_docker_argv() {
@@ -249,6 +277,7 @@ export DB_ROOT_PASSWORD DB_ROOT_USER DB_HOST DB_PORT
 DB_MODE=local reset_captures
 DB_MODE=local picsure_db_exec_mysql -e "SELECT 1;"
 assert_pass_not_in_docker_argv "picsure_db_exec_mysql/local"
+assert_exec_targets_project_cid "picsure_db_exec_mysql/local"
 assert_pass_not_in_argv "picsure_db_exec_mysql/local"
 assert_pass_in_env "picsure_db_exec_mysql/local"
 
@@ -259,6 +288,16 @@ printf 'UPDATE auth.application SET token=%s;\n' "'$SECRET_TOKEN'" \
 assert_token_not_in_docker_argv "picsure_db_exec_mysql/local-stdin"
 assert_token_not_in_argv "picsure_db_exec_mysql/local-stdin"
 assert_token_on_stdin "picsure_db_exec_mysql/local-stdin"
+
+# Local mode with picsure-db not running: fails without attempting an exec.
+reset_captures
+if FAKE_RUNNING_SERVICES="" DB_MODE=local picsure_db_exec_mysql -e "SELECT 1;" 2>/dev/null; then
+  fail "picsure_db_exec_mysql/local-stopped: succeeded with picsure-db not running"
+fi
+if grep -q '^docker exec' "$CAPTURE_DOCKER_ARGV"; then
+  fail "picsure_db_exec_mysql/local-stopped: ran docker exec with no container to target"
+fi
+pass "picsure_db_exec_mysql/local-stopped: fails without running docker exec"
 
 # Remote mode: docker run path.
 reset_captures
@@ -285,6 +324,7 @@ DB_MODE=local db_mysql <<SQL
 UPDATE auth.application SET token='$INTRO_TOKEN_SQL' WHERE name='PICSURE';
 SQL
 assert_pass_not_in_docker_argv "seed db_mysql/local-token"
+assert_exec_targets_project_cid "seed db_mysql/local-token"
 assert_pass_not_in_argv "seed db_mysql/local-token"
 assert_pass_in_env "seed db_mysql/local-token"
 assert_token_not_in_docker_argv "seed db_mysql/local-token"
@@ -320,8 +360,9 @@ run_logged_like() {
 reset_captures
 POSTGRES_PASSWORD="$SECRET_PASS" run_logged_like "dictionary-etl-start" \
   docker run -d \
-  --name dictionaryetl \
+  --name picsure-dictionaryetl \
   --network fake-net \
+  --network-alias dictionaryetl \
   -e POSTGRES_HOST=dictionary-db \
   -e POSTGRES_DB=dictionary \
   -e POSTGRES_USER=picsure \

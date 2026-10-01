@@ -204,7 +204,7 @@ info "Starting dictionary database if needed..."
 picsure_compose up -d dictionary-db >/dev/null
 info "Waiting for dictionary-db to become healthy..."
 DICT_RETRIES="${DB_WAIT_RETRIES:-30}"
-until docker inspect --format='{{.State.Health.Status}}' dictionary-db 2>/dev/null | grep -q healthy; do
+until [ "$(picsure_service_health dictionary-db)" = healthy ]; do
   DICT_RETRIES=$((DICT_RETRIES - 1))
   if [ "$DICT_RETRIES" -le 0 ]; then
     error "dictionary-db did not become healthy in time."

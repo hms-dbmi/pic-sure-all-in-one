@@ -89,7 +89,14 @@ rotate_introspection_token() {
 UPDATE auth.application SET token='$token' WHERE name='PICSURE';
 SQL
   else
-    MYSQL_PWD="${DB_ROOT_PASSWORD}" docker exec -i -e MYSQL_PWD picsure-db mysql -uroot <<SQL
+    local db_cid
+    db_cid="$(picsure_service_cid picsure-db)"
+    if [ -z "$db_cid" ]; then
+      error "picsure-db is not running; the new token is in .env but not the database."
+      error "Start the stack and re-run ./update.sh to store it."
+      return 1
+    fi
+    MYSQL_PWD="${DB_ROOT_PASSWORD}" docker exec -i -e MYSQL_PWD "$db_cid" mysql -uroot <<SQL
 UPDATE auth.application SET token='$token' WHERE name='PICSURE';
 SQL
   fi

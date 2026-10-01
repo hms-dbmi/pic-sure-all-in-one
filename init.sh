@@ -237,9 +237,9 @@ SQL
     else
       warn "Could not update token in remote DB (application table may not exist yet)."
     fi
-  elif docker ps --format '{{.Names}}' 2>/dev/null | grep -q picsure-db; then
+  elif db_cid="$(picsure_service_cid picsure-db)" && [ -n "$db_cid" ]; then
     db_pass=$(grep "^DB_ROOT_PASSWORD=" "$ENV_FILE" | cut -d= -f2-)
-    if MYSQL_PWD="$db_pass" docker exec -i -e MYSQL_PWD picsure-db mysql -uroot \
+    if MYSQL_PWD="$db_pass" docker exec -i -e MYSQL_PWD "$db_cid" mysql -uroot \
       2>/dev/null <<SQL; then
 UPDATE auth.application SET token='$INTRO_TOKEN' WHERE name='PICSURE';
 SQL

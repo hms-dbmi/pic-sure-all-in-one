@@ -92,6 +92,37 @@ EOF
   docker compose "${files[@]}" "$@"
 }
 
+# Containers are named by Compose (<project>-<service>-N), so reach them by
+# service through this stack's project rather than by a fixed name that a
+# sibling stack on the same host may also be using.
+
+# picsure_service_cid SERVICE: id of SERVICE's running container in this
+# project. Empty, with status 0, when it is stopped or the service is unknown.
+picsure_service_cid() {
+  picsure_compose ps -q "$1" 2>/dev/null | head -n 1 || true
+}
+
+# picsure_service_health SERVICE: healthcheck status (starting, healthy,
+# unhealthy) of SERVICE's running container. Empty, with status 0, when it is
+# not running or has no healthcheck, so it is safe inside `until`/`if`.
+# Compare exactly: `grep healthy` would also match "unhealthy".
+picsure_service_health() {
+  local cid
+  cid="$(picsure_service_cid "$1")"
+  if [ -z "$cid" ]; then
+    return 0
+  fi
+  docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{end}}' \
+    "$cid" 2>/dev/null || true
+}
+
+# picsure_container_name SUFFIX: a name for a container started with a bare
+# `docker run --name`. Prefixed with the project so two stacks running ETL at
+# the same time don't collide, or remove each other's containers.
+picsure_container_name() {
+  printf '%s-%s' "${COMPOSE_PROJECT_NAME:-picsure}" "$1"
+}
+
 picsure_db_exec_mysql() {
   local root="${PICSURE_ROOT:-$(picsure_script_dir)}"
   local host="${DB_HOST:-picsure-db}"
@@ -110,6 +141,12 @@ picsure_db_exec_mysql() {
     MYSQL_PWD="$pass" docker run --rm -i -e MYSQL_PWD mysql:8.0 \
       mysql -h "$host" -P "$port" -u "$user" "$@"
   else
-    MYSQL_PWD="$pass" docker exec -i -e MYSQL_PWD picsure-db mysql -u"$user" "$@"
+    local cid
+    cid="$(picsure_service_cid picsure-db)"
+    if [ -z "$cid" ]; then
+      echo "[db] picsure-db is not running in project ${COMPOSE_PROJECT_NAME:-picsure}." >&2
+      return 1
+    fi
+    MYSQL_PWD="$pass" docker exec -i -e MYSQL_PWD "$cid" mysql -u"$user" "$@"
   fi
 }

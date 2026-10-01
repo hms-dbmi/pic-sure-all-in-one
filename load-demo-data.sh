@@ -65,6 +65,9 @@ fi
 PROJECT_NAME="${COMPOSE_PROJECT_NAME:-picsure}"
 HPDS_DATA_VOLUME="${PROJECT_NAME}_hpds-data"
 DATA_NETWORK="${PROJECT_NAME}_data"
+# Project-scoped so a sibling stack's ETL is never removed by ours; reached as
+# http://dictionaryetl:8086 through a network alias on DATA_NETWORK.
+DICT_ETL_CONTAINER="$(picsure_container_name dictionaryetl)"
 HPDS_ETL_IMAGE="hms-dbmi/pic-sure-hpds-etl:${PICSURE_IMAGE_TAG:-LATEST}"
 
 # ---------------------------------------------------------------------------
@@ -247,7 +250,7 @@ else
 fi
 
 run_logged "hpds-etl-loader" picsure_etl_run \
-  --name hpds-etl-loader \
+  --name "$(picsure_container_name hpds-etl-loader)" \
   -v "$HPDS_DATA_VOLUME:/opt/local/hpds" \
   -v "$LOAD_CSV:/opt/local/hpds/allConcepts.csv:ro" \
   -e HEAPSIZE=4096 \
@@ -267,7 +270,7 @@ picsure_compose up -d hpds
 # Wait for healthy
 info "Waiting for HPDS to become healthy..."
 for i in $(seq 1 30); do
-  if docker inspect --format='{{.State.Health.Status}}' hpds 2>/dev/null | grep -q healthy; then
+  if [ "$(picsure_service_health hpds)" = healthy ]; then
     info "HPDS is healthy."
     break
   fi
@@ -312,7 +315,7 @@ if [ "${SKIP_DICT:-}" != "true" ]; then
   # Step 3a: Generate columnMeta.csv from HPDS data
   info "Generating columnMeta.csv from HPDS data..."
   run_logged "hpds-columnmeta" picsure_etl_run \
-    --name hpds-columnmeta \
+    --name "$(picsure_container_name hpds-columnmeta)" \
     -v "$HPDS_DATA_VOLUME:/opt/local/hpds/" \
     -e HEAPSIZE=4096 \
     -e LOADER_NAME=CreateColumnmetaCSV \
@@ -320,12 +323,13 @@ if [ "${SKIP_DICT:-}" != "true" ]; then
 
   # Step 3b: Start dictionary ETL service
   info "Starting dictionary ETL service..."
-  docker rm -f dictionaryetl 2>/dev/null || true
+  docker rm -f "$DICT_ETL_CONTAINER" 2>/dev/null || true
   # Env-prefix + bare -e: the host shell puts the password in docker's
   # environment (not argv); docker forwards it by name into the container.
   POSTGRES_PASSWORD="$DICT_PASS" run_logged "dictionary-etl-start" docker run -d \
-    --name dictionaryetl \
+    --name "$DICT_ETL_CONTAINER" \
     --network "$DATA_NETWORK" \
+    --network-alias dictionaryetl \
     -v "$HPDS_DATA_VOLUME:/opt/local/hpds/" \
     -e POSTGRES_HOST=dictionary-db \
     -e POSTGRES_DB=dictionary \
@@ -335,7 +339,7 @@ if [ "${SKIP_DICT:-}" != "true" ]; then
 
   # Wait for ETL to start
   for i in $(seq 1 12); do
-    if docker logs dictionaryetl 2>&1 | grep -q "Started DictionaryEtlApplication"; then
+    if docker logs "$DICT_ETL_CONTAINER" 2>&1 | grep -q "Started DictionaryEtlApplication"; then
       break
     fi
     sleep 5
@@ -365,7 +369,7 @@ if [ "${SKIP_DICT:-}" != "true" ]; then
   fi
 
   # Clean up ETL container
-  docker rm -f dictionaryetl >/dev/null 2>&1 || true
+  docker rm -f "$DICT_ETL_CONTAINER" >/dev/null 2>&1 || true
 
   # Step 3d: Run dictionary weights (required for search to work)
   info "Running dictionary weights..."
@@ -379,7 +383,7 @@ if [ "${SKIP_DICT:-}" != "true" ]; then
     # Env-prefix + bare -e: the host shell puts the password in docker's
     # environment (not argv); docker forwards it by name into the container.
     POSTGRES_PASSWORD="$DICT_PASS" run_logged "dictionary-weights" docker run --rm \
-      --name dictionary-weights \
+      --name "$(picsure_container_name dictionary-weights)" \
       --network "$DATA_NETWORK" \
       -v "$DICT_WEIGHTS_SRC/weights.csv:/weights.csv:ro" \
       -e POSTGRES_HOST=dictionary-db \

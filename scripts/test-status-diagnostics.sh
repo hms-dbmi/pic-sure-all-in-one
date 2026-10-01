@@ -24,14 +24,14 @@ case "$*" in
     case "$TEST_DATA" in
       locked) printf '  HTTP/1.1 403 Forbidden\n' >&2; exit 1 ;;
       unavailable) exit 1 ;;
-      malformed) printf '  HTTP/1.1 200 OK\n\n<html>error</html>\n' ;;
-      *) printf '  HTTP/1.1 200 OK\n\n42\n' ;;
+      malformed) printf '  HTTP/1.1 200 OK\n\n' >&2; printf '<html>error</html>' ;;
+      *) printf '  HTTP/1.1 200 OK\n\n' >&2; printf '42' ;;
     esac ;;
   *'/actuator/health')
     if [ "$TEST_DATA" = empty ]; then
       echo '  HTTP/1.1 503 Service Unavailable' >&2; exit 1
     fi
-    printf '  HTTP/1.1 200 OK\n\n{"status":"UP"}\n' ;;
+    printf '  HTTP/1.1 200 OK\n\n' >&2; printf '{"status":"UP"}' ;;
   *'https://127.0.0.1/')
     if [ "$TEST_CSP" = unavailable ]; then exit 1; fi
     if [ "$TEST_CSP" = error ]; then printf '  HTTP/1.1 500 Error\n  Content-Type: text/html\n'; exit 1; fi

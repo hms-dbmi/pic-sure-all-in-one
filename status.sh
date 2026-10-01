@@ -191,6 +191,16 @@ collect_gateway_health() {
   fi
 }
 
+# hpds_wget HEADERS_FILE ARGS...: wget inside hpds, body on stdout and the -S
+# response headers in HEADERS_FILE. wget writes the two to different streams;
+# merged with 2>&1 they interleave unpredictably, and the body (no trailing
+# newline) can land in front of the status line, hiding the response code.
+hpds_wget() {
+  local headers="$1"
+  shift
+  picsure_compose exec -T hpds wget -q -S -O - -T 5 "$@" 2>"$headers" || true
+}
+
 # Diagnostics remain opt-in: no query results or HTTP bodies are reported.
 collect_diagnostics() {
   DATA_CHECKED=false DATA_READY="" DATA_MESSAGE="Not checked; run status --deep-health"
@@ -202,18 +212,18 @@ collect_diagnostics() {
     HTTP_MESSAGE="Docker unavailable; CSP unknown"
     return 0
   fi
-  local running response code body health
+  local running response code body health headers
   running="$(picsure_compose ps --services --filter status=running 2>/dev/null || true)"
   if printf '%s\n' "$running" | grep -qx hpds; then
     DATA_CHECKED=true
     # HPDS has no authentication filter. The V3 handler checks Crypto.hasKey
     # before COUNT; Actuator alone checks metadata but never the encryption key.
-    response="$(picsure_compose exec -T hpds wget -q -S -O - -T 5 \
+    headers="$(mktemp)"
+    body="$(hpds_wget "$headers" \
       --header='Content-Type: application/json' \
       --post-data='{"query":{"expectedResultType":"COUNT"}}' \
-      http://localhost:8080/PIC-SURE/v3/query/sync 2>&1 || true)"
-    code="$(printf '%s\n' "$response" | awk '/^[[:space:]]*HTTP\/[0-9.]+ / {code=$2} END {print code}')"
-    body="$(printf '%s\n' "$response" | tail -n 1 | tr -d '\r')"
+      http://localhost:8080/PIC-SURE/v3/query/sync | tail -n 1 | tr -d '\r')"
+    code="$(awk '/^[[:space:]]*HTTP\/[0-9.]+ / {code=$2} END {print code}' "$headers")"
     case "$code" in
       403)
         DATA_READY=false
@@ -221,12 +231,9 @@ collect_diagnostics() {
         ;;
       200)
         if [[ "$body" =~ ^[0-9]+$ ]]; then
-          health="$(picsure_compose exec -T hpds wget -q -S -O - -T 5 \
-            http://localhost:8080/actuator/health 2>&1 || true)"
-          if printf '%s\n' "$health" | grep -Eq 'HTTP/[0-9.]+ 503'; then
+          health="$(hpds_wget "$headers" http://localhost:8080/actuator/health | tail -n 1)"
+          if grep -Eq 'HTTP/[0-9.]+ 503' "$headers"; then
             health='{"status":"DOWN"}'
-          else
-            health="$(printf '%s\n' "$health" | tail -n 1)"
           fi
           case "$(printf '%s' "$health" | run_jq '.status // empty' /dev/stdin 2>/dev/null || true)" in
             UP) DATA_READY=true; DATA_MESSAGE="HPDS metadata and synchronous COUNT are ready" ;;
@@ -239,6 +246,7 @@ collect_diagnostics() {
         ;;
       *) DATA_MESSAGE="HPDS query unavailable or unexpected HTTP ${code:-response}; data readiness unknown" ;;
     esac
+    rm -f "$headers"
   else
     DATA_MESSAGE="HPDS is not running; data readiness unknown"
   fi

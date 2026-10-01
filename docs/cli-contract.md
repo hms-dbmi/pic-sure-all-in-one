@@ -36,6 +36,8 @@ document, not the exit code. A non-zero exit means the script itself broke.
 | `env.auth_mode` | string | default `required` |
 | `env.introspection_configured` | boolean\|null | Nonempty, nonplaceholder token without whitespace; configuration completeness only, not JWT validity. `null` when env missing/invalid; absent in older scripts. |
 | `env.picsure_image_tag` | string | default `LATEST` |
+| `env.hpds_data_mode` | string | `local` \| `shared` (unvalidated passthrough), default `local`; absent in older scripts |
+| `env.hpds_shared_data` | string\|null | `null` unless `hpds_data_mode=shared`; absent in older scripts |
 | `release_control.repo` | string | |
 | `release_control.branch` | string | |
 | `release_control.commit` | string\|null | `null` when unresolved |
@@ -207,6 +209,8 @@ file). Consumers must treat checks as a list, not a map.
 | `env.parse` | `.env` is valid shell (`fail` when not; per-var checks are then skipped) |
 | `env.<VAR>` | required/expected variable is set (`warn` when not) |
 | `env.db_mode`, `env.auth_mode` | enum validation (`fail` on bad value) |
+| `env.hpds_data_mode` | `local` \| `shared`; `fail` on a bad value or on `shared` without `HPDS_SHARED_DATA` |
+| `hpds.shared_data` | shared mode only: both `<HPDS_SHARED_DATA>_hpds-data` and `_hpds-genomic` volumes exist (`fail` when not; `warn` when the daemon is unreachable) |
 | `compose.generated` | a generated file is missing (`warn`, one per file) |
 | `compose.config` | `docker compose config` validation (or `warn` when skipped) |
 | `release.repo`, `release.branch`, `release.cache` | release-control settings/cache |
@@ -266,7 +270,8 @@ arbitrary user-supplied values should use the `KEY -- VALUE` form.
 ## `scripts/compose.sh`
 
 The single entry point for compose operations with this project's file
-selection (adds `docker-compose.remote-db.yml` when `DB_MODE=remote`) and
+selection (adds `docker-compose.remote-db.yml` when `DB_MODE=remote` and
+`docker-compose.shared-hpds.yml` when `HPDS_DATA_MODE=shared`) and
 project-name conventions. Frontends must not invoke `docker compose`
 directly — including for read-only operations.
 

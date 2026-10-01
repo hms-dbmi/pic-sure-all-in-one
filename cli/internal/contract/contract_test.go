@@ -64,6 +64,9 @@ func TestParseStatusFixture(t *testing.T) {
 	if s.Database.Service != nil {
 		t.Error("remote database should have null service")
 	}
+	if s.Env.HPDSDataMode != "shared" || s.Env.HPDSSharedData == nil || *s.Env.HPDSSharedData != "picsure-demo-v1" {
+		t.Errorf("hpds data = %q / %v, want shared / picsure-demo-v1", s.Env.HPDSDataMode, s.Env.HPDSSharedData)
+	}
 	if len(s.ReleaseControl.Refs) != 4 {
 		t.Errorf("want 4 refs, got %d", len(s.ReleaseControl.Refs))
 	}

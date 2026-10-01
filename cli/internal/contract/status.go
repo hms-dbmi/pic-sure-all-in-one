@@ -36,6 +36,8 @@ type StatusEnv struct {
 	DBPort                  *string `json:"db_port"`
 	AuthMode                string  `json:"auth_mode"`
 	PicsureImageTag         string  `json:"picsure_image_tag"`
+	HPDSDataMode            string  `json:"hpds_data_mode"`
+	HPDSSharedData          *string `json:"hpds_shared_data"`
 	IntrospectionConfigured *bool   `json:"introspection_configured"`
 }
 

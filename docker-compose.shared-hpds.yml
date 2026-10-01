@@ -1,0 +1,28 @@
+# Shared HPDS data overlay.
+#
+# Use through the top-level scripts with HPDS_DATA_MODE=shared and
+# HPDS_SHARED_DATA=<name>. HPDS mounts a prebuilt data set, published once with
+# scripts/publish-shared-hpds-data.sh, instead of this project's own volumes:
+#
+#   <name>_hpds-data     phenotype data, encryption key, columnMeta.csv
+#   <name>_hpds-genomic  genomic data and its indexes (may be empty)
+#
+# Both are external, so `docker compose down --volumes` (and `ws stack
+# release`, which runs it) leaves the shared data alone, and read-only, so
+# every stack that mounts them sees the same bytes. HPDS opens the phenotype
+# store read-only; the genomic indexes are written on HPDS's first start,
+# which is why the publish script requires them before copying.
+
+services:
+  hpds:
+    volumes:
+      - hpds-data:/opt/local/hpds:ro
+      - hpds-genomic:/opt/local/hpds/all:ro
+
+volumes:
+  hpds-data:
+    external: true
+    name: ${HPDS_SHARED_DATA:?HPDS_SHARED_DATA is required when HPDS_DATA_MODE=shared}_hpds-data
+  hpds-genomic:
+    external: true
+    name: ${HPDS_SHARED_DATA:?HPDS_SHARED_DATA is required when HPDS_DATA_MODE=shared}_hpds-genomic

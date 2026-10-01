@@ -10,7 +10,9 @@
     "db_port": "3307",
     "introspection_configured": true,
     "auth_mode": "required",
-    "picsure_image_tag": "LATEST"
+    "picsure_image_tag": "LATEST",
+    "hpds_data_mode": "shared",
+    "hpds_shared_data": "picsure-demo-v1"
   },
   "release_control": {
     "repo": "https://github.com/hms-dbmi/baseline-pic-sure-release-control",

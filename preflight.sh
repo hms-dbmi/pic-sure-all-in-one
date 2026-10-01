@@ -287,6 +287,33 @@ if [ -f "$ENV_FILE" ]; then
       check_required_env DB_ROOT_PASSWORD
     fi
 
+    case "${HPDS_DATA_MODE:-local}" in
+      local) ok env.hpds_data_mode "HPDS_DATA_MODE=local" ;;
+      shared)
+        if [ -z "${HPDS_SHARED_DATA:-}" ]; then
+          fail env.hpds_data_mode "HPDS_DATA_MODE=shared requires HPDS_SHARED_DATA (a published data set name)."
+        else
+          ok env.hpds_data_mode "HPDS_DATA_MODE=shared, HPDS_SHARED_DATA=$HPDS_SHARED_DATA"
+          # External volumes: Compose refuses to start HPDS when they are missing.
+          if [ "$DAEMON_OK" != "true" ]; then
+            warn hpds.shared_data "Skipping shared HPDS volume check; Docker daemon is not reachable."
+          else
+            missing_vols=()
+            for kind in hpds-data hpds-genomic; do
+              docker volume inspect "${HPDS_SHARED_DATA}_$kind" >/dev/null 2>&1 \
+                || missing_vols+=("${HPDS_SHARED_DATA}_$kind")
+            done
+            if [ "${#missing_vols[@]}" -eq 0 ]; then
+              ok hpds.shared_data "Shared HPDS volumes for '$HPDS_SHARED_DATA' exist."
+            else
+              fail hpds.shared_data "Missing shared HPDS volumes: ${missing_vols[*]}. Publish them with scripts/publish-shared-hpds-data.sh."
+            fi
+          fi
+        fi
+        ;;
+      *) fail env.hpds_data_mode "HPDS_DATA_MODE must be local or shared, got '${HPDS_DATA_MODE}'." ;;
+    esac
+
     case "${AUTH_MODE:-required}" in
       required|open|explore) ok env.auth_mode "AUTH_MODE=${AUTH_MODE:-required}" ;;
       *) fail env.auth_mode "AUTH_MODE must be required, open, or explore, got '${AUTH_MODE}'." ;;

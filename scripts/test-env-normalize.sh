@@ -113,4 +113,21 @@ out="$(run_normalize "$root" 2>&1)"
 echo "$out" | grep -q "pinned to my-branch" || fail "real pin did not warn"
 pass "DICTIONARY_ETL_REF warning fires only on real pins"
 
+# ---------------------------------------------------------------------------
+# 7. HPDS_DATA_MODE: shared needs a data set name; unknown modes warn; no edits
+# ---------------------------------------------------------------------------
+root="$TEST_ROOT/hpds"
+mkdir -p "$root"
+printf 'HPDS_DATA_MODE=shared\nHPDS_SHARED_DATA=\n' > "$root/.env"
+out="$(run_normalize "$root" 2>&1)"
+echo "$out" | grep -q "HPDS_SHARED_DATA is empty" || fail "shared mode without a name did not warn"
+printf 'HPDS_DATA_MODE=shared\nHPDS_SHARED_DATA=picsure-demo-v1\n' > "$root/.env"
+out="$(run_normalize "$root" 2>&1)"
+echo "$out" | grep -q "HPDS_" && fail "a complete shared configuration warned: $out"
+grep -q "^HPDS_SHARED_DATA=picsure-demo-v1$" "$root/.env" || fail "HPDS_SHARED_DATA was touched"
+printf 'HPDS_DATA_MODE=remote\n' > "$root/.env"
+out="$(run_normalize "$root" 2>&1)"
+echo "$out" | grep -q "must be local or shared" || fail "an unknown mode did not warn"
+pass "HPDS_DATA_MODE checks warn without editing .env"
+
 echo "[env-normalize-test] all tests passed"

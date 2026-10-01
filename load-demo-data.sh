@@ -63,7 +63,27 @@ fi
 
 # Volume/network names and image tags must match the Compose project settings.
 PROJECT_NAME="${COMPOSE_PROJECT_NAME:-picsure}"
-HPDS_DATA_VOLUME="${PROJECT_NAME}_hpds-data"
+HPDS_DATA_VOLUME="$(picsure_hpds_volume hpds-data)"
+# In shared mode HPDS mounts a published, read-only data set: skip the HPDS
+# load and only hydrate this stack's dictionary from the columnMeta.csv the
+# publisher already generated.
+SHARED_DATA=false
+DICT_DATA_MOUNT="$HPDS_DATA_VOLUME:/opt/local/hpds/"
+DICT_HYDRATE_REQUEST='{"includeDefaultFacets": "true", "clearDatabase": "true"}'
+if picsure_hpds_shared; then
+  SHARED_DATA=true
+  DICT_DATA_MOUNT="$DICT_DATA_MOUNT:ro"
+  # The ETL's default error report path is inside the read-only volume.
+  DICT_HYDRATE_REQUEST='{"includeDefaultFacets": "true", "clearDatabase": "true", "errorDirectory": "/tmp/columnMetaErrors.csv"}'
+  if [ "$DATASET" != "nhanes" ]; then
+    warn "Ignoring dataset '$DATASET': HPDS_DATA_MODE=shared serves whatever '$HPDS_SHARED_DATA' holds."
+  fi
+  if ! docker run --rm -v "$HPDS_DATA_VOLUME:/data:ro" alpine test -s /data/columnMeta.csv; then
+    error "$HPDS_DATA_VOLUME is missing or has no columnMeta.csv."
+    error "Publish it with scripts/publish-shared-hpds-data.sh from a stack that loaded the data."
+    exit 1
+  fi
+fi
 DATA_NETWORK="${PROJECT_NAME}_data"
 # Project-scoped so a sibling stack's ETL is never removed by ours; reached as
 # http://dictionaryetl:8086 through a network alias on DATA_NETWORK.
@@ -89,176 +109,183 @@ else
   fi
 fi
 
-# ---------------------------------------------------------------------------
-# Ensure HPDS ETL image exists
-# ---------------------------------------------------------------------------
+if [ "$SHARED_DATA" = "true" ]; then
+  info "Step 1/4: Skipped; HPDS reads the shared data set '$HPDS_SHARED_DATA' (HPDS_DATA_MODE=shared)."
+else
+  # ---------------------------------------------------------------------------
+  # Ensure HPDS ETL image exists
+  # ---------------------------------------------------------------------------
 
-if ! docker image inspect "$HPDS_ETL_IMAGE" >/dev/null 2>&1; then
-  error "HPDS ETL image not found: $HPDS_ETL_IMAGE. Run ./init.sh first (it builds all images)."
-  exit 1
-fi
-
-# ---------------------------------------------------------------------------
-# Download / extract dataset
-# ---------------------------------------------------------------------------
-
-DATA_DIR="$SCRIPT_DIR/.data"
-mkdir -p "$DATA_DIR"
-DATASETS_REPO="https://github.com/hms-dbmi/pic-sure-public-datasets.git"
-
-# The three single datasets share $DATA_DIR/allConcepts.csv, and each case
-# below skips regeneration when the file exists — so without provenance,
-# switching datasets would silently load the previous one. A marker records
-# which dataset produced the file; a mismatch (or a pre-marker file of
-# unknown origin) forces regeneration.
-DATASET_MARKER="$DATA_DIR/allConcepts.dataset"
-if [ "$DATASET" != "all" ] && [ -f "$DATA_DIR/allConcepts.csv" ]; then
-  if [ ! -f "$DATASET_MARKER" ] || [ "$(cat "$DATASET_MARKER")" != "$DATASET" ]; then
-    info "Existing allConcepts.csv is not from the '$DATASET' dataset; regenerating."
-    rm -f "$DATA_DIR/allConcepts.csv"
+  if ! docker image inspect "$HPDS_ETL_IMAGE" >/dev/null 2>&1; then
+    error "HPDS ETL image not found: $HPDS_ETL_IMAGE. Run ./init.sh first (it builds all images)."
+    exit 1
   fi
-fi
 
-case "$DATASET" in
-  nhanes)
-    info "Preparing NHANES demo dataset..."
-    if [ ! -f "$DATA_DIR/allConcepts.csv" ]; then
-      if [ -f "$SCRIPT_DIR/demo-data/allConcepts.csv.tgz" ]; then
-        info "Extracting bundled NHANES data..."
-        tar -xzf "$SCRIPT_DIR/demo-data/allConcepts.csv.tgz" -C "$DATA_DIR/"
+  # ---------------------------------------------------------------------------
+  # Download / extract dataset
+  # ---------------------------------------------------------------------------
+
+  DATA_DIR="$SCRIPT_DIR/.data"
+  mkdir -p "$DATA_DIR"
+  DATASETS_REPO="https://github.com/hms-dbmi/pic-sure-public-datasets.git"
+
+  # The three single datasets share $DATA_DIR/allConcepts.csv, and each case
+  # below skips regeneration when the file exists — so without provenance,
+  # switching datasets would silently load the previous one. A marker records
+  # which dataset produced the file; a mismatch (or a pre-marker file of
+  # unknown origin) forces regeneration.
+  DATASET_MARKER="$DATA_DIR/allConcepts.dataset"
+  if [ "$DATASET" != "all" ] && [ -f "$DATA_DIR/allConcepts.csv" ]; then
+    if [ ! -f "$DATASET_MARKER" ] || [ "$(cat "$DATASET_MARKER")" != "$DATASET" ]; then
+      info "Existing allConcepts.csv is not from the '$DATASET' dataset; regenerating."
+      rm -f "$DATA_DIR/allConcepts.csv"
+    fi
+  fi
+
+  case "$DATASET" in
+    nhanes)
+      info "Preparing NHANES demo dataset..."
+      if [ ! -f "$DATA_DIR/allConcepts.csv" ]; then
+        if [ -f "$SCRIPT_DIR/demo-data/allConcepts.csv.tgz" ]; then
+          info "Extracting bundled NHANES data..."
+          tar -xzf "$SCRIPT_DIR/demo-data/allConcepts.csv.tgz" -C "$DATA_DIR/"
+        else
+          info "Downloading NHANES data from GitHub..."
+          CLONE_DIR="$DATA_DIR/datasets"
+          rm -rf "$CLONE_DIR"
+          git clone --depth 1 --filter=blob:none --sparse "$DATASETS_REPO" "$CLONE_DIR" 2>/dev/null \
+            || { error "Failed to clone $DATASETS_REPO (network?)."; exit 1; }
+          cd "$CLONE_DIR" && git sparse-checkout set "NHANES abbreviated allConcepts.csv.tgz"
+          tar -xzf "NHANES abbreviated allConcepts.csv.tgz" -C "$DATA_DIR/"
+          cd "$SCRIPT_DIR"
+        fi
       else
-        info "Downloading NHANES data from GitHub..."
+        info "NHANES data already extracted."
+      fi
+      ;;
+    synthea)
+      info "Preparing Synthea 10k dataset..."
+      if [ ! -f "$DATA_DIR/allConcepts.csv" ]; then
         CLONE_DIR="$DATA_DIR/datasets"
         rm -rf "$CLONE_DIR"
         git clone --depth 1 --filter=blob:none --sparse "$DATASETS_REPO" "$CLONE_DIR" 2>/dev/null \
           || { error "Failed to clone $DATASETS_REPO (network?)."; exit 1; }
-        cd "$CLONE_DIR" && git sparse-checkout set "NHANES abbreviated allConcepts.csv.tgz"
-        tar -xzf "NHANES abbreviated allConcepts.csv.tgz" -C "$DATA_DIR/"
+        cd "$CLONE_DIR" && git sparse-checkout set "synthea_10k_picsure_format.csv.zip"
+        unzip -o "synthea_10k_picsure_format.csv.zip" -d "$DATA_DIR/"
+        mv "$DATA_DIR/synthea_10k_picsure_format.csv" "$DATA_DIR/allConcepts.csv"
         cd "$SCRIPT_DIR"
       fi
-    else
-      info "NHANES data already extracted."
-    fi
-    ;;
-  synthea)
-    info "Preparing Synthea 10k dataset..."
-    if [ ! -f "$DATA_DIR/allConcepts.csv" ]; then
-      CLONE_DIR="$DATA_DIR/datasets"
-      rm -rf "$CLONE_DIR"
-      git clone --depth 1 --filter=blob:none --sparse "$DATASETS_REPO" "$CLONE_DIR" 2>/dev/null \
-        || { error "Failed to clone $DATASETS_REPO (network?)."; exit 1; }
-      cd "$CLONE_DIR" && git sparse-checkout set "synthea_10k_picsure_format.csv.zip"
-      unzip -o "synthea_10k_picsure_format.csv.zip" -d "$DATA_DIR/"
-      mv "$DATA_DIR/synthea_10k_picsure_format.csv" "$DATA_DIR/allConcepts.csv"
-      cd "$SCRIPT_DIR"
-    fi
-    ;;
-  1000genomes)
-    info "Preparing 1000 Genomes dataset..."
-    if [ ! -f "$DATA_DIR/allConcepts.csv" ]; then
-      CLONE_DIR="$DATA_DIR/datasets"
-      rm -rf "$CLONE_DIR"
-      git clone --depth 1 --filter=blob:none --sparse "$DATASETS_REPO" "$CLONE_DIR" 2>/dev/null \
-        || { error "Failed to clone $DATASETS_REPO (network?)."; exit 1; }
-      cd "$CLONE_DIR" && git sparse-checkout set "open_access-1000Genomes_allConcepts_new_search_with_data_analyzer.csv"
-      cp "open_access-1000Genomes_allConcepts_new_search_with_data_analyzer.csv" "$DATA_DIR/allConcepts.csv"
-      cd "$SCRIPT_DIR"
-    fi
-    ;;
-  all)
-    info "Preparing all public demo datasets..."
-    ALL_INPUT_DIR="$DATA_DIR/all-public-studies"
-    mkdir -p "$ALL_INPUT_DIR"
-    if [ ! -f "$ALL_INPUT_DIR/nhanes.csv" ] || \
-       [ ! -f "$ALL_INPUT_DIR/synthea.csv" ] || \
-       [ ! -f "$ALL_INPUT_DIR/1000_genomes.csv" ]; then
-      CLONE_DIR="$DATA_DIR/datasets-all"
-      rm -rf "$CLONE_DIR"
-      git clone --depth 1 --filter=blob:none --sparse "$DATASETS_REPO" "$CLONE_DIR" 2>/dev/null \
-        || { error "Failed to clone $DATASETS_REPO (network?)."; exit 1; }
-      cd "$CLONE_DIR" && git sparse-checkout set --no-cone \
-        "NHANES abbreviated allConcepts.csv.tgz" \
-        "synthea_10k_picsure_format.csv.zip" \
-        "open_access-1000Genomes_allConcepts_new_search_with_data_analyzer.csv"
+      ;;
+    1000genomes)
+      info "Preparing 1000 Genomes dataset..."
+      if [ ! -f "$DATA_DIR/allConcepts.csv" ]; then
+        CLONE_DIR="$DATA_DIR/datasets"
+        rm -rf "$CLONE_DIR"
+        git clone --depth 1 --filter=blob:none --sparse "$DATASETS_REPO" "$CLONE_DIR" 2>/dev/null \
+          || { error "Failed to clone $DATASETS_REPO (network?)."; exit 1; }
+        cd "$CLONE_DIR" && git sparse-checkout set "open_access-1000Genomes_allConcepts_new_search_with_data_analyzer.csv"
+        cp "open_access-1000Genomes_allConcepts_new_search_with_data_analyzer.csv" "$DATA_DIR/allConcepts.csv"
+        cd "$SCRIPT_DIR"
+      fi
+      ;;
+    all)
+      info "Preparing all public demo datasets..."
+      ALL_INPUT_DIR="$DATA_DIR/all-public-studies"
+      mkdir -p "$ALL_INPUT_DIR"
+      if [ ! -f "$ALL_INPUT_DIR/nhanes.csv" ] || \
+         [ ! -f "$ALL_INPUT_DIR/synthea.csv" ] || \
+         [ ! -f "$ALL_INPUT_DIR/1000_genomes.csv" ]; then
+        CLONE_DIR="$DATA_DIR/datasets-all"
+        rm -rf "$CLONE_DIR"
+        git clone --depth 1 --filter=blob:none --sparse "$DATASETS_REPO" "$CLONE_DIR" 2>/dev/null \
+          || { error "Failed to clone $DATASETS_REPO (network?)."; exit 1; }
+        cd "$CLONE_DIR" && git sparse-checkout set --no-cone \
+          "NHANES abbreviated allConcepts.csv.tgz" \
+          "synthea_10k_picsure_format.csv.zip" \
+          "open_access-1000Genomes_allConcepts_new_search_with_data_analyzer.csv"
 
-      rm -f "$ALL_INPUT_DIR/nhanes.csv" "$ALL_INPUT_DIR/synthea.csv" "$ALL_INPUT_DIR/1000_genomes.csv"
-      tar -xzf "$CLONE_DIR/NHANES abbreviated allConcepts.csv.tgz" -C "$ALL_INPUT_DIR/"
-      mv "$ALL_INPUT_DIR/allConcepts.csv" "$ALL_INPUT_DIR/nhanes.csv"
-      unzip -o "$CLONE_DIR/synthea_10k_picsure_format.csv.zip" -d "$ALL_INPUT_DIR/" >/dev/null
-      mv "$ALL_INPUT_DIR/synthea_10k_picsure_format.csv" "$ALL_INPUT_DIR/synthea.csv"
-      cp "$CLONE_DIR/open_access-1000Genomes_allConcepts_new_search_with_data_analyzer.csv" "$ALL_INPUT_DIR/1000_genomes.csv"
-      cd "$SCRIPT_DIR"
-    else
-      info "All public demo datasets already prepared."
-    fi
+        rm -f "$ALL_INPUT_DIR/nhanes.csv" "$ALL_INPUT_DIR/synthea.csv" "$ALL_INPUT_DIR/1000_genomes.csv"
+        tar -xzf "$CLONE_DIR/NHANES abbreviated allConcepts.csv.tgz" -C "$ALL_INPUT_DIR/"
+        mv "$ALL_INPUT_DIR/allConcepts.csv" "$ALL_INPUT_DIR/nhanes.csv"
+        unzip -o "$CLONE_DIR/synthea_10k_picsure_format.csv.zip" -d "$ALL_INPUT_DIR/" >/dev/null
+        mv "$ALL_INPUT_DIR/synthea_10k_picsure_format.csv" "$ALL_INPUT_DIR/synthea.csv"
+        cp "$CLONE_DIR/open_access-1000Genomes_allConcepts_new_search_with_data_analyzer.csv" "$ALL_INPUT_DIR/1000_genomes.csv"
+        cd "$SCRIPT_DIR"
+      else
+        info "All public demo datasets already prepared."
+      fi
 
-    ALL_CONCEPTS_CSV="$DATA_DIR/allConcepts-all.csv"
-    info "Combining all public demo datasets into one CSV..."
-    head -n 1 "$ALL_INPUT_DIR/nhanes.csv" > "$ALL_CONCEPTS_CSV"
-    tail -n +2 "$ALL_INPUT_DIR/nhanes.csv" >> "$ALL_CONCEPTS_CSV"
-    tail -n +2 "$ALL_INPUT_DIR/synthea.csv" >> "$ALL_CONCEPTS_CSV"
-    tail -n +2 "$ALL_INPUT_DIR/1000_genomes.csv" >> "$ALL_CONCEPTS_CSV"
-    ;;
-  *)
-    error "Unknown dataset: $DATASET"
-    error "Available: nhanes, synthea, 1000genomes, --all"
-    exit 1
-    ;;
-esac
+      ALL_CONCEPTS_CSV="$DATA_DIR/allConcepts-all.csv"
+      info "Combining all public demo datasets into one CSV..."
+      head -n 1 "$ALL_INPUT_DIR/nhanes.csv" > "$ALL_CONCEPTS_CSV"
+      tail -n +2 "$ALL_INPUT_DIR/nhanes.csv" >> "$ALL_CONCEPTS_CSV"
+      tail -n +2 "$ALL_INPUT_DIR/synthea.csv" >> "$ALL_CONCEPTS_CSV"
+      tail -n +2 "$ALL_INPUT_DIR/1000_genomes.csv" >> "$ALL_CONCEPTS_CSV"
+      ;;
+    *)
+      error "Unknown dataset: $DATASET"
+      error "Available: nhanes, synthea, 1000genomes, --all"
+      exit 1
+      ;;
+  esac
 
-if [ "$DATASET" = "all" ]; then
-  info "Datasets ready: $(wc -l < "$ALL_CONCEPTS_CSV") rows"
-else
-  printf '%s\n' "$DATASET" > "$DATASET_MARKER"
-  info "Dataset ready: $(wc -l < "$DATA_DIR/allConcepts.csv") rows"
+  if [ "$DATASET" = "all" ]; then
+    info "Datasets ready: $(wc -l < "$ALL_CONCEPTS_CSV") rows"
+  else
+    printf '%s\n' "$DATASET" > "$DATASET_MARKER"
+    info "Dataset ready: $(wc -l < "$DATA_DIR/allConcepts.csv") rows"
+  fi
+
+  # ---------------------------------------------------------------------------
+  # Ensure encryption key exists
+  # ---------------------------------------------------------------------------
+
+  HPDS_KEY="$SCRIPT_DIR/config/hpds/encryption_key"
+  if [ ! -f "$HPDS_KEY" ]; then
+    info "Generating HPDS encryption key..."
+    mkdir -p "$(dirname "$HPDS_KEY")"
+    openssl enc -aes-128-cbc -k "$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 24 || true)" -P 2>/dev/null \
+      | grep key | cut -d'=' -f2 > "$HPDS_KEY"
+  fi
+
+  # ---------------------------------------------------------------------------
+  # Step 1: Load data into HPDS (CSV → javabin)
+  # ---------------------------------------------------------------------------
+
+  info "Step 1/4: Loading data into HPDS (CSV → javabin)..."
+  info "This may take 1-5 minutes depending on dataset size."
+
+  # Stop HPDS while loading
+  picsure_compose stop hpds 2>/dev/null || true
+
+  # Clear prior generated HPDS files, then copy encryption key into the data volume
+  # FIRST (bind mount overlay doesn't persist). Keeping stale javabin/temp files can
+  # consume large amounts of Docker disk after failed loads.
+  docker run --rm \
+    -v "$HPDS_DATA_VOLUME:/data" \
+    -v "$HPDS_KEY:/key:ro" \
+    alpine sh -c "rm -f /data/allObservationsStore.javabin /data/allObservationsTemp.javabin /data/columnMeta.javabin /data/columnMeta.csv /data/columnMetaErrors.csv /data/.picsure-dataset && cp /key /data/encryption_key"
+
+  if [ "$DATASET" = "all" ]; then
+    LOAD_CSV="$ALL_CONCEPTS_CSV"
+  else
+    LOAD_CSV="$DATA_DIR/allConcepts.csv"
+  fi
+
+  run_logged "hpds-etl-loader" picsure_etl_run \
+    --name "$(picsure_container_name hpds-etl-loader)" \
+    -v "$HPDS_DATA_VOLUME:/opt/local/hpds" \
+    -v "$LOAD_CSV:/opt/local/hpds/allConcepts.csv:ro" \
+    -e HEAPSIZE=4096 \
+    -e LOADER_NAME=CSVLoaderNewSearch \
+    -e LOADER_ARGS=ROLLUP \
+    "$HPDS_ETL_IMAGE"
+
+  # Provenance for scripts/publish-shared-hpds-data.sh; etl.sh loads drop it.
+  docker run --rm -v "$HPDS_DATA_VOLUME:/data" alpine \
+    sh -c "printf 'demo:%s\\n' '$DATASET' > /data/.picsure-dataset"
+  info "HPDS data loaded."
 fi
-
-# ---------------------------------------------------------------------------
-# Ensure encryption key exists
-# ---------------------------------------------------------------------------
-
-HPDS_KEY="$SCRIPT_DIR/config/hpds/encryption_key"
-if [ ! -f "$HPDS_KEY" ]; then
-  info "Generating HPDS encryption key..."
-  mkdir -p "$(dirname "$HPDS_KEY")"
-  openssl enc -aes-128-cbc -k "$(LC_ALL=C tr -dc 'A-Za-z0-9' </dev/urandom | head -c 24 || true)" -P 2>/dev/null \
-    | grep key | cut -d'=' -f2 > "$HPDS_KEY"
-fi
-
-# ---------------------------------------------------------------------------
-# Step 1: Load data into HPDS (CSV → javabin)
-# ---------------------------------------------------------------------------
-
-info "Step 1/4: Loading data into HPDS (CSV → javabin)..."
-info "This may take 1-5 minutes depending on dataset size."
-
-# Stop HPDS while loading
-picsure_compose stop hpds 2>/dev/null || true
-
-# Clear prior generated HPDS files, then copy encryption key into the data volume
-# FIRST (bind mount overlay doesn't persist). Keeping stale javabin/temp files can
-# consume large amounts of Docker disk after failed loads.
-docker run --rm \
-  -v "$HPDS_DATA_VOLUME:/data" \
-  -v "$HPDS_KEY:/key:ro" \
-  alpine sh -c "rm -f /data/allObservationsStore.javabin /data/allObservationsTemp.javabin /data/columnMeta.javabin /data/columnMeta.csv /data/columnMetaErrors.csv && cp /key /data/encryption_key"
-
-if [ "$DATASET" = "all" ]; then
-  LOAD_CSV="$ALL_CONCEPTS_CSV"
-else
-  LOAD_CSV="$DATA_DIR/allConcepts.csv"
-fi
-
-run_logged "hpds-etl-loader" picsure_etl_run \
-  --name "$(picsure_container_name hpds-etl-loader)" \
-  -v "$HPDS_DATA_VOLUME:/opt/local/hpds" \
-  -v "$LOAD_CSV:/opt/local/hpds/allConcepts.csv:ro" \
-  -e HEAPSIZE=4096 \
-  -e LOADER_NAME=CSVLoaderNewSearch \
-  -e LOADER_ARGS=ROLLUP \
-  "$HPDS_ETL_IMAGE"
-
-info "HPDS data loaded."
 
 # ---------------------------------------------------------------------------
 # Step 2: Restart HPDS
@@ -312,14 +339,16 @@ fi
 if [ "${SKIP_DICT:-}" != "true" ]; then
   DICT_PASS=$(grep "^POSTGRES_PASSWORD=" "$SCRIPT_DIR/config/dictionary/dictionary.env" | cut -d= -f2)
 
-  # Step 3a: Generate columnMeta.csv from HPDS data
-  info "Generating columnMeta.csv from HPDS data..."
-  run_logged "hpds-columnmeta" picsure_etl_run \
-    --name "$(picsure_container_name hpds-columnmeta)" \
-    -v "$HPDS_DATA_VOLUME:/opt/local/hpds/" \
-    -e HEAPSIZE=4096 \
-    -e LOADER_NAME=CreateColumnmetaCSV \
-    "$HPDS_ETL_IMAGE"
+  # Step 3a: Generate columnMeta.csv from HPDS data (shared data ships it)
+  if [ "$SHARED_DATA" != "true" ]; then
+    info "Generating columnMeta.csv from HPDS data..."
+    run_logged "hpds-columnmeta" picsure_etl_run \
+      --name "$(picsure_container_name hpds-columnmeta)" \
+      -v "$HPDS_DATA_VOLUME:/opt/local/hpds/" \
+      -e HEAPSIZE=4096 \
+      -e LOADER_NAME=CreateColumnmetaCSV \
+      "$HPDS_ETL_IMAGE"
+  fi
 
   # Step 3b: Start dictionary ETL service
   info "Starting dictionary ETL service..."
@@ -330,7 +359,7 @@ if [ "${SKIP_DICT:-}" != "true" ]; then
     --name "$DICT_ETL_CONTAINER" \
     --network "$DATA_NETWORK" \
     --network-alias dictionaryetl \
-    -v "$HPDS_DATA_VOLUME:/opt/local/hpds/" \
+    -v "$DICT_DATA_MOUNT" \
     -e POSTGRES_HOST=dictionary-db \
     -e POSTGRES_DB=dictionary \
     -e POSTGRES_USER=picsure \
@@ -350,7 +379,7 @@ if [ "${SKIP_DICT:-}" != "true" ]; then
   # Need to reach the ETL container — use a curl container on the same network
   run_logged "dictionary-hydrate" docker run --rm --network "$DATA_NETWORK" curlimages/curl:latest \
     -sS --fail -X POST -H "Content-Type: application/json" \
-    -d '{"includeDefaultFacets": "true", "clearDatabase": "true"}' \
+    -d "$DICT_HYDRATE_REQUEST" \
     http://dictionaryetl:8086/load/initialize
 
   # Step 3c.1: Load facet configuration
@@ -414,8 +443,12 @@ echo ""
 info "======================================"
 info "  Demo data loaded successfully!"
 info "======================================"
-info "  Dataset: $DATASET"
-info "  HPDS: loaded and healthy"
+if [ "$SHARED_DATA" = "true" ]; then
+  info "  HPDS: shared data set $HPDS_SHARED_DATA (read-only)"
+else
+  info "  Dataset: $DATASET"
+  info "  HPDS: loaded and healthy"
+fi
 if [ "${SKIP_DICT:-}" != "true" ]; then
   info "  Dictionary: hydrated"
 else

@@ -60,7 +60,7 @@ gzip -c "$FIX/allConcepts.csv" > "$FIX/allConcepts.csv.gz"
 # A small generated driver SOURCES etl.sh (which returns at its BASH_SOURCE
 # guard before ensure_env / dispatch), overrides docker (recording the resolved
 # allConcepts.csv -v mount) plus ensure_image / copy_hpds_key / stop_hpds /
-# start_hpds / volume_name, then runs the REAL load_csv. resolve_phenotype_csv +
+# start_hpds / picsure_hpds_volume, then runs the REAL load_csv. resolve_phenotype_csv +
 # load_csv are NOT stubbed — the host-side decompression runs for real.
 #
 # The driver prints one pipe-delimited line on its OWN stdout:
@@ -100,7 +100,7 @@ copy_hpds_key() { :; }
 # shellcheck disable=SC2329
 start_hpds() { START_RAN=1; }
 # shellcheck disable=SC2329
-volume_name() { echo "picsure_$1"; }
+picsure_hpds_volume() { echo "picsure_$1"; }
 
 rc=0
 load_csv "$@" >/dev/null 2>"${LOADCSV_ERRLOG:-/dev/null}" || rc=$?
@@ -237,7 +237,7 @@ stop_hpds() { :; }
 # shellcheck disable=SC2329
 start_hpds() { :; }
 # shellcheck disable=SC2329
-volume_name() { echo "picsure_$1"; }
+picsure_hpds_volume() { echo "picsure_$1"; }
 # Mirror the real copy_hpds_key's missing-key behavior: ERROR then `exit 1`,
 # which bypasses any rc-capture in load_csv (the bug this guards against).
 # shellcheck disable=SC2329

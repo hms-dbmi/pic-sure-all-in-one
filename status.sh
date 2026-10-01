@@ -93,6 +93,7 @@ eff_db_mode()      { printf '%s' "${DB_MODE:-local}"; }
 eff_auth_mode()    { printf '%s' "${AUTH_MODE:-required}"; }
 eff_image_tag()    { printf '%s' "${PICSURE_IMAGE_TAG:-LATEST}"; }
 eff_db_port()      { printf '%s' "${DB_PORT:-3306}"; }
+eff_hpds_data_mode() { printf '%s' "${HPDS_DATA_MODE:-local}"; }
 
 # Single collector for per-repo state, consumed by both renderers. Sets:
 #   REPO_NAME, REPO_PRESENT (true/false), REPO_CURRENT, REPO_TARGET, REPO_STATE
@@ -351,6 +352,12 @@ status_json() {
   fi
   env_fields+=("$(json_str auth_mode "$(eff_auth_mode)")")
   env_fields+=("$(json_str picsure_image_tag "$(eff_image_tag)")")
+  env_fields+=("$(json_str hpds_data_mode "$(eff_hpds_data_mode)")")
+  if [ "$(eff_hpds_data_mode)" = "shared" ]; then
+    env_fields+=("$(json_str_or_null hpds_shared_data "${HPDS_SHARED_DATA:-}")")
+  else
+    env_fields+=("$(json_null hpds_shared_data)")
+  fi
 
   # --- release control ---
   local ref_fields=()
@@ -524,6 +531,10 @@ else
   warn "Introspection token is missing, placeholder, or contains whitespace"
 fi
 echo "  PICSURE_IMAGE_TAG=$(eff_image_tag)"
+echo "  HPDS_DATA_MODE=$(eff_hpds_data_mode)"
+if [ "$(eff_hpds_data_mode)" = "shared" ]; then
+  echo "  HPDS_SHARED_DATA=${HPDS_SHARED_DATA:-unset}"
+fi
 
 section "Release Control"
 echo "  repo:   ${RELEASE_CONTROL_REPO:-https://github.com/hms-dbmi/baseline-pic-sure-release-control}"

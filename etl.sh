@@ -76,10 +76,6 @@ project_name() {
   echo "${COMPOSE_PROJECT_NAME:-picsure}"
 }
 
-volume_name() {
-  echo "$(project_name)_$1"
-}
-
 network_name() {
   echo "$(project_name)_$1"
 }
@@ -90,6 +86,8 @@ ensure_env() {
     exit 1
   fi
   picsure_load_env "$ENV_FILE"
+  # Fail here, not as an empty -v source later, if shared mode has no name.
+  picsure_hpds_volume hpds-data >/dev/null || exit 1
 }
 
 ensure_image() {
@@ -113,7 +111,7 @@ copy_hpds_key() {
   docker run --rm \
     -v "$target_volume:/data" \
     -v "$key:/key:ro" \
-    alpine sh -c "cp /key /data/encryption_key"
+    alpine sh -c "rm -f /data/.picsure-dataset && cp /key /data/encryption_key"
 }
 
 stop_hpds() {
@@ -163,13 +161,18 @@ start_dictionary_etl() {
   docker rm -f "$container" >/dev/null 2>&1 || true
   local dict_env="$SCRIPT_DIR/config/dictionary/dictionary.env"
   require_file "$dict_env"
+  local data_mount
+  data_mount="$(picsure_hpds_volume hpds-data):/opt/local/hpds/"
+  if picsure_hpds_shared; then
+    data_mount="$data_mount:ro"
+  fi
 
   docker run -d \
     --name "$container" \
     --env-file "$dict_env" \
     --network "$(network_name data)" \
     --network-alias dictionaryetl \
-    -v "$(volume_name hpds-data):/opt/local/hpds/" \
+    -v "$data_mount" \
     hms-dbmi/dictionary-etl:latest >/dev/null
 
   for _ in $(seq 1 24); do
@@ -182,6 +185,17 @@ start_dictionary_etl() {
   docker logs "$container" >&2 || true
   error "Dictionary ETL did not start."
   exit 1
+}
+
+# require_shared_column_meta: the shared hpds-data volume must already hold the
+# columnMeta.csv the dictionary hydrates from; it cannot be generated there.
+require_shared_column_meta() {
+  local volume
+  volume="$(picsure_hpds_volume hpds-data)"
+  if ! docker run --rm -v "$volume:/data:ro" alpine test -s /data/columnMeta.csv; then
+    error "$volume has no columnMeta.csv; republish it from a stack that ran the dictionary hydration."
+    exit 1
+  fi
 }
 
 stop_dictionary_etl() {
@@ -399,11 +413,11 @@ load_csv() {
   warn "Replacing phenotype HPDS data in the hpds-data volume."
   stop_hpds
   local rc=0
-  copy_hpds_key "$(volume_name hpds-data)" || rc=$?
+  copy_hpds_key "$(picsure_hpds_volume hpds-data)" || rc=$?
   if [ "$rc" -eq 0 ]; then
     picsure_etl_run \
       --name "$(picsure_container_name hpds-etl-loader)" \
-      -v "$(volume_name hpds-data):/opt/local/hpds" \
+      -v "$(picsure_hpds_volume hpds-data):/opt/local/hpds" \
       -v "$resolved:/opt/local/hpds/allConcepts.csv:ro" \
       -e HEAPSIZE="$heap" \
       -e LOADER_NAME=CSVLoaderNewSearch \
@@ -444,7 +458,7 @@ load_multiple() {
     -e LOADER_NAME=SequentialLoader \
     "hms-dbmi/pic-sure-hpds-etl:${PICSURE_IMAGE_TAG:-LATEST}"
   docker run --rm \
-    -v "$(volume_name hpds-data):/hpds" \
+    -v "$(picsure_hpds_volume hpds-data):/hpds" \
     -v "$temp_volume:/newdata:ro" \
     alpine sh -c "find /hpds -mindepth 1 -maxdepth 1 ! -name all -exec rm -rf {} + && cp -a /newdata/. /hpds/"
   start_hpds
@@ -482,7 +496,7 @@ load_rdbms() {
     -e LOADER_NAME=SQLLoader \
     "hms-dbmi/pic-sure-hpds-etl:${PICSURE_IMAGE_TAG:-LATEST}"
   docker run --rm \
-    -v "$(volume_name hpds-data):/hpds" \
+    -v "$(picsure_hpds_volume hpds-data):/hpds" \
     -v "$temp_volume:/newdata:ro" \
     alpine sh -c "find /hpds -mindepth 1 -maxdepth 1 ! -name all -exec rm -rf {} + && cp -a /newdata/. /hpds/"
   start_hpds
@@ -498,18 +512,30 @@ hydrate_dictionary() {
     esac
   done
 
-  ensure_image "hms-dbmi/pic-sure-hpds-etl:${PICSURE_IMAGE_TAG:-LATEST}"
+  # Shared data is read-only and already carries the columnMeta.csv its
+  # publisher generated, so only hydrate from it, and send the ETL's error
+  # report to the container's /tmp instead of the data volume.
+  local request
+  if picsure_hpds_shared; then
+    require_shared_column_meta
+    request="{\"includeDefaultFacets\":\"$include\",\"clearDatabase\":\"$clear\",\"errorDirectory\":\"/tmp/columnMetaErrors.csv\"}"
+  else
+    ensure_image "hms-dbmi/pic-sure-hpds-etl:${PICSURE_IMAGE_TAG:-LATEST}"
+    request="{\"includeDefaultFacets\":\"$include\",\"clearDatabase\":\"$clear\"}"
+  fi
   start_dictionary_etl
   trap stop_dictionary_etl EXIT
-  picsure_etl_run \
-    --name "$(picsure_container_name hpds-generate-columnmeta-csv)" \
-    -v "$(volume_name hpds-data):/opt/local/hpds/" \
-    -e JAVA_OPTS="-Dlogback.log.level=INFO" \
-    -e HEAPSIZE=4096 \
-    -e LOADER_NAME=CreateColumnmetaCSV \
-    "hms-dbmi/pic-sure-hpds-etl:${PICSURE_IMAGE_TAG:-LATEST}"
+  if ! picsure_hpds_shared; then
+    picsure_etl_run \
+      --name "$(picsure_container_name hpds-generate-columnmeta-csv)" \
+      -v "$(picsure_hpds_volume hpds-data):/opt/local/hpds/" \
+      -e JAVA_OPTS="-Dlogback.log.level=INFO" \
+      -e HEAPSIZE=4096 \
+      -e LOADER_NAME=CreateColumnmetaCSV \
+      "hms-dbmi/pic-sure-hpds-etl:${PICSURE_IMAGE_TAG:-LATEST}"
+  fi
   curl_data -sS --fail -X POST -H "Content-Type: application/json" \
-    -d "{\"includeDefaultFacets\":\"$include\",\"clearDatabase\":\"$clear\"}" \
+    -d "$request" \
     http://dictionaryetl:8086/load/initialize
   stop_dictionary_etl
   trap - EXIT
@@ -681,7 +707,7 @@ promote_genomic() {
   warn "Promoting staged genomic data into hpds-genomic. Large backups are only made when --backup-current-data is set."
   stop_hpds
   docker run --rm \
-    -v "$(volume_name hpds-genomic):/hpds-genomic" \
+    -v "$(picsure_hpds_volume hpds-genomic):/hpds-genomic" \
     -v "$stage_dir:/staged:ro" \
     -e BACKUP="$backup" \
     -e CLEAN="$clean" \
@@ -991,6 +1017,12 @@ case "$COMMAND" in
 esac
 
 ensure_env
+
+case "$COMMAND" in
+  load-csv|load-multiple|load-rdbms|load-vcf|promote-genomic|load-phenotype|load-genomic)
+    picsure_require_hpds_writable "./etl.sh $COMMAND" || exit 1
+    ;;
+esac
 
 case "$COMMAND" in
   load-demo) "$SCRIPT_DIR/load-demo-data.sh" "$@" ;;

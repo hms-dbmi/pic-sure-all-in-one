@@ -56,7 +56,44 @@ picsure_compose_files() {
     files+=(-f "$root/docker-compose.remote-db.yml")
   fi
 
+  if picsure_hpds_shared; then
+    files+=(-f "$root/docker-compose.shared-hpds.yml")
+  fi
+
   printf '%s\n' "${files[@]}"
+}
+
+# HPDS_DATA_MODE=shared mounts a prebuilt, read-only HPDS data set published
+# by scripts/publish-shared-hpds-data.sh (volumes <HPDS_SHARED_DATA>_hpds-data
+# and _hpds-genomic) instead of this project's own hpds-data/hpds-genomic.
+picsure_hpds_shared() {
+  [ "${HPDS_DATA_MODE:-local}" = "shared" ]
+}
+
+# picsure_hpds_volume KIND: the Docker volume HPDS uses for KIND (hpds-data or
+# hpds-genomic) in the current mode. Everything outside Compose that touches
+# those volumes must go through this, never build <project>_<kind> by hand.
+picsure_hpds_volume() {
+  local kind="$1"
+  if picsure_hpds_shared; then
+    if [ -z "${HPDS_SHARED_DATA:-}" ]; then
+      echo "[hpds] HPDS_DATA_MODE=shared requires HPDS_SHARED_DATA in .env." >&2
+      return 1
+    fi
+    printf '%s_%s' "$HPDS_SHARED_DATA" "$kind"
+  else
+    printf '%s_%s' "${COMPOSE_PROJECT_NAME:-picsure}" "$kind"
+  fi
+}
+
+# picsure_require_hpds_writable WHAT: refuse an operation that writes HPDS
+# data when this stack mounts a shared, read-only data set.
+picsure_require_hpds_writable() {
+  if picsure_hpds_shared; then
+    echo "[hpds] $1 writes HPDS data, but this stack uses the shared read-only data set '${HPDS_SHARED_DATA:-}' (HPDS_DATA_MODE=shared)." >&2
+    echo "[hpds] Set HPDS_DATA_MODE=local to load into this stack's own volumes, or build and publish a new shared data set." >&2
+    return 1
+  fi
 }
 
 picsure_compose_generated_env_files() {

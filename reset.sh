@@ -239,6 +239,16 @@ DB_VOLUME="${PROJECT_NAME}_picsure-db-data"
 VOLUMES=$(docker volume ls --filter "name=${PROJECT_NAME}_" --format '{{.Name}}' 2>/dev/null || true)
 
 for vol in $VOLUMES; do
+  # The name filter is a substring match: keep only this project's volumes,
+  # and never a published shared HPDS data set (other stacks mount it).
+  case "$vol" in
+    "${PROJECT_NAME}_"*) ;;
+    *) continue ;;
+  esac
+  if [ -n "$(docker volume inspect --format '{{ index .Labels "org.hms-dbmi.picsure.shared-hpds-data" }}' "$vol" 2>/dev/null)" ]; then
+    warn "Keeping shared HPDS data volume: $vol"
+    continue
+  fi
   if [ "$vol" = "$DB_VOLUME" ] && [ "$WIPE_DB" != "true" ]; then
     warn "Keeping database volume: $vol"
     continue

@@ -55,8 +55,9 @@ if [ -z "$VERB" ]; then
 fi
 shift
 
-# picsure_compose_files selects the remote-db overlay from DB_MODE, which is
-# only set after loading .env — nothing loads it implicitly.
+# picsure_compose_files selects the remote-db and shared-hpds overlays from
+# DB_MODE and HPDS_DATA_MODE, which are only set after loading .env — nothing
+# loads them implicitly.
 picsure_load_env "$ENV_FILE"
 
 # --- dev overlay helpers ----------------------------------------------------

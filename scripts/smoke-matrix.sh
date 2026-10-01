@@ -59,6 +59,8 @@ bash -n scripts/test-db-secrets.sh
 bash -n scripts/test-env-normalize.sh
 bash -n scripts/test-etl-orchestrators.sh
 bash -n scripts/test-etl-load-csv.sh
+bash -n scripts/test-shared-hpds.sh
+bash -n scripts/publish-shared-hpds-data.sh
 bash -n scripts/smoke-matrix.sh
 bash -n scripts/smoke-remote-db.sh
 
@@ -83,6 +85,9 @@ echo "[smoke] ETL orchestrator tests"
 
 echo "[smoke] ETL load-csv decompression tests"
 ./scripts/test-etl-load-csv.sh
+
+echo "[smoke] Shared HPDS data mode tests"
+./scripts/test-shared-hpds.sh
 
 if [ -f .env ]; then
   echo "[smoke] Update dry run"

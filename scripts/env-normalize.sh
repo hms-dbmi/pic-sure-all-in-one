@@ -7,7 +7,8 @@
 # service secrets the monorepo stack requires (compose interpolates them with
 # no default, and a blank token fails closed), and flags a DICTIONARY_ETL_REF
 # pin that release-control used to overwrite on every run and now leaves
-# alone. Safe to re-run; a current .env is left untouched.
+# alone, and checks the HPDS data mode. Safe to re-run; a current .env is left
+# untouched.
 #
 # Usage:
 #   scripts/env-normalize.sh
@@ -73,11 +74,29 @@ if [ "${#generated[@]}" -gt 0 ]; then
   info "Generated missing service secrets: ${generated[*]}"
 fi
 
-etl_ref="$(grep "^DICTIONARY_ETL_REF=" "$ENV_FILE" | tail -1 | cut -d'=' -f2- || true)"
-etl_ref="${etl_ref%$'\r'}"
-etl_ref="${etl_ref#\"}"
-etl_ref="${etl_ref%\"}"
+# env_value KEY: the last KEY= value in .env, without CR or surrounding quotes.
+env_value() {
+  local value
+  value="$(grep "^$1=" "$ENV_FILE" | tail -1 | cut -d'=' -f2- || true)"
+  value="${value%$'\r'}"
+  value="${value#\"}"
+  printf '%s' "${value%\"}"
+}
+
+etl_ref="$(env_value DICTIONARY_ETL_REF)"
 if [ -n "$etl_ref" ] && [ "$etl_ref" != "main" ]; then
   warn "DICTIONARY_ETL_REF is pinned to $etl_ref; release-control no longer resolves it."
   warn "Set DICTIONARY_ETL_REF=main in .env unless you pinned it deliberately."
 fi
+
+# Shared HPDS data is opt-in; a .env without the keys keeps local volumes.
+hpds_mode="$(env_value HPDS_DATA_MODE)"
+case "${hpds_mode:-local}" in
+  local) ;;
+  shared)
+    if [ -z "$(env_value HPDS_SHARED_DATA)" ]; then
+      warn "HPDS_DATA_MODE=shared but HPDS_SHARED_DATA is empty; set it to a published data set name."
+    fi
+    ;;
+  *) warn "HPDS_DATA_MODE must be local or shared, got '$hpds_mode'." ;;
+esac

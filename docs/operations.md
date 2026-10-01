@@ -290,7 +290,10 @@ Demo data:
 ./load-demo-data.sh              # NHANES
 ./load-demo-data.sh synthea      # Synthea 10k
 ./load-demo-data.sh 1000genomes  # 1000 Genomes
+./load-demo-data.sh --all        # all three, merged
 ```
+
+To share one load between stacks, see [Shared HPDS data](#shared-hpds-data).
 
 Compose ETL commands replace the old Jenkins ETL jobs:
 
@@ -325,6 +328,48 @@ docker compose logs -f gateway
 Inside a stack, services still reach each other by service name (`picsure-db`,
 `gateway`, ...). The ETL scripts prefix the containers they start themselves
 with the project name, so two stacks can run ETL at the same time.
+
+### Shared HPDS data
+
+Stacks on one host can serve the same HPDS data without each running the HPDS
+ETL. Load the data once in one stack, publish it as a named data set, and point
+other stacks at it. They mount it read-only.
+
+```bash
+# In the stack that loaded the data (HPDS_DATA_MODE=local):
+./load-demo-data.sh --all
+scripts/publish-shared-hpds-data.sh picsure-demo-v1
+```
+
+Publishing copies the stack's `hpds-data` and `hpds-genomic` volumes into
+`picsure-demo-v1_hpds-data` and `picsure-demo-v1_hpds-genomic`. The new
+volumes are labelled with their contents and the pic-sure and AIO commits they
+came from (`docker volume inspect`). The script won't overwrite an existing
+data set unless you pass `--force`, and it won't replace one that a container
+still uses. If genomic data is loaded, start HPDS once before publishing: HPDS
+writes the genomic indexes on its first start, and it can't write them to a
+read-only mount.
+
+To use a data set, add this to a stack's `.env`, then recreate HPDS and hydrate
+that stack's own dictionary:
+
+```env
+HPDS_DATA_MODE=shared
+HPDS_SHARED_DATA=picsure-demo-v1
+```
+
+```bash
+scripts/compose.sh up -d hpds
+./load-demo-data.sh        # skips the HPDS load; hydrates the dictionary only
+```
+
+In shared mode, `etl.sh` refuses commands that write HPDS data (`load-csv`,
+`load-phenotype`, `load-vcf`, `promote-genomic`, ...). To change the data,
+load it in a local-mode stack and publish a new data set. The shared volumes
+are external to every stack, so `docker compose down --volumes`,
+`./uninstall.sh`, `./reset.sh` and `ws stack release` leave them in place.
+Remove a data set with `docker volume rm <name>_hpds-data <name>_hpds-genomic`
+once no stack uses it.
 
 ## Troubleshooting
 

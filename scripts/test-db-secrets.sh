@@ -26,6 +26,11 @@
 
 set -euo pipefail
 
+# The fake mysql records its stdin, so a call that pipes no SQL reads whatever
+# stdin the harness inherited. Under CI that is empty; from an interactive or
+# agent shell it is a pipe that never closes, and the test blocks forever.
+exec </dev/null
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 TEST_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/picsure-db-secrets-test.XXXXXX")"
 

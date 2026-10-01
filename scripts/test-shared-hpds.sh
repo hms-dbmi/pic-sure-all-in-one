@@ -109,15 +109,21 @@ check() {
 }
 check '.volumes["hpds-data"].name' picsure-demo-v1_hpds-data
 check '.volumes["hpds-data"].external' true
-check '.volumes["hpds-genomic"].name' picsure-demo-v1_hpds-genomic
-check '.volumes["hpds-genomic"].external' true
+check '.volumes["hpds-genomic-shared"].name' picsure-demo-v1_hpds-genomic
+check '.volumes["hpds-genomic-shared"].external' true
+check '[.services.hpds.volumes[] | select(.target == "/opt/local/hpds")][0].source' hpds-data
 check '[.services.hpds.volumes[] | select(.target == "/opt/local/hpds")][0].read_only' true
-check '[.services.hpds.volumes[] | select(.target == "/opt/local/hpds/all")][0].read_only' true
-# Per-stack volumes stay this project's own and writable.
+# HPDS reads genomic data from this project's seeded copy, never the shared
+# volume, and the project's own hpds-genomic is no longer mounted.
+check '[.services.hpds.volumes[] | select(.target == "/opt/local/hpds/all")][0].source' hpds-genomic-shared-copy
+check '.volumes["hpds-genomic-shared-copy"].name' proj_hpds-genomic-shared-copy
+check '[.services.hpds.volumes[] | select(.source == "hpds-genomic")] | length' 0
+check '.services.hpds.depends_on["hpds-genomic-seed"].condition' service_completed_successfully
+check '[.services["hpds-genomic-seed"].volumes[] | select(.source == "hpds-genomic-shared")][0].read_only' true
+# No service mounts a shared volume writable; per-stack volumes are unchanged.
+check '[.services[] | .volumes // [] | .[] | select((.source == "hpds-data" or .source == "hpds-genomic-shared") and (.read_only != true))] | length' 0
 check '.volumes["hpds-query-results"].name' proj_hpds-query-results
-check '[.services.hpds.volumes[] | select(.source == "hpds-data" or .source == "hpds-genomic")] | length' 2
-check '[.services[] | .volumes // [] | .[] | select((.source == "hpds-data" or .source == "hpds-genomic") and (.read_only != true))] | length' 0
-pass "overlay mounts both data volumes external and read-only, nothing else changes"
+pass "overlay mounts the shared volumes external and read-only, genomic via a per-stack copy"
 
 if (cd "$TEST_ROOT" && docker compose -p proj -f docker-compose.yml -f docker-compose.shared-hpds.yml \
   config --quiet >/dev/null 2>&1); then

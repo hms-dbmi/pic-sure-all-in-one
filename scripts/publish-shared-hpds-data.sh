@@ -232,6 +232,13 @@ info "Copying $SRC_GENOMIC -> $DST_GENOMIC..."
 docker run --rm -v "$SRC_GENOMIC:/src:ro" -v "$DST_GENOMIC:/dst" alpine \
   sh -c "tar -C /src --exclude=./$GENOMIC_BACKUP_DIR -cf - . | tar -C /dst -xf -"
 
+# Identifies this publication; stacks re-seed their genomic copy when it
+# changes (see docker-compose.shared-hpds.yml).
+for vol in "$DST_DATA" "$DST_GENOMIC"; do
+  docker run --rm -v "$vol:/dst" alpine \
+    sh -c "printf 'name=%s created=%s\\n' '$NAME' '$created' > /dst/.picsure-published"
+done
+
 created_vols=()
 trap - EXIT
 
@@ -239,4 +246,4 @@ info "Published shared HPDS data set '$NAME' ($CONTENTS)."
 info "Mount it from any stack with, in that stack's .env:"
 info "  HPDS_DATA_MODE=shared"
 info "  HPDS_SHARED_DATA=$NAME"
-info "then recreate HPDS (./scripts/compose.sh up -d hpds) and hydrate the dictionary (./load-demo-data.sh)."
+info "then recreate HPDS (scripts/compose.sh up hpds) and hydrate the dictionary (./load-demo-data.sh)."

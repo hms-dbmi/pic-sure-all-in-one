@@ -333,7 +333,7 @@ with the project name, so two stacks can run ETL at the same time.
 
 Stacks on one host can serve the same HPDS data without each running the HPDS
 ETL. Load the data once in one stack, publish it as a named data set, and point
-other stacks at it. They mount it read-only.
+other stacks at it. They never write to it.
 
 ```bash
 # In the stack that loaded the data (HPDS_DATA_MODE=local):
@@ -360,9 +360,18 @@ HPDS_SHARED_DATA=picsure-demo-v1
 ```
 
 ```bash
-scripts/compose.sh up -d hpds
+scripts/compose.sh up hpds
 ./load-demo-data.sh        # skips the HPDS load; hydrates the dictionary only
 ```
+
+HPDS mounts the phenotype volume read-only. It can't do the same with the
+genomic volume: it opens every genomic storage file read-write (mode `rwd`),
+even though it never writes to them once loaded, and on a read-only mount the
+variant store fails to load. In shared mode a one-shot `hpds-genomic-seed`
+service therefore copies the shared genomic data into the stack's own
+`hpds-genomic-shared-copy` volume, which costs about the genomic data's size on
+disk (660 MB for `picsure-demo-v1`). It copies again only when the published
+set changes, so later starts skip the copy.
 
 A data set with genomic data needs `HPDS_PROFILE=bch-dev`. The publisher
 records that on the volumes, and every shared-mode stack applies it through

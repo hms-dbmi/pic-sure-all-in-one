@@ -1,28 +1,56 @@
 # Shared HPDS data overlay.
 #
 # Use through the top-level scripts with HPDS_DATA_MODE=shared and
-# HPDS_SHARED_DATA=<name>. HPDS mounts a prebuilt data set, published once with
+# HPDS_SHARED_DATA=<name>. HPDS serves a prebuilt data set, published once with
 # scripts/publish-shared-hpds-data.sh, instead of this project's own volumes:
 #
-#   <name>_hpds-data     phenotype data, encryption key, columnMeta.csv
+#   <name>_hpds-data     phenotype store, encryption key, columnMeta.csv
 #   <name>_hpds-genomic  genomic data and its indexes (may be empty)
 #
 # Both are external, so `docker compose down --volumes` (and `ws stack
-# release`, which runs it) leaves the shared data alone, and read-only, so
-# every stack that mounts them sees the same bytes. HPDS opens the phenotype
-# store read-only; the genomic indexes are written on HPDS's first start,
-# which is why the publish script requires them before copying.
+# release`, which runs it) never deletes them, and neither is ever mounted
+# writable:
+#
+# - The phenotype volume is mounted into HPDS read-only. HPDS opens the
+#   observation store read-only, so every stack reads the same bytes.
+# - The genomic volume can't be: HPDS opens each genomic storage file with
+#   RandomAccessFile mode "rwd" (FileBackedByteIndexedStorage.open), even
+#   though it never writes to them once loaded, and on a read-only mount the
+#   variant store fails to load. hpds-genomic-seed copies the shared genomic
+#   data into this project's own hpds-genomic-shared-copy volume (about the
+#   size of the genomic data) whenever the published set changes, and HPDS
+#   mounts that copy. This project's own hpds-genomic is left untouched.
 
 services:
+  hpds-genomic-seed:
+    image: alpine
+    network_mode: none
+    restart: "no"
+    volumes:
+      - hpds-genomic-shared:/src:ro
+      - hpds-genomic-shared-copy:/dst
+    # .picsure-published (written by the publisher) identifies the published
+    # set; copy only when it differs from the copy's, so restarts are instant.
+    command:
+      - sh
+      - -c
+      - >-
+        if cmp -s /src/.picsure-published /dst/.picsure-published; then exit 0; fi;
+        find /dst -mindepth 1 -delete && cp -a /src/. /dst/
+
   hpds:
+    depends_on:
+      hpds-genomic-seed:
+        condition: service_completed_successfully
     volumes:
       - hpds-data:/opt/local/hpds:ro
-      - hpds-genomic:/opt/local/hpds/all:ro
+      - hpds-genomic-shared-copy:/opt/local/hpds/all
 
 volumes:
   hpds-data:
     external: true
     name: ${HPDS_SHARED_DATA:?HPDS_SHARED_DATA is required when HPDS_DATA_MODE=shared}_hpds-data
-  hpds-genomic:
+  hpds-genomic-shared:
     external: true
     name: ${HPDS_SHARED_DATA:?HPDS_SHARED_DATA is required when HPDS_DATA_MODE=shared}_hpds-genomic
+  hpds-genomic-shared-copy:

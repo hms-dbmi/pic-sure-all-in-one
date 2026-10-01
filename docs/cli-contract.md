@@ -211,6 +211,7 @@ file). Consumers must treat checks as a list, not a map.
 | `env.db_mode`, `env.auth_mode` | enum validation (`fail` on bad value) |
 | `env.hpds_data_mode` | `local` \| `shared`; `fail` on a bad value or on `shared` without `HPDS_SHARED_DATA` |
 | `hpds.shared_data` | shared mode only: both `<HPDS_SHARED_DATA>_hpds-data` and `_hpds-genomic` volumes exist (`fail` when not; `warn` when the daemon is unreachable) |
+| `hpds.profile` | shared mode only, after `hpds.shared_data` passes: the HPDS profile in effect; `warn` when `.env` overrides the data set's recorded one |
 | `compose.generated` | a generated file is missing (`warn`, one per file) |
 | `compose.config` | `docker compose config` validation (or `warn` when skipped) |
 | `release.repo`, `release.branch`, `release.cache` | release-control settings/cache |

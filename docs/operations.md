@@ -346,9 +346,10 @@ Publishing copies the stack's `hpds-data` and `hpds-genomic` volumes into
 volumes are labelled with their contents and the pic-sure and AIO commits they
 came from (`docker volume inspect`). The script won't overwrite an existing
 data set unless you pass `--force`, and it won't replace one that a container
-still uses. If genomic data is loaded, start HPDS once before publishing: HPDS
-writes the genomic indexes on its first start, and it can't write them to a
-read-only mount.
+still uses. If genomic data is loaded, start HPDS once with `HPDS_PROFILE=bch-dev`
+before publishing: HPDS writes each contig's genomic indexes on its first
+start, and it can't write them to a read-only mount. The publisher checks
+for them and leaves out the `all-bak` backup that `promote-genomic` keeps.
 
 To use a data set, add this to a stack's `.env`, then recreate HPDS and hydrate
 that stack's own dictionary:
@@ -362,6 +363,12 @@ HPDS_SHARED_DATA=picsure-demo-v1
 scripts/compose.sh up -d hpds
 ./load-demo-data.sh        # skips the HPDS load; hydrates the dictionary only
 ```
+
+A data set with genomic data needs `HPDS_PROFILE=bch-dev`. The publisher
+records that on the volumes, and every shared-mode stack applies it through
+the scripts (`scripts/compose.sh`, `init.sh`, `update.sh`, ...) unless its own
+`.env` sets `HPDS_PROFILE`. Leave `HPDS_PROFILE=` empty in shared mode;
+preflight warns when it overrides the data set's profile.
 
 In shared mode, `etl.sh` refuses commands that write HPDS data (`load-csv`,
 `load-phenotype`, `load-vcf`, `promote-genomic`, ...). To change the data,

@@ -126,7 +126,30 @@ picsure_compose() {
   done <<EOF
 $(picsure_compose_files "$root")
 EOF
-  docker compose "${files[@]}" "$@"
+  # A shared data set that holds genomic data needs the HPDS profile its
+  # publisher recorded (bch-dev). Apply it unless .env sets HPDS_PROFILE; the
+  # prefix beats the empty HPDS_PROFILE= that .env.example ships.
+  local profile=""
+  if picsure_hpds_shared && [ -z "${HPDS_PROFILE:-}" ]; then
+    profile="$(picsure_shared_hpds_label hpds-profile)"
+  fi
+  if [ -n "$profile" ]; then
+    HPDS_PROFILE="$profile" docker compose "${files[@]}" "$@"
+  else
+    docker compose "${files[@]}" "$@"
+  fi
+}
+
+# picsure_shared_hpds_label KEY: a label scripts/publish-shared-hpds-data.sh
+# put on the shared data set (org.hms-dbmi.picsure.shared-hpds-data.KEY);
+# empty when not in shared mode, the volume is missing, or the label is unset.
+picsure_shared_hpds_label() {
+  local volume
+  picsure_hpds_shared || return 0
+  volume="$(picsure_hpds_volume hpds-data 2>/dev/null)" || return 0
+  docker volume inspect \
+    --format "{{ index .Labels \"org.hms-dbmi.picsure.shared-hpds-data.$1\" }}" \
+    "$volume" 2>/dev/null || true
 }
 
 # Containers are named by Compose (<project>-<service>-N), so reach them by

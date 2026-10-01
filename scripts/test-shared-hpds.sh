@@ -61,6 +61,32 @@ fi
 case "$out" in *"picsure-demo-v1"*) ;; *) fail "refusal does not name the data set: $out" ;; esac
 pass "HPDS writes are refused in shared mode"
 
+# --- HPDS profile from the data set's label -------------------------------------
+# A fake docker answers the label lookup and reports the HPDS_PROFILE that
+# reached `docker compose`.
+mkdir -p "$TEST_ROOT/bin"
+cat > "$TEST_ROOT/bin/docker" <<'DOCKER'
+#!/usr/bin/env bash
+case "$1" in
+  volume) [ "${FAKE_VOLUME:-missing}" = present ] && echo "${FAKE_LABEL:-}" || exit 1 ;;
+  compose) echo "profile=[${HPDS_PROFILE:-}]" ;;
+  *) exit 99 ;;
+esac
+DOCKER
+chmod +x "$TEST_ROOT/bin/docker"
+fake() { with_helpers 'picsure_compose ps' PATH="$TEST_ROOT/bin:$PATH" PICSURE_ROOT=/root "$@"; }
+[ "$(fake HPDS_DATA_MODE=shared HPDS_SHARED_DATA=d FAKE_VOLUME=present FAKE_LABEL=bch-dev)" = "profile=[bch-dev]" ] \
+  || fail "shared mode did not apply the data set's recorded profile"
+[ "$(fake HPDS_DATA_MODE=shared HPDS_SHARED_DATA=d FAKE_VOLUME=present FAKE_LABEL=bch-dev HPDS_PROFILE=custom)" = "profile=[custom]" ] \
+  || fail "an explicit HPDS_PROFILE was overridden"
+[ "$(fake HPDS_DATA_MODE=shared HPDS_SHARED_DATA=d FAKE_VOLUME=present FAKE_LABEL=)" = "profile=[]" ] \
+  || fail "a phenotype-only data set set a profile"
+[ "$(fake HPDS_DATA_MODE=shared HPDS_SHARED_DATA=d)" = "profile=[]" ] \
+  || fail "a missing data set volume set a profile"
+[ "$(fake FAKE_VOLUME=present FAKE_LABEL=bch-dev)" = "profile=[]" ] \
+  || fail "local mode read a shared data set label"
+pass "shared mode applies the recorded HPDS profile unless .env sets one"
+
 # --- merged Compose config ----------------------------------------------------
 if ! command -v docker >/dev/null 2>&1 || ! docker compose version >/dev/null 2>&1; then
   echo "[shared-hpds-test] skip - docker compose unavailable; config merge not checked"

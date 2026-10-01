@@ -305,6 +305,14 @@ if [ -f "$ENV_FILE" ]; then
             done
             if [ "${#missing_vols[@]}" -eq 0 ]; then
               ok hpds.shared_data "Shared HPDS volumes for '$HPDS_SHARED_DATA' exist."
+              shared_profile="$(picsure_shared_hpds_label hpds-profile)"
+              if [ -z "${HPDS_PROFILE:-}" ]; then
+                ok hpds.profile "HPDS_PROFILE=${shared_profile:-<none>} from data set '$HPDS_SHARED_DATA'."
+              elif [ -n "$shared_profile" ] && [ "$HPDS_PROFILE" != "$shared_profile" ]; then
+                warn hpds.profile "HPDS_PROFILE=$HPDS_PROFILE overrides '$shared_profile', which '$HPDS_SHARED_DATA' (genomic) needs; clear it in .env to use the data set's."
+              else
+                ok hpds.profile "HPDS_PROFILE=$HPDS_PROFILE (set in .env)."
+              fi
             else
               fail hpds.shared_data "Missing shared HPDS volumes: ${missing_vols[*]}. Publish them with scripts/publish-shared-hpds-data.sh."
             fi

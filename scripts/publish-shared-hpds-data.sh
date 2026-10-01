@@ -37,7 +37,12 @@ source "$SCRIPT_DIR/scripts/lib/common.sh"
 source "$SCRIPT_DIR/scripts/picsure-compose.sh"
 
 LABEL="org.hms-dbmi.picsure.shared-hpds-data"
-GENOMIC_INDEXES=(variantIndex_fbbis.javabin BucketIndexBySample.javabin)
+# HPDS reads genomic data as <genomic dir>/<partition>/<contig>/ and writes
+# these into each contig directory on its first start.
+GENOMIC_INDEXES="variantIndex_fbbis.javabin BucketIndexBySample.javabin"
+# promote-genomic --backup-current-data leaves the previous data here; it is
+# not part of the data set (HPDS would read it as a partition).
+GENOMIC_BACKUP_DIR=all-bak
 PHENOTYPE_FILES=(encryption_key allObservationsStore.javabin columnMeta.javabin columnMeta.csv)
 
 usage() { sed -n '2,23p' "$0"; }
@@ -112,18 +117,42 @@ if [ "${#missing[@]}" -gt 0 ]; then
   exit 1
 fi
 
-genomic_present=false
-if [ -n "$(probe "$SRC_GENOMIC" 'ls -A /v')" ]; then
-  genomic_present=true
-  missing=()
-  for f in "${GENOMIC_INDEXES[@]}"; do
-    probe "$SRC_GENOMIC" "test -s /v/$f" || missing+=("$f")
+# One pass over the genomic volume, ignoring the promote backup: "data" when
+# anything is there, "contig DIR" per <partition>/<contig>/, and "missing
+# PATH" per index file a contig lacks.
+# shellcheck disable=SC2016  # expanded by the probe's shell
+genomic_report="$(probe "$SRC_GENOMIC" '
+  cd /v || exit 1
+  for e in * .[!.]*; do
+    [ -e "$e" ] && [ "$e" != "'"$GENOMIC_BACKUP_DIR"'" ] && { echo data; break; }
   done
-  if [ "${#missing[@]}" -gt 0 ]; then
-    error "$SRC_GENOMIC holds genomic data but not its indexes: ${missing[*]}"
-    error "Start HPDS once with this data (it writes them on first start), then publish."
+  for d in */*/; do
+    [ -d "$d" ] || continue
+    case "$d" in "'"$GENOMIC_BACKUP_DIR"'"/*) continue ;; esac
+    echo "contig $d"
+    for f in '"$GENOMIC_INDEXES"'; do [ -s "$d$f" ] || echo "missing $d$f"; done
+  done
+')"
+
+genomic_present=false
+if printf '%s\n' "$genomic_report" | grep -qx data; then
+  if ! printf '%s\n' "$genomic_report" | grep -q '^contig '; then
+    error "$SRC_GENOMIC is not empty but has no <partition>/<contig>/ directories."
+    error "Load genomic data with ./etl.sh load-genomic --promote, then publish."
     exit 1
   fi
+  if printf '%s\n' "$genomic_report" | grep -q '^missing '; then
+    error "$SRC_GENOMIC holds genomic data without its indexes:"
+    printf '%s\n' "$genomic_report" | sed -n 's/^missing /  /p' >&2
+    error "Start HPDS once on this data with HPDS_PROFILE=bch-dev (it writes them on first start), then publish."
+    exit 1
+  fi
+  genomic_present=true
+fi
+# Stacks mounting the set apply this profile unless their .env sets one.
+hpds_profile=""
+if [ "$genomic_present" = "true" ]; then
+  hpds_profile="bch-dev"
 fi
 
 for vol in "$DST_DATA" "$DST_GENOMIC"; do
@@ -182,6 +211,7 @@ create_volume() {
     --label "$LABEL=$NAME" \
     --label "$LABEL.kind=$kind" \
     --label "$LABEL.contents=$CONTENTS" \
+    --label "$LABEL.hpds-profile=$hpds_profile" \
     --label "$LABEL.picsure-commit=${picsure_commit:-unknown}" \
     --label "$LABEL.aio-commit=${aio_commit:-unknown}" \
     --label "$LABEL.source-project=${COMPOSE_PROJECT_NAME:-picsure}" \
@@ -200,7 +230,7 @@ docker run --rm -v "$SRC_DATA:/src:ro" -v "$DST_DATA:/dst" alpine \
   sh -c 'cp -a /src/. /dst/ && mkdir -p /dst/all'
 info "Copying $SRC_GENOMIC -> $DST_GENOMIC..."
 docker run --rm -v "$SRC_GENOMIC:/src:ro" -v "$DST_GENOMIC:/dst" alpine \
-  sh -c 'cp -a /src/. /dst/'
+  sh -c "tar -C /src --exclude=./$GENOMIC_BACKUP_DIR -cf - . | tar -C /dst -xf -"
 
 created_vols=()
 trap - EXIT

@@ -670,19 +670,31 @@ load_vcf() {
   [ -z "$vcf_dir" ] || require_dir "$vcf_dir"
   ensure_image "hms-dbmi/pic-sure-hpds-etl:${PICSURE_IMAGE_TAG:-LATEST}"
   local stage_dir="$SCRIPT_DIR/.data/vcf-load"
+  # A reload replaces the partition rather than mixing into an older one.
+  rm -rf "$stage_dir/genomic/$partition" "$stage_dir/genomic-merged/$partition"
   mkdir -p "$stage_dir/genomic/$partition" "$stage_dir/genomic-merged/$partition"
   cp "$vcf_index" "$stage_dir/vcfIndex.tsv"
   local vcf_mount=()
   if [ -n "$vcf_dir" ]; then
     vcf_mount=(-v "$vcf_dir:$vcf_dir:ro")
   fi
+  # Both loaders write <contig>/ directories under /opt/local/hpds/all (and
+  # scratch under /opt/local/hpds/merged). Point those at this partition's
+  # staging dirs, which the finalizer and promote-genomic read; HPDS expects
+  # <genomic dir>/<partition>/<contig>/.
+  local partition_mounts=(
+    -v "$stage_dir/genomic/$partition:/opt/local/hpds/all"
+    -v "$stage_dir/genomic-merged/$partition:/opt/local/hpds/merged"
+  )
   picsure_etl_run --name "$(picsure_container_name "hpds-new-vcf-loader-$partition")" \
     -v "$stage_dir:/opt/local/hpds" \
+    "${partition_mounts[@]}" \
     ${vcf_mount[@]+"${vcf_mount[@]}"} \
     -e HEAPSIZE="$heap" -e LOADER_NAME=SplitChromosomeVcfLoader \
     "hms-dbmi/pic-sure-hpds-etl:${PICSURE_IMAGE_TAG:-LATEST}"
   picsure_etl_run --name "$(picsure_container_name "hpds-vcf-metadata-loader-$partition")" \
     -v "$stage_dir:/opt/local/hpds" \
+    "${partition_mounts[@]}" \
     ${vcf_mount[@]+"${vcf_mount[@]}"} \
     -e HEAPSIZE="$heap" -e LOADER_NAME=VariantMetadataLoader \
     "hms-dbmi/pic-sure-hpds-etl:${PICSURE_IMAGE_TAG:-LATEST}"
@@ -978,15 +990,17 @@ load_genomic() {
   fi
 
   if [ "$enable_profile" = "true" ]; then
-    orchestrator_info "$phase" "Step 3: Enabling HPDS genomic profile (HPDS_PROFILE=bch-dev) and restarting HPDS…"
+    orchestrator_info "$phase" "Step 3: Enabling HPDS genomic profile (HPDS_PROFILE=bch-dev) and recreating HPDS…"
     if ! "$SCRIPT_DIR/scripts/env-set.sh" HPDS_PROFILE bch-dev; then
       orchestrator_error "$phase" "Step 3 (set HPDS_PROFILE) failed. Re-run just this step with:"
       orchestrator_error "$phase" "  scripts/env-set.sh HPDS_PROFILE bch-dev"
       exit 1
     fi
-    if ! "$SCRIPT_DIR/scripts/compose.sh" restart hpds; then
-      orchestrator_error "$phase" "Step 3 (restart HPDS) failed. Re-run just this step with:"
-      orchestrator_error "$phase" "  scripts/compose.sh restart hpds"
+    # `up -d`, not `restart`: restart keeps the container's old environment,
+    # so HPDS would come back without the profile it was just given.
+    if ! "$SCRIPT_DIR/scripts/compose.sh" up hpds; then
+      orchestrator_error "$phase" "Step 3 (recreate HPDS) failed. Re-run just this step with:"
+      orchestrator_error "$phase" "  scripts/compose.sh up hpds"
       exit 1
     fi
   fi

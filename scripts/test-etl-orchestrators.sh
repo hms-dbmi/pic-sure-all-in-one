@@ -274,7 +274,7 @@ test_genomic_bad_partition() {
 }
 
 # (h) happy + --promote + --enable-profile -> load_vcf, promote_genomic
-#     --backup-current-data, env-set HPDS_PROFILE bch-dev, compose restart hpds.
+#     --backup-current-data, env-set HPDS_PROFILE bch-dev, compose up hpds.
 test_genomic_full_happy() {
   local log="$TEST_ROOT/h.log" rc
   rc="$(run_orchestrator "$log" load_genomic \
@@ -285,7 +285,7 @@ test_genomic_full_happy() {
     "load_vcf --partition chr1 --vcf-index $FIX/vcfIndex.tsv --heap 16000 --vcf-dir $FIX/vcfdir" \
     "promote_genomic --backup-current-data" \
     "env-set HPDS_PROFILE bch-dev" \
-    "compose restart hpds"
+    "compose up hpds"
 }
 
 # (i) --promote omitted -> no promote_genomic. (also: --enable-profile alone
@@ -302,7 +302,7 @@ test_genomic_no_promote() {
   assert_order "$log" "genomic/no-promote" \
     "load_vcf --partition chr1 --vcf-index $FIX/vcfIndex.tsv --heap 16000" \
     "env-set HPDS_PROFILE bch-dev" \
-    "compose restart hpds"
+    "compose up hpds"
   # warn() writes to stdout (only error() goes to stderr in common.sh).
   grep -q "crash-loop" "$log.out" \
     || fail "genomic/no-promote: expected a crash-loop warning for --enable-profile without --promote"

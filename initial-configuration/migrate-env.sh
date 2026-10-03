@@ -282,13 +282,30 @@ validate_substitution_value() {
   esac
 }
 
+# Print a backup path for the given file that does not exist yet, stamped with
+# the current time so every run keeps its own copy beside any earlier backup.
+unused_backup_path() {
+  local file=$1
+  local stamp
+  local candidate
+  local sequence=1
+
+  stamp=$(date +%Y%m%d%H%M%S)
+  candidate="${file}.pre-migration.${stamp}"
+  while [ -e "$candidate" ]; do
+    sequence=$((sequence + 1))
+    candidate="${file}.pre-migration.${stamp}.${sequence}"
+  done
+  printf '%s\n' "$candidate"
+}
+
 install_env() {
   local subdirectory=$1
   local filename=$2
   shift 2
   local destination="$DOCKER_CONFIG_DIR/$subdirectory/$filename"
   local template="$TEMPLATE_DIR/$subdirectory/$filename"
-  local backup="${destination}.pre-migration"
+  local backup
   local temp_file
 
   if complete_env "$destination" "$@"; then
@@ -298,9 +315,10 @@ install_env() {
 
   [ -f "$template" ] || fail "migration template is missing: $template"
   mkdir -p "$(dirname "$destination")"
-  if [ -f "$destination" ] && [ ! -f "$backup" ]; then
-    cp "$destination" "$backup"
-    note "$subdirectory/$filename: backed up incomplete file"
+  if [ -f "$destination" ]; then
+    backup=$(unused_backup_path "$destination")
+    cp -p "$destination" "$backup"
+    note "$subdirectory/$filename: backed up incomplete file to $(basename "$backup")"
   fi
 
   temp_file=$(mktemp "${destination}.migration.XXXXXX")
@@ -336,13 +354,36 @@ migrate_gateway_open_access() {
   note "gateway/gateway.env: open access set to $open_access to match psama.env"
 }
 
+# Add the MCP service settings to gateway.env and keep its token in step with
+# mcp.env. An existing file is updated key by key so operator edits survive;
+# mcp.env is installed from the template only when it does not exist yet.
+# Expects MCP_SERVICE_TOKEN to be resolved already.
+migrate_mcp_envs() {
+  local gateway_env=$1
+  local mcp_env=$2
+  shift 2
+  local mcp_service_url
+
+  mcp_service_url=$(real_value "$gateway_env" MCP_SERVICE_URL) || mcp_service_url=http://pic-sure-mcp:8080
+  upsert_env MCP_SERVICE_URL "$mcp_service_url" "$gateway_env"
+  upsert_env MCP_SERVICE_TOKEN "$MCP_SERVICE_TOKEN" "$gateway_env"
+  note "gateway/gateway.env: MCP service URL and token synchronized"
+
+  if [ -f "$mcp_env" ]; then
+    upsert_env MCP_SERVICE_TOKEN "$MCP_SERVICE_TOKEN" "$mcp_env"
+    note "mcp/mcp.env: MCP service token synchronized"
+  else
+    install_env mcp mcp.env "$@"
+  fi
+}
+
 migrate_service_envs() {
   local gateway_env="$DOCKER_CONFIG_DIR/gateway/gateway.env"
   local operations_env="$DOCKER_CONFIG_DIR/operations/operations.env"
   local query_env="$DOCKER_CONFIG_DIR/query/query.env"
   local logging_env="$DOCKER_CONFIG_DIR/logging/logging.env"
   local mcp_env="$DOCKER_CONFIG_DIR/mcp/mcp.env"
-  local gateway_keys="TOKEN_INTROSPECTION_TOKEN LOGGING_API_KEY PICSURE_APPLICATION_TOKEN QUERY_SERVICE_INTERNAL_TOKEN MCP_SERVICE_URL MCP_SERVICE_TOKEN"
+  local gateway_keys="TOKEN_INTROSPECTION_TOKEN LOGGING_API_KEY PICSURE_APPLICATION_TOKEN QUERY_SERVICE_INTERNAL_TOKEN"
   local operations_keys="SPRING_DATASOURCE_PASSWORD QUERY_SERVICE_INTERNAL_TOKEN PICSURE_APPLICATION_TOKEN LOGGING_API_KEY LOGGING_SERVICE_URL"
   local query_keys="QUERY_SERVICE_INTERNAL_TOKEN AGGREGATE_OBFUSCATION_SALT PICSURE_APPLICATION_TOKEN"
   local mcp_keys="PICSURE_GATEWAY_URL MCP_SERVICE_TOKEN MCP_ADAPTER_BASE_URL"
@@ -366,6 +407,13 @@ migrate_service_envs() {
     "$gateway_env" "$operations_env" "$query_env")
   LOGGING_API_KEY=$(shared_value LOGGING_API_KEY "$gateway_env" "$operations_env" "$logging_env")
   MCP_SERVICE_TOKEN=$(shared_value MCP_SERVICE_TOKEN "$gateway_env" "$mcp_env")
+  if [ -z "$MCP_SERVICE_TOKEN" ]; then
+    MCP_SERVICE_TOKEN=$(openssl rand -hex 32)
+    note "MCP_SERVICE_TOKEN: generated"
+  else
+    note "MCP_SERVICE_TOKEN: reused from existing env files"
+  fi
+  validate_substitution_value MCP_SERVICE_TOKEN "$MCP_SERVICE_TOKEN"
 
   # shellcheck disable=SC2086
   complete_env "$gateway_env" $gateway_keys || need_install=true
@@ -373,8 +421,6 @@ migrate_service_envs() {
   complete_env "$operations_env" $operations_keys || need_install=true
   # shellcheck disable=SC2086
   complete_env "$query_env" $query_keys || need_install=true
-  # shellcheck disable=SC2086
-  complete_env "$mcp_env" $mcp_keys || need_install=true
 
   TOKEN_INTROSPECTION_TOKEN=""
   PICSURE_MYSQL_PASSWORD=""
@@ -408,13 +454,6 @@ migrate_service_envs() {
       note "QUERY_SERVICE_INTERNAL_TOKEN: generated"
     else
       note "QUERY_SERVICE_INTERNAL_TOKEN: reused from existing env files"
-    fi
-
-    if [ -z "$MCP_SERVICE_TOKEN" ]; then
-      MCP_SERVICE_TOKEN=$(openssl rand -hex 32)
-      note "MCP_SERVICE_TOKEN: generated"
-    else
-      note "MCP_SERVICE_TOKEN: reused from existing env files"
     fi
 
     if [ -z "$PICSURE_APPLICATION_TOKEN" ]; then
@@ -451,7 +490,6 @@ migrate_service_envs() {
     validate_substitution_value LOGGING_API_KEY "$LOGGING_API_KEY"
     validate_substitution_value QUERY_SERVICE_INTERNAL_TOKEN "$QUERY_SERVICE_INTERNAL_TOKEN"
     validate_substitution_value PICSURE_APPLICATION_TOKEN "$PICSURE_APPLICATION_TOKEN"
-    validate_substitution_value MCP_SERVICE_TOKEN "$MCP_SERVICE_TOKEN"
     validate_substitution_value AGGREGATE_OBFUSCATION_SALT "$AGGREGATE_OBFUSCATION_SALT"
 
     # shellcheck disable=SC2086
@@ -460,11 +498,12 @@ migrate_service_envs() {
     install_env operations operations.env $operations_keys
     # shellcheck disable=SC2086
     install_env query query.env $query_keys
-    # shellcheck disable=SC2086
-    install_env mcp mcp.env $mcp_keys
   else
-    note "gateway/operations/query/mcp env files are already complete"
+    note "gateway/operations/query env files are already complete"
   fi
+
+  # shellcheck disable=SC2086
+  migrate_mcp_envs "$gateway_env" "$mcp_env" $mcp_keys
 
   upsert_env SPRING_DATASOURCE_URL "$SPRING_DATASOURCE_URL" "$operations_env"
   upsert_env SPRING_DATASOURCE_USERNAME "$SPRING_DATASOURCE_USERNAME" "$operations_env"

@@ -359,13 +359,21 @@ optional. **Start PIC-SURE** runs it only when `$DOCKER_CONFIG_DIR/mcp/mcp.env` 
 the image has been built, and **PIC-SURE MCP Build and Deploy** succeeds without building
 when that file is missing or when the build spec's `PSA` ref predates the MCP module.
 
-To turn it on for an existing deployment, after updating Jenkins:
+A new install renders `mcp/mcp.env` during initial configuration, so it skips step 1 below.
+Every other step applies to new installs and existing deployments alike: setting
+`MCP_ADAPTER_BASE_URL`, running the access migration, and adding the configuration rows.
+
+To turn it on, after updating Jenkins:
 
 1. Rerun **Migrate PIC-SURE Environment**. It creates `mcp/mcp.env` from the template when
    the file does not exist, and adds `MCP_SERVICE_URL` and `MCP_SERVICE_TOKEN` to
-   `gateway/gateway.env` without changing the other settings in either file. The gateway
-   and `pic-sure-mcp` must share the same `MCP_SERVICE_TOKEN`, and the job keeps the two
-   in step.
+   `gateway/gateway.env`. The gateway and `pic-sure-mcp` must share the same
+   `MCP_SERVICE_TOKEN`, and the job keeps the two in step. The job also sets
+   `GATEWAY_OPEN_ACCESS_ENABLED` in `gateway/gateway.env` to match `psama/psama.env`, and a
+   `gateway.env` that still holds an unrendered `__NAME__` placeholder is rebuilt from the
+   template after a timestamped backup is saved beside it. It fails when an existing
+   `mcp/mcp.env` is missing `PICSURE_GATEWAY_URL`, `MCP_SERVICE_TOKEN`, or
+   `MCP_ADAPTER_BASE_URL`; set the missing value and rerun.
 2. Set `MCP_ADAPTER_BASE_URL` in `mcp/mcp.env` to the site's public `https://` URL, the
    host alone with no path, such as `https://picsure.example.org`. The template ships
    `https://localhost`, which is right only for a stack used on the same machine. The
@@ -373,12 +381,23 @@ To turn it on for an existing deployment, after updating Jenkins:
    URL.
 3. Run **PIC-SURE Database Migrations** with a migration set that adds the `PIC_SURE_MCP`
    privilege and its `AR_MCP_REQUESTS` access rule, such as the `Baseline` release that
-   includes them. PSAMA denies every `/mcp` request until that migration runs. Grant
-   `PIC_SURE_MCP` to the user roles that should reach MCP.
+   includes `V9__ADD_MCP_ACCESS_RULE.sql`. PSAMA denies every `/mcp` request until that
+   migration runs. The `Baseline` migration grants `PIC_SURE_MCP` to the
+   `MANUAL_ROLE_OPEN_ACCESS`, `PIC-SURE User`, `Admin`, and `PIC-SURE Top Admin` roles. Grant
+   it to any other role that should reach MCP.
 4. Run **PIC-SURE Pipeline** to build the image and restart the stack.
 5. To show the "AI Assistant" tab on the API page, open the admin configuration
    page and turn on the `MCP_CONNECT` feature flag, then set `MCP_URL` to the public MCP
    address, such as `https://picsure.example.org/picsure/mcp`.
+
+To keep a role off MCP, remove `PIC_SURE_MCP` from that role, then restart PSAMA, which caches
+each user's access rules. Removing it from every role turns MCP off for the site. Deleting
+`mcp/mcp.env` does not, because the next **Migrate PIC-SURE Environment** run creates it
+again.
+
+Each **Migrate PIC-SURE Environment** run that rebuilds an env file keeps the old copy beside it
+as `<file>.pre-migration.<timestamp>`. These backups contain secrets; delete the old ones once
+the stack runs cleanly.
 
 Two optional `mcp.env` keys set the adapter versions in the install commands the server
 returns: `MCP_ADAPTER_PYTHON_MIN_VERSION` (default `3.0.0`) and `MCP_ADAPTER_R_TAG`

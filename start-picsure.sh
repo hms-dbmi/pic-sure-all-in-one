@@ -34,7 +34,7 @@ echo "INCLUDE_GATEWAY=$INCLUDE_GATEWAY"
 echo "INCLUDE_OPERATIONS=$INCLUDE_OPERATIONS"
 [[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/query" ]] && INCLUDE_QUERY=true || INCLUDE_QUERY=false
 echo "INCLUDE_QUERY=$INCLUDE_QUERY"
-[[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/mcp" ]] && INCLUDE_MCP=true || INCLUDE_MCP=false
+[[ -f "$CURRENT_FS_DOCKER_CONFIG_DIR/mcp/mcp.env" ]] && INCLUDE_MCP=true || INCLUDE_MCP=false
 echo "INCLUDE_MCP=$INCLUDE_MCP"
 
 # Docker Volumes
@@ -160,15 +160,6 @@ if $INCLUDE_QUERY; then
     || exit 2
 fi
 
-if $INCLUDE_MCP; then
-  docker stop pic-sure-mcp && docker rm pic-sure-mcp
-  docker run --name=pic-sure-mcp --restart always --network=picsure \
-    --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/mcp/mcp.env \
-    $LOGGING_ENVS \
-    -d hms-dbmi/pic-sure-mcp:LATEST \
-    || exit 2
-fi
-
 if $INCLUDE_GATEWAY; then
   docker stop gateway && docker rm gateway
   docker run --name=gateway --restart always --network=picsure \
@@ -220,5 +211,16 @@ if $INCLUDE_VISUALIZATION; then
     --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/visualization/visualization.env \
     $LOGGING_ENVS \
     -d hms-dbmi/pic-sure-visualization:LATEST \
+    || exit 2
+fi
+
+if $INCLUDE_MCP && ! docker image inspect hms-dbmi/pic-sure-mcp:LATEST >/dev/null 2>&1; then
+  echo "MCP is configured but the hms-dbmi/pic-sure-mcp:LATEST image has not been built; pic-sure-mcp not started"
+elif $INCLUDE_MCP; then
+  docker stop pic-sure-mcp && docker rm pic-sure-mcp
+  docker run --name=pic-sure-mcp --restart always --network=picsure \
+    --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/mcp/mcp.env \
+    $LOGGING_ENVS \
+    -d hms-dbmi/pic-sure-mcp:LATEST \
     || exit 2
 fi

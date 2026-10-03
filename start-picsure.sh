@@ -215,7 +215,7 @@ if $INCLUDE_VISUALIZATION; then
 fi
 
 if $INCLUDE_MCP && ! docker image inspect hms-dbmi/pic-sure-mcp:LATEST >/dev/null 2>&1; then
-  echo "MCP is configured but the hms-dbmi/pic-sure-mcp:LATEST image has not been built; pic-sure-mcp not started"
+  echo "MCP is configured but the hms-dbmi/pic-sure-mcp:LATEST image has not been built; pic-sure-mcp not started. Running PIC-SURE Pipeline builds the image"
 elif $INCLUDE_MCP; then
   docker stop pic-sure-mcp && docker rm pic-sure-mcp
   docker run --name=pic-sure-mcp --restart always --network=picsure \

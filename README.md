@@ -359,21 +359,25 @@ optional. **Start PIC-SURE** runs it only when `$DOCKER_CONFIG_DIR/mcp/mcp.env` 
 the image has been built, and **PIC-SURE MCP Build and Deploy** succeeds without building
 when that file is missing or when the build spec's `PSA` ref predates the MCP module.
 
-A new install renders `mcp/mcp.env` during initial configuration, so it skips step 1 below.
-Every other step applies to new installs and existing deployments alike: setting
-`MCP_ADAPTER_BASE_URL`, running the access migration, and adding the configuration rows.
+A new install renders `mcp/mcp.env` during initial configuration and already runs **PIC-SURE
+Pipeline** and **PIC-SURE Database Migrations** through the Initial Configuration Pipeline. It
+needs only step 2 (set `MCP_ADAPTER_BASE_URL`), then **Stop PIC-SURE** and **Start PIC-SURE**,
+then step 5 (the configuration rows). Steps 3 and 4 are already done when the migrations ref
+includes the MCP access migration. An existing deployment follows every step.
 
 To turn it on, after updating Jenkins:
 
 1. Rerun **Migrate PIC-SURE Environment**. It creates `mcp/mcp.env` from the template when
    the file does not exist, and adds `MCP_SERVICE_URL` and `MCP_SERVICE_TOKEN` to
    `gateway/gateway.env`. The gateway and `pic-sure-mcp` must share the same
-   `MCP_SERVICE_TOKEN`, and the job keeps the two in step. The job also sets
-   `GATEWAY_OPEN_ACCESS_ENABLED` in `gateway/gateway.env` to match `psama/psama.env`, and a
-   `gateway.env` that still holds an unrendered `__NAME__` placeholder is rebuilt from the
-   template after a timestamped backup is saved beside it. It fails when an existing
-   `mcp/mcp.env` is missing `PICSURE_GATEWAY_URL`, `MCP_SERVICE_TOKEN`, or
-   `MCP_ADAPTER_BASE_URL`; set the missing value and rerun.
+   `MCP_SERVICE_TOKEN`. When an existing `mcp/mcp.env` lacks the token, the job adds the value
+   from `gateway.env`. When the two files hold different tokens, the job stops: copy one value
+   into the other file and rerun. The job also stops when an existing `mcp/mcp.env` lacks
+   `PICSURE_GATEWAY_URL` or `MCP_ADAPTER_BASE_URL`, or still holds a `__NAME__` placeholder; set
+   the value and rerun. The job sets `GATEWAY_OPEN_ACCESS_ENABLED` in `gateway/gateway.env` to
+   match `psama/psama.env`. It rebuilds `gateway.env` from the template, after saving a
+   timestamped backup beside it, when the file holds an unrendered `__NAME__` placeholder or
+   one of its required keys has no value.
 2. Set `MCP_ADAPTER_BASE_URL` in `mcp/mcp.env` to the site's public `https://` URL, the
    host alone with no path, such as `https://picsure.example.org`. The template ships
    `https://localhost`, which is right only for a stack used on the same machine. The
@@ -390,7 +394,8 @@ To turn it on, after updating Jenkins:
    page and turn on the `MCP_CONNECT` feature flag, then set `MCP_URL` to the public MCP
    address, such as `https://picsure.example.org/picsure/mcp`.
 
-To keep a role off MCP, remove `PIC_SURE_MCP` from that role, then restart PSAMA, which caches
+To keep a role off MCP, remove `PIC_SURE_MCP` from that role, then run **Stop PIC-SURE** and
+**Start PIC-SURE** (or `docker restart psama` on the host), because PSAMA caches
 each user's access rules. Removing it from every role turns MCP off for the site. Deleting
 `mcp/mcp.env` does not, because the next **Migrate PIC-SURE Environment** run creates it
 again.

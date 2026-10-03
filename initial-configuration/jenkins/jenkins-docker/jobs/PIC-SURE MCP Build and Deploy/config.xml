@@ -49,10 +49,13 @@ if [ &quot;${PIPELINE_BUILD_ID:-}&quot; != &quot;$pipeline_build_id&quot; ]; the
 fi
 if [ ! -f &quot;$MAVEN_WS/services/pic-sure-mcp/pom.xml&quot; ]; then
   echo &quot;The checked-out pic-sure ref predates the MCP module. Skipping the pic-sure-mcp image.&quot;
+  if [ -f mcp.env ]; then
+    echo &quot;The uploaded mcp.env was not installed.&quot;
+  fi
   exit 0
 fi
 if ! ls &quot;$MAVEN_WS&quot;/services/pic-sure-mcp/target/pic-sure-mcp-*.jar &gt;/dev/null 2&gt;&amp;1; then
-  echo &quot;ERROR: the checked-out pic-sure ref has the MCP module but the reactor produced no pic-sure-mcp jar. Run &apos;PIC-SURE Maven Build&apos; again.&quot;
+  echo &quot;ERROR: the checked-out pic-sure ref has services/pic-sure-mcp but the reactor did not build it. Check that the root pom.xml lists services/pic-sure-mcp in its modules.&quot;
   exit 2
 fi
 

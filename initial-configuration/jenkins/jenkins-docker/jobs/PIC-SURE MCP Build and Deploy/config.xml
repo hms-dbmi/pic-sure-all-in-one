@@ -1,7 +1,7 @@
 <?xml version='1.1' encoding='UTF-8'?>
 <project>
   <actions/>
-  <description>Build and tag the pic-sure-mcp container image (standalone MCP server) from the shared "PIC-SURE Maven Build" reactor workspace. This job does not compile and does not deploy; deploy is exclusively via Stop/Start PIC-SURE. It succeeds without building when mcp.env is not configured or when the reactor has no pic-sure-mcp jar.</description>
+  <description>Build and tag the pic-sure-mcp container image (standalone MCP server) from the shared "PIC-SURE Maven Build" reactor workspace. This job does not compile and does not deploy; deploy is exclusively via Stop/Start PIC-SURE. It succeeds without building when mcp.env is not configured or when the checked-out pic-sure ref has no MCP module.</description>
   <keepDependencies>false</keepDependencies>
   <properties>
     <hudson.model.ParametersDefinitionProperty>
@@ -47,9 +47,13 @@ if [ &quot;${PIPELINE_BUILD_ID:-}&quot; != &quot;$pipeline_build_id&quot; ]; the
   echo &quot;ERROR: reactor artifacts belong to pipeline &apos;${PIPELINE_BUILD_ID:-unknown}&apos;, expected &apos;$pipeline_build_id&apos;&quot;
   exit 2
 fi
-if ! ls &quot;$MAVEN_WS&quot;/services/pic-sure-mcp/target/pic-sure-mcp-*.jar &gt;/dev/null 2&gt;&amp;1; then
-  echo &quot;The reactor has no pic-sure-mcp jar because its pic-sure ref predates the MCP module. Skipping the pic-sure-mcp image.&quot;
+if [ ! -f &quot;$MAVEN_WS/services/pic-sure-mcp/pom.xml&quot; ]; then
+  echo &quot;The checked-out pic-sure ref predates the MCP module. Skipping the pic-sure-mcp image.&quot;
   exit 0
+fi
+if ! ls &quot;$MAVEN_WS&quot;/services/pic-sure-mcp/target/pic-sure-mcp-*.jar &gt;/dev/null 2&gt;&amp;1; then
+  echo &quot;ERROR: the checked-out pic-sure ref has the MCP module but the reactor produced no pic-sure-mcp jar. Run &apos;PIC-SURE Maven Build&apos; again.&quot;
+  exit 2
 fi
 
 if [ -f mcp.env ]; then

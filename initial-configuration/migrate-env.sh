@@ -372,6 +372,8 @@ migrate_mcp_envs() {
   if [ -f "$mcp_env" ]; then
     upsert_env MCP_SERVICE_TOKEN "$MCP_SERVICE_TOKEN" "$mcp_env"
     note "mcp/mcp.env: MCP service token synchronized"
+    complete_env "$mcp_env" "$@" || \
+      fail "mcp/mcp.env needs a real value for each of $* and no template placeholders; set them and rerun"
   else
     install_env mcp mcp.env "$@"
   fi

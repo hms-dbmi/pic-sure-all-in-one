@@ -60,6 +60,7 @@ OPERATIONS_ENV="$DOCKER_CONFIG_DIR/operations/operations.env"
 QUERY_ENV="$DOCKER_CONFIG_DIR/query/query.env"
 LOGGING_ENV="$DOCKER_CONFIG_DIR/logging/logging.env"
 MCP_ENV="$DOCKER_CONFIG_DIR/mcp/mcp.env"
+AI_ENV="$DOCKER_CONFIG_DIR/ai-service/ai-service.env"
 
 render_shared_secret \
   QUERY_SERVICE_INTERNAL_TOKEN __QUERY_SERVICE_INTERNAL_TOKEN__ 32 \
@@ -73,6 +74,12 @@ render_shared_secret \
 render_shared_secret \
   MCP_SERVICE_TOKEN __MCP_SERVICE_TOKEN__ 32 \
   "$GATEWAY_ENV" "$MCP_ENV"
+# ai-service.env is optional: not every site runs the assistant.
+AI_SECRET_ENVS=("$GATEWAY_ENV")
+[ -f "$AI_ENV" ] && AI_SECRET_ENVS+=("$AI_ENV")
+render_shared_secret \
+  AI_SERVICE_TOKEN __AI_SERVICE_TOKEN__ 32 \
+  "${AI_SECRET_ENVS[@]}"
 render_shared_secret \
   AGGREGATE_OBFUSCATION_SALT __AGGREGATE_OBFUSCATION_SALT__ 16 \
   "$QUERY_ENV"

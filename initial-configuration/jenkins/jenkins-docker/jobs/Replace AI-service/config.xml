@@ -1,0 +1,110 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description></description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.StringParameterDefinition>
+          <name>git_hash</name>
+          <defaultValue>main</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.plugins.git.GitSCM" plugin="git@5.10.1">
+    <configVersion>2</configVersion>
+    <userRemoteConfigs>
+      <hudson.plugins.git.UserRemoteConfig>
+        <url>https://github.com/hms-dbmi/pic-sure.git</url>
+      </hudson.plugins.git.UserRemoteConfig>
+    </userRemoteConfigs>
+    <branches>
+      <hudson.plugins.git.BranchSpec>
+        <name>${git_hash}</name>
+      </hudson.plugins.git.BranchSpec>
+    </branches>
+    <doGenerateSubmoduleConfigurations>false</doGenerateSubmoduleConfigurations>
+    <submoduleCfg class="empty-list"/>
+    <extensions>
+      <hudson.plugins.git.extensions.impl.PruneStaleBranch/>
+    </extensions>
+  </scm>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <jdk>(System)</jdk>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash
+set -e
+
+if [ -f &quot;/usr/local/docker-config/setProxy.sh&quot; ]; then
+   . /usr/local/docker-config/setProxy.sh
+fi
+
+cd services/pic-sure-ai-service
+
+# Logging
+[[ -d &quot;$DOCKER_CONFIG_DIR/logging&quot; ]] &amp;&amp; INCLUDE_LOGGING=true || INCLUDE_LOGGING=false
+echo &quot;INCLUDE_LOGGING=$INCLUDE_LOGGING&quot;
+
+if $INCLUDE_LOGGING; then
+  set -a
+  . &quot;$DOCKER_CONFIG_DIR/logging/logging.env&quot;
+  set +a
+  LOGGING_ENVS=&quot;-e LOGGING_API_KEY=$LOGGING_API_KEY -e LOGGING_SERVICE_URL=$LOGGING_SERVICE_URL&quot;
+  if [[ -z &quot;${LOGGING_API_KEY:-}&quot; ]]; then
+    echo &quot;WARNING: Logging is enabled but LOGGING_API_KEY is empty in logging.env&quot;
+  fi
+  if [[ -z &quot;${LOGGING_SERVICE_URL:-}&quot; ]]; then
+    echo &quot;WARNING: Logging is enabled but LOGGING_SERVICE_URL is empty in logging.env&quot;
+  fi
+else
+  LOGGING_ENVS=&quot;&quot;
+  echo &quot;Logging disabled (no $DOCKER_CONFIG_DIR/logging/ directory)&quot;
+fi
+
+# Version control
+GIT_BRANCH_SHORT=`echo ${GIT_BRANCH} | cut -d &quot;/&quot; -f 2` 
+GIT_COMMIT_SHORT=`echo ${GIT_COMMIT} | cut -c1-7`
+
+# Env file
+CONFIG_DIR=&quot;/usr/local/docker-config/ai-service&quot;
+if [ ! -f &quot;$CONFIG_DIR/ai-service.env&quot; ]; then
+  echo &quot;ERROR: ai-service.env is required at $CONFIG_DIR/ai-service.env&quot;
+  exit 2
+fi
+
+# Build and run
+docker run --rm \
+  -v &quot;$DOCKER_CONFIG_DIR/jenkins_home/workspace/$JOB_NAME/:/app&quot; \
+  -v maven_m2_cache:/root/.m2 \
+  -w /app \
+  --platform=linux/amd64 \
+  -e MAVEN_OPTS=&quot;-Xmx2g&quot; \
+  maven:3-amazoncorretto-25 \
+  sh -lc &quot;mvn -B clean install -T 3 -DskipTests -pl services/pic-sure-ai-service -am&quot;
+
+docker build -t hms-dbmi/pic-sure-ai-service:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} -f Dockerfile .
+docker tag hms-dbmi/pic-sure-ai-service:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT} hms-dbmi/pic-sure-ai-service:LATEST
+
+docker stop pic-sure-ai-service || true
+docker rm pic-sure-ai-service || true
+docker run --name=pic-sure-ai-service --restart always --network=picsure \
+  --env-file $CONFIG_DIR/ai-service.env \
+  $LOGGING_ENVS \
+  -d hms-dbmi/pic-sure-ai-service:LATEST \
+  || exit 2
+</command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers/>
+</project>

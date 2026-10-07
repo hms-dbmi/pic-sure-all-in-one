@@ -1,7 +1,7 @@
 <?xml version='1.1' encoding='UTF-8'?>
 <project>
   <actions/>
-  <description>Build and tag the pic-sure-mcp container image (standalone MCP server) from the shared "PIC-SURE Maven Build" reactor workspace. This job does not compile and does not deploy; deploy is exclusively via Stop/Start PIC-SURE. It succeeds without building when mcp.env is not configured or when the checked-out pic-sure ref has no MCP module.</description>
+  <description>Build and tag the pic-sure-mcp container image (standalone MCP server) from the shared "PIC-SURE Maven Build" reactor workspace. This job does not compile and does not deploy; deploy is exclusively via Stop/Start PIC-SURE. It succeeds without building when the checked-out pic-sure ref has no MCP module, and warns without building when mcp.env has not been created yet.</description>
   <keepDependencies>false</keepDependencies>
   <properties>
     <hudson.model.ParametersDefinitionProperty>
@@ -34,7 +34,7 @@ MAVEN_WS=&quot;/var/jenkins_home/workspace/PIC-SURE Maven Build&quot;
 CONFIG_DIR=&quot;/usr/local/docker-config/mcp&quot;
 
 if [ ! -f mcp.env ] &amp;&amp; [ ! -f &quot;$CONFIG_DIR/mcp.env&quot; ]; then
-  echo &quot;MCP is not configured, so the pic-sure-mcp image was not built. Run &apos;Migrate PIC-SURE Environment&apos; to enable it.&quot;
+  echo &quot;WARNING: $CONFIG_DIR/mcp.env is missing, so the pic-sure-mcp image was not built and the MCP server will not start. Run &apos;Migrate PIC-SURE Environment&apos; to create it, then rerun PIC-SURE Pipeline.&quot;
   exit 0
 fi
 

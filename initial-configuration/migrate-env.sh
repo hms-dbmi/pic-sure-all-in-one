@@ -379,6 +379,24 @@ migrate_mcp_envs() {
   fi
 }
 
+# Seed the AI Assistant tab from mcp.env. VITE_MCP_URL always mirrors
+# MCP_ADAPTER_BASE_URL so the two never drift; VITE_MCP_CONNECT is added only when
+# absent so an operator's false survives. The frontend reads both at build time.
+migrate_httpd_mcp_flags() {
+  local httpd_env="$DOCKER_CONFIG_DIR/httpd/httpd.env"
+  local mcp_env="$DOCKER_CONFIG_DIR/mcp/mcp.env"
+  local base_url
+
+  [ -f "$httpd_env" ] || return 0
+  base_url=$(real_value "$mcp_env" MCP_ADAPTER_BASE_URL) || return 0
+
+  upsert_env VITE_MCP_URL "${base_url%/}/picsure/mcp" "$httpd_env"
+  if ! grep -q '^VITE_MCP_CONNECT=' "$httpd_env"; then
+    upsert_env VITE_MCP_CONNECT true "$httpd_env"
+  fi
+  note "httpd/httpd.env: AI Assistant tab points at ${base_url%/}/picsure/mcp; takes effect at the next frontend build"
+}
+
 migrate_service_envs() {
   local gateway_env="$DOCKER_CONFIG_DIR/gateway/gateway.env"
   local operations_env="$DOCKER_CONFIG_DIR/operations/operations.env"
@@ -605,6 +623,7 @@ migrate_email_templates() {
 
 migrate_legacy_options
 migrate_service_envs
+migrate_httpd_mcp_flags
 migrate_actuator_exposure
 migrate_httpd_routes
 migrate_email_templates

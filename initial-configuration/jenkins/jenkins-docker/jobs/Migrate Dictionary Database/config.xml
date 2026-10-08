@@ -55,6 +55,28 @@ mkdir -p /usr/local/docker-config/flyway/dictionary/sql/
 cp -f db/flyway/flyway.conf /usr/local/docker-config/flyway/dictionary/flyway.conf
 cp -f db/flyway/* /usr/local/docker-config/flyway/dictionary/sql/
 
+# Fail fast if the database is missing: flyway treats it as a connection error
+# and retries for ~2 hours. This happens when the postgres entrypoint&apos;s first
+# init was interrupted after initdb (see PIC-SURE Dictionary API Build and Deploy).
+for i in $(seq 1 60); do
+  docker exec dictionary-db pg_isready -q -h 127.0.0.1 -U &quot;$POSTGRES_USER&quot; &amp;&amp; break
+  if [ &quot;$i&quot; -eq 60 ]; then
+    echo &quot;ERROR: dictionary-db did not become ready after 120s&quot;
+    exit 2
+  fi
+  sleep 2
+done
+if [ &quot;$(docker exec dictionary-db psql -U &quot;$POSTGRES_USER&quot; -d postgres -tAc \
+        &quot;SELECT 1 FROM pg_database WHERE datname = &apos;$POSTGRES_DB&apos;&quot;)&quot; != &quot;1&quot; ]; then
+  set +x
+  echo &quot;ERROR: database &apos;$POSTGRES_DB&apos; does not exist in dictionary-db.&quot;
+  echo &quot;Its first-start init likely failed (check: docker logs dictionary-db). Init is skipped once&quot;
+  echo &quot;the data directory exists, so reset it (it holds no data yet) and re-run&quot;
+  echo &quot;&apos;PIC-SURE Dictionary API Build and Deploy&apos; to recreate it:&quot;
+  echo &quot;  docker rm -f dictionary-db &amp;&amp; rm -rf $DOCKER_CONFIG_DIR/dictionary/db/data&quot;
+  exit 2
+fi
+
 docker run --rm --name dictionary-flyway \
   --env-file /usr/local/docker-config/dictionary/dictionary.env \
   -v $DOCKER_CONFIG_DIR/flyway/dictionary/sql/:/flyway/sql \

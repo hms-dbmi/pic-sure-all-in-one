@@ -73,7 +73,7 @@ docker run --name hpds_data_load_csv \
   -e LOADER_NAME=CSVLoaderNewSearch \
   hms-dbmi/pic-sure-hpds-etl:LATEST &amp;&amp; \
 mkdir -p /usr/local/docker-config/hpds_pheno_bak &amp;&amp; \
-find /usr/local/docker-config/hpds/ -not -type d -maxdepth 1 -exec mv {} /usr/local/docker-config/hpds_pheno_bak \;    &amp;&amp; \
+find /usr/local/docker-config/hpds/ -maxdepth 1 -not -type d ! -name hpds.env ! -name log4j.properties -exec mv {} /usr/local/docker-config/hpds_pheno_bak \;    &amp;&amp; \
 mv /usr/local/docker-config/hpds_temp/* /usr/local/docker-config/hpds
 </command>
       <configuredLocalRules/>

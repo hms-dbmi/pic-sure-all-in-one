@@ -292,6 +292,11 @@ pipeline {
                         script {
                             def result = build job: &apos;Create HPDS Encryption Key&apos;
                         }
+                    },
+                    platformApiKey: {
+                        script {
+                            def result = build job: &apos;Configure Platform API Key&apos;
+                        }
                     }
                 )
             }
@@ -301,10 +306,10 @@ pipeline {
         stage(&apos;Apply Configuration&apos;) {
             steps {
                 script {
-                    // The gateway came up in Initial Config and Build with the token
-                    // placeholder; Post Migration Configs only wrote the real one to
-                    // gateway.env. Recreate the stack now rather than leaving it stale
-                    // for the whole demo-data load.
+                    // Services came up in Initial Config and Build without their
+                    // credentials; Post Migration Configs only wrote the introspection
+                    // token and platform API key to the env files. Recreate the stack
+                    // now rather than leaving it stale for the whole demo-data load.
                     def result = build job: &apos;Start PIC-SURE&apos;, parameters: [[$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId]]
                 }
             }

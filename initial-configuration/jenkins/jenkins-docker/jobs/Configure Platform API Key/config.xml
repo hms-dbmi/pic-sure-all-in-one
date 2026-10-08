@@ -1,0 +1,85 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions />
+  <description>Mints the PLATFORM API key the frontend's open-access proxy sends with anonymous requests. Each run revokes the key the previous run minted.</description>
+  <keepDependencies>false</keepDependencies>
+  <properties />
+  <scm class="hudson.scm.NullSCM" />
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <triggers />
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/usr/bin/env bash
+set -euo pipefail
+
+# The frontend's open-access proxy (/api/v1/open) sends this PLATFORM key on every
+# anonymous request. Minted the same way PSAMA's ApiKeyService does, since PSAMA's
+# minting endpoint needs a SUPER_ADMIN session that init doesn't have.
+
+CONFIG_DIR="${CONFIG_DIR:-/usr/local/docker-config}"
+PSAMA_ENV="$CONFIG_DIR/psama/psama.env"
+HTTPD_ENV="$CONFIG_DIR/httpd/httpd.env"
+KEY_NAME="AIO frontend open-access proxy"
+
+mysql_auth() {
+    docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -N auth "$@"
+}
+
+upsert_env() {
+    local key=$1
+    local value=$2
+    local env_file=$3
+    local temp_file="${env_file}.tmp.$$"
+
+    UPSERT_ENV_VALUE="$value" awk -v key="$key" '
+        BEGIN { found = 0; value = ENVIRON["UPSERT_ENV_VALUE"] }
+        index($0, key "=") == 1 {
+            if (!found) print key "=" value
+            found = 1
+            next
+        }
+        { print }
+        END { if (!found) print key "=" value }
+    ' "$env_file" &gt; "$temp_file"
+    cat "$temp_file" &gt; "$env_file"
+    rm "$temp_file"
+}
+
+# Keep an existing pepper: changing it would orphan every key already hashed with it
+pepper="$(sed -n 's/^API_KEY_PEPPER=//p' "$PSAMA_ENV")"
+if [ -z "$pepper" ]; then
+    pepper="$(openssl rand -hex 32)"
+    upsert_env API_KEY_PEPPER "$pepper" "$PSAMA_ENV"
+fi
+
+# picsure_p_ + 43 base62 chars + 6-char base62 CRC32 of the prefix and body
+base62=0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz
+body="$(LC_ALL=C tr -dc 'A-Za-z0-9' &lt; /dev/urandom | head -c 43 || true)"
+prefixed="picsure_p_$body"
+crc="$(mysql_auth -e "SELECT CRC32('$prefixed');")"
+checksum=""
+for _ in 1 2 3 4 5 6; do
+    checksum="${base62:$((crc % 62)):1}$checksum"
+    crc=$((crc / 62))
+done
+api_key="$prefixed$checksum"
+key_hash="$(printf '%s' "$api_key" | openssl dgst -sha256 -hmac "$pepper" | awk '{print $NF}')"
+
+# Each init rotates the key, so retire the one the previous run minted
+mysql_auth -e "
+UPDATE api_key SET revoked_at = UTC_TIMESTAMP() WHERE name = '$KEY_NAME' AND key_type = 'PLATFORM' AND revoked_at IS NULL;
+INSERT INTO api_key (uuid, key_hash, hash_scheme, display_prefix, key_type, name, created_at)
+VALUES (UUID_TO_BIN(UUID()), '$key_hash', 'HMAC_SHA256', '${body:0:8}', 'PLATFORM', '$KEY_NAME', UTC_TIMESTAMP());"
+
+upsert_env PICSURE_PLATFORM_API_KEY "$api_key" "$HTTPD_ENV"
+echo "Minted platform API key ${body:0:8} -- recreate psama and httpd (Start PIC-SURE) to apply."
+</command>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers />
+  <buildWrappers />
+</project>

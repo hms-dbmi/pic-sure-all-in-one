@@ -110,6 +110,7 @@
         <string>Configure Auth0 Integration</string>
         <string>Configure Google Analytics</string>
         <string>Configure PIC-SURE Token Introspection Token</string>
+        <string>Configure Platform API Key</string>
         <string>Configure Proxy</string>
         <string>Configure Remote MySQL Instance</string>
         <string>Configure SSL Certificates</string>

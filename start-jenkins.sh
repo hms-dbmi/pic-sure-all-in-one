@@ -19,6 +19,7 @@ docker run -d \
   -v "$DOCKER_CONFIG_DIR":/usr/local/docker-config \
   -v ./start-picsure.sh:/scripts/start-picsure.sh \
   -v ./stop-picsure.sh:/scripts/stop-picsure.sh \
+  -v ./initial-configuration/jenkins/scripts/env-file.sh:/scripts/env-file.sh \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v "$MYSQL_CONFIG_DIR"/.my.cnf:/root/.my.cnf \
   -v "$HOME"/.m2:/root/.m2 \

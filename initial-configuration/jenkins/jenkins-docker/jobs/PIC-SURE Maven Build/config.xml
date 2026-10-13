@@ -1,7 +1,7 @@
 <?xml version='1.1' encoding='UTF-8'?>
 <project>
   <actions/>
-  <description>Single reactor build for the pic-sure monorepo. Runs `mvn -B clean install -T1C -DskipTests` once; every per-service image job docker-builds from THIS job&apos;s workspace. This is the ONLY Jenkins job that compiles monorepo Java.</description>
+  <description>Single reactor build for the pic-sure monorepo. Runs `mvn -B clean install -T 3 -DskipTests` once (capped parallelism: -T1C OOM-killed the container on an 8 GB Docker VM); every per-service image job docker-builds from THIS job&apos;s workspace. This is the ONLY Jenkins job that compiles monorepo Java.</description>
   <keepDependencies>false</keepDependencies>
   <properties>
     <hudson.model.ParametersDefinitionProperty>
@@ -67,8 +67,9 @@ docker run --rm \
   -v maven_m2_cache:/root/.m2 \
   -w /app \
   --platform=linux/amd64 \
+  -e MAVEN_OPTS=&quot;-Xmx2g&quot; \
   maven:3-amazoncorretto-25 \
-  sh -lc &quot;mvn -B clean install -T1C -DskipTests&quot;
+  sh -lc &quot;mvn -B clean install -T 3 -DskipTests&quot;
 
 # Tag metadata for the image jobs (they source this file).
 {

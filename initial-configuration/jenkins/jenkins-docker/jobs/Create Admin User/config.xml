@@ -28,14 +28,33 @@
   <concurrentBuild>false</concurrentBuild>
   <builders>
     <hudson.tasks.Shell>
-      <command>export USER_ID=`uuidgen -r`
-export USER_ID_HEX=`echo $USER_ID | awk &apos;{ print toupper($0) }&apos;|sed &apos;s/-//g&apos;`
-docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e \
-&quot;INSERT INTO auth.user (uuid, auth0_metadata, general_metadata, acceptedTOS, connectionId, email, matched, subject, is_active, long_term_token) VALUES (unhex(&apos;$USER_ID_HEX&apos;), null, &apos;{\&quot;email\&quot;:\&quot;$EMAIL\&quot;}&apos;, null, (select uuid from connection where label=&apos;$CONNECTION_LABEL&apos;),&apos;$EMAIL&apos;,0,null,1,null);&quot; auth
-docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e \
-&quot;INSERT INTO auth.user_role (user_id, role_id) VALUES (unhex(&apos;$USER_ID_HEX&apos;), unhex(&apos;002DC366B0D8420F998F885D0ED797FD&apos;));&quot; auth
-docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql -e \
-&quot;INSERT INTO auth.user_role (user_id, role_id) VALUES (unhex(&apos;$USER_ID_HEX&apos;), unhex(&apos;797FD002DC366B0D8420F998F885D0ED&apos;));&quot; auth
+      <command>MYSQL_RUN="docker run --rm -i -v $MYSQL_CONFIG_DIR/.my.cnf:/root/.my.cnf --network=${MYSQL_NETWORK:-host} mysql mysql"
+
+# Reuse the existing user if one already exists for this email + connection
+export USER_ID_HEX=`$MYSQL_RUN -N -B -e \
+&quot;SELECT hex(uuid) FROM user WHERE email=&apos;$EMAIL&apos; AND connectionId=(select uuid from connection where label=&apos;$CONNECTION_LABEL&apos;);&quot; auth`
+
+if [ -n &quot;$USER_ID_HEX&quot; ]; then
+  echo &quot;Admin user $EMAIL already exists ($USER_ID_HEX); reusing it.&quot;
+  $MYSQL_RUN -e &quot;UPDATE user SET is_active=1 WHERE uuid=unhex(&apos;$USER_ID_HEX&apos;);&quot; auth
+else
+  export USER_ID=`uuidgen -r`
+  export USER_ID_HEX=`echo $USER_ID | awk &apos;{ print toupper($0) }&apos;|sed &apos;s/-//g&apos;`
+  $MYSQL_RUN -e \
+  &quot;INSERT INTO auth.user (uuid, auth0_metadata, general_metadata, acceptedTOS, connectionId, email, matched, subject, is_active, long_term_token) VALUES (unhex(&apos;$USER_ID_HEX&apos;), null, &apos;{\&quot;email\&quot;:\&quot;$EMAIL\&quot;}&apos;, null, (select uuid from connection where label=&apos;$CONNECTION_LABEL&apos;),&apos;$EMAIL&apos;,0,null,1,null);&quot; auth
+fi
+
+# Grant each admin role (looked up by name) unless the user already has it, then confirm it was granted
+for ROLE_NAME in &quot;PIC-SURE Top Admin&quot; &quot;PIC-SURE User&quot;; do
+  $MYSQL_RUN -e \
+  &quot;INSERT INTO user_role (user_id, role_id) SELECT unhex(&apos;$USER_ID_HEX&apos;), r.uuid FROM role r WHERE r.name=&apos;$ROLE_NAME&apos; AND NOT EXISTS (SELECT 1 FROM user_role ur WHERE ur.user_id=unhex(&apos;$USER_ID_HEX&apos;) AND ur.role_id=r.uuid);&quot; auth
+  HAS_ROLE=`$MYSQL_RUN -N -B -e \
+  &quot;SELECT 1 FROM user_role ur JOIN role r ON r.uuid=ur.role_id WHERE ur.user_id=unhex(&apos;$USER_ID_HEX&apos;) AND r.name=&apos;$ROLE_NAME&apos;;&quot; auth`
+  if [ -z &quot;$HAS_ROLE&quot; ]; then
+    echo &quot;Failed to grant role &apos;$ROLE_NAME&apos; to $EMAIL; does the role exist in auth.role?&quot;
+    exit 1
+  fi
+done
 </command>
       <configuredLocalRules/>
     </hudson.tasks.Shell>

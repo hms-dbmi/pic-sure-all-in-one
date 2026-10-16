@@ -1,7 +1,7 @@
 <?xml version='1.1' encoding='UTF-8'?>
 <project>
   <actions />
-  <description>Configure the PIC-SURE Logging Service API key. Reads the key from logging.env and propagates it to the services that use the logging client.</description>
+  <description>Configure the PIC-SURE Logging Service API key. Reads the key from logging.env and writes LOGGING_API_KEY and LOGGING_SERVICE_URL into the env file of every service that sends audit events: gateway, operations, psama, hpds, dictionary, visualization, and the frontend (httpd, key only). The PIC-SURE Pipeline runs it before restarting the stack. Run it by hand after changing logging.env, then restart the stack.</description>
   <keepDependencies>false</keepDependencies>
   <properties />
   <scm class="hudson.scm.NullSCM" />
@@ -14,6 +14,7 @@
   <builders>
     <hudson.tasks.Shell>
       <command>LOGGING_ENV="/usr/local/docker-config/logging/logging.env"
+LOGGING_SERVICE_URL="http://pic-sure-logging"
 
 if [ ! -f "$LOGGING_ENV" ]; then
     echo "No logging.env found at $LOGGING_ENV - skipping."
@@ -26,16 +27,37 @@ if [ -z "$NEW_API_KEY" ]; then
     exit 0
 fi
 
-for SERVICE in gateway operations; do
+set_env_value() {
+    local key=$1
+    local value=$2
+    local env_file=$3
+    if grep -q "^${key}=" "$env_file"; then
+        sed -i "s|^${key}=.*|${key}=${value}|" "$env_file"
+    else
+        if [ -s "$env_file" ] &amp;&amp; [ -n "$(tail -c 1 "$env_file")" ]; then
+            echo &gt;&gt; "$env_file"
+        fi
+        echo "${key}=${value}" &gt;&gt; "$env_file"
+    fi
+}
+
+for SERVICE in gateway operations psama hpds dictionary visualization httpd; do
     SERVICE_ENV="/usr/local/docker-config/$SERVICE/$SERVICE.env"
     if [ ! -f "$SERVICE_ENV" ]; then
-        echo "ERROR: $SERVICE.env is required at $SERVICE_ENV"
-        exit 2
+        case "$SERVICE" in
+            gateway|operations)
+                echo "ERROR: $SERVICE.env is required at $SERVICE_ENV"
+                exit 2
+                ;;
+            *)
+                echo "$SERVICE.env not present at $SERVICE_ENV - skipping."
+                continue
+                ;;
+        esac
     fi
-    if grep -q '^LOGGING_API_KEY=' "$SERVICE_ENV"; then
-        sed -i "s|^LOGGING_API_KEY=.*|LOGGING_API_KEY=$NEW_API_KEY|" "$SERVICE_ENV"
-    else
-        echo "LOGGING_API_KEY=$NEW_API_KEY" &gt;&gt; "$SERVICE_ENV"
+    set_env_value LOGGING_API_KEY "$NEW_API_KEY" "$SERVICE_ENV"
+    if [ "$SERVICE" != "httpd" ]; then
+        set_env_value LOGGING_SERVICE_URL "$LOGGING_SERVICE_URL" "$SERVICE_ENV"
     fi
     echo "$SERVICE.env logging key updated -- recreate $SERVICE to apply."
 done

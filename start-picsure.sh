@@ -67,24 +67,7 @@ docker network inspect hpds >/dev/null 2>&1 || docker network create --internal 
 
 # Start Commands
 
-# When logging is enabled, every Java service that uses pic-sure-logging-client
-# (hpds, psama, dictionary-api) gets LOGGING_API_KEY and
-# LOGGING_SERVICE_URL injected as individual -e flags sourced from logging.env.
-# We deliberately do NOT pass logging.env as a second --env-file to those
-# containers because it also contains PSL-only config (PORT, ENVIRONMENT, etc.)
-# whose names collide with other frameworks (e.g. Spring Boot reads PORT).
-# pic-sure-logging itself still gets the full file via --env-file.
 if $INCLUDE_LOGGING; then
-  set -a
-  . "$CURRENT_FS_DOCKER_CONFIG_DIR/logging/logging.env"
-  set +a
-  LOGGING_ENVS="-e LOGGING_API_KEY=$LOGGING_API_KEY -e LOGGING_SERVICE_URL=$LOGGING_SERVICE_URL"
-  if [[ -z "${LOGGING_API_KEY:-}" ]]; then
-    echo "WARNING: Logging is enabled but LOGGING_API_KEY is empty in logging.env"
-  fi
-  if [[ -z "${LOGGING_SERVICE_URL:-}" ]]; then
-    echo "WARNING: Logging is enabled but LOGGING_SERVICE_URL is empty in logging.env"
-  fi
   docker stop pic-sure-logging && docker rm pic-sure-logging
   docker run --name=pic-sure-logging --restart always \
     --network=picsure \
@@ -93,7 +76,6 @@ if $INCLUDE_LOGGING; then
     -d hms-dbmi/pic-sure-logging:LATEST \
     || exit 2
 else
-  LOGGING_ENVS=""
   echo "Logging disabled (no $DOCKER_CONFIG_DIR/logging/ directory)"
 fi
 
@@ -108,7 +90,6 @@ if $INCLUDE_HPDS; then
     $HPDS_DEBUG \
     -v $DOCKER_CONFIG_DIR/aws_uploads/:/gic_query_results/ \
     --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/hpds/hpds.env \
-    $LOGGING_ENVS \
     -d hms-dbmi/pic-sure-hpds:LATEST \
     || exit 2
 fi
@@ -121,7 +102,6 @@ docker run --name=httpd --restart always --network=picsure \
     $CUSTOM_HTTPD_VOLUMES \
     -p 443:443 \
     --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/httpd/httpd.env \
-    $LOGGING_ENVS \
     -d hms-dbmi/pic-sure-frontend:LATEST \
     || exit 2
 docker restart httpd
@@ -130,7 +110,6 @@ docker stop psama && docker rm psama
 docker run --name=psama --restart always \
   --network=picsure \
   --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/psama/psama.env \
-  $LOGGING_ENVS \
   -v $DOCKER_CONFIG_DIR/log/psama-docker-logs/:/var/log/ \
   $PSAMA_DEBUG \
   $PSAMA_TRUSTSTORE_VOLUME \
@@ -174,7 +153,6 @@ if $INCLUDE_DICTIONARY; then
    $DICTIONARY_DEBUG \
     -v $DOCKER_CONFIG_DIR/log/dictionary-docker-logs/:/var/log/ \
    --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/dictionary/dictionary.env \
-   $LOGGING_ENVS \
    -d avillach/dictionary-api:latest \
    || exit 2
 fi
@@ -207,7 +185,6 @@ if $INCLUDE_VISUALIZATION; then
   docker run --restart always --name visualization --network picsure \
     -v $DOCKER_CONFIG_DIR/log/visualization-docker-logs/:/var/log/ \
     --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/visualization/visualization.env \
-    $LOGGING_ENVS \
     -d hms-dbmi/pic-sure-visualization:LATEST \
     || exit 2
 fi

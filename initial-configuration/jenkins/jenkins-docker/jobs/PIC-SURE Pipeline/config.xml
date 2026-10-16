@@ -123,6 +123,13 @@ pipeline {
                 }
             }
         }
+        stage(&apos;Configure Logging&apos;) {
+            steps {
+                script {
+                    build job: &apos;Configure Logging&apos;
+                }
+            }
+        }
         stage(&apos;Restart Stack&apos;) {
             steps {
                 script {

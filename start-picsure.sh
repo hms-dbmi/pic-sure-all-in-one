@@ -34,6 +34,8 @@ echo "INCLUDE_GATEWAY=$INCLUDE_GATEWAY"
 echo "INCLUDE_OPERATIONS=$INCLUDE_OPERATIONS"
 [[ -d "$CURRENT_FS_DOCKER_CONFIG_DIR/query" ]] && INCLUDE_QUERY=true || INCLUDE_QUERY=false
 echo "INCLUDE_QUERY=$INCLUDE_QUERY"
+[[ -f "$CURRENT_FS_DOCKER_CONFIG_DIR/mcp/mcp.env" ]] && INCLUDE_MCP=true || INCLUDE_MCP=false
+echo "INCLUDE_MCP=$INCLUDE_MCP"
 
 # Docker Volumes
 export PICSURE_BANNER_VOLUME="-v $DOCKER_CONFIG_DIR/httpd/banner_config.json:/usr/local/apache2/htdocs/picsureui/settings/banner_config.json"
@@ -209,5 +211,16 @@ if $INCLUDE_VISUALIZATION; then
     --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/visualization/visualization.env \
     $LOGGING_ENVS \
     -d hms-dbmi/pic-sure-visualization:LATEST \
+    || exit 2
+fi
+
+if $INCLUDE_MCP && ! docker image inspect hms-dbmi/pic-sure-mcp:LATEST >/dev/null 2>&1; then
+  echo "MCP is configured but the hms-dbmi/pic-sure-mcp:LATEST image has not been built; pic-sure-mcp not started. Running PIC-SURE Pipeline builds the image"
+elif $INCLUDE_MCP; then
+  docker stop pic-sure-mcp && docker rm pic-sure-mcp
+  docker run --name=pic-sure-mcp --restart always --network=picsure \
+    --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/mcp/mcp.env \
+    $LOGGING_ENVS \
+    -d hms-dbmi/pic-sure-mcp:LATEST \
     || exit 2
 fi

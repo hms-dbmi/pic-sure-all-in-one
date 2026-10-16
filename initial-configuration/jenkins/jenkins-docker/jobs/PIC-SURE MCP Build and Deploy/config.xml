@@ -1,0 +1,85 @@
+<?xml version='1.1' encoding='UTF-8'?>
+<project>
+  <actions/>
+  <description>Build and tag the pic-sure-mcp container image (standalone MCP server) from the shared "PIC-SURE Maven Build" reactor workspace. This job does not compile and does not deploy; deploy is exclusively via Stop/Start PIC-SURE. It succeeds without building when the checked-out pic-sure ref has no MCP module, and warns without building when mcp.env has not been created yet.</description>
+  <keepDependencies>false</keepDependencies>
+  <properties>
+    <hudson.model.ParametersDefinitionProperty>
+      <parameterDefinitions>
+        <hudson.model.FileParameterDefinition>
+          <name>mcp.env</name>
+        </hudson.model.FileParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>pipeline_build_id</name>
+          <defaultValue>MANUAL_RUN</defaultValue>
+          <trim>false</trim>
+        </hudson.model.StringParameterDefinition>
+      </parameterDefinitions>
+    </hudson.model.ParametersDefinitionProperty>
+  </properties>
+  <scm class="hudson.scm.NullSCM"/>
+  <canRoam>true</canRoam>
+  <disabled>false</disabled>
+  <blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding>
+  <blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding>
+  <jdk>(System)</jdk>
+  <triggers/>
+  <concurrentBuild>false</concurrentBuild>
+  <builders>
+    <hudson.tasks.Shell>
+      <command>#!/bin/bash
+set -e
+
+MAVEN_WS=&quot;/var/jenkins_home/workspace/PIC-SURE Maven Build&quot;
+CONFIG_DIR=&quot;/usr/local/docker-config/mcp&quot;
+
+if [ ! -f mcp.env ] &amp;&amp; [ ! -f &quot;$CONFIG_DIR/mcp.env&quot; ]; then
+  echo &quot;WARNING: $CONFIG_DIR/mcp.env is missing, so the pic-sure-mcp image was not built and the MCP server will not start. Run &apos;Migrate PIC-SURE Environment&apos; to create it, then rerun PIC-SURE Pipeline.&quot;
+  exit 0
+fi
+
+if [ ! -f &quot;$MAVEN_WS/build-info.txt&quot; ]; then
+  echo &quot;ERROR: no reactor artifacts found. Run &apos;PIC-SURE Maven Build&apos; first.&quot;
+  exit 2
+fi
+. &quot;$MAVEN_WS/build-info.txt&quot;
+if [ &quot;${PIPELINE_BUILD_ID:-}&quot; != &quot;$pipeline_build_id&quot; ]; then
+  echo &quot;ERROR: reactor artifacts belong to pipeline &apos;${PIPELINE_BUILD_ID:-unknown}&apos;, expected &apos;$pipeline_build_id&apos;&quot;
+  exit 2
+fi
+if [ ! -f &quot;$MAVEN_WS/services/pic-sure-mcp/pom.xml&quot; ]; then
+  echo &quot;The checked-out pic-sure ref predates the MCP module. Skipping the pic-sure-mcp image.&quot;
+  if [ -f mcp.env ]; then
+    echo &quot;The uploaded mcp.env was not installed.&quot;
+  fi
+  exit 0
+fi
+if ! ls &quot;$MAVEN_WS&quot;/services/pic-sure-mcp/target/pic-sure-mcp-*.jar &gt;/dev/null 2&gt;&amp;1; then
+  echo &quot;ERROR: the checked-out pic-sure ref has services/pic-sure-mcp but the reactor did not build it. Check that the root pom.xml lists services/pic-sure-mcp in its modules.&quot;
+  exit 2
+fi
+
+if [ -f mcp.env ]; then
+    echo &quot;A new mcp.env was loaded.&quot;
+    mkdir -p &quot;$CONFIG_DIR&quot;
+    cp mcp.env &quot;$CONFIG_DIR/mcp.env&quot;
+else
+    echo &quot;Using existing mcp.env&quot;
+fi
+
+docker build -t &quot;hms-dbmi/pic-sure-mcp:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT}&quot; \
+  &quot;$MAVEN_WS/services/pic-sure-mcp/&quot;
+docker tag &quot;hms-dbmi/pic-sure-mcp:${GIT_BRANCH_SHORT}_${GIT_COMMIT_SHORT}&quot; hms-dbmi/pic-sure-mcp:LATEST</command>
+      <configuredLocalRules/>
+    </hudson.tasks.Shell>
+  </builders>
+  <publishers/>
+  <buildWrappers>
+    <hudson.plugins.ws__cleanup.PreBuildCleanup plugin="ws-cleanup@0.46">
+      <deleteDirs>false</deleteDirs>
+      <cleanupParameter></cleanupParameter>
+      <externalDelete></externalDelete>
+      <disableDeferredWipeout>false</disableDeferredWipeout>
+    </hudson.plugins.ws__cleanup.PreBuildCleanup>
+  </buildWrappers>
+</project>

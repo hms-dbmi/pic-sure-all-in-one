@@ -78,3 +78,4 @@ fi
 if $INCLUDE_QUERY; then
   stop_and_remove_container pic-sure-hpds-query-service
 fi
+stop_and_remove_container pic-sure-mcp

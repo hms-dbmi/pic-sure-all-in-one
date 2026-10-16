@@ -3,8 +3,7 @@
     {
             "id" : "default",
             "name" : "Default_Resource",
-            "basePath" : "/picsure",
-            "findPath" : "/PIC-SURE/search"
+            "basePath" : "/picsure"
         }
   ],
   "queryExportType":"EXPORT_ASYNC",

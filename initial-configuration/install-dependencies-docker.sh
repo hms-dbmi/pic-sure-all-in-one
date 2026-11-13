@@ -252,7 +252,7 @@ echo $RESOURCE_ID_HEX > $DOCKER_CONFIG_DIR/RESOURCE_ID_HEX
 mkdir -p $DOCKER_CONFIG_DIR/logging
 mkdir -p $DOCKER_CONFIG_DIR/log/logging-docker-logs
 
-# Render secrets shared by the gateway, operations, query, and logging services.
+# Render secrets shared by the gateway, operations, query, logging, and MCP services.
 # The renderer preserves already-rendered values and never prints them.
 ./configure-service-envs.sh
 

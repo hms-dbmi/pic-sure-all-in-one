@@ -190,6 +190,10 @@ sudo ./install-dependencies-docker.sh /path/to/desired/config/dir/
 
     - `ANALYTICS_ID`: This is the Google Analytics ID for your project. If you do not have one, you can leave this blank.
 
+    - `PUBLIC_URL`: The public URL of this site, scheme and host only, such as `https://picsure.example.org`.
+      The AI Assistant tab and the adapter code the MCP server generates send users to it. Keep the default,
+      `https://localhost`, for a stack used on the same machine. See [The MCP server](#the-mcp-server).
+
 Note: Ensure none of these fields contain leading or trailing whitespace, the values must be exact. Once you have
 entered the information,
 
@@ -350,6 +354,68 @@ writes the operations service defaults so the settings are explicit. The summary
 says which of the three happened for each key without printing the values. If the
 job reports the connection as missing or unresolved, set both keys in
 `operations/operations.env` and rerun.
+
+### The MCP server
+
+The `pic-sure-mcp` container is part of the stack. It lets an MCP client such as Claude Code
+search the data dictionary and get obfuscated open-access counts through the `/picsure/mcp`
+route, and the API page shows an "AI Assistant" tab with the connection steps. **Start
+PIC-SURE** runs the container when `$DOCKER_CONFIG_DIR/mcp/mcp.env` exists and the image has
+been built. **PIC-SURE MCP Build and Deploy** warns without building when that file is
+missing, and succeeds without building when the build spec's `PSA` ref predates the MCP module.
+
+The server needs the site's public URL twice: the AI Assistant tab prints it in the connection
+steps (`VITE_MCP_URL` in `httpd/httpd.env`), and the Python, R, and bash code the server
+generates sends the user's PIC-SURE token to it (`MCP_ADAPTER_BASE_URL` in `mcp/mcp.env`). Both
+hold the scheme and host alone, no path, such as `https://picsure.example.org`. The default,
+`https://localhost`, is right only for a stack used on the same machine.
+
+A new install needs nothing beyond the **Initial Configuration Pipeline**. Its `PUBLIC_URL`
+parameter fills both values, it writes `VITE_MCP_CONNECT=true` into `httpd/httpd.env`, and
+its migration and build stages add the access rule and build the image.
+
+An existing deployment, after updating Jenkins:
+
+1. Run **Migrate PIC-SURE Environment**. It creates `mcp/mcp.env` from the template when the
+   file does not exist, adds `MCP_SERVICE_URL` and `MCP_SERVICE_TOKEN` to
+   `gateway/gateway.env`, and seeds `httpd/httpd.env` with `VITE_MCP_CONNECT=true` (only
+   when the key is absent) and `VITE_MCP_URL` derived from `MCP_ADAPTER_BASE_URL`. The
+   gateway and `pic-sure-mcp` must share the same `MCP_SERVICE_TOKEN`. When an existing
+   `mcp/mcp.env` lacks the token, the job adds the value from `gateway.env`. When the two
+   files hold different tokens, the job stops: copy one value into the other file and rerun.
+   The job also stops when an existing `mcp/mcp.env` lacks `PICSURE_GATEWAY_URL` or
+   `MCP_ADAPTER_BASE_URL`, or still holds a `__NAME__` placeholder; set the value and rerun.
+   The job sets `GATEWAY_OPEN_ACCESS_ENABLED` in `gateway/gateway.env` to match
+   `psama/psama.env`. It rebuilds `gateway.env` from the template, after saving a
+   timestamped backup beside it, when the file holds an unrendered `__NAME__` placeholder or
+   one of its required keys has no value.
+2. Unless the stack is used on the same machine, set `MCP_ADAPTER_BASE_URL` in `mcp/mcp.env`
+   to the site's public URL and run **Migrate PIC-SURE Environment** again. The second run
+   points `VITE_MCP_URL` at the new value.
+3. Run **PIC-SURE Database Migrations** with a migration set that adds the `PIC_SURE_MCP`
+   privilege and its `AR_MCP_REQUESTS` access rule, such as the `Baseline` release that
+   includes `V9__ADD_MCP_ACCESS_RULE.sql`. PSAMA denies every `/mcp` request until that
+   migration runs. The `Baseline` migration grants `PIC_SURE_MCP` to the
+   `MANUAL_ROLE_OPEN_ACCESS`, `PIC-SURE User`, `Admin`, and `PIC-SURE Top Admin` roles. Grant
+   it to any other role that should reach MCP.
+4. Run **PIC-SURE Pipeline**. It builds the image, rebuilds the frontend with the new
+   `httpd.env` keys, and restarts the stack.
+
+To hide the AI Assistant tab, set `VITE_MCP_CONNECT=false` in `httpd/httpd.env` and run
+**PIC-SURE Pipeline**; the migration job leaves that value alone. To keep a role off MCP,
+remove `PIC_SURE_MCP` from that role, then run **Stop PIC-SURE** and **Start PIC-SURE** (or
+`docker restart psama` on the host), because PSAMA caches each user's access rules. Removing
+it from every role turns MCP off for the site. Deleting `mcp/mcp.env` does not, because the
+next **Migrate PIC-SURE Environment** run creates it again.
+
+Each **Migrate PIC-SURE Environment** run that rebuilds an env file keeps the old copy beside it
+as `<file>.pre-migration.<timestamp>`. These backups contain secrets; delete the old ones once
+the stack runs cleanly.
+
+Two optional `mcp.env` keys set the adapter versions in the install commands the server
+returns: `MCP_ADAPTER_PYTHON_MIN_VERSION` (default `3.0.0`) and `MCP_ADAPTER_R_TAG`
+(default `v3.0.0`). Leave them unset until adapter releases that call the unversioned API
+paths ship, then set them to those releases. Restart the stack after any `mcp.env` change.
 
 ## Users
 

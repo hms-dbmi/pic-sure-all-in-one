@@ -45,6 +45,12 @@
           <description>This must be the project specific release control git repository that contains the git commit hashes that will be built and deployed.</description>
           <trim>true</trim>
         </hudson.model.StringParameterDefinition>
+        <hudson.model.StringParameterDefinition>
+          <name>PUBLIC_URL</name>
+          <description>Public URL of this site, scheme and host only, such as https://picsure.example.org. The AI Assistant tab on the API page and the adapter code the MCP server generates send users to this address. Keep the default for a stack used on the same machine.</description>
+          <defaultValue>https://localhost</defaultValue>
+          <trim>true</trim>
+        </hudson.model.StringParameterDefinition>
         <hudson.model.BooleanParameterDefinition>
           <name>ENABLE_OPEN_ACCESS</name>
           <description>Enable Discover using the dedicated open HPDS backend.</description>
@@ -192,6 +198,15 @@ pipeline {
             }
         }
 
+        stage(&apos;Confirm Public URL&apos;) {
+            when {
+                expression { !(env.PUBLIC_URL ==~ /https?:\/\/[^\/\s]+/) }
+            }
+            steps {
+                error(&apos;PUBLIC_URL must be the site URL alone, scheme and host with no path, such as https://picsure.example.org.&apos;)
+            }
+        }
+
         stage(&apos;Write and Validate Configuration&apos;) {
             steps {
                 script {
@@ -217,6 +232,8 @@ pipeline {
                     sh &quot;echo &apos;VITE_REQUIRE_CONSENTS=false&apos; &gt;&gt; .env&quot;
                     sh &quot;echo &apos;VITE_USE_QUERY_TEMPLATE=false&apos; &gt;&gt; .env&quot;
                     sh &quot;echo &apos;VITE_ENABLE_TOS=true&apos; &gt;&gt; .env&quot;
+                    sh &quot;echo &apos;VITE_MCP_CONNECT=true&apos; &gt;&gt; .env&quot;
+                    sh &quot;echo &apos;VITE_MCP_URL=$env.PUBLIC_URL/picsure/mcp&apos; &gt;&gt; .env&quot;
                     sh &quot;echo &apos;#Login Provider (You may add as many as you would like):&apos; &gt;&gt; .env&quot;
                     sh &quot;echo &apos;VITE_AUTH_PROVIDER_MODULE_GOOGLE=true&apos; &gt;&gt; .env&quot;
                     sh &quot;echo &apos;VITE_AUTH_PROVIDER_MODULE_GOOGLE_TYPE=AUTH0&apos; &gt;&gt; .env&quot;
@@ -227,6 +244,7 @@ pipeline {
                     sh &quot;echo &apos;VITE_GOOGLE_ANALYTICS_ID=&apos; &gt;&gt; .env&quot;
                     sh &quot;echo &apos;VITE_GOOGLE_TAG_MANAGER_ID=&apos; &gt;&gt; .env&quot;
                     sh &quot;mv .env &apos;/usr/local/docker-config/httpd/httpd.env&apos;&quot;
+                    sh &quot;sed -i &apos;s|^MCP_ADAPTER_BASE_URL=.*|MCP_ADAPTER_BASE_URL=$env.PUBLIC_URL|&apos; /usr/local/docker-config/mcp/mcp.env&quot;
 
                     def result = build job: &apos;Enable Explore Without Login&apos;, parameters: [
                         [$class: &apos;BooleanParameterValue&apos;, name: &apos;ENABLE_EXPLORE_WITHOUT_LOGIN&apos;, value: env.ENABLE_EXPLORE_WITHOUT_LOGIN.toBoolean()],

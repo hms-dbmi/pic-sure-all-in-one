@@ -34,6 +34,7 @@ MAVEN_WS=&quot;/var/jenkins_home/workspace/PIC-SURE Maven Build&quot;
 CONFIG_DIR=&quot;/usr/local/docker-config/mcp&quot;
 
 if [ ! -f mcp.env ] &amp;&amp; [ ! -f &quot;$CONFIG_DIR/mcp.env&quot; ]; then
+  docker rmi hms-dbmi/pic-sure-mcp:LATEST &gt;/dev/null 2&gt;&amp;1 || true
   echo &quot;WARNING: $CONFIG_DIR/mcp.env is missing, so the pic-sure-mcp image was not built and the MCP server will not start. Run &apos;Migrate PIC-SURE Environment&apos; to create it, then rerun PIC-SURE Pipeline.&quot;
   exit 0
 fi
@@ -48,6 +49,7 @@ if [ &quot;${PIPELINE_BUILD_ID:-}&quot; != &quot;$pipeline_build_id&quot; ]; the
   exit 2
 fi
 if [ ! -f &quot;$MAVEN_WS/services/pic-sure-mcp/pom.xml&quot; ]; then
+  docker rmi hms-dbmi/pic-sure-mcp:LATEST &gt;/dev/null 2&gt;&amp;1 || true
   echo &quot;The checked-out pic-sure ref predates the MCP module. Skipping the pic-sure-mcp image.&quot;
   if [ -f mcp.env ]; then
     echo &quot;The uploaded mcp.env was not installed.&quot;

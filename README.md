@@ -339,10 +339,17 @@ WildFly deployment. For an existing Docker all-in-one installation:
 
 The environment migration is idempotent and is safe to rerun after a partial
 failure. It does not stop WildFly or archive the legacy configuration directory.
-Rerun it after updating an environment that has already been migrated. It adds
-settings introduced since the last run and leaves values that are already set
-alone. The **PIC-SURE Pipeline** also adds the `DICTIONARY_URL` that HPDS needs
-for PFB exports when `hpds/hpds.env` does not define it.
+
+An environment that was migrated before `PICSURE_INTERNAL_TOKEN` existed must run
+**Migrate PIC-SURE Environment** again before its next **PIC-SURE Pipeline** run.
+The job adds `DICTIONARY_URL` to `hpds/hpds.env` when it is missing and writes one
+shared `PICSURE_INTERNAL_TOKEN` to the hpds, dictionary, query and visualization
+env files. Values that are already set are kept, and the job fails if two files
+hold different tokens. Without this run the pipeline stops at its **Check Service
+Environment** stage, before anything is built, and names the env file that lacks
+the token. The pipeline adds a missing `DICTIONARY_URL` itself, but it never
+generates the token.
+
 Do not run **Initial Configuration Pipeline** as an upgrade procedure for an
 existing deployment.
 

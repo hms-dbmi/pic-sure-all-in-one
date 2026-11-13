@@ -26,7 +26,7 @@ real_value() {
   local key=$2
   local value
 
-  value=$(sed -n "s/^${key}=//p" "$file" 2>/dev/null | head -n 1)
+  value=$(sed -n "s/^${key}=//p" "$file" 2>/dev/null | tail -n 1 | tr -d '\r')
   [ -n "$value" ] || return 1
   is_placeholder "$value" && return 1
   printf '%s\n' "$value"
@@ -311,6 +311,7 @@ install_env() {
     -e "s|__QUERY_SERVICE_INTERNAL_TOKEN__|$QUERY_SERVICE_INTERNAL_TOKEN|g" \
     -e "s|__PICSURE_MYSQL_PASSWORD__|$PICSURE_MYSQL_PASSWORD|g" \
     -e "s|__AGGREGATE_OBFUSCATION_SALT__|$AGGREGATE_OBFUSCATION_SALT|g" \
+    -e '/^PICSURE_INTERNAL_TOKEN=__PICSURE_INTERNAL_TOKEN__$/d' \
     "$template" > "$temp_file"
   replace_file "$temp_file" "$destination"
   complete_env "$destination" "$@" || fail "$subdirectory/$filename is incomplete after migration"
@@ -498,6 +499,46 @@ migrate_hpds_dictionary_url() {
   fi
 }
 
+migrate_internal_token() {
+  local relative_path
+  local env_file
+  local token
+  local present=""
+
+  for relative_path in \
+    hpds/hpds.env \
+    dictionary/dictionary.env \
+    query/query.env \
+    visualization/visualization.env; do
+    if [ -f "$DOCKER_CONFIG_DIR/$relative_path" ]; then
+      present="$present $relative_path"
+    fi
+  done
+
+  if [ -z "$present" ]; then
+    note "PICSURE_INTERNAL_TOKEN: no hpds, dictionary, query or visualization env file present; skipped"
+    return 0
+  fi
+
+  token=$(shared_value PICSURE_INTERNAL_TOKEN \
+    "$DOCKER_CONFIG_DIR/hpds/hpds.env" \
+    "$DOCKER_CONFIG_DIR/dictionary/dictionary.env" \
+    "$DOCKER_CONFIG_DIR/query/query.env" \
+    "$DOCKER_CONFIG_DIR/visualization/visualization.env")
+  if [ -z "$token" ]; then
+    token=$(openssl rand -hex 32)
+    note "PICSURE_INTERNAL_TOKEN: generated"
+  else
+    note "PICSURE_INTERNAL_TOKEN: reused from existing env files"
+  fi
+
+  for relative_path in $present; do
+    env_file="$DOCKER_CONFIG_DIR/$relative_path"
+    upsert_env PICSURE_INTERNAL_TOKEN "$token" "$env_file"
+    note "$relative_path: internal token synchronized"
+  done
+}
+
 migrate_httpd_routes() {
   local httpd_dir="$DOCKER_CONFIG_DIR/httpd"
   local config_file
@@ -565,6 +606,7 @@ migrate_actuator_exposure
 migrate_hpds_dictionary_url
 migrate_httpd_routes
 migrate_email_templates
+migrate_internal_token
 
 echo ""
 echo "================ migration summary ================"

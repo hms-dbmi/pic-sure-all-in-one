@@ -44,6 +44,38 @@ pipeline {
                 }
             }
         }
+        stage(&apos;Check Service Environment&apos;) {
+            when { expression { return build_hashes[&apos;PSA&apos;] } }
+            steps {
+                sh &apos;&apos;&apos;
+                    set +x
+                    HPDS_ENV=/usr/local/docker-config/hpds/hpds.env
+                    QUERY_ENV=/usr/local/docker-config/query/query.env
+                    internal_token() {
+                        sed -n &apos;s/^PICSURE_INTERNAL_TOKEN=//p&apos; &quot;$1&quot; 2&gt;/dev/null | tail -n 1 | tr -d &apos;\\r&apos;
+                    }
+                    HPDS_TOKEN=$(internal_token &quot;$HPDS_ENV&quot;)
+                    QUERY_TOKEN=$(internal_token &quot;$QUERY_ENV&quot;)
+                    case &quot;$HPDS_TOKEN&quot; in
+                        &quot;&quot;|__*__)
+                            echo &quot;ERROR: PICSURE_INTERNAL_TOKEN is not set in $HPDS_ENV. Run &apos;Migrate PIC-SURE Environment&apos;, then rerun this pipeline.&quot;
+                            exit 2
+                            ;;
+                    esac
+                    case &quot;$QUERY_TOKEN&quot; in
+                        &quot;&quot;|__*__)
+                            echo &quot;ERROR: PICSURE_INTERNAL_TOKEN is not set in $QUERY_ENV. Run &apos;Migrate PIC-SURE Environment&apos;, then rerun this pipeline.&quot;
+                            exit 2
+                            ;;
+                    esac
+                    if [ &quot;$HPDS_TOKEN&quot; != &quot;$QUERY_TOKEN&quot; ]; then
+                        echo &quot;ERROR: PICSURE_INTERNAL_TOKEN differs between $HPDS_ENV and $QUERY_ENV. Set the same value in both, run &apos;Migrate PIC-SURE Environment&apos;, then rerun this pipeline.&quot;
+                        exit 2
+                    fi
+                    echo &apos;PICSURE_INTERNAL_TOKEN is set and matches in hpds.env and query.env.&apos;
+                &apos;&apos;&apos;
+            }
+        }
         stage(&apos;Maven Build&apos;) {
             when { expression { return build_hashes[&apos;PSA&apos;] } }
             steps {
@@ -101,6 +133,24 @@ pipeline {
                                     echo &apos;visualization.env already exists; leaving existing config untouched.&apos;
                                 fi
                             &quot;&quot;&quot;
+                            sh &apos;&apos;&apos;
+                                set +x
+                                QUERY_ENV=/usr/local/docker-config/query/query.env
+                                VISUALIZATION_ENV=/usr/local/docker-config/visualization/visualization.env
+                                INTERNAL_TOKEN=$(sed -n &apos;s/^PICSURE_INTERNAL_TOKEN=//p&apos; &quot;$QUERY_ENV&quot; 2&gt;/dev/null | tail -n 1 | tr -d &apos;\\r&apos;)
+                                case &quot;$INTERNAL_TOKEN&quot; in
+                                    &quot;&quot;|__*__)
+                                        echo &quot;ERROR: PICSURE_INTERNAL_TOKEN is not set in $QUERY_ENV. Run &apos;Migrate PIC-SURE Environment&apos;, then rerun this pipeline.&quot;
+                                        exit 2
+                                        ;;
+                                esac
+                                OTHER_SETTINGS=$(grep -v &apos;^PICSURE_INTERNAL_TOKEN=&apos; &quot;$VISUALIZATION_ENV&quot; || true)
+                                {
+                                    [ -z &quot;$OTHER_SETTINGS&quot; ] || printf &apos;%s\\n&apos; &quot;$OTHER_SETTINGS&quot;
+                                    printf &apos;PICSURE_INTERNAL_TOKEN=%s\\n&apos; &quot;$INTERNAL_TOKEN&quot;
+                                } &gt; &quot;$VISUALIZATION_ENV&quot;
+                                echo &apos;visualization.env internal token matches query.env.&apos;
+                            &apos;&apos;&apos;
                             build job: &apos;PIC-SURE Visualization Build and Deploy&apos;, parameters: [
                                 [$class: &apos;StringParameterValue&apos;, name: &apos;pipeline_build_id&apos;, value: pipelineBuildId]
                             ]

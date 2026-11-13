@@ -30,6 +30,7 @@
   <builders>
     <hudson.tasks.Shell>
       <command>#!/bin/bash
+trap &apos;rm -f .env&apos; EXIT
 cp /usr/local/docker-config/dictionary/dictionary.env .env
 
 docker stop dictionaryetl || true

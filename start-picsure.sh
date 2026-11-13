@@ -36,6 +36,8 @@ echo "INCLUDE_OPERATIONS=$INCLUDE_OPERATIONS"
 echo "INCLUDE_QUERY=$INCLUDE_QUERY"
 [[ -f "$CURRENT_FS_DOCKER_CONFIG_DIR/mcp/mcp.env" ]] && INCLUDE_MCP=true || INCLUDE_MCP=false
 echo "INCLUDE_MCP=$INCLUDE_MCP"
+[[ -f "$CURRENT_FS_DOCKER_CONFIG_DIR/ai-service/ai-service.env" ]] && INCLUDE_AISERVICE=true || INCLUDE_AISERVICE=false
+echo "INCLUDE_AISERVICE=$INCLUDE_AISERVICE"
 
 # Docker Volumes
 export PICSURE_BANNER_VOLUME="-v $DOCKER_CONFIG_DIR/httpd/banner_config.json:/usr/local/apache2/htdocs/picsureui/settings/banner_config.json"
@@ -222,5 +224,16 @@ elif $INCLUDE_MCP; then
     --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/mcp/mcp.env \
     $LOGGING_ENVS \
     -d hms-dbmi/pic-sure-mcp:LATEST \
+    || exit 2
+fi
+
+if $INCLUDE_AISERVICE && ! docker image inspect hms-dbmi/pic-sure-ai-service:LATEST >/dev/null 2>&1; then
+  echo "AI service is configured but the hms-dbmi/pic-sure-ai-service:LATEST image has not been built; pic-sure-ai-service not started. Running PIC-SURE Pipeline builds the image"
+elif $INCLUDE_AISERVICE; then
+  docker stop pic-sure-ai-service && docker rm pic-sure-ai-service
+  docker run --name=pic-sure-ai-service --restart always --network=picsure \
+    --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/ai-service/ai-service.env \
+    $LOGGING_ENVS \
+    -d hms-dbmi/pic-sure-ai-service:LATEST \
     || exit 2
 fi

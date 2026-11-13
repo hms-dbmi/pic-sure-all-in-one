@@ -396,8 +396,11 @@ An existing deployment, after updating Jenkins:
    privilege and its `AR_MCP_REQUESTS` access rule, such as the `Baseline` release that
    includes `V9__ADD_MCP_ACCESS_RULE.sql`. PSAMA denies every `/mcp` request until that
    migration runs. The `Baseline` migration grants `PIC_SURE_MCP` to the
-   `MANUAL_ROLE_OPEN_ACCESS`, `PIC-SURE User`, `Admin`, and `PIC-SURE Top Admin` roles. Grant
-   it to any other role that should reach MCP.
+   `Admin` and `PIC-SURE Top Admin` roles only, and never to the open-access role, which
+   `pic-sure-mcp` refuses anyway. Grant it to any other role that should reach MCP. The
+   assistant does not need it: `pic-sure-ai-service` reaches `/mcp` with `AI_SERVICE_TOKEN`,
+   which **Migrate PIC-SURE Environment** also generates and writes to `gateway/gateway.env`
+   and, when it exists, `ai-service/ai-service.env`.
 4. Run **PIC-SURE Pipeline**. It builds the image, rebuilds the frontend with the new
    `httpd.env` keys, and restarts the stack.
 

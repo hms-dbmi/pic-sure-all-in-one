@@ -328,6 +328,7 @@ install_env() {
     -e "s|__PICSURE_APPLICATION_TOKEN__|$PICSURE_APPLICATION_TOKEN|g" \
     -e "s|__QUERY_SERVICE_INTERNAL_TOKEN__|$QUERY_SERVICE_INTERNAL_TOKEN|g" \
     -e "s|__MCP_SERVICE_TOKEN__|$MCP_SERVICE_TOKEN|g" \
+    -e "s|__AI_SERVICE_TOKEN__|$AI_SERVICE_TOKEN|g" \
     -e "s|__PICSURE_MYSQL_PASSWORD__|$PICSURE_MYSQL_PASSWORD|g" \
     -e "s|__AGGREGATE_OBFUSCATION_SALT__|$AGGREGATE_OBFUSCATION_SALT|g" \
     "$template" > "$temp_file"
@@ -379,6 +380,23 @@ migrate_mcp_envs() {
   fi
 }
 
+# Keep AI_SERVICE_TOKEN in step between gateway.env and ai-service.env. The gateway
+# checks it on pic-sure-ai-service's /mcp calls; the AI service sends it. An env file
+# that exists is updated key by key so operator edits survive; ai-service.env is
+# optional, since not every site runs the assistant.
+# Expects AI_SERVICE_TOKEN to be resolved already.
+migrate_ai_service_token() {
+  local gateway_env=$1
+  local ai_env=$2
+
+  upsert_env AI_SERVICE_TOKEN "$AI_SERVICE_TOKEN" "$gateway_env"
+  note "gateway/gateway.env: AI service token synchronized"
+  if [ -f "$ai_env" ]; then
+    upsert_env AI_SERVICE_TOKEN "$AI_SERVICE_TOKEN" "$ai_env"
+    note "ai-service/ai-service.env: AI service token synchronized"
+  fi
+}
+
 # Seed the AI Assistant tab from mcp.env. VITE_MCP_URL always mirrors
 # MCP_ADAPTER_BASE_URL so the two never drift; VITE_MCP_CONNECT is added only when
 # absent so an operator's false survives. The frontend reads both at build time.
@@ -403,6 +421,7 @@ migrate_service_envs() {
   local query_env="$DOCKER_CONFIG_DIR/query/query.env"
   local logging_env="$DOCKER_CONFIG_DIR/logging/logging.env"
   local mcp_env="$DOCKER_CONFIG_DIR/mcp/mcp.env"
+  local ai_env="$DOCKER_CONFIG_DIR/ai-service/ai-service.env"
   local gateway_keys="TOKEN_INTROSPECTION_TOKEN LOGGING_API_KEY PICSURE_APPLICATION_TOKEN QUERY_SERVICE_INTERNAL_TOKEN"
   local operations_keys="SPRING_DATASOURCE_PASSWORD QUERY_SERVICE_INTERNAL_TOKEN PICSURE_APPLICATION_TOKEN LOGGING_API_KEY LOGGING_SERVICE_URL"
   local query_keys="QUERY_SERVICE_INTERNAL_TOKEN AGGREGATE_OBFUSCATION_SALT PICSURE_APPLICATION_TOKEN"
@@ -434,6 +453,15 @@ migrate_service_envs() {
     note "MCP_SERVICE_TOKEN: reused from existing env files"
   fi
   validate_substitution_value MCP_SERVICE_TOKEN "$MCP_SERVICE_TOKEN"
+
+  AI_SERVICE_TOKEN=$(shared_value AI_SERVICE_TOKEN "$gateway_env" "$ai_env")
+  if [ -z "$AI_SERVICE_TOKEN" ]; then
+    AI_SERVICE_TOKEN=$(openssl rand -hex 32)
+    note "AI_SERVICE_TOKEN: generated"
+  else
+    note "AI_SERVICE_TOKEN: reused from existing env files"
+  fi
+  validate_substitution_value AI_SERVICE_TOKEN "$AI_SERVICE_TOKEN"
 
   # shellcheck disable=SC2086
   complete_env "$gateway_env" $gateway_keys || need_install=true
@@ -524,6 +552,7 @@ migrate_service_envs() {
 
   # shellcheck disable=SC2086
   migrate_mcp_envs "$gateway_env" "$mcp_env" $mcp_keys
+  migrate_ai_service_token "$gateway_env" "$ai_env"
 
   upsert_env SPRING_DATASOURCE_URL "$SPRING_DATASOURCE_URL" "$operations_env"
   upsert_env SPRING_DATASOURCE_USERNAME "$SPRING_DATASOURCE_USERNAME" "$operations_env"

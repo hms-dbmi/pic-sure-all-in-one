@@ -485,6 +485,19 @@ migrate_actuator_exposure() {
   done
 }
 
+migrate_hpds_dictionary_url() {
+  local hpds_env="$DOCKER_CONFIG_DIR/hpds/hpds.env"
+
+  if [ ! -f "$hpds_env" ]; then
+    note "hpds/hpds.env: not present; dictionary URL migration skipped"
+  elif real_value "$hpds_env" DICTIONARY_URL >/dev/null; then
+    note "hpds/hpds.env: dictionary URL already configured"
+  else
+    upsert_env DICTIONARY_URL http://dictionary-api "$hpds_env"
+    note "hpds/hpds.env: dictionary URL added"
+  fi
+}
+
 migrate_httpd_routes() {
   local httpd_dir="$DOCKER_CONFIG_DIR/httpd"
   local config_file
@@ -549,6 +562,7 @@ migrate_email_templates() {
 migrate_legacy_options
 migrate_service_envs
 migrate_actuator_exposure
+migrate_hpds_dictionary_url
 migrate_httpd_routes
 migrate_email_templates
 

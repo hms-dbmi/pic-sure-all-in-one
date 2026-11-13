@@ -44,12 +44,31 @@
     <hudson.tasks.Shell>
       <command>cd services/picsure-dictionary
 
-# . is the same as source, but works in jenkins shell
-. /usr/local/docker-config/dictionary/dictionary.env
+case $- in
+  *x*) TRACE_WAS_ON=true ;;
+  *) TRACE_WAS_ON=false ;;
+esac
+DICTIONARY_ENV=/usr/local/docker-config/dictionary/dictionary.env
+if [ ! -r &quot;$DICTIONARY_ENV&quot; ]; then
+  echo &quot;ERROR: cannot read $DICTIONARY_ENV&quot;
+  exit 2
+fi
+set +x
+dictionary_setting() {
+  sed -n &quot;s/^$1=//p&quot; &quot;$DICTIONARY_ENV&quot; | tail -n 1 | tr -d &apos;\r&apos;
+}
+POSTGRES_HOST=$(dictionary_setting POSTGRES_HOST)
+POSTGRES_DB=$(dictionary_setting POSTGRES_DB)
+POSTGRES_USER=$(dictionary_setting POSTGRES_USER)
+POSTGRES_PASSWORD=$(dictionary_setting POSTGRES_PASSWORD)
 rm -f db/flyway/flyway.conf
 echo &quot;flyway.url=jdbc:postgresql://$POSTGRES_HOST:5432/$POSTGRES_DB&quot; &gt;&gt; db/flyway/flyway.conf
 echo &quot;flyway.user=$POSTGRES_USER&quot; &gt;&gt; db/flyway/flyway.conf
 echo &quot;flyway.password=$POSTGRES_PASSWORD&quot; &gt;&gt; db/flyway/flyway.conf
+unset POSTGRES_PASSWORD
+if $TRACE_WAS_ON; then
+  set -x
+fi
 
 mkdir -p /usr/local/docker-config/flyway/dictionary/sql/
 cp -f db/flyway/flyway.conf /usr/local/docker-config/flyway/dictionary/flyway.conf

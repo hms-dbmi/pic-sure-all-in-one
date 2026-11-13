@@ -54,7 +54,6 @@ export PROFILING_OPTS=&quot;-Dcom.sun.management.jmxremote.port=9000 -Dcom.sun.m
 
 docker stop hpds_data_load_multiple_files &amp;&amp; docker rm hpds_data_load_multiple_files
 
-cp /usr/local/docker-config/hpds/hpds.env ./hpds.env
 rm -rf /usr/local/docker-config/hpds_temp
 rm -rf /usr/local/docker-config/hpds_bak
 mkdir -p /usr/local/docker-config/hpds_temp
@@ -71,10 +70,8 @@ docker run --name=hpds_data_load_multiple_files \
 hms-dbmi/pic-sure-hpds-etl:LATEST
 
 mkdir -p /usr/local/docker-config/hpds_bak/
-find /usr/local/docker-config/hpds/ -mindepth 1 -maxdepth 1 ! -name all -exec mv {} /usr/local/docker-config/hpds_bak/ \;
-mv /usr/local/docker-config/hpds_temp/* /usr/local/docker-config/hpds/
-
-cp ./hpds.env /usr/local/docker-config/hpds/hpds.env</command>
+find /usr/local/docker-config/hpds/ -mindepth 1 -maxdepth 1 ! -name all ! -name hpds.env -exec mv {} /usr/local/docker-config/hpds_bak/ \;
+mv /usr/local/docker-config/hpds_temp/* /usr/local/docker-config/hpds/</command>
       <configuredLocalRules/>
     </hudson.tasks.Shell>
   </builders>

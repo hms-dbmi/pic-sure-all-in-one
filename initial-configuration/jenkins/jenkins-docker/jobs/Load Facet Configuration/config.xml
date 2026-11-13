@@ -25,6 +25,7 @@
       <command>#!/bin/bash
 set -euo pipefail
 
+trap &apos;rm -f .env&apos; EXIT
 cp /usr/local/docker-config/dictionary/dictionary.env .env
 
 # Resolve the facet loader configuration payload path

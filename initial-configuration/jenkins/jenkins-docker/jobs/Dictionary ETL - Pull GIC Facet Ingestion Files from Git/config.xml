@@ -52,6 +52,8 @@ docker stop dictionaryetl || true
 docker rm dictionaryetl || true
 docker build -t hms-dbmi/dictionary-etl:facet -t hms-dbmi/dictionary-etl:latest .
 
+ENV_COPY=&quot;$PWD/.env&quot;
+trap &apos;rm -f &quot;$ENV_COPY&quot;&apos; EXIT
 cp /usr/local/docker-config/dictionary/dictionary.env .env
 
 docker stop dictionaryetl || true

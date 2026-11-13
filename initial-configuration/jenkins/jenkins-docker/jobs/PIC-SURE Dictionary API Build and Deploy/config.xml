@@ -69,6 +69,30 @@ else
     } &gt; &quot;$CONFIG_DIR/dictionary.env&quot;
 fi
 
+case $- in
+    *x*) TRACE_WAS_ON=true ;;
+    *) TRACE_WAS_ON=false ;;
+esac
+set +x
+HPDS_ENV=&quot;/usr/local/docker-config/hpds/hpds.env&quot;
+INTERNAL_TOKEN=$(sed -n &apos;s/^PICSURE_INTERNAL_TOKEN=//p&apos; &quot;$HPDS_ENV&quot; 2&gt;/dev/null | tail -n 1 | tr -d &apos;\r&apos;)
+case &quot;$INTERNAL_TOKEN&quot; in
+    &quot;&quot;|__*__)
+        echo &quot;ERROR: PICSURE_INTERNAL_TOKEN is not set in $HPDS_ENV. Run &apos;Migrate PIC-SURE Environment&apos;, then rerun this job.&quot;
+        exit 2
+        ;;
+esac
+OTHER_SETTINGS=$(grep -v &apos;^PICSURE_INTERNAL_TOKEN=&apos; &quot;$CONFIG_DIR/dictionary.env&quot; || true)
+{
+    [ -z &quot;$OTHER_SETTINGS&quot; ] || printf &apos;%s\n&apos; &quot;$OTHER_SETTINGS&quot;
+    printf &apos;PICSURE_INTERNAL_TOKEN=%s\n&apos; &quot;$INTERNAL_TOKEN&quot;
+} &gt; &quot;$CONFIG_DIR/dictionary.env&quot;
+unset INTERNAL_TOKEN OTHER_SETTINGS
+if $TRACE_WAS_ON; then
+    set -x
+fi
+echo &quot;dictionary.env internal token matches hpds.env.&quot;
+
 # Build/tag only (compose no longer builds). start-picsure.sh runs the
 # containers from these tags.
 docker build -t avillach/dictionary-api:latest &quot;$DICT_DIR&quot;
@@ -91,7 +115,8 @@ if ! docker ps -a --filter &quot;name=dictionary-db&quot; --format &apos;{{.Name
     # so the restart skips init and the database is never created. Wait for
     # the real server (TCP; the temporary one never listens on TCP) and fail
     # if init didn't finish. Init itself stays owned by the entrypoint.
-    . &quot;$CONFIG_DIR/dictionary.env&quot;
+    POSTGRES_USER=$(sed -n &apos;s/^POSTGRES_USER=//p&apos; &quot;$CONFIG_DIR/dictionary.env&quot; | tail -n 1 | tr -d &apos;\r&apos;)
+    POSTGRES_DB=$(sed -n &apos;s/^POSTGRES_DB=//p&apos; &quot;$CONFIG_DIR/dictionary.env&quot; | tail -n 1 | tr -d &apos;\r&apos;)
     for i in $(seq 1 60); do
         docker exec dictionary-db pg_isready -q -h 127.0.0.1 -U &quot;$POSTGRES_USER&quot; &amp;&amp; break
         if [ &quot;$i&quot; -eq 60 ]; then

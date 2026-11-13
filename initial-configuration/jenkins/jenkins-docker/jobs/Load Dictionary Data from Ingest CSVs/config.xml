@@ -55,6 +55,7 @@ docker stop dictionaryetl || true
 docker rm dictionaryetl || true
 docker build -t hms-dbmi/dictionary-etl:csvload -t hms-dbmi/dictionary-etl:latest .
 
+trap &apos;rm -f .env&apos; EXIT
 cp /usr/local/docker-config/dictionary/dictionary.env .env
 
 docker stop dictionaryetl || true

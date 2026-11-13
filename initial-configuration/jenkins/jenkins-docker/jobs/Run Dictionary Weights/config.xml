@@ -46,6 +46,7 @@ cp &quot;$WEIGHTS_DIR/weights.csv&quot; /usr/local/docker-config/dictionary/weig
 
 docker build --no-cache -t weights:latest &quot;$WEIGHTS_DIR&quot;
 
+trap &apos;rm -f .env&apos; EXIT
 cp /usr/local/docker-config/dictionary/dictionary.env .env
 
 docker run --rm -t --name dictionary-weights \

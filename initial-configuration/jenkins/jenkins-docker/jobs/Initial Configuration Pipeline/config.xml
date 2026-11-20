@@ -200,7 +200,7 @@ pipeline {
 
         stage(&apos;Confirm Public URL&apos;) {
             when {
-                expression { !(env.PUBLIC_URL ==~ /https?:\/\/[^\/\s]+/) }
+                expression { !(env.PUBLIC_URL ==~ /https:\/\/[^\/\s?#@]+|http:\/\/(localhost|127\.0\.0\.1)(:\d+)?/) }
             }
             steps {
                 error(&apos;PUBLIC_URL must be the site URL alone, scheme and host with no path, such as https://picsure.example.org.&apos;)

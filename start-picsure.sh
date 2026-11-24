@@ -69,6 +69,11 @@ docker network inspect hpds >/dev/null 2>&1 || docker network create --internal 
 
 if $INCLUDE_LOGGING; then
   docker stop pic-sure-logging && docker rm pic-sure-logging
+  LOGGING_USER=$(docker image inspect -f '{{.Config.User}}' hms-dbmi/pic-sure-logging:LATEST)
+  docker run --rm --user 0 --entrypoint chown \
+    -v $DOCKER_CONFIG_DIR/log/logging-docker-logs/:/app/logs \
+    hms-dbmi/pic-sure-logging:LATEST -R "${LOGGING_USER:-0}" /app/logs \
+    || exit 2
   docker run --name=pic-sure-logging --restart always \
     --network=picsure \
     --env-file $CURRENT_FS_DOCKER_CONFIG_DIR/logging/logging.env \
